@@ -642,11 +642,11 @@ public class Interpreter {
         }
     }
 
-    public void run(List<Token>  prog){
+    public void run(List<Token>  program){
         ArrayDeque<Value> stack=new ArrayDeque<>();
         ProgramState state=new ProgramState(0,null);
-        while(state.ip<prog.size()){
-            Token next=prog.get(state.ip);
+        while(state.ip<program.size()){
+            Token next=program.get(state.ip);
             boolean incIp=true;
             switch (next.tokenType){
                 case VALUE -> stack.addLast(((ValueToken)next).value);
