@@ -1,5 +1,5 @@
 proc
-  dup float :a float :x
+  dup float $a float :x
   while x x * a - 1E-16 > :
    a x / x + 2 / !x
   end
@@ -17,6 +17,7 @@ proc
 end int int 1 1 -> $fib
 
 2.0 sqrt () print
+3 sqrt () print
 
 0
 while dup 5 < :
@@ -24,9 +25,7 @@ while dup 5 < :
  1 +
 end drop
 
-proc
- if 0 == : false else true end
-end int bool 1 1 -> :intToBool
+proc 0 != end int bool 1 1 -> $intToBool
 
 3 intToBool () print
 0 intToBool () print

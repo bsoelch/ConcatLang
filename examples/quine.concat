@@ -1,0 +1,23 @@
+0 int :i
+"0 int :i
+* string :str
+while i str length < :
+  if str i [] int cast 0x2a == :
+    0x22 char cast print
+    str print
+    0x22 char cast print
+  else
+    str i [] print
+  end
+  i 1 + !i
+end" string :str
+while i str length < :
+  if str i [] int cast 0x2a == :
+    0x22 char cast print
+    str print
+    0x22 char cast print
+  else
+    str i [] print
+  end
+  i 1 + !i
+end

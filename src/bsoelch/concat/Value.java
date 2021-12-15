@@ -60,6 +60,9 @@ public abstract class Value {
     public Value flip() {
         throw new TypeError("Cannot invert values of type "+type);
     }
+    public int length() {
+        throw new TypeError(type+" does not have a length");
+    }
     public Value get(long index) {
         throw new TypeError("Element access not supported for type "+type);
     }
@@ -182,6 +185,40 @@ public abstract class Value {
         }
     }
 
+    public static Value ofType(Type typeValue) {
+        return new TypeValue(typeValue);
+    }
+    private static class TypeValue extends Value{
+        final Type typeValue;
+        private TypeValue(Type typeValue) {
+            super(Type.TYPE);
+            this.typeValue = typeValue;
+        }
+
+        @Override
+        public Type asType() {
+            return typeValue;
+        }
+
+        @Override
+        public String stringValue() {
+            return typeValue.toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TypeValue typeValue1 = (TypeValue) o;
+            return Objects.equals(typeValue, typeValue1.typeValue);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(typeValue);
+        }
+    }
+
     public static Value ofChar(int codePoint) {
         return new CharValue(codePoint);
     }
@@ -224,6 +261,7 @@ public abstract class Value {
             return Objects.hash(codePoint);
         }
     }
+
     public static Value ofString(String stringValue) {
         return new StringValue(stringValue);
     }
@@ -234,6 +272,10 @@ public abstract class Value {
             this.stringValue = stringValue;
         }
 
+        @Override
+        public int length() {
+            return stringValue.length();
+        }
         @Override
         public Value castTo(Type type) {
             if(type.isList()){
@@ -268,41 +310,6 @@ public abstract class Value {
             return Objects.hash(stringValue);
         }
     }
-
-    public static Value ofType(Type typeValue) {
-        return new TypeValue(typeValue);
-    }
-    private static class TypeValue extends Value{
-        final Type typeValue;
-        private TypeValue(Type typeValue) {
-            super(Type.TYPE);
-            this.typeValue = typeValue;
-        }
-
-        @Override
-        public Type asType() {
-            return typeValue;
-        }
-
-        @Override
-        public String stringValue() {
-            return typeValue.toString();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TypeValue typeValue1 = (TypeValue) o;
-            return Objects.equals(typeValue, typeValue1.typeValue);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(typeValue);
-        }
-    }
-
     public static Value createList(Type type, ArrayList<Value> elements) {
         if(type.equals(Type.STRING())){
             return ofString(elements.stream().map(Value::asChar).map(Character::toChars).map(String::valueOf).
@@ -316,6 +323,11 @@ public abstract class Value {
         private ListValue(Type type,ArrayList<Value> elements) {
             super(type);
             this.elements = elements;
+        }
+
+        @Override
+        public int length() {
+            return elements.size();
         }
 
         @Override
@@ -428,7 +440,7 @@ public abstract class Value {
                 return c < 0 ? TRUE : FALSE;
             }
             case NEGATE,PLUS,MINUS,INVERT,MULT,DIV,MOD,POW,NOT,FLIP,AND,OR,XOR,
-                    LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,AT_INDEX,NEW_LIST,LIST_OF,CAST,TYPE_OF,CALL,TO ->
+                    LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,AT_INDEX,NEW_LIST,LIST_OF,LENGTH,CAST,TYPE_OF,CALL,TO ->
                     throw new SyntaxError(opType +" is no valid comparison operator");
         }
         throw new RuntimeException("unreachable");
@@ -465,7 +477,7 @@ public abstract class Value {
                 return floatOp.apply((((FloatValue) a).floatValue),((FloatValue) b).floatValue);
             }
         }
-        throw new SyntaxError("invalid parameters for math Op:"+a.type+" "+b.type);
+        throw new SyntaxError("invalid parameters for math operator:"+a.type+" "+b.type);
     }
     public static Value logicOp(Value a, Value b, BinaryOperator<Boolean> boolOp,BinaryOperator<Long> intOp) {
         if(a.type==Type.BOOL&&b.type==Type.BOOL){
@@ -478,6 +490,6 @@ public abstract class Value {
         if(a instanceof IntValue&&b instanceof IntValue){
                 return ofInt(intOp.apply(((IntValue) a).intValue, ((IntValue) b).intValue));
         }
-        throw new UnsupportedOperationException("unimplemented");
+        throw new SyntaxError("invalid parameters for int operator:"+a.type+" "+b.type);
     }
 }

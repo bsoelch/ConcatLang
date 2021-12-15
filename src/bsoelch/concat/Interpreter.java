@@ -14,7 +14,7 @@ public class Interpreter {
         DUP,DROP,SWAP,
         //jump commands only for internal representation
         JEQ,JNE,JMP,
-        PRINT
+        PRINT,PRINTLN
     }
 
     record TokenPosition(long line, int posInLine) {
@@ -159,6 +159,7 @@ public class Interpreter {
         currentPos=new TokenPosition(line, posInLine);
     }
 
+    //TODO? fold constants
     //addLater better error feedback
     public ArrayList<Token>  parse() throws IOException {
         ArrayList<Token> tokenBuffer=new ArrayList<>();
@@ -407,7 +408,7 @@ public class Interpreter {
                             tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,tokens.size()));
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,START,END,ELSE,DO,
-                                PROCEDURE,RETURN, PROCEDURE_START,DUP,DROP,SWAP,JEQ,JNE,JMP,PRINT
+                                PROCEDURE,RETURN, PROCEDURE_START,DUP,DROP,SWAP,JEQ,JNE,JMP,PRINT,PRINTLN
                                 -> throw new RuntimeException("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':' at" +label.getValue().pos);
                     }
@@ -479,6 +480,7 @@ public class Interpreter {
             case "[]" -> tokens.add(new OperatorToken(OperatorType.AT_INDEX,currentPos()));
             //<e0> ... <eN> <N> {}
             case "{}" -> tokens.add(new OperatorToken(OperatorType.NEW_LIST,currentPos()));
+            case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,currentPos()));
 
             default ->{
                 if(str.charAt(0) == '!') {
@@ -768,6 +770,10 @@ public class Interpreter {
                             Value val  = pop(stack);
                             stack.addLast(Value.ofType(val.type));
                         }
+                        case LENGTH -> {
+                            Value val  = pop(stack);
+                            stack.addLast(Value.ofInt(val.length()));
+                        }
                         case TO -> {
                             int outCount = (int)pop(stack).asLong();
                             int inCount = (int)pop(stack).asLong();
@@ -788,7 +794,8 @@ public class Interpreter {
                         }
                     }
                 }
-                case PRINT -> System.out.println(pop(stack).stringValue());
+                case PRINT -> System.out.print(pop(stack).stringValue());
+                case PRINTLN -> System.out.println(pop(stack).stringValue());
                 case DECLARE,CONST_DECLARE -> {
                     Value type=pop(stack);
                     Value value=pop(stack);
@@ -885,7 +892,7 @@ public class Interpreter {
     }
 
     public static void main(String[] args) throws IOException {
-        Interpreter ip = new Interpreter(new BufferedReader(new FileReader("./test.concat")));
+        Interpreter ip = new Interpreter(new BufferedReader(new FileReader("./examples/test.concat")));
         ArrayList<Token>  prog= ip.parse();
         for(Token t:prog){
             System.out.println(t);
