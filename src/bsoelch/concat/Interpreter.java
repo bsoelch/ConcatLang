@@ -605,14 +605,48 @@ public class Interpreter {
             value=newValue.castTo(type);
         }
     }
+    static class ProgramState{
+        final HashMap<String,Variable> variables=new HashMap<>();
+        final ProgramState parent;
+        int ip;
+
+        ProgramState(int ip,ProgramState parent) {
+            this.parent = parent;
+            this.ip=ip;
+        }
+
+        /**@return  the variable with the name or null if no variable with the given name exists*/
+        Variable getVariable(String name){
+            Variable var=variables.get(name);
+            if(var==null&&parent!=null){
+                return parent.getVariable(name);
+            }
+            return var;
+        }
+
+        public ProgramState getParent() {
+            return parent;
+        }
+
+        /**declares a new Variable with the given name,type and value*/
+        public void declareVariable(String name, Type type, boolean isConst, Value value,TokenPosition pos) {
+            Variable prev = getVariable(name);
+            if(prev!=null) {
+                if (prev.isConst){
+                    throw new SyntaxError("const variable " + name + " is overwritten " + pos);
+                }else if (isConst){
+                    throw new SyntaxError("const variable " + name + " is overwrites existing variable " + pos);
+                }
+            }
+            variables.put(name,new Variable(type, isConst, value));
+        }
+    }
 
     public void run(List<Token>  prog){
-        int ip=0;//instruction pointer
         ArrayDeque<Value> stack=new ArrayDeque<>();
-        ArrayDeque<Integer> callStack=new ArrayDeque<>();//addLater allow local variables in procedures
-        HashMap<String,Variable> variables=new HashMap<>();
-        while(ip<prog.size()){
-            Token next=prog.get(ip);
+        ProgramState state=new ProgramState(0,null);
+        while(state.ip<prog.size()){
+            Token next=prog.get(state.ip);
             boolean incIp=true;
             switch (next.tokenType){
                 case VALUE -> stack.addLast(((ValueToken)next).value);
@@ -749,8 +783,7 @@ public class Interpreter {
                         }
                         case CALL -> {
                             Value procedure = pop(stack);
-                            callStack.addLast(ip+1);
-                            ip=procedure.asProcedure();
+                            state=new ProgramState(procedure.asProcedure(),state);
                             incIp=false;
                         }
                     }
@@ -759,21 +792,18 @@ public class Interpreter {
                 case DECLARE,CONST_DECLARE -> {
                     Value type=pop(stack);
                     Value value=pop(stack);
-                    Variable prev = variables.put(((NamedToken)next).value,new Variable(type.asType(),
-                            next.tokenType==TokenType.CONST_DECLARE, value));
-                    if(prev!=null&&prev.isConst){
-                        throw new SyntaxError("const variable "+((NamedToken) next).value+" is overwritten "+next.pos);
-                    }
+                    state.declareVariable(((NamedToken)next).value,type.asType(),
+                            next.tokenType==TokenType.CONST_DECLARE, value,next.pos);
                 }
                 case NAME -> {
-                    Variable var=variables.get(((NamedToken)next).value);
+                    Variable var=state.getVariable(((NamedToken)next).value);
                     if(var==null){
                         throw new SyntaxError("Variable "+((NamedToken)next).value+" does not exist "+next.pos);
                     }
                     stack.addLast(var.getValue());
                 }
                 case WRITE_TO -> {
-                    Variable var=variables.get(((NamedToken)next).value);
+                    Variable var=state.getVariable(((NamedToken)next).value);
                     if(var==null){
                         throw new SyntaxError("Variable "+((NamedToken)next).value+" does not exist "+next.pos);
                     }else if(var.isConst){
@@ -786,15 +816,13 @@ public class Interpreter {
                 }
                 case START,ELSE, PROCEDURE -> throw new RuntimeException("Tokens of type "+next.tokenType+" should be eliminated at compile time");
                 case RETURN -> {
-                    Integer ret=callStack.pollLast();
-                    if(ret==null){
+                    state=state.getParent();
+                    if(state==null){
                         throw new SyntaxError("call-stack underflow");
                     }
-                    ip=ret;
-                    incIp=false;
                 }
                 case PROCEDURE_START -> {
-                    ip=((ProcedureStart)next).end;
+                    state.ip=((ProcedureStart)next).end;
                     incIp=false;
                 }
                 case DUP -> {
@@ -814,24 +842,24 @@ public class Interpreter {
                 case JEQ -> {
                     Value c=pop(stack);
                     if(c.asBool()){
-                        ip=((JumpToken)next).address;
+                        state.ip=((JumpToken)next).address;
                         incIp=false;
                     }
                 }
                 case JNE -> {
                     Value c=pop(stack);
                     if(!c.asBool()){
-                        ip=((JumpToken)next).address;
+                        state.ip=((JumpToken)next).address;
                         incIp=false;
                     }
                 }
                 case JMP -> {
-                    ip=((JumpToken)next).address;
+                    state.ip=((JumpToken)next).address;
                     incIp=false;
                 }
             }
             if(incIp){
-                ip++;
+                state.ip++;
             }
         }
     }
