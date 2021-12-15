@@ -23,7 +23,7 @@ proc
  end
 end int int 1 1 -> $fib
 
-#_ print 10th fibonacci Number: _#
+#_ print 10th Fibonacci Number: _#
 10 fib () print
 ```
 
@@ -47,7 +47,7 @@ on the stack, the natively supported value types are
 - strings (char list)
 
 Examples: 
-```
+```C++
 true false
 1 -0b10
 1.0E10 0x1P-1 
@@ -80,7 +80,7 @@ i.e 1 1 + evaluated to 2
 - `**` power `a b **` evaluates to `pow(a,b)`
 
 Examples:
-```Python
+```C++
 1 2 + 3 * 4.0 5 / -
 6 -_ 7 % 
 8 9 **
@@ -101,7 +101,7 @@ on the stack
 - `.<<` arithmetic left-shift
 
 Examples:
-```Python
+```C++
 false ! false xor true & false |
 1 ~ 7 &
 1 2 <<
@@ -121,14 +121,14 @@ comparison either needs two strings, two chars or
 two values of type int or float
 
 Examples:
-```Python
+```C++
 int int == print
 1 2.0 > print
 "Hello" "World" <= print
 'A' 'a' > print
 ```
 prints 
-```Python
+```C++
 true
 false
 true
@@ -148,7 +148,7 @@ type `type` and pushes the result
 - `()` call a procedure
 
 Examples:
-```Python
+```C++
 1 typeof print
 3.1 int cast print
 int list list drop ## list of list of ints
@@ -158,7 +158,7 @@ int int 1 1 -> drop ## procedure-type: in:[int] out:[int]
 4 fib () #_ call procedure fib with argument 4 _#
 ```
 prints 
-```
+```C++
 int
 3
 [1.0, 2.0, 3.0]
