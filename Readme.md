@@ -261,6 +261,8 @@ a println #_ print the value of a _#
 on the call-stack are accessible
 - Variables declared in procedures will be invalidated 
 once that procedure returns.
+- Variable accessibility is determined at call-time 
+not at declaration time
 - Variables in Procedures may shadow global variables
 - constants cannot overwrite/shadow existing variables
 - constants cannot be shadowed by local variables
@@ -274,6 +276,7 @@ end 0 0 -> $proc1
 
 proc 
 1 int :local2
+2 !local1
 proc3 ()
 end 0 0 -> $proc2
 
@@ -283,9 +286,9 @@ end 0 0 -> $proc3
 
 proc1 ()
 ```
-prints `2`
+works fine and prints `3`
 
-while
+But
 ```Rust
 proc 
 1 int :local1
@@ -295,7 +298,7 @@ end
 end 0 0 -> 0 1 -> $proc1
 proc1 () ()
 ```
-crashes since local1 is not accessible when calling 
+crashes since `local1` is not accessible when calling 
 the returned procedure
 
 ### Stack Manipulation
