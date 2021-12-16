@@ -14,12 +14,12 @@ Hello World:
 Recursive Fibonacci Numbers:
 ```Python
 proc
- if dup 1 < : 
-   drop 0
- elif dup 1 == : 
-   drop 1
- else
+ if dup 1 > :
    dup 1 - fib () swap 2 - fib () +
+ elif 1 == :
+   1
+ else
+   0
  end
 end int int 1 1 -> $fib
 
@@ -28,6 +28,9 @@ end int int 1 1 -> $fib
 ```
 
 ## Syntax
+The code is a sequence of instructions 
+separated by whitespaces.
+
 All Operations in this programming language
 interact with the global evaluation stack by
 pulling a given number of values, preforming 
@@ -165,14 +168,135 @@ int
 2.0
 ```
 
-### Variables
-!!! TODO !!!
-
 ### Control Flow
-!!! TODO !!!
+
+#### If-Statements
+If statements start with
+
+```Python
+if <condition> :
+ <body>
+```
+
+followed by zero or more elif-sections
+
+```Python
+elif <condition> :
+ <body>
+```
+
+and an optional else-block
+
+```Python
+else 
+ <body>
+```
+
+they end with
+
+```Julia
+end
+```
+
+Examples:
+```Julia
+if a b > : a else b end
+
+if a ! :
+ "not a" println
+end
+
+if dup 0 == : drop
+ "zero"
+elif dup 1 == : drop
+ "one"
+elif 2 == :
+ "two"
+else 
+ "may"
+end 
+
+println
+```
+
+#### while-loops
+While loops have the syntax
+```Julia
+while <condition> :
+ <body>
+end
+```
+
+do-while loops have the syntax
+
+```Julia
+do 
+  <body> 
+while  <condition> end
+```
 
 ### Procedures
 !!!TODO!!!
+
+### Variables
+All commands that are not reserved names or values
+are interpreted as variables.
+
+- `<varName>` pushes the value of a variable on the stack
+- `!<varName>` writes the top element of the stack
+  in the given variable
+- `:<varName>` declares a new variable
+- `$<varName>` declares a new constant
+
+Examples:
+```Python
+1 int :a #_ declare a as integer with value 1 _#
+42 !a #_ store 42 in a _#
+a println #_ print the value of a _#
+3.14 float :a #_ redeclare a as float _#
+2.718281828 float $e #_ declare a constant with the name e_#
+```
+#### Scopes
+- At a given point all variables of procedures 
+on the call-stack are accessible
+- Variables declared in procedures will be invalidated 
+once that procedure returns.
+- Variables in Procedures may shadow global variables
+- constants cannot overwrite/shadow existing variables
+- constants cannot be shadowed by local variables
+
+Examples:
+```Rust
+proc 
+1 int :local1
+proc2 ()
+end 0 0 -> $proc1
+
+proc 
+1 int :local2
+proc3 ()
+end 0 0 -> $proc2
+
+proc 
+local1 local2 + print
+end 0 0 -> $proc3
+
+proc1 ()
+```
+prints `2`
+
+while
+```Rust
+proc 
+1 int :local1
+proc
+local1
+end
+end 0 0 -> 0 1 -> $proc1
+proc1 () ()
+```
+crashes since local1 is not accessible when calling 
+the returned procedure
 
 ### Stack Manipulation
 These Operations directly manipulate the stack without
