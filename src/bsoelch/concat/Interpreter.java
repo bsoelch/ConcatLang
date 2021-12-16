@@ -12,9 +12,9 @@ public class Interpreter {
     enum TokenType {
         VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,IF,START,ELIF,ELSE,DO,WHILE,END, PROCEDURE,RETURN, PROCEDURE_START,
         DUP,DROP,SWAP,
+        PRINT,PRINTLN,//,printf,fprint,fprintln,fprintf
         //jump commands only for internal representation
         JEQ,JNE,JMP,
-        PRINT,PRINTLN
     }
 
     record TokenPosition(long line, int posInLine) {
@@ -346,6 +346,7 @@ public class Interpreter {
             case "swap" -> tokens.add(new Token(TokenType.SWAP,  currentPos()));
 
             case "print" -> tokens.add(new Token(TokenType.PRINT,  currentPos()));
+            case "println" -> tokens.add(new Token(TokenType.PRINTLN,  currentPos()));
 
             case "if" -> {
                 Token t = new Token(TokenType.IF, currentPos());

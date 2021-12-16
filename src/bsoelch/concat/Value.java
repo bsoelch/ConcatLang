@@ -1,6 +1,7 @@
 package bsoelch.concat;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -62,6 +63,9 @@ public abstract class Value {
     }
     public int length() {
         throw new TypeError(type+" does not have a length");
+    }
+    public List<Value> elements() {
+        throw new TypeError("Cannot convert "+type+" to list");
     }
     public Value get(long index) {
         throw new TypeError("Element access not supported for type "+type);
@@ -293,6 +297,11 @@ public abstract class Value {
         }
 
         @Override
+        public List<Value> elements() {
+            return stringValue.codePoints().mapToObj(Value::ofChar).toList();
+        }
+
+        @Override
         public Value get(long index) {
             return ofChar(stringValue.codePoints().toArray()[(int)index]);
         }
@@ -328,6 +337,11 @@ public abstract class Value {
         @Override
         public int length() {
             return elements.size();
+        }
+
+        @Override
+        public List<Value> elements() {
+            return new ArrayList<>(elements);
         }
 
         @Override
@@ -413,8 +427,22 @@ public abstract class Value {
     }
 
     public static Value plus(Value a,Value b) {
-        if(a instanceof StringValue||b instanceof StringValue){
-            return ofString(a.stringValue()+b.stringValue());
+        if(a.type.isList()){
+            if(b.type.isList()&&(a.type.content().equals(b.type.content()))) {
+                ArrayList<Value> elts=new ArrayList<>(a.elements());
+                elts.addAll(b.elements());
+                return createList(a.type,elts);
+            }else if(b.type.equals(a.type.content())){
+                ArrayList<Value> elts = new ArrayList<>(a.elements());
+                elts.add(b);
+                return createList(a.type,elts);
+            }
+        }//no else
+        if(b.type.isList()&&a.type.equals(b.type.content())){
+            ArrayList<Value> elts = new ArrayList<>();
+            elts.add(a);
+            elts.addAll(b.elements());
+            return createList(b.type,elts);
         }else{
             return mathOp(a,b, (x,y)-> ofInt(x+y), (x, y)-> ofFloat(x+y));
         }
