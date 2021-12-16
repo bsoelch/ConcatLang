@@ -429,20 +429,20 @@ public abstract class Value {
     public static Value plus(Value a,Value b) {
         if(a.type.isList()){
             if(b.type.isList()&&(a.type.content().equals(b.type.content()))) {
-                ArrayList<Value> elts=new ArrayList<>(a.elements());
-                elts.addAll(b.elements());
-                return createList(a.type,elts);
+                ArrayList<Value> elements=new ArrayList<>(a.elements());
+                elements.addAll(b.elements());
+                return createList(a.type,elements);
             }else if(b.type.equals(a.type.content())){
-                ArrayList<Value> elts = new ArrayList<>(a.elements());
-                elts.add(b);
-                return createList(a.type,elts);
+                ArrayList<Value> elements = new ArrayList<>(a.elements());
+                elements.add(b);
+                return createList(a.type,elements);
             }
         }//no else
         if(b.type.isList()&&a.type.equals(b.type.content())){
-            ArrayList<Value> elts = new ArrayList<>();
-            elts.add(a);
-            elts.addAll(b.elements());
-            return createList(b.type,elts);
+            ArrayList<Value> elements = new ArrayList<>();
+            elements.add(a);
+            elements.addAll(b.elements());
+            return createList(b.type,elements);
         }else{
             return mathOp(a,b, (x,y)-> ofInt(x+y), (x, y)-> ofFloat(x+y));
         }
