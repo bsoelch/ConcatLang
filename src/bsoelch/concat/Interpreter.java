@@ -337,6 +337,7 @@ public class Interpreter {
             case "string" -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),  currentPos()));
             case "type" -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),  currentPos()));
             case "list" -> tokens.add(new OperatorToken(OperatorType.LIST_OF,  currentPos()));
+            case "->" -> tokens.add(new OperatorToken(OperatorType.TO,currentPos()));
 
             case "cast" ->  tokens.add(new OperatorToken(OperatorType.CAST,  currentPos()));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF,  currentPos()));
@@ -427,7 +428,7 @@ public class Interpreter {
                     tokens.add(new Token(TokenType.RETURN,currentPos()));
                     tokens.add(t);
                     tokens.set(start.getKey(),new ProcedureStart(start.getValue().pos,tokens.size()));
-                    tokens.add(new ValueToken(Value.ofProcedureId(start.getKey()+1),currentPos()));
+                    tokens.add(new ValueToken(Value.ofProcedureId(start.getKey()+1,Type.ANONYMOUS_PROCEDURE),currentPos()));
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
                             " 'do ... while'  or 'else' got:"+start.getValue());
@@ -448,8 +449,6 @@ public class Interpreter {
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
-            case "()" -> tokens.add(new OperatorToken(OperatorType.CALL,currentPos()));
-            case "->" -> tokens.add(new OperatorToken(OperatorType.TO,currentPos()));
             case "return" -> tokens.add(new Token(TokenType.RETURN,  currentPos()));
 
             case "+" -> tokens.add(new OperatorToken(OperatorType.PLUS,currentPos()));
@@ -477,11 +476,15 @@ public class Interpreter {
             case "<<" -> tokens.add(new OperatorToken(OperatorType.LSHIFT,currentPos()));
             case ".<<" -> tokens.add(new OperatorToken(OperatorType.SLSHIFT,currentPos()));
 
+            case "++" -> tokens.add(new OperatorToken(OperatorType.CONCAT,currentPos()));
+            case ">>:" -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,currentPos()));
+            case ":<<" -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,currentPos()));
             //<array> <index> []
             case "[]" -> tokens.add(new OperatorToken(OperatorType.AT_INDEX,currentPos()));
             //<e0> ... <eN> <N> {}
             case "{}" -> tokens.add(new OperatorToken(OperatorType.NEW_LIST,currentPos()));
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,currentPos()));
+            case "()" -> tokens.add(new OperatorToken(OperatorType.CALL,currentPos()));
 
             default ->{
                 if(str.charAt(0) == '!') {
@@ -674,7 +677,7 @@ public class Interpreter {
                         case PLUS->{
                             Value b=pop(stack);
                             Value a=pop(stack);
-                            stack.addLast(Value.plus(a,b));
+                            stack.addLast(Value.mathOp(a,b,(x,y)->Value.ofInt(x+y),(x, y)->Value.ofFloat(x+y)));
                         }
                         case MINUS->{
                             Value b=pop(stack);
@@ -774,6 +777,21 @@ public class Interpreter {
                         case LENGTH -> {
                             Value val  = pop(stack);
                             stack.addLast(Value.ofInt(val.length()));
+                        }
+                        case PUSH_FIRST -> {
+                            Value b=pop(stack);
+                            Value a=pop(stack);
+                            stack.addLast(Value.pushFirst(a,b));
+                        }
+                        case CONCAT -> {
+                            Value b=pop(stack);
+                            Value a=pop(stack);
+                            stack.addLast(Value.concat(a,b));
+                        }
+                        case PUSH_LAST -> {
+                            Value b=pop(stack);
+                            Value a=pop(stack);
+                            stack.addLast(Value.pushLast(a,b));
                         }
                         case TO -> {
                             int outCount = (int)pop(stack).asLong();

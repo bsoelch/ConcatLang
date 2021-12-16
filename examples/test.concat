@@ -32,4 +32,4 @@ proc 0 != end int bool 1 1 -> $intToBool
 
 2 3 proc + 2.0 / end () println
 
-"Hello" ' ' "World" + + println
+"Hello" ' ' "World" >>: ++ println

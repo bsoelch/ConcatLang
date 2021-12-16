@@ -378,10 +378,7 @@ public abstract class Value {
             return Objects.hash(elements);
         }
     }
-    public static Value ofProcedureId(int id) {
-        return new ProcedureValue(id,Type.ANONYMOUS_PROCEDURE);
-    }
-    static Value ofProcedureId(int id,Type procedureType) {
+    public static Value ofProcedureId(int id,Type procedureType) {
         return new ProcedureValue(id,procedureType);
     }
     private static class ProcedureValue extends Value{
@@ -426,27 +423,33 @@ public abstract class Value {
         }
     }
 
-    public static Value plus(Value a,Value b) {
-        if(a.type.isList()){
-            if(b.type.isList()&&(a.type.content().equals(b.type.content()))) {
-                ArrayList<Value> elements=new ArrayList<>(a.elements());
-                elements.addAll(b.elements());
-                return createList(a.type,elements);
-            }else if(b.type.equals(a.type.content())){
-                ArrayList<Value> elements = new ArrayList<>(a.elements());
-                elements.add(b);
-                return createList(a.type,elements);
-            }
-        }//no else
-        if(b.type.isList()&&a.type.equals(b.type.content())){
+    public static Value concat(Value a,Value b) {
+        if(a.type.isList()&&b.type.isList()&&(a.type.content().equals(b.type.content()))) {
+            ArrayList<Value> elements=new ArrayList<>(a.elements());
+            elements.addAll(b.elements());
+            return createList(a.type,elements);
+        }
+        throw new SyntaxError("Cannot concat "+a.type+" and "+b.type);
+    }
+
+    public static Value pushFirst(Value a,Value b) {
+        if(b.type.isList()&&a.type.equals(b.type.content())) {
             ArrayList<Value> elements = new ArrayList<>();
             elements.add(a);
             elements.addAll(b.elements());
-            return createList(b.type,elements);
-        }else{
-            return mathOp(a,b, (x,y)-> ofInt(x+y), (x, y)-> ofFloat(x+y));
+            return createList(b.type, elements);
         }
+        throw new SyntaxError("Cannot add "+a.type+" to "+b.type);
     }
+    public static Value pushLast(Value a,Value b) {
+        if(a.type.isList()&&b.type.equals(a.type.content())) {
+            ArrayList<Value> elements = new ArrayList<>(a.elements());
+            elements.add(b);
+            return createList(a.type, elements);
+        }
+        throw new SyntaxError("Cannot add "+b.type+" to "+a.type);
+    }
+
     private static Value cmpToValue(int c, OperatorType opType) {
         switch (opType){
             case GT -> {
@@ -467,8 +470,8 @@ public abstract class Value {
             case LT -> {
                 return c < 0 ? TRUE : FALSE;
             }
-            case NEGATE,PLUS,MINUS,INVERT,MULT,DIV,MOD,POW,NOT,FLIP,AND,OR,XOR,
-                    LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,AT_INDEX,NEW_LIST,LIST_OF,LENGTH,CAST,TYPE_OF,CALL,TO ->
+            case NEGATE,PLUS,MINUS,INVERT,MULT,DIV,MOD,POW,NOT,FLIP,AND,OR,XOR,LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,
+                    AT_INDEX,NEW_LIST,LIST_OF,LENGTH,PUSH_FIRST,CONCAT,PUSH_LAST,CAST,TYPE_OF,CALL,TO ->
                     throw new SyntaxError(opType +" is no valid comparison operator");
         }
         throw new RuntimeException("unreachable");
@@ -505,7 +508,7 @@ public abstract class Value {
                 return floatOp.apply((((FloatValue) a).floatValue),((FloatValue) b).floatValue);
             }
         }
-        throw new SyntaxError("invalid parameters for math operator:"+a.type+" "+b.type);
+        throw new SyntaxError("invalid parameters for arithmetic operation:"+a.type+" "+b.type);
     }
     public static Value logicOp(Value a, Value b, BinaryOperator<Boolean> boolOp,BinaryOperator<Long> intOp) {
         if(a.type==Type.BOOL&&b.type==Type.BOOL){
