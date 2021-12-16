@@ -8,7 +8,7 @@ is s stack-based [Concatenative programming language](https://en.wikipedia.org/w
 Hello World:
 
 ```Python
-"Hello World" print
+"Hello World" println
 ```
 
 Recursive Fibonacci Numbers:
@@ -24,7 +24,7 @@ proc
 end int int 1 1 -> $fib
 
 #_ print 10th Fibonacci Number: _#
-10 fib () print
+10 fib () println
 ```
 
 ## Syntax
@@ -66,6 +66,7 @@ leaves the following values on the stack:
 
 ### IO
 - `print` removes and prints the top value on the stack
+- `println` like `print` but adds a new-line add the end
 
 (there will be more IO operations)
 
@@ -125,10 +126,10 @@ two values of type int or float
 
 Examples:
 ```C++
-int int == print
-1 2.0 > print
-"Hello" "World" <= print
-'A' 'a' > print
+int int == println
+1 2.0 > println
+"Hello" "World" <= println
+'A' 'a' > println
 ```
 prints 
 ```C++
@@ -154,12 +155,12 @@ type `type` and pushes the result
 
 Examples:
 ```C++
-1 typeof print
-3.1 int cast print
+1 typeof println
+3.1 int cast println
 int list list drop ## list of list of ints
-1 2 3 float 3 {} dup print
-1 [] print
-"Hello" ' ' "World" >>: ++ '!' :<< print
+1 2 3 float 3 {} dup println
+1 [] println
+"Hello" ' ' "World" >>: ++ '!' :<< println
 int int 1 1 -> drop ## procedure-type: in:[int] out:[int]
 4 fib () #_ call procedure fib with argument 4 _#
 ```
@@ -285,7 +286,7 @@ proc3 ()
 end 0 0 -> $proc2
 
 proc 
-local1 local2 + print
+local1 local2 + println
 end 0 0 -> $proc3
 
 proc1 ()
