@@ -143,9 +143,11 @@ with its type
 - `cast` typecast `val type cast` casts `val` to 
 type `type` and pushes the result
 - `list` creates a list-type from the top stack element
-- `{}` creates a new array (syntax:
+- `{}` creates a new list (syntax:
 `<elements> <type> <count> {}`)
-- `[]` array access
+- `++` concatenates two lists of the same type
+- `>>:` `:<<` add a new element at the start/end of a list
+- `[]` access an element of a list access
 - `->` creates a procedure-type (syntax:
   `<in-args> <out-args> <in-count> <out-count> '->'`)
 - `()` call a procedure
@@ -157,6 +159,7 @@ Examples:
 int list list drop ## list of list of ints
 1 2 3 float 3 {} dup print
 1 [] print
+"Hello" ' ' "World" >>: ++ '!' :<< print
 int int 1 1 -> drop ## procedure-type: in:[int] out:[int]
 4 fib () #_ call procedure fib with argument 4 _#
 ```
@@ -166,6 +169,7 @@ int
 3
 [1.0, 2.0, 3.0]
 2.0
+Hello World!
 ```
 
 ### Control Flow
