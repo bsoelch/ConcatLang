@@ -14,10 +14,6 @@ public abstract class Value {
             return false;
         }
         @Override
-        public Object raw() {
-            return false;
-        }
-        @Override
         public String stringValue() {
             return "false";
         }
@@ -25,10 +21,6 @@ public abstract class Value {
     public static final Value TRUE = new Value(Type.BOOL) {
         @Override
         public boolean asBool() {
-            return true;
-        }
-        @Override
-        public Object raw() {
             return true;
         }
         @Override
@@ -72,7 +64,6 @@ public abstract class Value {
     public Value flip() {
         throw new TypeError("Cannot invert values of type "+type);
     }
-    public abstract Object raw();
     public int length() {
         throw new TypeError(type+" does not have a length");
     }
@@ -123,12 +114,11 @@ public abstract class Value {
         }
 
         @Override
-        public long asLong() {
+        public double asDouble() {
             return intValue;
         }
-
         @Override
-        public Object raw() {
+        public long asLong() {
             return intValue;
         }
 
@@ -184,11 +174,6 @@ public abstract class Value {
         }
 
         @Override
-        public Object raw() {
-            return floatValue;
-        }
-
-        @Override
         public String stringValue() {
             return Double.toString(floatValue);
         }
@@ -232,11 +217,6 @@ public abstract class Value {
         }
 
         @Override
-        public Object raw() {
-            return typeValue;
-        }
-
-        @Override
         public String stringValue() {
             return typeValue.toString();
         }
@@ -263,11 +243,6 @@ public abstract class Value {
         private CharValue(int codePoint) {
             super(Type.CHAR);
             this.codePoint = codePoint;
-        }
-
-        @Override
-        public Object raw() {
-            return codePoint;
         }
 
         @Override
@@ -326,11 +301,6 @@ public abstract class Value {
             }else{
                 return super.castTo(type);
             }
-        }
-
-        @Override
-        public Object raw() {
-            return stringValue;
         }
 
         @Override
@@ -403,11 +373,6 @@ public abstract class Value {
         }
 
         @Override
-        public Object raw() {
-            return elements;
-        }
-
-        @Override
         public String stringValue() {
             return elements.toString();
         }
@@ -438,11 +403,6 @@ public abstract class Value {
         @Override
         public int asProcedure() {
             return id;
-        }
-
-        @Override
-        public Object raw() {
-            return this;
         }
 
         @Override

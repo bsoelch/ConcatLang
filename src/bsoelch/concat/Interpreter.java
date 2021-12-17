@@ -2,7 +2,6 @@ package bsoelch.concat;
 
 import java.io.*;
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 public class Interpreter {
@@ -145,7 +144,6 @@ public class Interpreter {
     }
 
     //addLater
-    // generic types, any-type
     // structs/tuples ?
 
     private TokenPosition currentPos;
@@ -644,231 +642,12 @@ public class Interpreter {
         }
     }
 
-    private Value pop(ArrayDeque<Value> stack){
+    static Value pop(ArrayDeque<Value> stack){
         Value v=stack.pollLast();
         if(v==null){
             throw new SyntaxError("stack underflow");
         }
         return v;
-    }
-
-    private interface PrintfFormat {
-        String value(Value[] args);
-    }
-    private record StringFormat(String value) implements PrintfFormat {
-        @Override
-        public String value(Value[] args) {
-            return value;
-        }
-    }
-    private record FormatFormat(int index,int flags,int w,boolean w_ptr,int p,boolean p_ptr,int b,boolean b_ptr,char format) implements PrintfFormat {
-        @Override
-        public String value(Value[] args) {
-            //TODO extended format parsing
-            switch (format){
-                case 'b','B'->{
-                    return ""+args[index].asBool();
-                }
-                case 'i','d'->{
-                    return ""+args[index].asLong();
-                }
-                case 'x'->{
-                    return ""+Long.toHexString(args[index].asLong());
-                }
-                case 'f' ->{
-                    return ""+args[index].asDouble();
-                }
-                case 'c'->{
-                    return String.valueOf(Character.toChars(args[index].asChar()));
-                }
-                case 's'->{
-                    return args[index].stringValue();
-                }
-                case '%' -> {
-                    return "%";
-                }
-                default -> throw new IllegalArgumentException(format+" is no valid format specifier");
-            }
-        }
-    }
-
-    private static final int PRINTF_FLAG_PAD_0=1,PRINTF_FLAG_LEFT=2,PRINTF_FLAG_SGN=4,PRINTF_FLAG_SPACE=8;
-    private boolean isFormatChar(char c){
-        switch (c){
-            case 'b','B','i','f','d','x','c','s','%' -> {
-                return true;
-            }
-            default -> {return false;}
-        }
-    }
-    /*custom printf, since Java internal printf functions don't specify the number of required arguments*/
-    private void printf(String format, ArrayDeque<Value> stack, Consumer<String> out){
-        ArrayList<PrintfFormat> parts=new ArrayList<>();
-        int i0=0,i,n=format.length();
-        int count=0;
-        int maxFormat=-1;
-        StringBuilder tmp=new StringBuilder();
-        while(i0<n){
-            i=format.indexOf('%',i0);
-            if(i<0){
-                parts.add(new StringFormat(format.substring(i0)));
-                i0=n;
-            }else{
-                parts.add(new StringFormat(format.substring(i0,i)));
-                i0=++i;
-                while(i0<format.length()&&!isFormatChar(format.charAt(i0))){
-                    i0++;
-                }
-                if(i0>=format.length()){
-                    throw new SyntaxError("unfinished or invalid format String: " + format.substring(i));
-                }
-                //format-type
-                char formatChar=format.charAt(i0);
-                String formatString=format.substring(i,i0++);
-                if(formatChar=='%'){
-                    if(formatString.length()>0){
-                        throw new SyntaxError("invalid Format String:" + formatString + formatChar+
-                                " format '%' does not allow any additional parameters");
-                    }
-                    parts.add(new StringFormat("%"));
-                }else {
-                    int index = count++;
-                    int flags = 0;
-                    int w = -1;
-                    boolean w_ptr = false;
-                    int p = -1;
-                    boolean p_ptr = false;
-                    int b = -1;
-                    boolean b_ptr = false;
-                    i = 0;
-                    tmp.setLength(0);
-                    //([0-9]+$)?  index
-                    while (i < formatString.length() && '0' <= formatString.charAt(i) && formatString.charAt(i) <= '9') {
-                        tmp.append(formatString.charAt(i++));
-                    }
-                    if (i < formatString.length() && formatString.charAt(i) == '$') {
-                        index = Integer.parseInt(tmp.toString());
-                        tmp.setLength(0);
-                    }
-                    //([-+ 0]+)? flags
-                    //'-'  The result will be left-justified.
-                    //'+'  The result will always include a sign
-                    //' '  The result will include a leading space for positive values
-                    //'0'  The result will be zero-padded
-                    int i1 = 0;
-                    while (i1<tmp.length()&&tmp.charAt(i1) == '0') {
-                        flags |= PRINTF_FLAG_PAD_0;
-                        i1++;
-                    }
-                    tmp.replace(0, i1, "");
-                    if (tmp.length() == 0) {
-                        flagLoop:
-                        while (i < formatString.length()) {
-                            switch (formatString.charAt(i)) {
-                                case '-' -> {
-                                    flags |= PRINTF_FLAG_LEFT;
-                                    i++;
-                                }
-                                case '+' -> {
-                                    flags |= PRINTF_FLAG_SGN;
-                                    i++;
-                                }
-                                case ' ' -> {
-                                    flags |= PRINTF_FLAG_SPACE;
-                                    i++;
-                                }
-                                case '0' -> {
-                                    flags |= PRINTF_FLAG_PAD_0;
-                                    i++;
-                                }
-                                default -> {
-                                    break flagLoop;
-                                }
-                            }
-                        }
-                        while (i < formatString.length() && '0' <= formatString.charAt(i) && formatString.charAt(i) <= '9') {
-                            tmp.append(formatString.charAt(i++));
-                        }
-                    }
-                    //([0-9]+)? width
-                    if (tmp.length() > 0) {
-                        w = Integer.parseInt(tmp.toString());
-                        tmp.setLength(0);
-                    } else if (i < formatString.length() && formatString.charAt(i) == '*') {//* (...$)
-                        w_ptr = true;
-                        w = count++;
-                        while (i < formatString.length() && '0' <= formatString.charAt(i) && formatString.charAt(i) <= '9') {
-                            tmp.append(formatString.charAt(i++));
-                        }
-                        if(!tmp.isEmpty()) {
-                            w = Integer.parseInt(tmp.toString());
-                            tmp.setLength(0);
-                        }
-                    }
-                    //(.[0-9]+)? precision
-                    if (i < formatString.length() && formatString.charAt(i) == '.') {
-                        i++;
-                        if (formatString.charAt(i) == '*') {
-                            i++;
-                            p_ptr = true;
-                            p = count++;
-                        }
-                        while (i < formatString.length() && '0' <= formatString.charAt(i) && formatString.charAt(i) <= '9') {
-                            tmp.append(formatString.charAt(i++));
-                        }
-                        if(!(tmp.isEmpty()&&p_ptr)){
-                            p = Integer.parseInt(tmp.toString());
-                            tmp.setLength(0);
-                        }
-                    }
-                    //'('[0-9]+')' base
-                    if (i < formatString.length() && formatString.charAt(i) == '(') {
-                        switch (formatChar) {
-                            case 'i', 'f', 's' -> {
-                            }
-                            default -> throw new SyntaxError("invalid Format String:" + formatString + formatChar +
-                                    " base-parameter only allowed for formats i, f and s");
-                        }
-                        i++;
-                        if (i < formatString.length() && formatString.charAt(i) == '*') {
-                            b_ptr = true;
-                            i++;
-                            b = count++;
-                        }
-                        while (i < formatString.length() && '0' <= formatString.charAt(i) && formatString.charAt(i) <= '9') {
-                            tmp.append(formatString.charAt(i++));
-                        }
-                        if (i < formatString.length() &&formatString.charAt(i) == ')') {
-                            if(!(tmp.isEmpty()&&b_ptr)){
-                                b = Integer.parseInt(tmp.toString());
-                                tmp.setLength(0);
-                            }
-                            i++;
-                        }else{
-                            throw new SyntaxError("invalid Format String:" + formatString + formatChar);
-                        }
-                    }
-                    if (i < formatString.length()||tmp.length()>0) {
-                        throw new SyntaxError("invalid Format String:" + formatString + formatChar);
-                    }
-                    parts.add(new FormatFormat(index,flags,w,w_ptr,p,p_ptr,b,b_ptr,formatChar));
-                    maxFormat=Math.max(maxFormat, index);
-                    if(w_ptr)
-                        maxFormat=Math.max(maxFormat, w);
-                    if (p_ptr)
-                        maxFormat=Math.max(maxFormat, p);
-                    if (b_ptr)
-                        maxFormat=Math.max(maxFormat, b);
-                }
-            }
-        }
-        Value[] args=new Value[maxFormat+1];
-        for(i=1;i<=args.length;i++){
-            args[args.length-i]=pop(stack);
-        }
-        for(PrintfFormat f:parts){
-            out.accept(f.value(args));
-        }
     }
 
     public void run(List<Token>  program){
@@ -1026,13 +805,13 @@ public class Interpreter {
                 case SPRINTF -> {
                     String format=pop(stack).castTo(Type.STRING()).stringValue();
                     StringBuilder build=new StringBuilder();
-                    printf(format,stack, build::append);
+                    Printf.printf(format,stack, build::append);
                     stack.addLast(Value.ofString(build.toString()));
                 }
                 case PRINT -> System.out.print(pop(stack).stringValue());
                 case PRINTF -> {
                     String format=pop(stack).castTo(Type.STRING()).stringValue();
-                    printf(format,stack, System.out::print);
+                    Printf.printf(format,stack, System.out::print);
                 }
                 case PRINTLN -> System.out.println(pop(stack).stringValue());
                 case DECLARE,CONST_DECLARE -> {
@@ -1137,7 +916,6 @@ public class Interpreter {
             System.out.println(t);
         }
         System.out.println();
-        //TODO? type checking
         //TODO? compile to C
         ip.run(prog);
     }
