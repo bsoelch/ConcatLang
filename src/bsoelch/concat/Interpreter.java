@@ -337,7 +337,7 @@ public class Interpreter {
             case "string" -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),  currentPos()));
             case "type" -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),  currentPos()));
             case "list" -> tokens.add(new OperatorToken(OperatorType.LIST_OF,  currentPos()));
-            case "->" -> tokens.add(new OperatorToken(OperatorType.TO,currentPos()));
+            case "*->*" -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),currentPos()));
 
             case "cast" ->  tokens.add(new OperatorToken(OperatorType.CAST,  currentPos()));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF,  currentPos()));
@@ -428,7 +428,7 @@ public class Interpreter {
                     tokens.add(new Token(TokenType.RETURN,currentPos()));
                     tokens.add(t);
                     tokens.set(start.getKey(),new ProcedureStart(start.getValue().pos,tokens.size()));
-                    tokens.add(new ValueToken(Value.ofProcedureId(start.getKey()+1,Type.ANONYMOUS_PROCEDURE),currentPos()));
+                    tokens.add(new ValueToken(Value.ofProcedureId(start.getKey()+1),currentPos()));
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
                             " 'do ... while'  or 'else' got:"+start.getValue());
@@ -792,19 +792,6 @@ public class Interpreter {
                             Value b=pop(stack);
                             Value a=pop(stack);
                             stack.addLast(Value.pushLast(a,b));
-                        }
-                        case TO -> {
-                            int outCount = (int)pop(stack).asLong();
-                            int inCount = (int)pop(stack).asLong();
-                            Type[] ins=new Type[inCount];
-                            Type[] outs=new Type[outCount];
-                            for(int i=1;i<=outCount;i++){
-                                outs[outCount-i]=pop(stack).asType();
-                            }
-                            for(int i=1;i<=inCount;i++){
-                                ins[inCount-i]=pop(stack).asType();
-                            }
-                            stack.addLast(Value.ofType(Type.procedureOf(ins,outs)));
                         }
                         case CALL -> {
                             Value procedure = pop(stack);

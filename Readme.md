@@ -21,7 +21,7 @@ proc
  else
    0
  end
-end int int 1 1 -> $fib
+end *->* $fib
 
 #_ print 10th Fibonacci Number: _#
 10 fib () println
@@ -149,8 +149,6 @@ type `type` and pushes the result
 - `++` concatenates two lists of the same type
 - `>>:` `:<<` add a new element at the start/end of a list
 - `[]` access an element of a list access
-- `->` creates a procedure-type (syntax:
-  `<in-args> <out-args> <in-count> <out-count> '->'`)
 - `()` call a procedure
 
 Examples:

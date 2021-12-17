@@ -378,13 +378,13 @@ public abstract class Value {
             return Objects.hash(elements);
         }
     }
-    public static Value ofProcedureId(int id,Type procedureType) {
-        return new ProcedureValue(id,procedureType);
+    public static Value ofProcedureId(int id) {
+        return new ProcedureValue(id);
     }
     private static class ProcedureValue extends Value{
         final int id;
-        private ProcedureValue(int id,Type type) {
-            super(type);
+        private ProcedureValue(int id) {
+            super(Type.PROCEDURE);
             this.id = id;
         }
 
@@ -393,17 +393,6 @@ public abstract class Value {
             return id;
         }
 
-        @Override
-        public Value castTo(Type type) {
-            if(type.isProcedure()){
-                if(this.type==Type.ANONYMOUS_PROCEDURE){
-                    return ofProcedureId(id,type);
-                }else{
-                    throw new UnsupportedOperationException("casting between procedure types is currently not implemented");
-                }
-            }
-            return super.castTo(type);
-        }
 
         @Override
         public String stringValue() {
@@ -471,7 +460,7 @@ public abstract class Value {
                 return c < 0 ? TRUE : FALSE;
             }
             case NEGATE,PLUS,MINUS,INVERT,MULT,DIV,MOD,POW,NOT,FLIP,AND,OR,XOR,LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,
-                    AT_INDEX,NEW_LIST,LIST_OF,LENGTH,PUSH_FIRST,CONCAT,PUSH_LAST,CAST,TYPE_OF,CALL,TO ->
+                    AT_INDEX,NEW_LIST,LIST_OF,LENGTH,PUSH_FIRST,CONCAT,PUSH_LAST,CAST,TYPE_OF,CALL ->
                     throw new SyntaxError(opType +" is no valid comparison operator");
         }
         throw new RuntimeException("unreachable");

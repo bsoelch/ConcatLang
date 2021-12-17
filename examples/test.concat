@@ -4,7 +4,7 @@ proc
    a x / x + 2 / !x
   end
   x
-end float float 1 1 -> $sqrt
+end *->* $sqrt
 
 proc
  if dup 1 > :
@@ -14,7 +14,7 @@ proc
  else
   0
  end
-end int int 1 1 -> $fib
+end *->* $fib
 
 2.0 sqrt () println
 3 sqrt () println
@@ -25,7 +25,7 @@ while dup 5 < :
  1 +
 end drop
 
-proc 0 != end int bool 1 1 -> $intToBool
+proc 0 != end *->* $intToBool
 
 3 intToBool () println
 0 intToBool () println

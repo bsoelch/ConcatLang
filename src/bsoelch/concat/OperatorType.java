@@ -9,5 +9,5 @@ public enum OperatorType {
     GT,GE,EQ,NE,LE,LT,
     CAST,TYPE_OF,
     LIST_OF,AT_INDEX,NEW_LIST,LENGTH, PUSH_FIRST,CONCAT,PUSH_LAST,
-    TO,CALL,
+    CALL,
 }
