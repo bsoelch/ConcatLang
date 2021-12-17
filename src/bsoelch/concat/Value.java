@@ -13,7 +13,10 @@ public abstract class Value {
         public boolean asBool() {
             return false;
         }
-
+        @Override
+        public Object raw() {
+            return false;
+        }
         @Override
         public String stringValue() {
             return "false";
@@ -22,6 +25,10 @@ public abstract class Value {
     public static final Value TRUE = new Value(Type.BOOL) {
         @Override
         public boolean asBool() {
+            return true;
+        }
+        @Override
+        public Object raw() {
             return true;
         }
         @Override
@@ -44,8 +51,12 @@ public abstract class Value {
         throw new TypeError("Cannot convert "+type+" to char");
     }
     public long asLong() {
-        throw new TypeError("Cannot convert "+type+" to long");
+        throw new TypeError("Cannot convert "+type+" to int");
     }
+    public double asDouble() {
+        throw new TypeError("Cannot convert "+type+" to float");
+    }
+
     public Type asType() {
         throw new TypeError("Cannot convert "+type+" to type");
     }
@@ -61,6 +72,7 @@ public abstract class Value {
     public Value flip() {
         throw new TypeError("Cannot invert values of type "+type);
     }
+    public abstract Object raw();
     public int length() {
         throw new TypeError(type+" does not have a length");
     }
@@ -78,7 +90,7 @@ public abstract class Value {
     }
 
     public Value castTo(Type type) {
-        if(this.type.equals(type)){
+        if(type==Type.ANY||this.type.equals(type)){
             return this;
         }else if(type.equals(Type.STRING())){
             return ofString(stringValue());
@@ -86,7 +98,6 @@ public abstract class Value {
             throw new SyntaxError("cannot cast from "+this.type+" to "+type);
         }
     }
-
 
 
     private interface NumberValue{}
@@ -113,6 +124,11 @@ public abstract class Value {
 
         @Override
         public long asLong() {
+            return intValue;
+        }
+
+        @Override
+        public Object raw() {
             return intValue;
         }
 
@@ -155,12 +171,23 @@ public abstract class Value {
             this.floatValue = floatValue;
         }
 
+        @Override
+        public double asDouble() {
+            return floatValue;
+        }
+
         public Value negate(){
             return ofFloat(-floatValue);
         }
         public Value invert(){
             return ofFloat(1/floatValue);
         }
+
+        @Override
+        public Object raw() {
+            return floatValue;
+        }
+
         @Override
         public String stringValue() {
             return Double.toString(floatValue);
@@ -205,6 +232,11 @@ public abstract class Value {
         }
 
         @Override
+        public Object raw() {
+            return typeValue;
+        }
+
+        @Override
         public String stringValue() {
             return typeValue.toString();
         }
@@ -231,6 +263,11 @@ public abstract class Value {
         private CharValue(int codePoint) {
             super(Type.CHAR);
             this.codePoint = codePoint;
+        }
+
+        @Override
+        public Object raw() {
+            return codePoint;
         }
 
         @Override
@@ -289,6 +326,11 @@ public abstract class Value {
             }else{
                 return super.castTo(type);
             }
+        }
+
+        @Override
+        public Object raw() {
+            return stringValue;
         }
 
         @Override
@@ -361,6 +403,11 @@ public abstract class Value {
         }
 
         @Override
+        public Object raw() {
+            return elements;
+        }
+
+        @Override
         public String stringValue() {
             return elements.toString();
         }
@@ -393,6 +440,10 @@ public abstract class Value {
             return id;
         }
 
+        @Override
+        public Object raw() {
+            return this;
+        }
 
         @Override
         public String stringValue() {
@@ -413,16 +464,22 @@ public abstract class Value {
     }
 
     public static Value concat(Value a,Value b) {
-        if(a.type.isList()&&b.type.isList()&&(a.type.content().equals(b.type.content()))) {
-            ArrayList<Value> elements=new ArrayList<>(a.elements());
-            elements.addAll(b.elements());
-            return createList(a.type,elements);
+        if(a.type.isList()&&b.type.isList()){
+            if(a.type.content().canAssignFrom(b.type.content())){
+                ArrayList<Value> elements=new ArrayList<>(a.elements());
+                elements.addAll(b.elements());
+                return createList(a.type,elements);
+            }else if(b.type.content().canAssignFrom(a.type.content())){
+                ArrayList<Value> elements=new ArrayList<>(a.elements());
+                elements.addAll(b.elements());
+                return createList(b.type,elements);
+            }
         }
         throw new SyntaxError("Cannot concat "+a.type+" and "+b.type);
     }
 
     public static Value pushFirst(Value a,Value b) {
-        if(b.type.isList()&&a.type.equals(b.type.content())) {
+        if(b.type.isList()&&b.type.content().canAssignFrom(a.type)) {
             ArrayList<Value> elements = new ArrayList<>();
             elements.add(a);
             elements.addAll(b.elements());
@@ -431,7 +488,7 @@ public abstract class Value {
         throw new SyntaxError("Cannot add "+a.type+" to "+b.type);
     }
     public static Value pushLast(Value a,Value b) {
-        if(a.type.isList()&&b.type.equals(a.type.content())) {
+        if(a.type.isList()&&a.type.content().canAssignFrom(b.type)) {
             ArrayList<Value> elements = new ArrayList<>(a.elements());
             elements.add(b);
             return createList(a.type, elements);

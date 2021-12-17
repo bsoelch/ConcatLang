@@ -9,7 +9,12 @@ public class Type {
     public static final Type TYPE = new Type("type");
     public static final Type BOOL = new Type("bool");
     /**blank type that could contain any value*/
-    private static final Type ANY = new Type("var");
+    public static final Type ANY = new Type("var") {
+        @Override
+        public boolean canAssignFrom(Type source) {
+            return true;
+        }
+    };
     /**fallback type for procedures with unknown signature*/
     public static final Type PROCEDURE = new Type("*->*");
 
@@ -31,6 +36,9 @@ public class Type {
     }
     public Type content() {
         throw new UnsupportedOperationException();
+    }
+    public boolean canAssignFrom(Type source){
+        return this==source;
     }
 
 
@@ -54,6 +62,15 @@ public class Type {
 
         public boolean isList() {
             return true;
+        }
+
+        @Override
+        public boolean canAssignFrom(Type source) {
+            if(source instanceof ListType){
+                return contentType.canAssignFrom(((ListType) source).contentType);
+            }else{
+                return super.canAssignFrom(source);
+            }
         }
 
         @Override

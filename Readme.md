@@ -66,6 +66,9 @@ leaves the following values on the stack:
 
 ### IO
 - `print` removes and prints the top value on the stack
+- `printf` removes the top value and uses it as a 
+format-string for printing, consuming one element
+for each element used in the format string
 - `println` like `print` but adds a new-line add the end
 
 (there will be more IO operations)
@@ -159,7 +162,6 @@ int list list drop ## list of list of ints
 1 2 3 float 3 {} dup println
 1 [] println
 "Hello" ' ' "World" >>: ++ '!' :<< println
-int int 1 1 -> drop ## procedure-type: in:[int] out:[int]
 4 fib () #_ call procedure fib with argument 4 _#
 ```
 prints 
@@ -275,17 +277,17 @@ Examples:
 proc 
 1 int :local1
 proc2 ()
-end 0 0 -> $proc1
+end *->* $proc1
 
 proc 
 1 int :local2
 2 !local1
 proc3 ()
-end 0 0 -> $proc2
+end *->* $proc2
 
 proc 
 local1 local2 + println
-end 0 0 -> $proc3
+end *->* $proc3
 
 proc1 ()
 ```
@@ -298,7 +300,7 @@ proc
 proc
 local1
 end
-end 0 0 -> 0 1 -> $proc1
+end *->* $proc1
 proc1 () ()
 ```
 crashes since `local1` is not accessible when calling 

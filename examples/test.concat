@@ -19,8 +19,9 @@ end *->* $fib
 2.0 sqrt () println
 3 sqrt () println
 
-0
-while dup 5 < :
+0x42 "0x%x" sprintf 3.141592 "%5s %.3f\n" printf
+
+0 while dup 5 < :
  dup fib () println
  1 +
 end drop
