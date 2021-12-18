@@ -151,7 +151,8 @@ type `type` and pushes the result
 `<elements> <type> <count> {}`)
 - `++` concatenates two lists of the same type
 - `>>:` `:<<` add a new element at the start/end of a list
-- `[]` access an element of a list access
+- `[]` access an element of a list
+- `[:]` get a sublist of a list
 - `()` call a procedure
 
 Examples:
@@ -163,6 +164,7 @@ int list list drop ## list of list of ints
 1 [] println
 "Hello" ' ' "World" >>: ++ '!' :<< println
 4 fib () #_ call procedure fib with argument 4 _#
+"Hello World!" 7 9 [:] println
 ```
 prints 
 ```C++
@@ -171,6 +173,7 @@ int
 [1.0, 2.0, 3.0]
 2.0
 Hello World!
+or
 ```
 
 ### Control Flow

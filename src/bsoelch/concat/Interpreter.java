@@ -10,7 +10,7 @@ public class Interpreter {
         ROOT,STRING,COMMENT,LINE_COMMENT
     }
     enum TokenType {
-        VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,IF,START,ELIF,ELSE,DO,WHILE,END, PROCEDURE,RETURN, PROCEDURE_START,
+        VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,IF,START,ELIF,ELSE,DO,WHILE,END,PROCEDURE,RETURN, PROCEDURE_START,
         DUP,DROP,SWAP,
         SPRINTF,PRINT,PRINTF,PRINTLN,//fprint,fprintln,fprintf
         //jump commands only for internal representation
@@ -482,6 +482,8 @@ public class Interpreter {
             case ":<<" -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,currentPos()));
             //<array> <index> []
             case "[]" -> tokens.add(new OperatorToken(OperatorType.AT_INDEX,currentPos()));
+            //<array> <off> <to> [:]
+            case "[:]" -> tokens.add(new OperatorToken(OperatorType.SLICE,currentPos()));
             //<e0> ... <eN> <N> {}
             case "{}" -> tokens.add(new OperatorToken(OperatorType.NEW_LIST,currentPos()));
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,currentPos()));
@@ -650,7 +652,7 @@ public class Interpreter {
         return v;
     }
 
-    public void run(List<Token>  program){
+    public ArrayDeque<Value> run(List<Token>  program){
         ArrayDeque<Value> stack=new ArrayDeque<>();
         ProgramState state=new ProgramState(0,null);
         while(state.ip<program.size()){
@@ -751,11 +753,6 @@ public class Interpreter {
                             Type contentType=pop(stack).asType();
                             stack.addLast(Value.ofType(Type.listOf(contentType)));
                         }
-                        case AT_INDEX->{//array index []
-                            long index = pop(stack).asLong();
-                            Value list = pop(stack);
-                            stack.addLast(list.get(index));
-                        }
                         case NEW_LIST -> {//e1 e2 ... eN type count {}
                             long count = pop(stack).asLong();
                             Type type  = pop(stack).asType();
@@ -779,6 +776,17 @@ public class Interpreter {
                         case LENGTH -> {
                             Value val  = pop(stack);
                             stack.addLast(Value.ofInt(val.length()));
+                        }
+                        case AT_INDEX->{//array index []
+                            long index = pop(stack).asLong();
+                            Value list = pop(stack);
+                            stack.addLast(list.get(index));
+                        }
+                        case SLICE -> {
+                            long to = pop(stack).asLong();
+                            long off = pop(stack).asLong();
+                            Value list = pop(stack);
+                            stack.addLast(list.slice(off,to));
                         }
                         case PUSH_FIRST -> {
                             Value b=pop(stack);
@@ -887,6 +895,7 @@ public class Interpreter {
                 state.ip++;
             }
         }
+        return stack;
     }
 
     private long slshift(long x, long y) {
@@ -917,6 +926,8 @@ public class Interpreter {
         }
         System.out.println();
         //TODO? compile to C
-        ip.run(prog);
+        ArrayDeque<Value> stack = ip.run(prog);
+        System.out.println("\nStack:");
+        System.out.println(stack);
     }
 }

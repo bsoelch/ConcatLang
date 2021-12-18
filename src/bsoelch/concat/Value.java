@@ -73,6 +73,9 @@ public abstract class Value {
     public Value get(long index) {
         throw new TypeError("Element access not supported for type "+type);
     }
+    public Value slice(long off,long to) {
+        throw new TypeError("Element access not supported for type "+type);
+    }
     public abstract String stringValue();
 
     @Override
@@ -317,6 +320,10 @@ public abstract class Value {
         public Value get(long index) {
             return ofChar(stringValue.codePoints().toArray()[(int)index]);
         }
+        @Override
+        public Value slice(long off,long to) {
+            return ofString(stringValue.substring((int)off,(int)to));
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -359,6 +366,10 @@ public abstract class Value {
         @Override
         public Value get(long index) {
             return elements.get((int)index);
+        }
+        @Override
+        public Value slice(long off,long to) {
+            return createList(type,new ArrayList<>(elements.subList((int)off,(int)to)));
         }
 
         @Override
@@ -477,7 +488,7 @@ public abstract class Value {
                 return c < 0 ? TRUE : FALSE;
             }
             case NEGATE,PLUS,MINUS,INVERT,MULT,DIV,MOD,POW,NOT,FLIP,AND,OR,XOR,LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,
-                    AT_INDEX,NEW_LIST,LIST_OF,LENGTH,PUSH_FIRST,CONCAT,PUSH_LAST,CAST,TYPE_OF,CALL ->
+                    NEW_LIST,LIST_OF,LENGTH,AT_INDEX,SLICE,PUSH_FIRST,CONCAT,PUSH_LAST,CAST,TYPE_OF,CALL ->
                     throw new SyntaxError(opType +" is no valid comparison operator");
         }
         throw new RuntimeException("unreachable");
