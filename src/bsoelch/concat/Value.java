@@ -87,6 +87,10 @@ public abstract class Value {
     }
 
     public abstract String stringValue();
+    /**formatted printing of values*/ //TODO flags unsigned,scientific, bracket-type,escaping of values
+    public String stringValue(int precision, int base,boolean big,char plusChar) {
+        return stringValue();
+    }
 
     @Override
     public String toString() {
@@ -150,6 +154,10 @@ public abstract class Value {
         public String stringValue() {
             return Long.toString(intValue);
         }
+        @Override
+        public String stringValue(int precision, int base,boolean big,char plusChar) {
+            return Printf.toString(false,intValue,base,big,plusChar);
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -189,6 +197,10 @@ public abstract class Value {
         @Override
         public String stringValue() {
             return Double.toString(floatValue);
+        }
+        @Override
+        public String stringValue(int precision, int base,boolean big,char plusChar) {
+            return Printf.toString(floatValue,precision,base,big,false,plusChar);
         }
 
         @Override
@@ -338,7 +350,8 @@ public abstract class Value {
         }
         @Override
         public Value slice(long off,long to) {
-            return ofString(stringValue.substring((int)off,(int)to));
+            return ofString(IntStream.of(Arrays.copyOfRange(stringValue.codePoints().toArray(),(int)off,(int)to)).
+                    mapToObj(c->String.valueOf(Character.toChars(c))).reduce("",(a,b)->a+b));
         }
         @Override
         public Value iterator(boolean end) {
@@ -452,6 +465,21 @@ public abstract class Value {
         public String stringValue() {
             return elements.toString();
         }
+        @Override
+        public String stringValue(int precision, int base, boolean big, char plusChar) {
+            return toString(elements,precision, base, big, plusChar);
+        }
+
+        static String toString(List<Value> elements,int precision, int base, boolean big, char plusChar) {
+            StringBuilder str=new StringBuilder("[");
+            for(Value v:elements){
+                if(str.length()>1){
+                    str.append(',');
+                }
+                str.append(v.stringValue(precision, base, big, plusChar));
+            }
+            return str.append(']').toString();
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -483,6 +511,11 @@ public abstract class Value {
         @Override
         public String stringValue() {
             return "Itr{"+elements.subList(0,i)+"^"+elements.subList(i,elements.size())+"}";
+        }
+        @Override
+        public String stringValue(int precision, int base, boolean big, char plusChar) {
+            return "Itr{"+ListValue.toString(elements.subList(0,i),precision,base,big,plusChar)+"^"
+                    +ListValue.toString(elements.subList(i,elements.size()),precision,base,big,plusChar)+"}";
         }
 
         @Override

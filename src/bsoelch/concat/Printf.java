@@ -136,10 +136,10 @@ public class Printf {
     private record FormatFormat(int index,int flags,int w,boolean w_ptr,int p,boolean p_ptr,int b,boolean b_ptr,char format) implements PrintfFormat {
         @Override
         public String value(Value[] args) {
-            boolean allignLeft = (flags & PRINTF_FLAG_ALIGN_LEFT) != 0;
+            boolean alignLeft = (flags & PRINTF_FLAG_ALIGN_LEFT) != 0;
             int width=w_ptr?(int)args[w].asLong():w;
             if(width<0){//negative precision => alignment on left side
-                allignLeft=!allignLeft;
+                alignLeft=!alignLeft;
                 width=-width;
             }
             int precision=p_ptr?(int)args[p].asLong():p;
@@ -164,20 +164,14 @@ public class Printf {
                 case 'e','E' -> raw=Printf.toString(args[index].asDouble(),precision,base==0?10:base,format=='E',true,plusSgn);
                 case 'f','F' -> raw=Printf.toString(args[index].asDouble(),precision,base==0?10:base,format=='F',false,plusSgn);
                 case 'c'-> raw=String.valueOf(Character.toChars(args[index].asChar()));
-                case 's'->{
-                    //TODO use base/precision for all elements
-                    raw=args[index].stringValue();
-                    if(precision!=0&&raw.length()>precision){
-                        raw=raw.substring(0,precision);
-                    }
-                }
+                case 's','S'-> raw=args[index].stringValue(precision,base,format=='S',plusSgn);
                 case '%' -> raw="%";
                 default -> throw new IllegalArgumentException(format+" is no valid format specifier");
             }
             if(raw.length()<width){
                 char[] padding=new char[width-raw.length()];
                 Arrays.fill(padding,((flags&PRINTF_FLAG_PAD_0)!=0)?'0':' ');
-                if(allignLeft){
+                if(alignLeft){
                     raw=raw+String.valueOf(padding);
                 }else{
                     raw=String.valueOf(padding)+raw;
@@ -188,7 +182,7 @@ public class Printf {
     }
     private static boolean isFormatChar(char c){
         switch (c){
-            case 'b','B','i','I','u','U','d','x','X','f','F','e','E','c','s','%' -> {
+            case 'b','B','i','I','u','U','d','x','X','f','F','e','E','c','s','S','%' -> {
                 return true;
             }
             default -> {return false;}
@@ -301,7 +295,7 @@ public class Printf {
                     }
                     //(.[0-9]+)? precision
                     if (i < formatString.length() && formatString.charAt(i) == '.') {
-                        switch (formatChar) {
+                        switch (Character.toLowerCase(formatChar)) {
                             case 'f','e','s' -> {
                             }
                             default -> throw new SyntaxError("invalid Format String:" + formatString + formatChar +
@@ -323,11 +317,11 @@ public class Printf {
                     }
                     //'('[0-9]+')' base
                     if (i < formatString.length() && formatString.charAt(i) == '(') {
-                        switch (formatChar) {
-                            case 'i','I','u','U','f','F','e','E', 's' -> {
+                        switch (Character.toLowerCase(formatChar)) {
+                            case 'i','u','f','e','s' -> {
                             }
                             default -> throw new SyntaxError("invalid Format String:" + formatString + formatChar +
-                                    " base-parameter only allowed for formats i,I,u,U,f,F,e,E and s");
+                                    " base-parameter only allowed for formats i,u,f,e and s");
                         }
                         i++;
                         if (i < formatString.length() && formatString.charAt(i) == '*') {
