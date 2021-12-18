@@ -335,6 +335,8 @@ public class Interpreter {
             case "string" -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),  currentPos()));
             case "type" -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),  currentPos()));
             case "list" -> tokens.add(new OperatorToken(OperatorType.LIST_OF,  currentPos()));
+            case "itr" -> tokens.add(new OperatorToken(OperatorType.ITR_OF,  currentPos()));
+            case "unwrap" -> tokens.add(new OperatorToken(OperatorType.UNWRAP,  currentPos()));
             case "*->*" -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),currentPos()));
             case "var" -> tokens.add(new ValueToken(Value.ofType(Type.ANY),currentPos()));
 
@@ -484,6 +486,11 @@ public class Interpreter {
             case "[]" -> tokens.add(new OperatorToken(OperatorType.AT_INDEX,currentPos()));
             //<array> <off> <to> [:]
             case "[:]" -> tokens.add(new OperatorToken(OperatorType.SLICE,currentPos()));
+
+            case "^.." -> tokens.add(new OperatorToken(OperatorType.ITR_START,currentPos()));
+            case "..^" -> tokens.add(new OperatorToken(OperatorType.ITR_END,currentPos()));
+            case "^>"  -> tokens.add(new OperatorToken(OperatorType.ITR_NEXT,currentPos()));
+            case "<^"  -> tokens.add(new OperatorToken(OperatorType.ITR_PREV,currentPos()));
             //<e0> ... <eN> <N> {}
             case "{}" -> tokens.add(new OperatorToken(OperatorType.NEW_LIST,currentPos()));
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,currentPos()));
@@ -753,6 +760,10 @@ public class Interpreter {
                             Type contentType=pop(stack).asType();
                             stack.addLast(Value.ofType(Type.listOf(contentType)));
                         }
+                        case UNWRAP -> {
+                            Type wrappedType=pop(stack).asType();
+                            stack.addLast(Value.ofType(wrappedType.content()));
+                        }
                         case NEW_LIST -> {//e1 e2 ... eN type count {}
                             long count = pop(stack).asLong();
                             Type type  = pop(stack).asType();
@@ -802,6 +813,44 @@ public class Interpreter {
                             Value b=pop(stack);
                             Value a=pop(stack);
                             stack.addLast(Value.pushLast(a,b));
+                        }
+                        case ITR_OF -> {
+                            Type contentType=pop(stack).asType();
+                            stack.addLast(Value.ofType(Type.iteratorOf(contentType)));
+                        }
+                        case ITR_START -> {
+                            Value a=pop(stack);
+                            stack.addLast(a.iterator(false));
+                        }
+                        case ITR_END -> {
+                            Value a=pop(stack);
+                            stack.addLast(a.iterator(true));
+                        }
+                        case ITR_NEXT -> {
+                            Value peek=stack.peekLast();
+                            if(peek==null){
+                                throw new SyntaxError("stack underflow");
+                            }
+                            Value.ValueIterator itr=peek.asItr();
+                            if(itr.hasNext()){
+                                stack.addLast(itr.next());
+                                stack.addLast(Value.TRUE);
+                            }else{
+                                stack.addLast(Value.FALSE);
+                            }
+                        }
+                        case ITR_PREV -> {
+                            Value peek=stack.peekLast();
+                            if(peek==null){
+                                throw new SyntaxError("stack underflow");
+                            }
+                            Value.ValueIterator  itr=peek.asItr();
+                            if(itr.hasPrev()){
+                                stack.addLast(itr.prev());
+                                stack.addLast(Value.TRUE);
+                            }else{
+                                stack.addLast(Value.FALSE);
+                            }
                         }
                         case CALL -> {
                             Value procedure = pop(stack);

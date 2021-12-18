@@ -1,11 +1,13 @@
 package bsoelch.concat;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public abstract class Value {
     public static final Value FALSE = new Value(Type.BOOL) {
@@ -48,6 +50,9 @@ public abstract class Value {
     public double asDouble() {
         throw new TypeError("Cannot convert "+type+" to float");
     }
+    public ValueIterator asItr() {
+        throw new TypeError("Cannot convert "+type+" to itr");
+    }
 
     public Type asType() {
         throw new TypeError("Cannot convert "+type+" to type");
@@ -76,6 +81,11 @@ public abstract class Value {
     public Value slice(long off,long to) {
         throw new TypeError("Element access not supported for type "+type);
     }
+
+    public Value iterator(boolean end) {
+        throw new TypeError("Cannot iterate over "+type);
+    }
+
     public abstract String stringValue();
 
     @Override
@@ -281,6 +291,12 @@ public abstract class Value {
         }
     }
 
+    interface ValueIterator{
+        boolean hasNext();
+        Value next();
+        boolean hasPrev();
+        Value prev();
+    }
     public static Value ofString(String stringValue) {
         return new StringValue(stringValue);
     }
@@ -324,6 +340,10 @@ public abstract class Value {
         public Value slice(long off,long to) {
             return ofString(stringValue.substring((int)off,(int)to));
         }
+        @Override
+        public Value iterator(boolean end) {
+            return new StringIterator(stringValue,end);
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -338,6 +358,47 @@ public abstract class Value {
             return Objects.hash(stringValue);
         }
     }
+    private static class StringIterator extends Value implements ValueIterator{
+        final int[] codePoints;
+        int i;
+
+        protected StringIterator(String stringValue,boolean end) {
+            super(Type.iteratorOf(Type.CHAR));
+            this.codePoints = stringValue.codePoints().toArray();
+            i=end?codePoints.length:0;
+        }
+
+        @Override
+        public ValueIterator asItr() {
+            return this;
+        }
+
+        @Override
+        public String stringValue() {
+            return "Itr{\""+ IntStream.of(Arrays.copyOfRange(codePoints, 0, i))
+                    .mapToObj(c -> String.valueOf(Character.toChars(c))).reduce("", (a, b) -> a + b)
+                    +"\"^\""+ IntStream.of(Arrays.copyOfRange(codePoints, i,codePoints.length))
+                    .mapToObj(c -> String.valueOf(Character.toChars(c))).reduce("", (a, b) -> a + b)+"\"}";
+        }
+
+        @Override
+        public boolean hasNext() {
+            return i<codePoints.length;
+        }
+        @Override
+        public Value next() {
+            return ofChar(codePoints[i++]);
+        }
+        @Override
+        public boolean hasPrev() {
+            return i>0;
+        }
+        @Override
+        public Value prev() {
+            return ofChar(codePoints[--i]);
+        }
+    }
+
     public static Value createList(Type type, ArrayList<Value> elements) {
         if(type.equals(Type.STRING())){
             return ofString(elements.stream().map(Value::asChar).map(Character::toChars).map(String::valueOf).
@@ -363,6 +424,10 @@ public abstract class Value {
             return new ArrayList<>(elements);
         }
 
+        @Override
+        public Value iterator(boolean end) {
+            return new ListIterator(Type.iteratorOf(type.content()),elements,end);
+        }
         @Override
         public Value get(long index) {
             return elements.get((int)index);
@@ -401,6 +466,43 @@ public abstract class Value {
             return Objects.hash(elements);
         }
     }
+    private static class ListIterator extends Value implements ValueIterator{
+        final ArrayList<Value> elements;
+        int i;
+
+        protected ListIterator(Type type, ArrayList<Value> elements,boolean end) {
+            super(type);
+            this.elements = elements;
+            i=end?elements.size():0;
+        }
+
+        @Override
+        public ValueIterator asItr() {
+            return this;
+        }
+        @Override
+        public String stringValue() {
+            return "Itr{"+elements.subList(0,i)+"^"+elements.subList(i,elements.size())+"}";
+        }
+
+        @Override
+        public boolean hasNext() {
+            return i<elements.size();
+        }
+        @Override
+        public Value next() {
+            return elements.get(i++);
+        }
+        @Override
+        public boolean hasPrev() {
+            return i>0;
+        }
+        @Override
+        public Value prev() {
+            return elements.get(--i);
+        }
+    }
+
     public static Value ofProcedureId(int id) {
         return new ProcedureValue(id);
     }
@@ -433,7 +535,6 @@ public abstract class Value {
             return Objects.hash(id);
         }
     }
-
     public static Value concat(Value a,Value b) {
         if(a.type.isList()&&b.type.isList()){
             if(a.type.content().canAssignFrom(b.type.content())){
@@ -488,7 +589,8 @@ public abstract class Value {
                 return c < 0 ? TRUE : FALSE;
             }
             case NEGATE,PLUS,MINUS,INVERT,MULT,DIV,MOD,POW,NOT,FLIP,AND,OR,XOR,LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,
-                    NEW_LIST,LIST_OF,LENGTH,AT_INDEX,SLICE,PUSH_FIRST,CONCAT,PUSH_LAST,CAST,TYPE_OF,CALL ->
+                    NEW_LIST,LIST_OF,UNWRAP,LENGTH,AT_INDEX,SLICE,PUSH_FIRST,CONCAT,PUSH_LAST,ITR_OF,ITR_START,ITR_END,ITR_NEXT,ITR_PREV,
+                    CAST,TYPE_OF,CALL ->
                     throw new SyntaxError(opType +" is no valid comparison operator");
         }
         throw new RuntimeException("unreachable");

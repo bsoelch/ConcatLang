@@ -34,6 +34,9 @@ public class Type {
     public boolean isList() {
         return false;
     }
+    public boolean isIterator() {
+        return false;
+    }
     public Type content() {
         throw new UnsupportedOperationException();
     }
@@ -49,7 +52,6 @@ public class Type {
             return new ListType(contentType);
         }
     }
-
     private static class ListType extends Type {
         static final Type STRING = new ListType(Type.CHAR);
 
@@ -86,6 +88,48 @@ public class Type {
             return Objects.equals(contentType, listType.contentType);
         }
 
+        @Override
+        public int hashCode() {
+            return Objects.hash(contentType);
+        }
+    }
+
+    public static Type iteratorOf(Type contentType) {
+        return new IteratorType(contentType);
+    }
+    private static class IteratorType extends Type {
+        final Type contentType;
+
+        IteratorType(Type contentType) {
+            super(contentType.name + " itr");
+            this.contentType = contentType;
+        }
+
+        public boolean isIterator() {
+            return true;
+        }
+
+        @Override
+        public boolean canAssignFrom(Type source) {
+            if(source instanceof IteratorType){
+                return contentType.canAssignFrom(((IteratorType) source).contentType);
+            }else{
+                return super.canAssignFrom(source);
+            }
+        }
+
+        @Override
+        public Type content() {
+            return contentType;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IteratorType itrType = (IteratorType) o;
+            return Objects.equals(contentType, itrType.contentType);
+        }
         @Override
         public int hashCode() {
             return Objects.hash(contentType);
