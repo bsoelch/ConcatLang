@@ -34,16 +34,12 @@ public class Type {
     public boolean isList() {
         return false;
     }
-    public boolean isIterator() {
-        return false;
-    }
     public Type content() {
         throw new UnsupportedOperationException();
     }
     public boolean canAssignFrom(Type source){
         return this==source;
     }
-
 
     public static Type listOf(Type contentType) {
         if (contentType == CHAR) {
@@ -103,10 +99,6 @@ public class Type {
         IteratorType(Type contentType) {
             super(contentType.name + " itr");
             this.contentType = contentType;
-        }
-
-        public boolean isIterator() {
-            return true;
         }
 
         @Override

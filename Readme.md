@@ -141,12 +141,63 @@ false
 true
 false
 ```
+
+### iterators
+Iterators simplify iterating over all elements of a list,
+they are designed to work well with for-each loops
+- `itr` wraps a type in the corresponding iterator-type
+- `^..` created a new iterator at the start of 
+the current element (the current element has to be a list)
+- `..^` created a new iterator at the end of
+  the current element (the current element has to be a list)
+- `^>` moves the iterator to the next element,
+  - if the list has a next element the iterator pushes itself,
+  the value of the element and the `true`
+  - otherwise, the iterator pushes itself,
+    followed by `false`
+- `<^` moves the iterator to the previous element
+  - if the list has a previous element the iterator pushes 
+    itself, the value of the element and the `true`
+  - otherwise, the iterator pushes itself,
+    followed by `false`
+
+Examples:
+template of for-each loop:
+```Julia
+array ^.. ## create iterator
+while ^> :  ## iterate over all elements
+ println ## do something with data
+end 
+drop ## Drop iterator
+```
+
+reverse a list:
+```Julia
+## store type and length of the list
+dup typeof unwrap type :arg.type
+dup length        int  :arg.length
+## Iterate though the elements in reverse order
+..^ while <^ : swap end drop
+## reassemble the list
+arg.type arg.length {}
+```
+Sum all elements of a list
+```Julia
+0 var :tmp ## Initialize sum to 0
+## Iterate though all elements of the list
+^.. while ^> :
+ tmp swap + !tmp
+end drop
+tmp ## load the total sum onto the stack
+```
+
 ### other operators
 - `typeof` replaces the top element on the stack 
 with its type
 - `cast` typecast `val type cast` casts `val` to 
 type `type` and pushes the result
-- `list` creates a list-type from the top stack element
+- `list`  wraps a type in the corresponding list-type
+- `unwrap` unwraps iterator and list types
 - `{}` creates a new list (syntax:
 `<elements> <type> <count> {}`)
 - `++` concatenates two lists of the same type

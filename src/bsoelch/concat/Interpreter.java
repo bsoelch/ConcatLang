@@ -642,7 +642,7 @@ public class Interpreter {
             Variable prev = getVariable(name);
             if(prev!=null) {
                 if (prev.isConst){
-                    throw new SyntaxError("const variable " + name + " is overwritten " + pos);
+                    throw new SyntaxError("const variable " + name + " is overwritten or shadowed" + pos);
                 }else if (isConst){
                     throw new SyntaxError("const variable " + name + " is overwrites existing variable " + pos);
                 }
