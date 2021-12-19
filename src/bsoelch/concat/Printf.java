@@ -125,7 +125,7 @@ public class Printf {
 
 
     private interface PrintfFormat {
-        String value(Value[] args);
+        String value(Value[] args) throws ConcatRuntimeError;
     }
     private record StringFormat(String value) implements PrintfFormat {
         @Override
@@ -135,7 +135,7 @@ public class Printf {
     }
     private record FormatFormat(int index,int flags,int w,boolean w_ptr,int p,boolean p_ptr,int b,boolean b_ptr,char format) implements PrintfFormat {
         @Override
-        public String value(Value[] args) {
+        public String value(Value[] args) throws ConcatRuntimeError {
             boolean alignLeft = (flags & PRINTF_FLAG_ALIGN_LEFT) != 0;
             int width=w_ptr?(int)args[w].asLong():w;
             if(width<0){//negative precision => alignment on left side
@@ -144,7 +144,7 @@ public class Printf {
             }
             int precision=p_ptr?(int)args[p].asLong():p;
             if(precision<0){//0 -> default
-                throw new SyntaxError("precision has to be at least 1");
+                throw new ConcatRuntimeError("printf: precision has to be at least 1");
             }
             int base=b_ptr?(int)args[b].asLong():b;
             String raw;
@@ -189,7 +189,7 @@ public class Printf {
         }
     }
     /*custom printf, since Java internal printf functions don't specify the number of required arguments*/
-    public static void printf(String format, ArrayDeque<Value> stack, Consumer<String> out){
+    public static void printf(String format, ArrayDeque<Value> stack, Consumer<String> out) throws ConcatRuntimeError {
         ArrayList<PrintfFormat> parts=new ArrayList<>();
         int i0=0,i,n=format.length();
         int count=0;
@@ -207,14 +207,14 @@ public class Printf {
                     i0++;
                 }
                 if(i0>=format.length()){
-                    throw new SyntaxError("unfinished or invalid format String: " + format.substring(i));
+                    throw new ConcatRuntimeError("printf: unfinished or invalid format String: " + format.substring(i));
                 }
                 //format-type
                 char formatChar=format.charAt(i0);
                 String formatString=format.substring(i,i0++);
                 if(formatChar=='%'){
                     if(formatString.length()>0){
-                        throw new SyntaxError("invalid Format String:" + formatString + formatChar+
+                        throw new ConcatRuntimeError("printf: invalid Format String:" + formatString + formatChar+
                                 " format '%' does not allow any additional parameters");
                     }
                     parts.add(new StringFormat("%"));
@@ -298,7 +298,7 @@ public class Printf {
                         switch (Character.toLowerCase(formatChar)) {
                             case 'f','e','s' -> {
                             }
-                            default -> throw new SyntaxError("invalid Format String:" + formatString + formatChar +
+                            default -> throw new ConcatRuntimeError("printf: invalid Format String:" + formatString + formatChar +
                                     " precision-parameter only allowed for formats f, e and s");
                         }
                         i++;
@@ -320,7 +320,7 @@ public class Printf {
                         switch (Character.toLowerCase(formatChar)) {
                             case 'i','u','f','e','s' -> {
                             }
-                            default -> throw new SyntaxError("invalid Format String:" + formatString + formatChar +
+                            default -> throw new ConcatRuntimeError("printf: invalid Format String:" + formatString + formatChar +
                                     " base-parameter only allowed for formats i,u,f,e and s");
                         }
                         i++;
@@ -339,11 +339,11 @@ public class Printf {
                             }
                             i++;
                         }else{
-                            throw new SyntaxError("invalid Format String:" + formatString + formatChar);
+                            throw new ConcatRuntimeError("printf: binvalid Format String:" + formatString + formatChar);
                         }
                     }
                     if (i < formatString.length()||tmp.length()>0) {
-                        throw new SyntaxError("invalid Format String:" + formatString + formatChar);
+                        throw new ConcatRuntimeError("printf: invalid Format String:" + formatString + formatChar);
                     }
                     parts.add(new FormatFormat(index,flags,w,w_ptr,p,p_ptr,b,b_ptr,formatChar));
                     maxFormat=Math.max(maxFormat, index);

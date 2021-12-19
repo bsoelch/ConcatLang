@@ -10,7 +10,9 @@ public class Interpreter {
         ROOT,STRING,COMMENT,LINE_COMMENT
     }
     enum TokenType {
-        VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,IF,START,ELIF,ELSE,DO,WHILE,END,PROCEDURE,RETURN, PROCEDURE_START,
+        VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,IF,START,ELIF,ELSE,DO,WHILE,END,
+        PROCEDURE,RETURN, PROCEDURE_START,
+        STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,
         DUP,DROP,SWAP,
         SPRINTF,PRINT,PRINTF,PRINTLN,//fprint,fprintln,fprintf
         //jump commands only for internal representation
@@ -36,15 +38,18 @@ public class Interpreter {
             return tokenType.toString();
         }
     }
-    static class NamedToken extends Token {
-        final String value;
-        NamedToken(TokenType type, String value, TokenPosition pos) {
+    static class VariableToken extends Token {
+        final String name;
+        VariableToken(TokenType type, String name, TokenPosition pos) throws SyntaxError {
             super(type, pos);
-            this.value=value;
+            this.name = name;
+            if(name.isEmpty()){
+                throw new SyntaxError("empty variable name",pos);
+            }
         }
         @Override
         public String toString() {
-            return tokenType.toString()+": \""+value+"\"";
+            return tokenType.toString()+": \""+ name +"\"";
         }
     }
     static class OperatorToken extends Token {
@@ -135,17 +140,13 @@ public class Interpreter {
             return input.read();
         }
     }
-    private int forceNextChar() throws IOException {
+    private int forceNextChar() throws IOException, SyntaxError {
         int c=nextChar();
         if (c < 0) {
-            throw new SyntaxError("Unexpected end of File");
+            throw new SyntaxError("Unexpected end of File",currentPos());
         }
         return c;
     }
-
-    //addLater
-    // structs/tuples ?
-
     private TokenPosition currentPos;
     private TokenPosition currentPos() {
         if(currentPos==null){
@@ -158,8 +159,7 @@ public class Interpreter {
         currentPos=new TokenPosition(line, posInLine);
     }
 
-    //addLater better error feedback
-    public ArrayList<Token>  parse() throws IOException {
+    public ArrayList<Token>  parse() throws IOException, SyntaxError {
         ArrayList<Token> tokenBuffer=new ArrayList<>();
         TreeMap<Integer,Token> openBlocks=new TreeMap<>();
         int c;
@@ -180,7 +180,7 @@ public class Interpreter {
                                 state = WordState.STRING;
                                 stringStart = (char) c;
                                 if(buffer.length()>0) {
-                                    throw new SyntaxError("Illegal string prefix:\"" + buffer + "\"");
+                                    throw new SyntaxError("Illegal string prefix:\"" + buffer + "\"",currentPos());
                                 }
                             }
                             case '#' -> {
@@ -206,7 +206,7 @@ public class Interpreter {
                                 int codePoint = buffer.codePointAt(0);
                                 tokenBuffer.add(new ValueToken(Value.ofChar(codePoint), currentPos()));
                             }else{
-                                throw new SyntaxError("A char-literal must contain exactly one character");
+                                throw new SyntaxError("A char-literal must contain exactly one character",currentPos());
                             }
                         }else{
                             tokenBuffer.add(new ValueToken(Value.ofString(buffer.toString()),  currentPos()));
@@ -256,21 +256,21 @@ public class Interpreter {
         }
         switch (state){
             case ROOT ->{}
-            case STRING ->throw new SyntaxError("unfinished string");
-            case COMMENT,LINE_COMMENT -> throw new SyntaxError("unfinished comment");
+            case STRING ->throw new SyntaxError("unfinished string",currentPos());
+            case COMMENT,LINE_COMMENT -> throw new SyntaxError("unfinished comment",currentPos());
         }
         if(state!=WordState.ROOT){
-            throw new SyntaxError("Unexpected end of File");
+            throw new SyntaxError("Unexpected end of File",currentPos());
         }
         finishWord(tokenBuffer,openBlocks,buffer);
         if(openBlocks.size()>0){
-            throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue());
+            throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(),currentPos());
         }
         return tokenBuffer;
     }
 
     /**@return false if the value was an integer otherwise true*/
-    private boolean tryParseInt(ArrayList<Token> tokens, String str){
+    private boolean tryParseInt(ArrayList<Token> tokens, String str) throws SyntaxError {
         try {
             if(intDec.matcher(str).matches()){//dez-Int
                 tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 10)),  currentPos()));
@@ -285,12 +285,12 @@ public class Interpreter {
                 return false;
             }
         } catch (NumberFormatException nfeL) {
-            throw new SyntaxError("Number out of Range:"+str);
+            throw new SyntaxError("Number out of Range:"+str,currentPos());
         }
         return true;
     }
 
-    private void finishWord(ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks, StringBuilder buffer) {
+    private void finishWord(ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks, StringBuilder buffer) throws SyntaxError {
         if (buffer.length() > 0) {
             String str=buffer.toString();
             try{
@@ -316,14 +316,14 @@ public class Interpreter {
                             addWord(str,tokens,openBlocks);
                     }
                 }
-            }catch (NumberFormatException nfe){
-                throw new SyntaxError(nfe);
+            }catch (NumberFormatException | SyntaxError nfe){
+                throw new SyntaxError(nfe,currentPos());
             }
             nextToken();
         }
     }
 
-    private void addWord(String str,ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks) {
+    private void addWord(String str,ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks) throws SyntaxError {
         switch (str) {
             case "true" -> tokens.add(new ValueToken(Value.TRUE,  currentPos()));
             case "false" -> tokens.add(new ValueToken(Value.FALSE,  currentPos()));
@@ -338,6 +338,7 @@ public class Interpreter {
             case "itr" -> tokens.add(new OperatorToken(OperatorType.ITR_OF,  currentPos()));
             case "unwrap" -> tokens.add(new OperatorToken(OperatorType.UNWRAP,  currentPos()));
             case "*->*" -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),currentPos()));
+            case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),currentPos()));
             case "var" -> tokens.add(new ValueToken(Value.ofType(Type.ANY),currentPos()));
 
             case "cast" ->  tokens.add(new OperatorToken(OperatorType.CAST,  currentPos()));
@@ -374,7 +375,7 @@ public class Interpreter {
                     tokens.add(t);
                     tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,tokens.size()));
                 }else{
-                    throw new SyntaxError("elif has to be preceded with if or elif followed by a :");
+                    throw new SyntaxError("elif has to be preceded with if or elif followed by a :",currentPos());
                 }
             }
             case "else" -> {
@@ -390,14 +391,14 @@ public class Interpreter {
                     tokens.add(t);
                     tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,tokens.size()));
                 }else{
-                    throw new SyntaxError("else has to be preceded with if or elif followed by a :");
+                    throw new SyntaxError("else has to be preceded with if or elif followed by a :",currentPos());
                 }
             }
             case "end" ->{
                 Token t = new Token(TokenType.END, currentPos());
                 Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
                 if(start==null){
-                    throw new SyntaxError("unexpected end statement:"+currentPos());
+                    throw new SyntaxError("unexpected end statement",currentPos());
                 }else if(start.getValue().tokenType==TokenType.START){
                     Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
                     switch (label.getValue().tokenType){
@@ -413,15 +414,16 @@ public class Interpreter {
                             tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,tokens.size()));
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,START,END,ELSE,DO,PROCEDURE,
-                                RETURN, PROCEDURE_START,DUP,DROP,SWAP,JEQ,JNE,JMP,SPRINTF,PRINT,PRINTF,PRINTLN
-                                -> throw new RuntimeException("Invalid block syntax \""+
-                                label.getValue().tokenType+"\"...':' at" +label.getValue().pos);
+                                RETURN, PROCEDURE_START,DUP,DROP,SWAP,JEQ,JNE,JMP,SPRINTF,PRINT,PRINTF,PRINTLN,
+                                STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE
+                                -> throw new SyntaxError("Invalid block syntax \""+
+                                label.getValue().tokenType+"\"...':'",label.getValue().pos);
                     }
                 }else if(start.getValue().tokenType==TokenType.WHILE){// do ... while ... end
                     Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
                     if(label.getValue().tokenType!=TokenType.DO){
                         throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
-                                " 'do ... while'  or 'else'");
+                                " 'do ... while'  or 'else'",currentPos());
                     }
                     tokens.add(new JumpToken(TokenType.JEQ,t.pos,label.getKey()));
                 }else if(start.getValue().tokenType==TokenType.ELSE){// ... else ... end
@@ -432,9 +434,11 @@ public class Interpreter {
                     tokens.add(t);
                     tokens.set(start.getKey(),new ProcedureStart(start.getValue().pos,tokens.size()));
                     tokens.add(new ValueToken(Value.ofProcedureId(start.getKey()+1),currentPos()));
+                }else if(start.getValue().tokenType==TokenType.STRUCT_START){//struct ... end
+                    tokens.add(new Token(TokenType.STRUCT_END,currentPos()));
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
-                            " 'do ... while'  or 'else' got:"+start.getValue());
+                            " 'do ... while'  or 'else' got:"+start.getValue(),currentPos());
                 }
             }
             case "while" -> {
@@ -449,6 +453,11 @@ public class Interpreter {
             }
             case "proc","procedure" -> {
                 Token t = new Token(TokenType.PROCEDURE, currentPos());
+                openBlocks.put(tokens.size(),t);
+                tokens.add(t);
+            }
+            case "struct" -> {
+                Token t = new Token(TokenType.STRUCT_START, currentPos());
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
@@ -498,19 +507,25 @@ public class Interpreter {
 
             default ->{
                 if(str.charAt(0) == '!') {
-                    tokens.add(new NamedToken(TokenType.WRITE_TO, str.substring(1), currentPos()));
+                    tokens.add(new VariableToken(TokenType.WRITE_TO, str.substring(1), currentPos()));
                 }else if(str.charAt(0) == ':') {
-                    tokens.add(new NamedToken(TokenType.DECLARE, str.substring(1), currentPos()));
+                    tokens.add(new VariableToken(TokenType.DECLARE, str.substring(1), currentPos()));
                 }else if(str.charAt(0) == '$') {
-                    tokens.add(new NamedToken(TokenType.CONST_DECLARE, str.substring(1), currentPos()));
+                    tokens.add(new VariableToken(TokenType.CONST_DECLARE, str.substring(1), currentPos()));
+                }else if(str.charAt(0)=='.'){
+                    if(str.length()>1&&str.charAt(1)=='!'){
+                        tokens.add(new VariableToken(TokenType.FIELD_WRITE, str.substring(2), currentPos()));
+                    }else{
+                        tokens.add(new VariableToken(TokenType.FIELD_READ, str.substring(1), currentPos()));
+                    }
                 }else{
-                    tokens.add(new NamedToken(TokenType.NAME, str, currentPos()));
+                    tokens.add(new VariableToken(TokenType.NAME, str, currentPos()));
                 }
             }
         }
     }
 
-    private double parseBinFloat(String str){
+    private double parseBinFloat(String str) throws SyntaxError {
         long val=0;
         int c1=0,c2=0;
         int d2=0,e=-1;
@@ -527,7 +542,7 @@ public class Interpreter {
                     break;
                 case '.':
                     if(d2!=0){
-                        throw new SyntaxError("Duplicate decimal point");
+                        throw new SyntaxError("Duplicate decimal point",currentPos());
                     }
                     d2=1;
                     break;
@@ -542,7 +557,7 @@ public class Interpreter {
         }
         return val*Math.pow(2,-c2);
     }
-    private double parseHexFloat(String str){
+    private double parseHexFloat(String str) throws SyntaxError {
         long val=0;
         int c1=0,c2=0;
         int d2=0,e=-1;
@@ -579,7 +594,7 @@ public class Interpreter {
                     break;
                 case '.':
                     if(d2!=0){
-                        throw new SyntaxError("Duplicate decimal point");
+                        throw new SyntaxError("Duplicate decimal point",currentPos());
                     }
                     d2=1;
                     break;
@@ -600,7 +615,7 @@ public class Interpreter {
         final Type type;
         private Value value;
 
-        Variable(Type type, boolean isConst, Value value) {
+        Variable(Type type, boolean isConst, Value value) throws TypeError {
             this.type = type;
             this.isConst = isConst;
             setValue(value);
@@ -610,7 +625,7 @@ public class Interpreter {
             return value;
         }
 
-        public void setValue(Value newValue) {
+        public void setValue(Value newValue) throws TypeError {
             value=newValue.castTo(type);
         }
     }
@@ -638,23 +653,23 @@ public class Interpreter {
         }
 
         /**declares a new Variable with the given name,type and value*/
-        public void declareVariable(String name, Type type, boolean isConst, Value value,TokenPosition pos) {
+        public void declareVariable(String name, Type type, boolean isConst, Value value) throws ConcatRuntimeError {
             Variable prev = getVariable(name);
             if(prev!=null) {
                 if (prev.isConst){
-                    throw new SyntaxError("const variable " + name + " is overwritten or shadowed" + pos);
+                    throw new ConcatRuntimeError("const variable " + name + " is overwritten or shadowed");
                 }else if (isConst){
-                    throw new SyntaxError("const variable " + name + " is overwrites existing variable " + pos);
+                    throw new ConcatRuntimeError("const variable " + name + " is overwrites existing variable ");
                 }
             }
             variables.put(name,new Variable(type, isConst, value));
         }
     }
 
-    static Value pop(ArrayDeque<Value> stack){
+    static Value pop(ArrayDeque<Value> stack) throws ConcatRuntimeError {
         Value v=stack.pollLast();
         if(v==null){
-            throw new SyntaxError("stack underflow");
+            throw new ConcatRuntimeError("stack underflow");
         }
         return v;
     }
@@ -665,280 +680,313 @@ public class Interpreter {
         while(state.ip<program.size()){
             Token next=program.get(state.ip);
             boolean incIp=true;
-            switch (next.tokenType){
-                case VALUE -> stack.addLast(((ValueToken)next).value);
-                case OPERATOR -> {
-                    switch (((OperatorToken)next).opType){
-                        case NEGATE -> {
-                            Value v=pop(stack);
-                            stack.push(v.negate());
-                        }
-                        case INVERT -> {
-                            Value v=pop(stack);
-                            stack.push(v.invert());
-                        }
-                        case NOT -> {
-                            Value v=pop(stack);
-                            stack.push(v.asBool()?Value.FALSE:Value.TRUE);
-                        }
-                        case FLIP -> {
-                            Value v=pop(stack);
-                            stack.push(v.flip());
-                        }
-                        case PLUS->{
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.mathOp(a,b,(x,y)->Value.ofInt(x+y),(x, y)->Value.ofFloat(x+y)));
-                        }
-                        case MINUS->{
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.mathOp(a,b,(x,y)->Value.ofInt(x-y),(x, y)->Value.ofFloat(x-y)));
-                        }
-                        case MULT->{
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.mathOp(a,b,(x,y)->Value.ofInt(x*y),(x, y)->Value.ofFloat(x*y)));
-                        }
-                        case DIV->{
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.mathOp(a,b,(x,y)->Value.ofInt(x/y),(x, y)->Value.ofFloat(x/y)));
-                        }
-                        case MOD->{
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.mathOp(a,b,(x,y)->Value.ofInt(x%y),(x, y)->Value.ofFloat(x%y)));
-                        }
-                        case POW->{
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.mathOp(a,b,(x,y)->Value.ofInt(longPow(x,y)),
-                                    (x,y)->Value.ofFloat(Math.pow(x,y))));
-                        }
-                        case EQ,NE,GT,GE,LE,LT ->{
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.compare(a,((OperatorToken)next).opType,b));
-                        }
-                        case AND -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.logicOp(a,b,(x,y)->x&&y,(x,y)->x&y));
-                        }
-                        case OR -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.logicOp(a,b,(x,y)->x||y,(x,y)->x|y));
-                        }
-                        case XOR -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.logicOp(a,b,(x,y)->x^y,(x,y)->x^y));
-                        }
-                        case LSHIFT -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.intOp(a,b,(x,y)->y<0?x>>>-y:x<<y));
-                        }
-                        case RSHIFT -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.intOp(a,b,(x,y)->y<0?x<<-y:x>>>y));
-                        }
-                        case SLSHIFT -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.intOp(a,b,(x,y)->y<0?x>>-y:slshift(x,y)));
-                        }
-                        case SRSHIFT -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.intOp(a,b,(x,y)->y<0?slshift(x,-y):x>>y));
-                        }
-                        case LIST_OF -> {
-                            Type contentType=pop(stack).asType();
-                            stack.addLast(Value.ofType(Type.listOf(contentType)));
-                        }
-                        case UNWRAP -> {
-                            Type wrappedType=pop(stack).asType();
-                            stack.addLast(Value.ofType(wrappedType.content()));
-                        }
-                        case NEW_LIST -> {//e1 e2 ... eN type count {}
-                            long count = pop(stack).asLong();
-                            Type type  = pop(stack).asType();
-                            ArrayDeque<Value> tmp=new ArrayDeque<>((int)count);
-                            while(count>0){
-                                tmp.addFirst(pop(stack).castTo(type));
-                                count--;
+            try {
+                switch (next.tokenType) {
+                    case VALUE -> stack.addLast(((ValueToken) next).value);
+                    case OPERATOR -> {
+                        switch (((OperatorToken) next).opType) {
+                            case NEGATE -> {
+                                Value v = pop(stack);
+                                stack.push(v.negate());
                             }
-                            ArrayList<Value> list=new ArrayList<>(tmp);
-                            stack.addLast(Value.createList(Type.listOf(type),list));
-                        }
-                        case CAST -> {
-                            Type type  = pop(stack).asType();
-                            Value val  = pop(stack);
-                            stack.addLast(val.castTo(type));
-                        }
-                        case TYPE_OF -> {
-                            Value val  = pop(stack);
-                            stack.addLast(Value.ofType(val.type));
-                        }
-                        case LENGTH -> {
-                            Value val  = pop(stack);
-                            stack.addLast(Value.ofInt(val.length()));
-                        }
-                        case AT_INDEX->{//array index []
-                            long index = pop(stack).asLong();
-                            Value list = pop(stack);
-                            stack.addLast(list.get(index));
-                        }
-                        case SLICE -> {
-                            long to = pop(stack).asLong();
-                            long off = pop(stack).asLong();
-                            Value list = pop(stack);
-                            stack.addLast(list.slice(off,to));
-                        }
-                        case PUSH_FIRST -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.pushFirst(a,b));
-                        }
-                        case CONCAT -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.concat(a,b));
-                        }
-                        case PUSH_LAST -> {
-                            Value b=pop(stack);
-                            Value a=pop(stack);
-                            stack.addLast(Value.pushLast(a,b));
-                        }
-                        case ITR_OF -> {
-                            Type contentType=pop(stack).asType();
-                            stack.addLast(Value.ofType(Type.iteratorOf(contentType)));
-                        }
-                        case ITR_START -> {
-                            Value a=pop(stack);
-                            stack.addLast(a.iterator(false));
-                        }
-                        case ITR_END -> {
-                            Value a=pop(stack);
-                            stack.addLast(a.iterator(true));
-                        }
-                        case ITR_NEXT -> {
-                            Value peek=stack.peekLast();
-                            if(peek==null){
-                                throw new SyntaxError("stack underflow");
+                            case INVERT -> {
+                                Value v = pop(stack);
+                                stack.push(v.invert());
                             }
-                            Value.ValueIterator itr=peek.asItr();
-                            if(itr.hasNext()){
-                                stack.addLast(itr.next());
-                                stack.addLast(Value.TRUE);
-                            }else{
-                                stack.addLast(Value.FALSE);
+                            case NOT -> {
+                                Value v = pop(stack);
+                                stack.push(v.asBool() ? Value.FALSE : Value.TRUE);
                             }
-                        }
-                        case ITR_PREV -> {
-                            Value peek=stack.peekLast();
-                            if(peek==null){
-                                throw new SyntaxError("stack underflow");
+                            case FLIP -> {
+                                Value v = pop(stack);
+                                stack.push(v.flip());
                             }
-                            Value.ValueIterator  itr=peek.asItr();
-                            if(itr.hasPrev()){
-                                stack.addLast(itr.prev());
-                                stack.addLast(Value.TRUE);
-                            }else{
-                                stack.addLast(Value.FALSE);
+                            case PLUS -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y), (x, y) -> Value.ofFloat(x + y)));
                             }
-                        }
-                        case CALL -> {
-                            Value procedure = pop(stack);
-                            state=new ProgramState(procedure.asProcedure(),state);
-                            incIp=false;
+                            case MINUS -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y), (x, y) -> Value.ofFloat(x - y)));
+                            }
+                            case MULT -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y), (x, y) -> Value.ofFloat(x * y)));
+                            }
+                            case DIV -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x / y), (x, y) -> Value.ofFloat(x / y)));
+                            }
+                            case MOD -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x % y), (x, y) -> Value.ofFloat(x % y)));
+                            }
+                            case POW -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(longPow(x, y)),
+                                        (x, y) -> Value.ofFloat(Math.pow(x, y))));
+                            }
+                            case EQ, NE, GT, GE, LE, LT -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.compare(a, ((OperatorToken) next).opType, b));
+                            }
+                            case AND -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.logicOp(a, b, (x, y) -> x && y, (x, y) -> x & y));
+                            }
+                            case OR -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.logicOp(a, b, (x, y) -> x || y, (x, y) -> x | y));
+                            }
+                            case XOR -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.logicOp(a, b, (x, y) -> x ^ y, (x, y) -> x ^ y));
+                            }
+                            case LSHIFT -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.intOp(a, b, (x, y) -> y < 0 ? x >>> -y : x << y));
+                            }
+                            case RSHIFT -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.intOp(a, b, (x, y) -> y < 0 ? x << -y : x >>> y));
+                            }
+                            case SLSHIFT -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.intOp(a, b, (x, y) -> y < 0 ? x >> -y : slshift(x, y)));
+                            }
+                            case SRSHIFT -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.intOp(a, b, (x, y) -> y < 0 ? slshift(x, -y) : x >> y));
+                            }
+                            case LIST_OF -> {
+                                Type contentType = pop(stack).asType();
+                                stack.addLast(Value.ofType(Type.listOf(contentType)));
+                            }
+                            case UNWRAP -> {
+                                Type wrappedType = pop(stack).asType();
+                                stack.addLast(Value.ofType(wrappedType.content()));
+                            }
+                            case NEW_LIST -> {//e1 e2 ... eN type count {}
+                                long count = pop(stack).asLong();
+                                Type type = pop(stack).asType();
+                                ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
+                                while (count > 0) {
+                                    tmp.addFirst(pop(stack).castTo(type));
+                                    count--;
+                                }
+                                ArrayList<Value> list = new ArrayList<>(tmp);
+                                stack.addLast(Value.createList(Type.listOf(type), list));
+                            }
+                            case CAST -> {
+                                Type type = pop(stack).asType();
+                                Value val = pop(stack);
+                                stack.addLast(val.castTo(type));
+                            }
+                            case TYPE_OF -> {
+                                Value val = pop(stack);
+                                stack.addLast(Value.ofType(val.type));
+                            }
+                            case LENGTH -> {
+                                Value val = pop(stack);
+                                stack.addLast(Value.ofInt(val.length()));
+                            }
+                            case AT_INDEX -> {//array index []
+                                long index = pop(stack).asLong();
+                                Value list = pop(stack);
+                                stack.addLast(list.get(index));
+                            }
+                            case SLICE -> {
+                                long to = pop(stack).asLong();
+                                long off = pop(stack).asLong();
+                                Value list = pop(stack);
+                                stack.addLast(list.getSlice(off, to));
+                            }
+                            case PUSH_FIRST -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.pushFirst(a, b));
+                            }
+                            case CONCAT -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.concat(a, b));
+                            }
+                            case PUSH_LAST -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.pushLast(a, b));
+                            }
+                            case ITR_OF -> {
+                                Type contentType = pop(stack).asType();
+                                stack.addLast(Value.ofType(Type.iteratorOf(contentType)));
+                            }
+                            case ITR_START -> {
+                                Value a = pop(stack);
+                                stack.addLast(a.iterator(false));
+                            }
+                            case ITR_END -> {
+                                Value a = pop(stack);
+                                stack.addLast(a.iterator(true));
+                            }
+                            case ITR_NEXT -> {
+                                Value peek = stack.peekLast();
+                                if (peek == null) {
+                                    throw new ConcatRuntimeError("stack underflow");
+                                }
+                                Value.ValueIterator itr = peek.asItr();
+                                if (itr.hasNext()) {
+                                    stack.addLast(itr.next());
+                                    stack.addLast(Value.TRUE);
+                                } else {
+                                    stack.addLast(Value.FALSE);
+                                }
+                            }
+                            case ITR_PREV -> {
+                                Value peek = stack.peekLast();
+                                if (peek == null) {
+                                    throw new ConcatRuntimeError("stack underflow");
+                                }
+                                Value.ValueIterator itr = peek.asItr();
+                                if (itr.hasPrev()) {
+                                    stack.addLast(itr.prev());
+                                    stack.addLast(Value.TRUE);
+                                } else {
+                                    stack.addLast(Value.FALSE);
+                                }
+                            }
+                            case CALL -> {
+                                Value procedure = pop(stack);
+                                state = new ProgramState(procedure.asProcedure(), state);
+                                incIp = false;
+                            }
                         }
                     }
-                }
-                case SPRINTF -> {
-                    String format=pop(stack).castTo(Type.STRING()).stringValue();
-                    StringBuilder build=new StringBuilder();
-                    Printf.printf(format,stack, build::append);
-                    stack.addLast(Value.ofString(build.toString()));
-                }
-                case PRINT -> System.out.print(pop(stack).stringValue());
-                case PRINTF -> {
-                    String format=pop(stack).castTo(Type.STRING()).stringValue();
-                    Printf.printf(format,stack, System.out::print);
-                }
-                case PRINTLN -> System.out.println(pop(stack).stringValue());
-                case DECLARE,CONST_DECLARE -> {
-                    Value type=pop(stack);
-                    Value value=pop(stack);
-                    state.declareVariable(((NamedToken)next).value,type.asType(),
-                            next.tokenType==TokenType.CONST_DECLARE, value,next.pos);
-                }
-                case NAME -> {
-                    Variable var=state.getVariable(((NamedToken)next).value);
-                    if(var==null){
-                        throw new SyntaxError("Variable "+((NamedToken)next).value+" does not exist "+next.pos);
+                    case SPRINTF -> {
+                        String format = pop(stack).castTo(Type.STRING()).stringValue();
+                        StringBuilder build = new StringBuilder();
+                        Printf.printf(format, stack, build::append);
+                        stack.addLast(Value.ofString(build.toString()));
                     }
-                    stack.addLast(var.getValue());
-                }
-                case WRITE_TO -> {
-                    Variable var=state.getVariable(((NamedToken)next).value);
-                    if(var==null){
-                        throw new SyntaxError("Variable "+((NamedToken)next).value+" does not exist "+next.pos);
-                    }else if(var.isConst){
-                        throw new SyntaxError("Tried to overwrite const variable "+((NamedToken)next).value+" "+next.pos);
+                    case PRINT -> System.out.print(pop(stack).stringValue());
+                    case PRINTF -> {
+                        String format = pop(stack).castTo(Type.STRING()).stringValue();
+                        Printf.printf(format, stack, System.out::print);
                     }
-                    var.setValue(pop(stack));
+                    case PRINTLN -> System.out.println(pop(stack).stringValue());
+                    case DECLARE, CONST_DECLARE -> {
+                        Value type = pop(stack);
+                        Value value = pop(stack);
+                        state.declareVariable(((VariableToken) next).name, type.asType(),
+                                next.tokenType == TokenType.CONST_DECLARE, value);
+                    }
+                    case NAME -> {
+                        Variable var = state.getVariable(((VariableToken) next).name);
+                        if (var == null) {
+                            throw new ConcatRuntimeError("Variable " + ((VariableToken) next).name + " does not exist ");
+                        }
+                        stack.addLast(var.getValue());
+                    }
+                    case WRITE_TO -> {
+                        Variable var = state.getVariable(((VariableToken) next).name);
+                        if (var == null) {
+                            throw new ConcatRuntimeError("Variable " + ((VariableToken) next).name + " does not exist");
+                        } else if (var.isConst) {
+                            throw new ConcatRuntimeError("Tried to overwrite const variable " + ((VariableToken) next).name);
+                        }
+                        var.setValue(pop(stack));
+                    }
+                    case IF, ELIF, DO, WHILE, END -> {
+                        //labels are no-ops
+                    }
+                    case START, ELSE, PROCEDURE -> throw new RuntimeException("Tokens of type " + next.tokenType +
+                            " should be eliminated at compile time");
+                    case RETURN -> {
+                        state = state.getParent();
+                        if (state == null) {
+                            throw new ConcatRuntimeError("call-stack underflow");
+                        }
+                    }
+                    case PROCEDURE_START -> {
+                        state.ip = ((ProcedureStart) next).end;
+                        incIp = false;
+                    }
+                    case STRUCT_START ->
+                            state = new ProgramState(state.ip, state);
+                    case STRUCT_END -> {
+                        ProgramState tmp=state;
+                        state=state.getParent();
+                        if (state == null) {
+                            throw new ConcatRuntimeError("call-stack underflow");
+                        }
+                        state.ip=tmp.ip;//don't go back to return address
+                        stack.addLast(Value.newStruct(tmp.variables));
+                    }
+                    case FIELD_READ -> {
+                        Value struct = pop(stack);
+                        stack.addLast(struct.getField(((VariableToken)next).name));
+                    }
+                    case FIELD_WRITE -> {
+                        Value val    = pop(stack);
+                        Value struct = pop(stack);
+                        struct.setField(((VariableToken)next).name,val);
+                        stack.addLast(struct);
+                    }
+                    case DUP -> {
+                        Value t = stack.peekLast();
+                        if (t == null) {
+                            throw new ConcatRuntimeError("stack underflow");
+                        }
+                        stack.addLast(t);
+                    }
+                    case DROP -> pop(stack);
+                    case SWAP -> {
+                        Value tmp1 = pop(stack);
+                        Value tmp2 = pop(stack);
+                        stack.addLast(tmp1);
+                        stack.addLast(tmp2);
+                    }
+                    case JEQ -> {
+                        Value c = pop(stack);
+                        if (c.asBool()) {
+                            state.ip = ((JumpToken) next).address;
+                            incIp = false;
+                        }
+                    }
+                    case JNE -> {
+                        Value c = pop(stack);
+                        if (!c.asBool()) {
+                            state.ip = ((JumpToken) next).address;
+                            incIp = false;
+                        }
+                    }
+                    case JMP -> {
+                        state.ip = ((JumpToken) next).address;
+                        incIp = false;
+                    }
                 }
-                case IF,ELIF,DO,WHILE,END -> {
-                    //labels are no-ops
-                }
-                case START,ELSE, PROCEDURE -> throw new RuntimeException("Tokens of type "+next.tokenType+" should be eliminated at compile time");
-                case RETURN -> {
+            }catch (ConcatRuntimeError e){
+                System.err.println(e.getMessage());
+                while(state!=null){
+                    Token token = program.get(state.ip);
+                    //addLater more readable names for tokens
+                    System.err.printf("  while executing %-20s  at %s\n",token,token.pos);
                     state=state.getParent();
-                    if(state==null){
-                        throw new SyntaxError("call-stack underflow");
-                    }
                 }
-                case PROCEDURE_START -> {
-                    state.ip=((ProcedureStart)next).end;
-                    incIp=false;
-                }
-                case DUP -> {
-                    Value t=stack.peekLast();
-                    if(t==null){
-                        throw new SyntaxError("stack underflow");
-                    }
-                    stack.addLast(t);
-                }
-                case DROP -> pop(stack);
-                case SWAP -> {
-                    Value tmp1=pop(stack);
-                    Value tmp2=pop(stack);
-                    stack.addLast(tmp1);
-                    stack.addLast(tmp2);
-                }
-                case JEQ -> {
-                    Value c=pop(stack);
-                    if(c.asBool()){
-                        state.ip=((JumpToken)next).address;
-                        incIp=false;
-                    }
-                }
-                case JNE -> {
-                    Value c=pop(stack);
-                    if(!c.asBool()){
-                        state.ip=((JumpToken)next).address;
-                        incIp=false;
-                    }
-                }
-                case JMP -> {
-                    state.ip=((JumpToken)next).address;
-                    incIp=false;
-                }
+                break;
             }
             if(incIp){
                 state.ip++;
@@ -969,7 +1017,15 @@ public class Interpreter {
 
     public static void main(String[] args) throws IOException {
         Interpreter ip = new Interpreter(new BufferedReader(new FileReader("./examples/test.concat")));
-        ArrayList<Token>  prog= ip.parse();
+        ArrayList<Token> prog;
+        try {
+            prog = ip.parse();
+        }catch (SyntaxError e){
+            System.err.print(e.getMessage());
+            System.err.println(" at "+e.pos);
+            System.exit(1);
+            return;
+        }
         for(Token t:prog){
             System.out.println(t);
         }

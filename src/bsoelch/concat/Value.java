@@ -1,9 +1,6 @@
 package bsoelch.concat;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
@@ -36,54 +33,66 @@ public abstract class Value {
         this.type = type;
     }
 
-
-
-    public boolean asBool() {
+    public boolean asBool() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to bool");
     }
-    public int  asChar() {
+    public int  asChar() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to char");
     }
-    public long asLong() {
+    private int internalAsChar(){
+        try {
+            return asChar();
+        } catch (TypeError e) {
+            throw new RuntimeException(e);
+        }
+    }
+    public long asLong() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to int");
     }
-    public double asDouble() {
+    public double asDouble() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to float");
     }
-    public ValueIterator asItr() {
+    public ValueIterator asItr() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to itr");
     }
 
-    public Type asType() {
+    public Type asType() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to type");
     }
-    public int asProcedure() {
+    public int asProcedure() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to procedure");
     }
-    public Value negate() {
+    public Value negate() throws TypeError {
         throw new TypeError("Cannot negate values of type "+type);
     }
-    public Value invert() {
+    public Value invert() throws TypeError {
         throw new TypeError("Cannot invert values of type "+type);
     }
-    public Value flip() {
+    public Value flip() throws TypeError {
         throw new TypeError("Cannot invert values of type "+type);
     }
-    public int length() {
+    public int length() throws TypeError {
         throw new TypeError(type+" does not have a length");
     }
-    public List<Value> elements() {
+    public List<Value> elements() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to list");
     }
-    public Value get(long index) {
+    public Value get(long index) throws TypeError {
         throw new TypeError("Element access not supported for type "+type);
     }
-    public Value slice(long off,long to) {
+    public Value getSlice(long off, long to) throws TypeError {
         throw new TypeError("Element access not supported for type "+type);
     }
+    //addLater set(long), setSlice(long,long)
 
-    public Value iterator(boolean end) {
+    public Value iterator(boolean end) throws TypeError {
         throw new TypeError("Cannot iterate over "+type);
+    }
+    public Value getField(String name) throws ConcatRuntimeError {
+        throw new TypeError("Field access not supported for type "+type);
+    }
+    public void setField(String name, Value newValue) throws ConcatRuntimeError {
+        throw new TypeError("Field access not supported for type "+type);
     }
 
     public abstract String stringValue();
@@ -97,16 +106,29 @@ public abstract class Value {
         return stringValue();
     }
 
-    public Value castTo(Type type) {
+    public Value castTo(Type type) throws TypeError {
         if(type==Type.ANY||this.type.equals(type)){
             return this;
         }else if(type.equals(Type.STRING())){
             return ofString(stringValue());
         }else{
-            throw new SyntaxError("cannot cast from "+this.type+" to "+type);
+            throw new TypeError("cannot cast from "+this.type+" to "+type);
         }
     }
-
+    /**A wrapper for TypeError that can be thrown inside functional interfaces*/
+    private static class WrappedTypeError extends RuntimeException {
+        final TypeError wrapped;
+        public WrappedTypeError(TypeError wrapped) {
+            this.wrapped = wrapped;
+        }
+    }
+    private Value unsafeCastTo(Type type) throws WrappedTypeError{
+        try {
+            return castTo(type);
+        } catch (TypeError e) {
+            throw new WrappedTypeError(e);
+        }
+    }
 
     private interface NumberValue{}
 
@@ -140,7 +162,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) {
+        public Value castTo(Type type) throws TypeError {
             if(type==Type.CHAR){
                 return Value.ofChar((int)intValue);
             }else if(type==Type.FLOAT){
@@ -204,7 +226,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) {
+        public Value castTo(Type type) throws TypeError {
             if(type==Type.INT){
                 return ofInt((long)floatValue);
             }else{
@@ -276,7 +298,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) {
+        public Value castTo(Type type) throws TypeError {
             if(type==Type.INT){
                 return ofInt(codePoint);
             }else{
@@ -324,11 +346,15 @@ public abstract class Value {
             return stringValue.length();
         }
         @Override
-        public Value castTo(Type type) {
+        public Value castTo(Type type) throws TypeError {
             if(type.isList()){
                 Type c=type.content();
-                return createList(type,stringValue.codePoints().mapToObj(v->ofChar(v).castTo(c))
-                        .collect(Collectors.toCollection(ArrayList::new)));
+                try {
+                    return createList(type, stringValue.codePoints().mapToObj(v -> ofChar(v).unsafeCastTo(c))
+                            .collect(Collectors.toCollection(ArrayList::new)));
+                }catch (WrappedTypeError e){
+                    throw e.wrapped;
+                }
             }else{
                 return super.castTo(type);
             }
@@ -349,7 +375,7 @@ public abstract class Value {
             return ofChar(stringValue.codePoints().toArray()[(int)index]);
         }
         @Override
-        public Value slice(long off,long to) {
+        public Value getSlice(long off, long to) {
             return ofString(IntStream.of(Arrays.copyOfRange(stringValue.codePoints().toArray(),(int)off,(int)to)).
                     mapToObj(c->String.valueOf(Character.toChars(c))).reduce("",(a,b)->a+b));
         }
@@ -414,7 +440,7 @@ public abstract class Value {
 
     public static Value createList(Type type, ArrayList<Value> elements) {
         if(type.equals(Type.STRING())){
-            return ofString(elements.stream().map(Value::asChar).map(Character::toChars).map(String::valueOf).
+            return ofString(elements.stream().map(Value::internalAsChar).map(Character::toChars).map(String::valueOf).
                     reduce("", (a,b)->a+b));
         }else{
             return new ListValue(type,elements);
@@ -446,16 +472,20 @@ public abstract class Value {
             return elements.get((int)index);
         }
         @Override
-        public Value slice(long off,long to) {
+        public Value getSlice(long off, long to) {
             return createList(type,new ArrayList<>(elements.subList((int)off,(int)to)));
         }
 
         @Override
-        public Value castTo(Type type) {
+        public Value castTo(Type type) throws TypeError {
             if(type.isList()){
                 Type c=type.content();
-                return createList(type,elements.stream().map(v->v.castTo(c))
-                        .collect(Collectors.toCollection(ArrayList::new)));
+                try {
+                    return createList(type, elements.stream().map(v -> v.unsafeCastTo(c))
+                            .collect(Collectors.toCollection(ArrayList::new)));
+                }catch (WrappedTypeError e){
+                    throw e.wrapped;
+                }
             }else{
                 return super.castTo(type);
             }
@@ -568,7 +598,75 @@ public abstract class Value {
             return Objects.hash(id);
         }
     }
-    public static Value concat(Value a,Value b) {
+
+    public static Value newStruct(HashMap<String, Interpreter.Variable> variables) {
+        return new StructValue(variables);
+    }
+    private static class StructValue extends Value{
+        final HashMap<String, Interpreter.Variable> variables;
+        private StructValue(HashMap<String, Interpreter.Variable> variables) {
+            super(Type.STRUCT);
+            this.variables = variables;
+        }
+
+        @Override
+        public Value getField(String name) throws ConcatRuntimeError {
+            Interpreter.Variable var = variables.get(name);
+            if (var == null) {
+                throw new ConcatRuntimeError("struct "+this+" does not have a field " + name);
+            }
+            return var.getValue();
+        }
+        @Override
+        public void setField(String name, Value newValue) throws ConcatRuntimeError {
+            Interpreter.Variable var = variables.get(name);
+            if (var == null) {
+                throw new ConcatRuntimeError("struct "+this+" does not have a field " + name);
+            }else if (var.isConst) {
+                throw new ConcatRuntimeError("Tried to modify constant field " + name);
+            }
+            var.setValue(newValue);
+        }
+
+        @Override
+        public String stringValue() {
+            StringBuilder str=new StringBuilder("{");
+            for(Map.Entry<String, Interpreter.Variable> e:variables.entrySet()){
+                if(str.length()>1){
+                    str.append(", ");
+                }
+                str.append('.').append(e.getKey()).append("=").append(e.getValue().getValue().stringValue());
+            }
+            return str.append("}").toString();
+        }
+        @Override
+        public String stringValue(int precision, int base, boolean big, char plusChar) {
+            StringBuilder str=new StringBuilder("{");
+            for(Map.Entry<String, Interpreter.Variable> e:variables.entrySet()){
+                if(str.length()>1){
+                    str.append(", ");
+                }
+                str.append('.').append(e.getKey()).append("=").append(e.getValue().getValue()
+                        .stringValue(precision, base, big, plusChar));
+            }
+            return str.append("}").toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StructValue that = (StructValue) o;
+            return Objects.equals(variables, that.variables);
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(variables);
+        }
+    }
+
+
+    public static Value concat(Value a,Value b) throws TypeError {
         if(a.type.isList()&&b.type.isList()){
             if(a.type.content().canAssignFrom(b.type.content())){
                 ArrayList<Value> elements=new ArrayList<>(a.elements());
@@ -580,25 +678,25 @@ public abstract class Value {
                 return createList(b.type,elements);
             }
         }
-        throw new SyntaxError("Cannot concat "+a.type+" and "+b.type);
+        throw new TypeError("Cannot concat "+a.type+" and "+b.type);
     }
 
-    public static Value pushFirst(Value a,Value b) {
+    public static Value pushFirst(Value a,Value b) throws TypeError {
         if(b.type.isList()&&b.type.content().canAssignFrom(a.type)) {
             ArrayList<Value> elements = new ArrayList<>();
             elements.add(a);
             elements.addAll(b.elements());
             return createList(b.type, elements);
         }
-        throw new SyntaxError("Cannot add "+a.type+" to "+b.type);
+        throw new TypeError("Cannot add "+a.type+" to "+b.type);
     }
-    public static Value pushLast(Value a,Value b) {
+    public static Value pushLast(Value a,Value b) throws TypeError {
         if(a.type.isList()&&a.type.content().canAssignFrom(b.type)) {
             ArrayList<Value> elements = new ArrayList<>(a.elements());
             elements.add(b);
             return createList(a.type, elements);
         }
-        throw new SyntaxError("Cannot add "+b.type+" to "+a.type);
+        throw new TypeError("Cannot add "+b.type+" to "+a.type);
     }
 
     private static Value cmpToValue(int c, OperatorType opType) {
@@ -624,12 +722,12 @@ public abstract class Value {
             case NEGATE,PLUS,MINUS,INVERT,MULT,DIV,MOD,POW,NOT,FLIP,AND,OR,XOR,LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,
                     NEW_LIST,LIST_OF,UNWRAP,LENGTH,AT_INDEX,SLICE,PUSH_FIRST,CONCAT,PUSH_LAST,ITR_OF,ITR_START,ITR_END,ITR_NEXT,ITR_PREV,
                     CAST,TYPE_OF,CALL ->
-                    throw new SyntaxError(opType +" is no valid comparison operator");
+                    throw new RuntimeException(opType +" is no valid comparison operator");
         }
         throw new RuntimeException("unreachable");
     }
 
-    public static Value compare(Value a, OperatorType opType, Value b) {
+    public static Value compare(Value a, OperatorType opType, Value b) throws TypeError {
         if(a instanceof StringValue&&b instanceof StringValue){
             int c=a.stringValue().compareTo(b.stringValue());
             return cmpToValue(c, opType);
@@ -642,11 +740,11 @@ public abstract class Value {
         }else if(opType==OperatorType.NE){
             return a.equals(b)?FALSE:TRUE;
         }else{
-            throw new SyntaxError("cannot compare "+a.type+" and "+b.type);
+            throw new TypeError("cannot compare "+a.type+" and "+b.type);
         }
     }
 
-    public static Value mathOp(Value a, Value b, BiFunction<Long,Long,Value> intOp, BiFunction<Double,Double,Value> floatOp) {
+    public static Value mathOp(Value a, Value b, BiFunction<Long,Long,Value> intOp, BiFunction<Double,Double,Value> floatOp) throws TypeError {
         if(a instanceof IntValue){
             if(b instanceof IntValue){
                 return intOp.apply(((IntValue) a).intValue, ((IntValue) b).intValue);
@@ -660,19 +758,19 @@ public abstract class Value {
                 return floatOp.apply((((FloatValue) a).floatValue),((FloatValue) b).floatValue);
             }
         }
-        throw new SyntaxError("invalid parameters for arithmetic operation:"+a.type+" "+b.type);
+        throw new TypeError("invalid parameters for arithmetic operation:"+a.type+" "+b.type);
     }
-    public static Value logicOp(Value a, Value b, BinaryOperator<Boolean> boolOp,BinaryOperator<Long> intOp) {
+    public static Value logicOp(Value a, Value b, BinaryOperator<Boolean> boolOp,BinaryOperator<Long> intOp) throws TypeError {
         if(a.type==Type.BOOL&&b.type==Type.BOOL){
             return boolOp.apply(a.asBool(),b.asBool())?TRUE:FALSE;
         }else{
             return intOp(a,b,intOp);
         }
     }
-    public static Value intOp(Value a,Value b,BinaryOperator<Long> intOp) {
+    public static Value intOp(Value a,Value b,BinaryOperator<Long> intOp) throws TypeError {
         if(a instanceof IntValue&&b instanceof IntValue){
                 return ofInt(intOp.apply(((IntValue) a).intValue, ((IntValue) b).intValue));
         }
-        throw new SyntaxError("invalid parameters for int operator:"+a.type+" "+b.type);
+        throw new TypeError("invalid parameters for int operator:"+a.type+" "+b.type);
     }
 }
