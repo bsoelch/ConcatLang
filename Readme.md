@@ -248,6 +248,14 @@ Hello Programmer!
 Hello!
 ```
 
+### Stack Manipulation
+These Operations directly manipulate the stack without
+interacting with the specific values
+- `dup`  duplicates the top element on the stack
+- `drop` removes the top element from the stack
+- `swap` swaps the top 2 element on the stack
+
+
 ### Control Flow
 
 #### If-Statements
@@ -316,7 +324,53 @@ while  <condition> end
 ```
 
 ### Procedures
-!!!TODO!!!
+Procedures are code blocks that can be called 
+from other points in the program. 
+Procedures are declared in blocks starting with
+`proc` or `procedure` and ending with `end`. 
+
+If the program reaches the start 
+of a procedure it jumps to the matching `end`
+and pushes a pointer to the procedure on the stack.
+This pointer can be stored in variables 
+with the procedure-type `*->*`.
+
+If the call-operator `()` is called on a procedure 
+pointer the body of that procedure is executed
+and the program returns to the operation after 
+the call
+
+The return instruction allows retuning from a 
+procedure without reaching the end.
+
+Examples:
+```Rust
+## inline procedure
+1 2 proc + end () println 
+## declare a procedure variable 
+proc 0 != end *->* $intToBool
+3 intToBool () println
+0 intToBool () println
+## procedures can have a variable number of arguements
+
+## drops the first [n] elements from the stack, 
+## with [n] beeing the top element on the stack
+proc 
+  int :n ## store top element of the stack as n
+  while n 0 > :
+    drop
+    n 1 - !n
+  end
+end *->* $dropN
+0 1 2 3 3 dropN () println ## drop 3 element 
+```
+prints:
+```
+3
+true
+false
+0
+```
 
 ### Variables
 All commands that are not reserved names or values
@@ -343,7 +397,7 @@ on the call-stack are accessible
 once that procedure returns.
 - Variable accessibility is determined at call-time 
 not at declaration time
-- Variables in Procedures may shadow global variables
+- Variables in structs/procedures may shadow global variables
 - constants cannot overwrite/shadow existing variables
 - constants cannot be shadowed by local variables
 
@@ -381,9 +435,34 @@ proc1 () ()
 crashes since `local1` is not accessible when calling 
 the returned procedure
 
-### Stack Manipulation
-These Operations directly manipulate the stack without
-interacting with the specific values
-- `dup`  duplicates the top element on the stack
-- `drop` removes the top element from the stack
-- `swap` swaps the top 2 element on the stack
+
+### Structs
+Structures allow storing structured data
+A struct starts with the `struct` keyword and ends with the matching `end`.
+At the end of a struct block all variable declared within that block are stored
+as fields and the resulting struct is pushed onto the stack.
+The variable type for structures is `(struct)`
+
+Example:
+```
+struct 1 int :a 2 int $b end (struct) :test
+```
+
+#### Field access
+- `.<varName>` pushes a fields onto the stack, syntax: `<struct> .<varname>`
+- `.!<varName>`  writes a value to a field and pushes the updates struct
+syntax: `<struct> <newValue> .!<varname>`
+
+Example:
+```
+struct 1 int :a 2 int $b end (struct) :test
+test .a println    
+test 42 .!a println
+```
+prints
+```
+1
+{.a=42,.b=2}
+```
+writes to the constant field b would crash the program
+
