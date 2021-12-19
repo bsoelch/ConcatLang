@@ -339,7 +339,7 @@ public class Printf {
                             }
                             i++;
                         }else{
-                            throw new ConcatRuntimeError("printf: binvalid Format String:" + formatString + formatChar);
+                            throw new ConcatRuntimeError("printf: invalid Format String:" + formatString + formatChar);
                         }
                     }
                     if (i < formatString.length()||tmp.length()>0) {

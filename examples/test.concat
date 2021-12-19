@@ -64,3 +64,7 @@ end *->* $sum
 struct 1 int :a 2 int $b end (struct) :test
 test .a println
 test 42 .!a println
+
+"Hello World?" '!' 11 ![] println
+"Hello World!" "Programmer" 6 11 ![:] println
+"Hello World!" "" 5 11 ![:] println

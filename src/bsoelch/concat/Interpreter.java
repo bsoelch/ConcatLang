@@ -492,9 +492,13 @@ public class Interpreter {
             case ">>:" -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,currentPos()));
             case ":<<" -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,currentPos()));
             //<array> <index> []
-            case "[]" -> tokens.add(new OperatorToken(OperatorType.AT_INDEX,currentPos()));
+            case "[]" -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,currentPos()));
+            //<array> <val> <index> []
+            case "![]" -> tokens.add(new OperatorToken(OperatorType.SET_INDEX,currentPos()));
             //<array> <off> <to> [:]
-            case "[:]" -> tokens.add(new OperatorToken(OperatorType.SLICE,currentPos()));
+            case "[:]" -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,currentPos()));
+            //<array> <val> <off> <to> [:]
+            case "![:]" -> tokens.add(new OperatorToken(OperatorType.SET_SLICE,currentPos()));
 
             case "^.." -> tokens.add(new OperatorToken(OperatorType.ITR_START,currentPos()));
             case "..^" -> tokens.add(new OperatorToken(OperatorType.ITR_END,currentPos()));
@@ -804,16 +808,31 @@ public class Interpreter {
                                 Value val = pop(stack);
                                 stack.addLast(Value.ofInt(val.length()));
                             }
-                            case AT_INDEX -> {//array index []
+                            case GET_INDEX -> {//array index []
                                 long index = pop(stack).asLong();
                                 Value list = pop(stack);
                                 stack.addLast(list.get(index));
                             }
-                            case SLICE -> {
+                            case SET_INDEX -> {//array value index ![]
+                                long index = pop(stack).asLong();
+                                Value val = pop(stack);
+                                Value list = pop(stack);
+                                list.set(index,val);
+                                stack.addLast(list);
+                            }
+                            case GET_SLICE -> {
                                 long to = pop(stack).asLong();
                                 long off = pop(stack).asLong();
                                 Value list = pop(stack);
                                 stack.addLast(list.getSlice(off, to));
+                            }
+                            case SET_SLICE -> {
+                                long to = pop(stack).asLong();
+                                long off = pop(stack).asLong();
+                                Value val = pop(stack);
+                                Value list = pop(stack);
+                                list.setSlice(off,to,val);
+                                stack.addLast(list);
                             }
                             case PUSH_FIRST -> {
                                 Value b = pop(stack);

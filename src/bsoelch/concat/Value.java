@@ -39,13 +39,6 @@ public abstract class Value {
     public int  asChar() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to char");
     }
-    private int internalAsChar(){
-        try {
-            return asChar();
-        } catch (TypeError e) {
-            throw new RuntimeException(e);
-        }
-    }
     public long asLong() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to int");
     }
@@ -80,10 +73,15 @@ public abstract class Value {
     public Value get(long index) throws TypeError {
         throw new TypeError("Element access not supported for type "+type);
     }
+    public void set(long index,Value value) throws TypeError {
+        throw new TypeError("Element access not supported for type "+type);
+    }
     public Value getSlice(long off, long to) throws TypeError {
         throw new TypeError("Element access not supported for type "+type);
     }
-    //addLater set(long), setSlice(long,long)
+    public void setSlice(long off, long to,Value value) throws TypeError {
+        throw new TypeError("Element access not supported for type "+type);
+    }
 
     public Value iterator(boolean end) throws TypeError {
         throw new TypeError("Cannot iterate over "+type);
@@ -120,6 +118,13 @@ public abstract class Value {
         final TypeError wrapped;
         public WrappedTypeError(TypeError wrapped) {
             this.wrapped = wrapped;
+        }
+    }
+    private int unsafeAsChar(){
+        try {
+            return asChar();
+        } catch (TypeError e) {
+            throw new WrappedTypeError(e);
         }
     }
     private Value unsafeCastTo(Type type) throws WrappedTypeError{
@@ -335,7 +340,7 @@ public abstract class Value {
         return new StringValue(stringValue);
     }
     private static class StringValue extends Value{
-        final String stringValue;
+        private String stringValue;
         private StringValue(String stringValue) {
             super(Type.STRING());
             this.stringValue = stringValue;
@@ -374,11 +379,32 @@ public abstract class Value {
         public Value get(long index) {
             return ofChar(stringValue.codePoints().toArray()[(int)index]);
         }
+
+        @Override
+        public void set(long index, Value value) throws TypeError {
+            int[] cps=stringValue.codePoints().toArray();
+            cps[(int)index]=value.castTo(Type.CHAR).asChar();
+            stringValue=IntStream.of(cps).mapToObj(c->String.valueOf(Character.toChars(c))).reduce("",(a,b)->a+b);
+        }
         @Override
         public Value getSlice(long off, long to) {
             return ofString(IntStream.of(Arrays.copyOfRange(stringValue.codePoints().toArray(),(int)off,(int)to)).
                     mapToObj(c->String.valueOf(Character.toChars(c))).reduce("",(a,b)->a+b));
         }
+        @Override
+        public void setSlice(long off, long to, Value value) throws TypeError {
+            ArrayList<Integer> asList=new ArrayList<>(stringValue.codePoints().boxed().toList());
+            List<Integer> slice=asList.subList((int)off,(int)to);
+            slice.clear();
+            try {
+                Type content=type.content();
+                slice.addAll(value.elements().stream().map(e->e.unsafeCastTo(content)).map(Value::unsafeAsChar).toList());
+            }catch (WrappedTypeError e){
+                throw e.wrapped;
+            }
+            stringValue=asList.stream().map(c->String.valueOf(Character.toChars(c))).reduce("",(a, b)->a+b);
+        }
+
         @Override
         public Value iterator(boolean end) {
             return new StringIterator(stringValue,end);
@@ -438,10 +464,14 @@ public abstract class Value {
         }
     }
 
-    public static Value createList(Type type, ArrayList<Value> elements) {
+    public static Value createList(Type type, ArrayList<Value> elements) throws TypeError {
         if(type.equals(Type.STRING())){
-            return ofString(elements.stream().map(Value::internalAsChar).map(Character::toChars).map(String::valueOf).
-                    reduce("", (a,b)->a+b));
+            try {
+                return ofString(elements.stream().map(Value::unsafeAsChar).map(Character::toChars).map(String::valueOf).
+                        reduce("", (a, b) -> a + b));
+            }catch (WrappedTypeError e){
+                throw e.wrapped;
+            }
         }else{
             return new ListValue(type,elements);
         }
@@ -472,8 +502,24 @@ public abstract class Value {
             return elements.get((int)index);
         }
         @Override
-        public Value getSlice(long off, long to) {
+        public void set(long index,Value value) throws TypeError {
+            elements.set((int)index,value.castTo(type.content()));
+        }
+        @Override
+        public Value getSlice(long off, long to) throws TypeError {
             return createList(type,new ArrayList<>(elements.subList((int)off,(int)to)));
+        }
+
+        @Override
+        public void setSlice(long off, long to, Value value) throws TypeError {
+            List<Value> sublist=elements.subList((int)off,(int)to);
+            sublist.clear();
+            try {
+                Type content=type.content();
+                sublist.addAll(value.elements().stream().map(e->e.unsafeCastTo(content)).toList());
+            }catch (WrappedTypeError e){
+                throw e.wrapped;
+            }
         }
 
         @Override
@@ -719,12 +765,9 @@ public abstract class Value {
             case LT -> {
                 return c < 0 ? TRUE : FALSE;
             }
-            case NEGATE,PLUS,MINUS,INVERT,MULT,DIV,MOD,POW,NOT,FLIP,AND,OR,XOR,LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,
-                    NEW_LIST,LIST_OF,UNWRAP,LENGTH,AT_INDEX,SLICE,PUSH_FIRST,CONCAT,PUSH_LAST,ITR_OF,ITR_START,ITR_END,ITR_NEXT,ITR_PREV,
-                    CAST,TYPE_OF,CALL ->
+            default ->
                     throw new RuntimeException(opType +" is no valid comparison operator");
         }
-        throw new RuntimeException("unreachable");
     }
 
     public static Value compare(Value a, OperatorType opType, Value b) throws TypeError {
