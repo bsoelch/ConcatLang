@@ -255,14 +255,11 @@ public class Interpreter {
             }
         }
         switch (state){
-            case ROOT ->{}
+            case ROOT->finishWord(tokenBuffer,openBlocks,buffer);
+            case LINE_COMMENT ->{} //do nothing
             case STRING ->throw new SyntaxError("unfinished string",currentPos());
-            case COMMENT,LINE_COMMENT -> throw new SyntaxError("unfinished comment",currentPos());
+            case COMMENT -> throw new SyntaxError("unfinished comment",currentPos());
         }
-        if(state!=WordState.ROOT){
-            throw new SyntaxError("Unexpected end of File",currentPos());
-        }
-        finishWord(tokenBuffer,openBlocks,buffer);
         if(openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(),currentPos());
         }
