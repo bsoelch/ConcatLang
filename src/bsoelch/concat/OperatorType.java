@@ -13,4 +13,5 @@ public enum OperatorType {
     PUSH_FIRST,CONCAT,PUSH_LAST,
     ITR_START,ITR_END,ITR_NEXT,ITR_PREV,
     CALL,
+    PATH_INCLUDE,LIB_INCLUDE //addLater possibility to import element into current scope
 }

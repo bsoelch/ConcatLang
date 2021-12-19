@@ -1,0 +1,9 @@
+"This file was included" println
+struct ## use structs as replacements for modules
+proc
+"included Procedure" println
+end *->* $child
+struct
+"included structure" string :field
+end (struct) $child_struct
+end (struct) $included

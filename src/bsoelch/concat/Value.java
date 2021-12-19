@@ -329,7 +329,7 @@ public abstract class Value {
             return Objects.hash(codePoint);
         }
     }
-
+    //addLater allow iterators to modify the underlying objects
     interface ValueIterator{
         boolean hasNext();
         Value next();
