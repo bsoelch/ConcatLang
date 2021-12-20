@@ -12,5 +12,5 @@ public enum OperatorType {
     NEW_LIST,LENGTH, GET_INDEX,SET_INDEX,GET_SLICE,SET_SLICE,
     PUSH_FIRST,CONCAT,PUSH_LAST,
     ITR_START,ITR_END,ITR_NEXT,ITR_PREV,
-    CALL//addLater possibility to import element into current scope
+    CALL//addLater possibility to import struct into current scope
 }

@@ -1,3 +1,5 @@
+if ?included ! : ## ensures that file is only included once
+
 "This file was included" println
 struct ## use structs as replacements for modules
 proc
@@ -7,3 +9,5 @@ struct
 "included structure" string :field
 end (struct) $child_struct
 end (struct) $included
+
+end

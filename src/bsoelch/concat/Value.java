@@ -82,9 +82,12 @@ public abstract class Value {
     public void setSlice(long off, long to,Value value) throws TypeError {
         throw new TypeError("Element access not supported for type "+type);
     }
-
     public Value iterator(boolean end) throws TypeError {
         throw new TypeError("Cannot iterate over "+type);
+    }
+
+    public Value hasField(String name) throws TypeError {
+        throw new TypeError("Field access not supported for type "+type);
     }
     public Value getField(String name) throws ConcatRuntimeError {
         throw new TypeError("Field access not supported for type "+type);
@@ -113,6 +116,8 @@ public abstract class Value {
             throw new TypeError("cannot cast from "+this.type+" to "+type);
         }
     }
+
+
     /**A wrapper for TypeError that can be thrown inside functional interfaces*/
     private static class WrappedTypeError extends RuntimeException {
         final TypeError wrapped;
@@ -655,6 +660,10 @@ public abstract class Value {
             this.variables = variables;
         }
 
+        @Override
+        public Value hasField(String name){
+            return variables.containsKey(name)?TRUE:FALSE;
+        }
         @Override
         public Value getField(String name) throws ConcatRuntimeError {
             Interpreter.Variable var = variables.get(name);

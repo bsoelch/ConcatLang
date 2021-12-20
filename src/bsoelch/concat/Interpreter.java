@@ -10,9 +10,11 @@ public class Interpreter {
         ROOT,STRING,COMMENT,LINE_COMMENT
     }
     enum TokenType {
-        VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,IF,START,ELIF,ELSE,DO,WHILE,END,
+        VALUE,OPERATOR,
+        DECLARE,CONST_DECLARE,NAME,WRITE_TO,HAS_VAR,
+        IF,START,ELIF,ELSE,DO,WHILE,END,
         PROCEDURE,RETURN, PROCEDURE_START,
-        STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,
+        STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
         DUP,DROP,SWAP,
         SPRINTF,PRINT,PRINTF,PRINTLN,//fprint,fprintln,fprintf
         //jump commands only for internal representation
@@ -447,7 +449,7 @@ public class Interpreter {
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, PROCEDURE_START,DUP,DROP,SWAP,JEQ,JNE,JMP,SPRINTF,PRINT,PRINTF,PRINTLN,
-                                STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE
+                                STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,HAS_VAR,HAS_FIELD
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
                     }
@@ -580,9 +582,13 @@ public class Interpreter {
                     tokens.add(new VariableToken(TokenType.DECLARE, str.substring(1),       reader.currentPos()));
                 }else if(str.charAt(0) == '$') {
                     tokens.add(new VariableToken(TokenType.CONST_DECLARE, str.substring(1), reader.currentPos()));
+                }else if(str.charAt(0) == '?') {
+                    tokens.add(new VariableToken(TokenType.HAS_VAR, str.substring(1),      reader.currentPos()));
                 }else if(str.charAt(0)=='.'){
                     if(str.length()>1&&str.charAt(1)=='!'){
                         tokens.add(new VariableToken(TokenType.FIELD_WRITE, str.substring(2), reader.currentPos()));
+                    }else if(str.length()>1&&str.charAt(1)=='?'){
+                        tokens.add(new VariableToken(TokenType.HAS_FIELD, str.substring(2), reader.currentPos()));
                     }else{
                         tokens.add(new VariableToken(TokenType.FIELD_READ, str.substring(1),  reader.currentPos()));
                     }
@@ -712,6 +718,13 @@ public class Interpreter {
                 return parent.getVariable(name);
             }
             return var;
+        }
+        public Value hasVariable(String name) {
+            Variable var=variables.get(name);
+            if(var==null&&parent!=null){
+                return parent.hasVariable(name);
+            }
+            return var!=null?Value.TRUE:Value.FALSE;
         }
 
         public ProgramState getParent() {
@@ -1006,6 +1019,7 @@ public class Interpreter {
                         }
                         var.setValue(pop(stack));
                     }
+                    case HAS_VAR -> stack.addLast(state.hasVariable(((VariableToken) next).name));
                     case IF, ELIF, DO, WHILE, END -> {
                         //labels are no-ops
                     }
@@ -1041,6 +1055,10 @@ public class Interpreter {
                         Value struct = pop(stack);
                         struct.setField(((VariableToken)next).name,val);
                         stack.addLast(struct);
+                    }
+                    case HAS_FIELD -> {
+                        Value struct = pop(stack);
+                        stack.addLast(struct.hasField(((VariableToken)next).name));
                     }
                     case DUP -> {
                         Value t = stack.peekLast();
