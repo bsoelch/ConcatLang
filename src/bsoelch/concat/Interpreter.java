@@ -126,7 +126,7 @@ public class Interpreter {
 
         private final String path;
         private int line =1;
-        private int posInLine =0;
+        private int posInLine =1;
         private FilePosition currentPos;
 
         private ParserReader(String path) throws SyntaxError {
@@ -149,7 +149,7 @@ public class Interpreter {
             posInLine++;
             if(c=='\n'){//addLater? support for \r line separator
                 line++;
-                posInLine=0;
+                posInLine=1;
             }
             return c;
         }
@@ -339,11 +339,14 @@ public class Interpreter {
                             addWord(str,tokens,openBlocks,reader,program,fileName);
                     }
                 }
-            }catch (SyntaxError s){
-                //TODO better handling of chained syntax errors
-                throw new SyntaxError(s.getMessage()+" at "+s.pos, reader.currentPos());
-            }catch (NumberFormatException nfe){
-                throw new SyntaxError(nfe, reader.currentPos());
+            }catch(SyntaxError e){
+                if(e.pos.equals(reader.currentPos())){
+                    throw e;//avoid duplicate positions in stack trace
+                }else {
+                    throw new SyntaxError(e, reader.currentPos());
+                }
+            }catch(NumberFormatException e){
+                throw new SyntaxError(e, reader.currentPos());
             }
         }
         reader.nextToken();
@@ -1113,13 +1116,13 @@ public class Interpreter {
             }catch (ConcatRuntimeError e){
                 System.err.println(e.getMessage());
                 Token token = tokens.get(ip);
-                System.err.printf("  while executing %-20s  at %s\n",token,token.pos);
+                System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
                 while(callStack.size()>0){
                     TokenPosition prev=callStack.poll();
                     tokens=updateTokens(file,prev,program,tokens);
                     token=tokens.get(prev.ip);
                     //addLater more readable names for tokens
-                    System.err.printf("  while executing %-20s  at %s\n",token,token.pos);
+                    System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
                     assert state!=null;
                     state=state.getParent();
                 }
@@ -1164,8 +1167,13 @@ public class Interpreter {
         try {
             program = ip.parse(new File("./examples/test.concat"),null);
         }catch (SyntaxError e){
-            System.err.print(e.getMessage());
-            System.err.println(" at "+e.pos);
+            SyntaxError s = e;
+            System.err.println(s.getMessage());
+            System.err.println("  at "+ s.pos);
+            while(s.getCause() instanceof SyntaxError){
+                s =(SyntaxError) s.getCause();
+                System.err.println("  at "+ s.pos);
+            }
             System.exit(1);
             return;
         }
