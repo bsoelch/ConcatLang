@@ -95,6 +95,9 @@ public abstract class Value {
     public void setField(String name, Value newValue) throws ConcatRuntimeError {
         throw new TypeError("Field access not supported for type "+type);
     }
+    public void importTo(Interpreter.ProgramState context,boolean allowMuatable) throws ConcatRuntimeError {
+        throw new TypeError("Field access not supported for type "+type);
+    }
 
     public abstract String stringValue();
     /**formatted printing of values*/ //TODO flags unsigned,scientific, bracket-type,escaping of values
@@ -681,6 +684,23 @@ public abstract class Value {
                 throw new ConcatRuntimeError("Tried to modify constant field " + name);
             }
             var.setValue(newValue);
+        }
+
+        @Override
+        public void importTo(Interpreter.ProgramState context,boolean allowMuatable) throws ConcatRuntimeError {
+            for(Map.Entry<String, Interpreter.Variable> e:variables.entrySet()) {
+                if (allowMuatable||e.getValue().isConst) {
+                    Interpreter.Variable prev = context.getVariable(e.getKey());
+                    if (prev != null) {
+                        if (prev.isConst) {
+                            throw new ConcatRuntimeError("Tried to overwrite constant variable " + e.getKey());
+                        } else if (e.getValue().isConst) {
+                            throw new ConcatRuntimeError("Constant field " + e.getKey() + " cannot overwrite an existing variable");
+                        }
+                    }
+                    context.variables.put(e.getKey(), e.getValue());
+                }
+            }
         }
 
         @Override

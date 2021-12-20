@@ -393,7 +393,7 @@ public class Interpreter {
             case "elif" -> {
                 Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
                 Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
-                if(label.getValue().tokenType==TokenType.IF||label.getValue().tokenType==TokenType.ELIF){
+                if(label!=null&&(label.getValue().tokenType==TokenType.IF||label.getValue().tokenType==TokenType.ELIF)){
                     Token t = new Token(TokenType.ELIF, reader.currentPos());
                     openBlocks.put(tokens.size(),t);
                     if(label.getValue().tokenType==TokenType.ELIF){//jump before elif to chain jumps
@@ -410,7 +410,7 @@ public class Interpreter {
             case "else" -> {
                 Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
                 Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
-                if(label.getValue().tokenType==TokenType.IF||label.getValue().tokenType==TokenType.ELIF){
+                if(label!=null&&(label.getValue().tokenType==TokenType.IF||label.getValue().tokenType==TokenType.ELIF)){
                     Token t = new Token(TokenType.ELSE, reader.currentPos());
                     openBlocks.put(tokens.size(),t);
                     if(label.getValue().tokenType==TokenType.ELIF){
@@ -574,6 +574,8 @@ public class Interpreter {
                     throw new UnsupportedOperationException("include path has to be a string literal");
                 }
             }
+            case "import"  -> tokens.add(new OperatorToken(OperatorType.IMPORT,       reader.currentPos()));
+            case "$import" -> tokens.add(new OperatorToken(OperatorType.CONST_IMPORT, reader.currentPos()));
 
             default ->{
                 if(str.charAt(0) == '!') {
@@ -583,12 +585,12 @@ public class Interpreter {
                 }else if(str.charAt(0) == '$') {
                     tokens.add(new VariableToken(TokenType.CONST_DECLARE, str.substring(1), reader.currentPos()));
                 }else if(str.charAt(0) == '?') {
-                    tokens.add(new VariableToken(TokenType.HAS_VAR, str.substring(1),      reader.currentPos()));
+                    tokens.add(new VariableToken(TokenType.HAS_VAR, str.substring(1),       reader.currentPos()));
                 }else if(str.charAt(0)=='.'){
                     if(str.length()>1&&str.charAt(1)=='!'){
                         tokens.add(new VariableToken(TokenType.FIELD_WRITE, str.substring(2), reader.currentPos()));
                     }else if(str.length()>1&&str.charAt(1)=='?'){
-                        tokens.add(new VariableToken(TokenType.HAS_FIELD, str.substring(2), reader.currentPos()));
+                        tokens.add(new VariableToken(TokenType.HAS_FIELD, str.substring(2),   reader.currentPos()));
                     }else{
                         tokens.add(new VariableToken(TokenType.FIELD_READ, str.substring(1),  reader.currentPos()));
                     }
@@ -983,6 +985,8 @@ public class Interpreter {
                                 ip=newPos.ip;
                                 incIp = false;
                             }
+                            case IMPORT       -> pop(stack).importTo(state, true);
+                            case CONST_IMPORT -> pop(stack).importTo(state, false);
                         }
                     }
                     case SPRINTF -> {
@@ -1123,12 +1127,12 @@ public class Interpreter {
             }
             if(incIp){
                 ip++;
-                if(ip>=tokens.size()&&!callStack.isEmpty()){
-                    TokenPosition ret=callStack.poll();
-                    tokens=updateTokens(file,ret,program,tokens);
-                    file=ret.file;
-                    ip=ret.ip+1;//increment ip after returning from file
-                }
+            }//no else
+            if(ip>=tokens.size()&&!callStack.isEmpty()){
+                TokenPosition ret=callStack.poll();
+                tokens=updateTokens(file,ret,program,tokens);
+                file=ret.file;
+                ip=ret.ip+1;//increment ip after returning from file
             }
         }
         return stack;

@@ -72,4 +72,6 @@ test 42 .!a println
 "./examples/include.concat" include
 "./examples/include.concat" include
 included .child ()
-included .child_struct .field println
+struct
+included .child_struct $import
+end println
