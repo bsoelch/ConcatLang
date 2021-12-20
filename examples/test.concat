@@ -69,6 +69,6 @@ test 42 .!a println
 "Hello World!" "Programmer" 6 11 ![:] println
 "Hello World!" "" 5 11 ![:] println
 
-"./examples/include.concat" .include
+"./examples/include.concat" include
 included .child ()
 included .child_struct .field println

@@ -17,19 +17,27 @@ public class Interpreter {
         SPRINTF,PRINT,PRINTF,PRINTLN,//fprint,fprintln,fprintf
         //jump commands only for internal representation
         JEQ,JNE,JMP,
+        INCLUDE,
     }
 
-    record TokenPosition(String path,long line, int posInLine) {
+    record FilePosition(String path, long line, int posInLine) {
         @Override
         public String toString() {
             return path+":"+line + ":" + posInLine;
         }
     }
 
+    record TokenPosition(String file, int ip) {
+        @Override
+        public String toString() {
+            return ip+" in "+file;
+        }
+    }
+
     static class Token {
         final TokenType tokenType;
-        final TokenPosition pos;
-        Token(TokenType tokenType, TokenPosition pos) {
+        final FilePosition pos;
+        Token(TokenType tokenType, FilePosition pos) {
             this.tokenType = tokenType;
             this.pos = pos;
         }
@@ -40,7 +48,7 @@ public class Interpreter {
     }
     static class VariableToken extends Token {
         final String name;
-        VariableToken(TokenType type, String name, TokenPosition pos) throws SyntaxError {
+        VariableToken(TokenType type, String name, FilePosition pos) throws SyntaxError {
             super(type, pos);
             this.name = name;
             if(name.isEmpty()){
@@ -54,7 +62,7 @@ public class Interpreter {
     }
     static class OperatorToken extends Token {
         final OperatorType opType;
-        OperatorToken(OperatorType opType, TokenPosition pos) {
+        OperatorToken(OperatorType opType, FilePosition pos) {
             super(TokenType.OPERATOR, pos);
             this.opType=opType;
         }
@@ -65,7 +73,7 @@ public class Interpreter {
     }
     static class ValueToken extends Token {
         final Value value;
-        ValueToken(Value value, TokenPosition pos) {
+        ValueToken(Value value, FilePosition pos) {
             super(TokenType.VALUE, pos);
             this.value=value;
         }
@@ -75,14 +83,14 @@ public class Interpreter {
         }
     }
     static class JumpToken extends Token{
-        final int target;
-        JumpToken(TokenType tokenType, TokenPosition pos, int target) {
+        final TokenPosition target;
+        JumpToken(TokenType tokenType, FilePosition pos, TokenPosition target) {
             super(tokenType, pos);
             this.target = target;
         }
         @Override
         public String toString() {
-            return tokenType.toString()+": "+ target;
+            return tokenType.toString()+": "+(tokenType== TokenType.INCLUDE?target.file:target);
         }
     }
 
@@ -117,14 +125,14 @@ public class Interpreter {
         private final String path;
         private int line =1;
         private int posInLine =0;
-        private TokenPosition currentPos;
+        private FilePosition currentPos;
 
         private ParserReader(String path) throws SyntaxError {
             this.path=path;
             try {
                 this.input = new BufferedReader(new FileReader(path));
             } catch (FileNotFoundException e) {
-                throw new SyntaxError("File not found",new TokenPosition(path,0,0));
+                throw new SyntaxError("File not found",new FilePosition(path,0,0));
             }
         }
 
@@ -150,19 +158,36 @@ public class Interpreter {
             }
             return c;
         }
-        TokenPosition currentPos() {
+        FilePosition currentPos() {
             if(currentPos==null){
-                currentPos=new TokenPosition(path,line, posInLine);
+                currentPos=new FilePosition(path,line, posInLine);
             }
             return currentPos;
         }
         void nextToken() {
             buffer.setLength(0);
-            currentPos = new TokenPosition(path, line, posInLine);
+            currentPos = new FilePosition(path, line, posInLine);
         }
     }
 
-    public ArrayList<Token>  parse(ParserReader reader) throws IOException, SyntaxError {
+    record Program(String mainFile,HashMap<String,ArrayList<Token>> fileTokens){
+        @Override
+        public String toString() {
+            return "Program{" +
+                    "mainFile='" + mainFile + '\'' +
+                    ", fileTokens=" + fileTokens +
+                    '}';
+        }
+    }
+
+    public Program parse(File file,Program program) throws IOException, SyntaxError {
+        String fileName=file.getAbsolutePath();
+        if(program==null){
+            program=new Program(fileName,new HashMap<>());
+        }else if(program.fileTokens.containsKey(fileName)){
+            return program;
+        }
+        ParserReader reader=new ParserReader(fileName);
         ArrayList<Token> tokenBuffer=new ArrayList<>();
         TreeMap<Integer,Token> openBlocks=new TreeMap<>();
         int c;
@@ -173,7 +198,7 @@ public class Interpreter {
             switch(state){
                 case ROOT:
                     if(Character.isWhitespace(c)){
-                        finishWord(tokenBuffer,openBlocks, reader.buffer,reader);
+                        finishWord(tokenBuffer,openBlocks, reader.buffer,reader,program,fileName);
                     }else{
                         switch (c) {
                             case '"', '\'' -> {
@@ -188,10 +213,10 @@ public class Interpreter {
                                 c = reader.forceNextChar();
                                 if (c == '#') {
                                     state = WordState.LINE_COMMENT;
-                                    finishWord(tokenBuffer,openBlocks, reader.buffer,reader);
+                                    finishWord(tokenBuffer,openBlocks, reader.buffer,reader,program,fileName);
                                 } else if (c == '_') {
                                     state = WordState.COMMENT;
-                                    finishWord(tokenBuffer,openBlocks, reader.buffer,reader);
+                                    finishWord(tokenBuffer,openBlocks, reader.buffer,reader,program,fileName);
                                 } else {
                                     reader.buffer.append('#').append((char) c);
                                 }
@@ -256,7 +281,7 @@ public class Interpreter {
             }
         }
         switch (state){
-            case ROOT->finishWord(tokenBuffer,openBlocks,reader.buffer,reader);
+            case ROOT->finishWord(tokenBuffer,openBlocks,reader.buffer,reader,program,fileName);
             case LINE_COMMENT ->{} //do nothing
             case STRING ->throw new SyntaxError("unfinished string", reader.currentPos());
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
@@ -264,7 +289,8 @@ public class Interpreter {
         if(openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(), reader.currentPos());
         }
-        return tokenBuffer;
+        program.fileTokens.put(fileName,tokenBuffer);
+        return program;
     }
 
     /**@return false if the value was an integer otherwise true*/
@@ -288,7 +314,8 @@ public class Interpreter {
         return true;
     }
 
-    private void finishWord(ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks, StringBuilder buffer,ParserReader reader) throws SyntaxError {
+    private void finishWord(ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks, StringBuilder buffer,
+                            ParserReader reader,Program program,String fileName) throws SyntaxError, IOException {
         if (buffer.length() > 0) {
             String str=buffer.toString();
             try{
@@ -307,7 +334,7 @@ public class Interpreter {
                         tokens.add(new ValueToken(Value.ofFloat(d), reader.currentPos()));
                     }else {
                         if(str.length()>0)
-                            addWord(str,tokens,openBlocks,reader);
+                            addWord(str,tokens,openBlocks,reader,program,fileName);
                     }
                 }
             }catch (SyntaxError s){
@@ -316,11 +343,12 @@ public class Interpreter {
             }catch (NumberFormatException nfe){
                 throw new SyntaxError(nfe, reader.currentPos());
             }
-            reader.nextToken();
         }
+        reader.nextToken();
     }
 
-    private void addWord(String str,ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks,ParserReader reader) throws SyntaxError {
+    private void addWord(String str,ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks,
+                         ParserReader reader,Program program,String fileName) throws SyntaxError, IOException {
         switch (str) {
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    reader.currentPos()));
             case "false" -> tokens.add(new ValueToken(Value.FALSE,   reader.currentPos()));
@@ -367,10 +395,12 @@ public class Interpreter {
                     Token t = new Token(TokenType.ELIF, reader.currentPos());
                     openBlocks.put(tokens.size(),t);
                     if(label.getValue().tokenType==TokenType.ELIF){//jump before elif to chain jumps
-                        tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,tokens.size()));
+                        tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,
+                                new TokenPosition(fileName,tokens.size())));
                     }
                     tokens.add(t);
-                    tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,tokens.size()));
+                    tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
+                            new TokenPosition(fileName,tokens.size())));
                 }else{
                     throw new SyntaxError("elif has to be preceded with if or elif followed by a :",reader.currentPos());
                 }
@@ -383,10 +413,12 @@ public class Interpreter {
                     openBlocks.put(tokens.size(),t);
                     if(label.getValue().tokenType==TokenType.ELIF){
                         //jump before else to chain jumps
-                        tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,tokens.size()));
+                        tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,
+                                new TokenPosition(fileName,tokens.size())));
                     }
                     tokens.add(t);
-                    tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,tokens.size()));
+                    tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
+                            new TokenPosition(fileName,tokens.size())));
                 }else{
                     throw new SyntaxError("else has to be preceded with if or elif followed by a :",reader.currentPos());
                 }
@@ -401,18 +433,21 @@ public class Interpreter {
                     switch (label.getValue().tokenType){
                         case IF,ELIF -> {//(el)if ... : ... end
                             tokens.add(t);
-                            tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,tokens.size()));
+                            tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
+                                    new TokenPosition(fileName,tokens.size())));
                             if(label.getValue().tokenType==TokenType.ELIF){
-                                tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,tokens.size()));
+                                tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,
+                                        new TokenPosition(fileName,tokens.size())));
                             }
                         }
                         case WHILE -> {//while ... : ... end
-                            tokens.add(new JumpToken(TokenType.JMP,t.pos,label.getKey()));
-                            tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,tokens.size()));
+                            tokens.add(new JumpToken(TokenType.JMP,t.pos,new TokenPosition(fileName,label.getKey())));
+                            tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
+                                    new TokenPosition(fileName,tokens.size())));
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, PROCEDURE_START,DUP,DROP,SWAP,JEQ,JNE,JMP,SPRINTF,PRINT,PRINTF,PRINTLN,
-                                STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE
+                                STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
                     }
@@ -422,15 +457,17 @@ public class Interpreter {
                         throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
                                 " 'do ... while'  or 'else'",reader.currentPos());
                     }
-                    tokens.add(new JumpToken(TokenType.JEQ,t.pos,label.getKey()));
+                    tokens.add(new JumpToken(TokenType.JEQ,t.pos,new TokenPosition(fileName,label.getKey())));
                 }else if(start.getValue().tokenType==TokenType.ELSE){// ... else ... end
                     tokens.add(t);
-                    tokens.set(start.getKey(),new JumpToken(TokenType.JMP,start.getValue().pos, tokens.size()));
+                    tokens.set(start.getKey(),new JumpToken(TokenType.JMP,start.getValue().pos,
+                            new TokenPosition(fileName,tokens.size())));
                 }else if(start.getValue().tokenType==TokenType.PROCEDURE){// proc ... : ... end
                     tokens.add(new Token(TokenType.RETURN,reader.currentPos()));
                     tokens.add(t);
-                    tokens.set(start.getKey(),new JumpToken(TokenType.PROCEDURE_START,start.getValue().pos,tokens.size()));
-                    tokens.add(new ValueToken(Value.ofProcedureId(start.getKey()+1),reader.currentPos()));
+                    tokens.set(start.getKey(),new JumpToken(TokenType.PROCEDURE_START,start.getValue().pos,
+                            new TokenPosition(fileName,tokens.size())));
+                    tokens.add(new ValueToken(Value.ofProcedureId(new TokenPosition(fileName,start.getKey()+1)),reader.currentPos()));
                 }else if(start.getValue().tokenType==TokenType.STRUCT_START){//struct ... end
                     tokens.add(new Token(TokenType.STRUCT_END,reader.currentPos()));
                 }else{
@@ -506,7 +543,7 @@ public class Interpreter {
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   reader.currentPos()));
             case "()"     -> tokens.add(new OperatorToken(OperatorType.CALL,     reader.currentPos()));
 
-            case "include"-> {
+            case ".include"-> {
                 Token prev=tokens.get(tokens.size()-1);
                 if(prev instanceof ValueToken){
                     tokens.remove(tokens.size()-1);
@@ -515,37 +552,24 @@ public class Interpreter {
                     //addLater library includes
                     throw new UnsupportedOperationException("including library-files is currently not implemented");
                 }else{
-                    tokens.add(new OperatorToken(OperatorType.LIB_INCLUDE,reader.currentPos()));
+                    throw new UnsupportedOperationException("include path has to be a string literal");
                 }
             }
-            case ".include" -> {
+            case "include" -> {
                 Token prev=tokens.get(tokens.size()-1);
                 if(prev instanceof ValueToken){
                     tokens.remove(tokens.size()-1);
                     String name=((ValueToken) prev).value.stringValue();
-                    try {
-                        ArrayList<Token> include = parse(new ParserReader(name));
-                        //TODO avoid shifting parsed content
-                        include.replaceAll(t->{//update positions of jumps and procedures
-                            if(t instanceof JumpToken){
-                                return new JumpToken(t.tokenType, t.pos, ((JumpToken) t).target +tokens.size());
-                            }else if(t instanceof ValueToken&&((ValueToken) t).value.type==Type.PROCEDURE){
-                                try {
-                                    return new ValueToken(Value.ofProcedureId(((ValueToken) t).value.asProcedure()+tokens.size()),
-                                            reader.currentPos());
-                                } catch (TypeError e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }else{
-                                return t;
-                            }
-                        });
-                        tokens.addAll(include);
-                    }catch (IOException e) {
-                        throw new SyntaxError(e,reader.currentPos());
+                    File file=new File(name);
+                    if(file.exists()){
+                        parse(file,program);
+                        tokens.add(new JumpToken(TokenType.INCLUDE,reader.currentPos(),
+                                new TokenPosition(file.getAbsolutePath(),0)));
+                    }else{
+                        throw new SyntaxError("File "+name+" does not exist",reader.currentPos());
                     }
                 }else{
-                    tokens.add(new OperatorToken(OperatorType.PATH_INCLUDE,reader.currentPos()));
+                    throw new UnsupportedOperationException("include path has to be a string literal");
                 }
             }
 
@@ -569,7 +593,7 @@ public class Interpreter {
         }
     }
 
-    private double parseBinFloat(String str,TokenPosition pos) throws SyntaxError {
+    private double parseBinFloat(String str, FilePosition pos) throws SyntaxError {
         long val=0;
         int c1=0,c2=0;
         int d2=0,e=-1;
@@ -601,7 +625,7 @@ public class Interpreter {
         }
         return val*Math.pow(2,-c2);
     }
-    private double parseHexFloat(String str,TokenPosition pos) throws SyntaxError {
+    private double parseHexFloat(String str, FilePosition pos) throws SyntaxError {
         long val=0;
         int c1=0,c2=0;
         int d2=0,e=-1;
@@ -676,11 +700,9 @@ public class Interpreter {
     static class ProgramState{
         final HashMap<String,Variable> variables=new HashMap<>();
         final ProgramState parent;
-        int ip;
 
-        ProgramState(int ip,ProgramState parent) {
+        ProgramState(ProgramState parent) {
             this.parent = parent;
-            this.ip=ip;
         }
 
         /**@return  the variable with the name or null if no variable with the given name exists*/
@@ -717,12 +739,23 @@ public class Interpreter {
         }
         return v;
     }
+    private ArrayList<Token> updateTokens(String oldFile, TokenPosition newPos, Program prog, ArrayList<Token> tokens) {
+        if(oldFile.equals(newPos.file)){
+            return tokens;
+        }else{
+            return prog.fileTokens.get(newPos.file);
+        }
+    }
 
-    public ArrayDeque<Value> run(List<Token>  program){
+    public ArrayDeque<Value> run(Program program){
         ArrayDeque<Value> stack=new ArrayDeque<>();
-        ProgramState state=new ProgramState(0,null);
-        while(state.ip<program.size()){
-            Token next=program.get(state.ip);
+        ProgramState state=new ProgramState(null);
+        String file=program.mainFile;
+        int ip=0;
+        ArrayDeque<TokenPosition> callStack=new ArrayDeque<>();
+        ArrayList<Token> tokens=program.fileTokens.get(program.mainFile);
+        while(ip<tokens.size()){
+            Token next=tokens.get(ip);
             boolean incIp=true;
             try {
                 switch (next.tokenType) {
@@ -929,11 +962,14 @@ public class Interpreter {
                             }
                             case CALL -> {
                                 Value procedure = pop(stack);
-                                state = new ProgramState(procedure.asProcedure(), state);
+                                state = new ProgramState(state);
+                                callStack.push(new TokenPosition(file, ip));
+                                TokenPosition newPos=procedure.asProcedure();
+                                tokens=updateTokens(file,newPos,program,tokens);
+                                file=newPos.file;
+                                ip=newPos.ip;
                                 incIp = false;
                             }
-                            case PATH_INCLUDE,LIB_INCLUDE ->
-                                    throw new UnsupportedOperationException("including code at runtime is not supported");
                         }
                     }
                     case SPRINTF -> {
@@ -976,20 +1012,24 @@ public class Interpreter {
                     case START, ELSE, PROCEDURE -> throw new RuntimeException("Tokens of type " + next.tokenType +
                             " should be eliminated at compile time");
                     case RETURN -> {
-                        state = state.getParent();
-                        if (state == null) {
+                        TokenPosition ret=callStack.poll();
+                        if (ret == null) {
                             throw new ConcatRuntimeError("call-stack underflow");
                         }
+                        tokens=updateTokens(file,ret,program,tokens);
+                        file=ret.file;
+                        ip=ret.ip;
+                        state = state.getParent();
+                        assert state!=null;
                     }
                     case STRUCT_START ->
-                            state = new ProgramState(state.ip, state);
+                            state = new ProgramState(state);
                     case STRUCT_END -> {
                         ProgramState tmp=state;
                         state=state.getParent();
                         if (state == null) {
-                            throw new ConcatRuntimeError("call-stack underflow");
+                            throw new ConcatRuntimeError("scope-stack underflow");
                         }
-                        state.ip=tmp.ip;//don't go back to return address
                         stack.addLast(Value.newStruct(tmp.variables));
                     }
                     case FIELD_READ -> {
@@ -1016,37 +1056,61 @@ public class Interpreter {
                         stack.addLast(tmp1);
                         stack.addLast(tmp2);
                     }
-                    case PROCEDURE_START, JMP -> {
-                        state.ip = ((JumpToken) next).target;
+                    case PROCEDURE_START,JMP -> {
+                        tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
+                        file=((JumpToken) next).target.file;
+                        ip=((JumpToken) next).target.ip;
+                        incIp = false;
+                    }
+                    case INCLUDE -> {
+                        callStack.push(new TokenPosition(file, ip));
+                        tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
+                        file=((JumpToken) next).target.file;
+                        ip=((JumpToken) next).target.ip;
                         incIp = false;
                     }
                     case JEQ -> {
                         Value c = pop(stack);
                         if (c.asBool()) {
-                            state.ip = ((JumpToken) next).target;
+                            tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
+                            file=((JumpToken) next).target.file;
+                            ip=((JumpToken) next).target.ip;
                             incIp = false;
                         }
                     }
                     case JNE -> {
                         Value c = pop(stack);
                         if (!c.asBool()) {
-                            state.ip = ((JumpToken) next).target;
+                            tokens= updateTokens(file,((JumpToken) next).target,program,tokens);
+                            file=((JumpToken) next).target.file;
+                            ip=((JumpToken) next).target.ip;
                             incIp = false;
                         }
                     }
                 }
             }catch (ConcatRuntimeError e){
                 System.err.println(e.getMessage());
-                while(state!=null){
-                    Token token = program.get(state.ip);
+                Token token = tokens.get(ip);
+                System.err.printf("  while executing %-20s  at %s\n",token,token.pos);
+                while(callStack.size()>0){
+                    TokenPosition prev=callStack.poll();
+                    tokens=updateTokens(file,prev,program,tokens);
+                    token=tokens.get(prev.ip);
                     //addLater more readable names for tokens
                     System.err.printf("  while executing %-20s  at %s\n",token,token.pos);
+                    assert state!=null;
                     state=state.getParent();
                 }
                 break;
             }
             if(incIp){
-                state.ip++;
+                ip++;
+                if(ip>=tokens.size()&&!callStack.isEmpty()){
+                    TokenPosition ret=callStack.poll();
+                    tokens=updateTokens(file,ret,program,tokens);
+                    file=ret.file;
+                    ip=ret.ip+1;//increment ip after returning from file
+                }
             }
         }
         return stack;
@@ -1074,21 +1138,17 @@ public class Interpreter {
 
     public static void main(String[] args) throws IOException {
         Interpreter ip = new Interpreter();
-        ArrayList<Token> prog;
+        Program program;
         try {
-            prog = ip.parse(new ParserReader("./examples/test.concat"));
+            program = ip.parse(new File("./examples/test.concat"),null);
         }catch (SyntaxError e){
             System.err.print(e.getMessage());
             System.err.println(" at "+e.pos);
             System.exit(1);
             return;
         }
-        for(Token t:prog){
-            System.out.println(t);
-        }
-        System.out.println();
         //TODO? compile to C
-        ArrayDeque<Value> stack = ip.run(prog);
+        ArrayDeque<Value> stack = ip.run(program);
         System.out.println("\nStack:");
         System.out.println(stack);
     }

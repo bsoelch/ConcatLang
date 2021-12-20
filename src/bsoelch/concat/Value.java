@@ -52,7 +52,7 @@ public abstract class Value {
     public Type asType() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to type");
     }
-    public int asProcedure() throws TypeError {
+    public Interpreter.TokenPosition asProcedure() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to procedure");
     }
     public Value negate() throws TypeError {
@@ -612,24 +612,24 @@ public abstract class Value {
         }
     }
 
-    public static Value ofProcedureId(int id) {
-        return new ProcedureValue(id);
+    public static Value ofProcedureId(Interpreter.TokenPosition pos) {
+        return new ProcedureValue(pos);
     }
     private static class ProcedureValue extends Value{
-        final int id;
-        private ProcedureValue(int id) {
+        final Interpreter.TokenPosition pos;
+        private ProcedureValue(Interpreter.TokenPosition pos) {
             super(Type.PROCEDURE);
-            this.id = id;
+            this.pos = pos;
         }
 
         @Override
-        public int asProcedure() {
-            return id;
+        public Interpreter.TokenPosition asProcedure() {
+            return pos;
         }
 
         @Override
         public String stringValue() {
-            return "@"+id;
+            return "@("+pos+")";
         }
 
         @Override
@@ -637,11 +637,11 @@ public abstract class Value {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ProcedureValue that = (ProcedureValue) o;
-            return id == that.id;
+            return pos.equals(that.pos);
         }
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            return Objects.hash(pos);
         }
     }
 
