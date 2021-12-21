@@ -73,13 +73,13 @@ public abstract class Value {
     public Value get(long index) throws TypeError {
         throw new TypeError("Element access not supported for type "+type);
     }
-    public void set(long index,Value value) throws TypeError {
+    public void set(long index,Value value) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
-    public Value getSlice(long off, long to) throws TypeError {
+    public Value getSlice(long off, long to) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
-    public void setSlice(long off, long to,Value value) throws TypeError {
+    public void setSlice(long off, long to,Value value) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
     public Value iterator(boolean end) throws TypeError {
@@ -110,7 +110,7 @@ public abstract class Value {
         return stringValue();
     }
 
-    public Value castTo(Type type) throws TypeError {
+    public Value castTo(Type type) throws ConcatRuntimeError {
         if(type==Type.ANY||this.type.equals(type)){
             return this;
         }else if(type.equals(Type.STRING())){
@@ -122,9 +122,9 @@ public abstract class Value {
 
 
     /**A wrapper for TypeError that can be thrown inside functional interfaces*/
-    private static class WrappedTypeError extends RuntimeException {
-        final TypeError wrapped;
-        public WrappedTypeError(TypeError wrapped) {
+    private static class WrappedConcatError extends RuntimeException {
+        final ConcatRuntimeError wrapped;
+        public WrappedConcatError(ConcatRuntimeError wrapped) {
             this.wrapped = wrapped;
         }
     }
@@ -132,14 +132,14 @@ public abstract class Value {
         try {
             return asChar();
         } catch (TypeError e) {
-            throw new WrappedTypeError(e);
+            throw new WrappedConcatError(e);
         }
     }
-    private Value unsafeCastTo(Type type) throws WrappedTypeError{
+    private Value unsafeCastTo(Type type) throws WrappedConcatError {
         try {
             return castTo(type);
-        } catch (TypeError e) {
-            throw new WrappedTypeError(e);
+        } catch (ConcatRuntimeError e) {
+            throw new WrappedConcatError(e);
         }
     }
 
@@ -175,8 +175,14 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws TypeError {
-            if(type==Type.CHAR){
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(type==Type.BYTE){
+                if(intValue<0||intValue>0xff){
+                    throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to byte");
+                }
+                return Value.ofByte((byte)intValue);
+
+            }else if(type==Type.CHAR){
                 return Value.ofChar((int)intValue);
             }else if(type==Type.FLOAT){
                 return ofFloat(intValue);
@@ -239,7 +245,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws TypeError {
+        public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
                 return ofInt((long)floatValue);
             }else{
@@ -311,7 +317,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws TypeError {
+        public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
                 return ofInt(codePoint);
             }else{
@@ -337,6 +343,41 @@ public abstract class Value {
             return Objects.hash(codePoint);
         }
     }
+
+    public static Value ofByte(byte aByte) {
+        return new ByteValue(aByte);
+    }
+    private static class ByteValue extends Value{
+        final byte aByte;
+        private ByteValue(byte aByte) {
+            super(Type.BYTE);
+            this.aByte = aByte;
+        }
+        @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(type==Type.INT){
+                return ofInt(aByte);
+            }else{
+                return super.castTo(type);
+            }
+        }
+        @Override
+        public String stringValue() {
+            return String.format("0x%02x",aByte);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ByteValue byteValue = (ByteValue) o;
+            return aByte == byteValue.aByte;
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(aByte);
+        }
+    }
     //addLater allow iterators to modify the underlying objects
     interface ValueIterator{
         boolean hasNext();
@@ -359,13 +400,13 @@ public abstract class Value {
             return stringValue.length();
         }
         @Override
-        public Value castTo(Type type) throws TypeError {
+        public Value castTo(Type type) throws ConcatRuntimeError {
             if(type.isList()){
                 Type c=type.content();
                 try {
                     return createList(type, stringValue.codePoints().mapToObj(v -> ofChar(v).unsafeCastTo(c))
                             .collect(Collectors.toCollection(ArrayList::new)));
-                }catch (WrappedTypeError e){
+                }catch (WrappedConcatError e){
                     throw e.wrapped;
                 }
             }else{
@@ -389,7 +430,7 @@ public abstract class Value {
         }
 
         @Override
-        public void set(long index, Value value) throws TypeError {
+        public void set(long index, Value value) throws ConcatRuntimeError {
             int[] cps=stringValue.codePoints().toArray();
             cps[(int)index]=value.castTo(Type.CHAR).asChar();
             stringValue=IntStream.of(cps).mapToObj(c->String.valueOf(Character.toChars(c))).reduce("",(a,b)->a+b);
@@ -400,14 +441,14 @@ public abstract class Value {
                     mapToObj(c->String.valueOf(Character.toChars(c))).reduce("",(a,b)->a+b));
         }
         @Override
-        public void setSlice(long off, long to, Value value) throws TypeError {
+        public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
             ArrayList<Integer> asList=new ArrayList<>(stringValue.codePoints().boxed().toList());
             List<Integer> slice=asList.subList((int)off,(int)to);
             slice.clear();
             try {
                 Type content=type.content();
                 slice.addAll(value.elements().stream().map(e->e.unsafeCastTo(content)).map(Value::unsafeAsChar).toList());
-            }catch (WrappedTypeError e){
+            }catch (WrappedConcatError e){
                 throw e.wrapped;
             }
             stringValue=asList.stream().map(c->String.valueOf(Character.toChars(c))).reduce("",(a, b)->a+b);
@@ -472,12 +513,12 @@ public abstract class Value {
         }
     }
 
-    public static Value createList(Type type, ArrayList<Value> elements) throws TypeError {
+    public static Value createList(Type type, ArrayList<Value> elements) throws ConcatRuntimeError {
         if(type.equals(Type.STRING())){
             try {
                 return ofString(elements.stream().map(Value::unsafeAsChar).map(Character::toChars).map(String::valueOf).
                         reduce("", (a, b) -> a + b));
-            }catch (WrappedTypeError e){
+            }catch (WrappedConcatError e){
                 throw e.wrapped;
             }
         }else{
@@ -510,34 +551,34 @@ public abstract class Value {
             return elements.get((int)index);
         }
         @Override
-        public void set(long index,Value value) throws TypeError {
+        public void set(long index,Value value) throws ConcatRuntimeError {
             elements.set((int)index,value.castTo(type.content()));
         }
         @Override
-        public Value getSlice(long off, long to) throws TypeError {
+        public Value getSlice(long off, long to) throws ConcatRuntimeError {
             return createList(type,new ArrayList<>(elements.subList((int)off,(int)to)));
         }
 
         @Override
-        public void setSlice(long off, long to, Value value) throws TypeError {
+        public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
             List<Value> sublist=elements.subList((int)off,(int)to);
             sublist.clear();
             try {
                 Type content=type.content();
                 sublist.addAll(value.elements().stream().map(e->e.unsafeCastTo(content)).toList());
-            }catch (WrappedTypeError e){
+            }catch (WrappedConcatError e){
                 throw e.wrapped;
             }
         }
 
         @Override
-        public Value castTo(Type type) throws TypeError {
+        public Value castTo(Type type) throws ConcatRuntimeError {
             if(type.isList()){
                 Type c=type.content();
                 try {
                     return createList(type, elements.stream().map(v -> v.unsafeCastTo(c))
                             .collect(Collectors.toCollection(ArrayList::new)));
-                }catch (WrappedTypeError e){
+                }catch (WrappedConcatError e){
                     throw e.wrapped;
                 }
             }else{
@@ -741,7 +782,7 @@ public abstract class Value {
     }
 
 
-    public static Value concat(Value a,Value b) throws TypeError {
+    public static Value concat(Value a,Value b) throws ConcatRuntimeError {
         if(a.type.isList()&&b.type.isList()){
             if(a.type.content().canAssignFrom(b.type.content())){
                 ArrayList<Value> elements=new ArrayList<>(a.elements());
@@ -756,7 +797,7 @@ public abstract class Value {
         throw new TypeError("Cannot concat "+a.type+" and "+b.type);
     }
 
-    public static Value pushFirst(Value a,Value b) throws TypeError {
+    public static Value pushFirst(Value a,Value b) throws ConcatRuntimeError {
         if(b.type.isList()&&b.type.content().canAssignFrom(a.type)) {
             ArrayList<Value> elements = new ArrayList<>();
             elements.add(a);
@@ -765,7 +806,7 @@ public abstract class Value {
         }
         throw new TypeError("Cannot add "+a.type+" to "+b.type);
     }
-    public static Value pushLast(Value a,Value b) throws TypeError {
+    public static Value pushLast(Value a,Value b) throws ConcatRuntimeError {
         if(a.type.isList()&&a.type.content().canAssignFrom(b.type)) {
             ArrayList<Value> elements = new ArrayList<>(a.elements());
             elements.add(b);

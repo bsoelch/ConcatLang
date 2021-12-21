@@ -17,6 +17,7 @@ public class Interpreter {
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
         DUP,DROP,SWAP,
         SPRINTF,PRINT,PRINTF,PRINTLN,//fprint,fprintln,fprintf
+        //addLater read operation
         //jump commands only for internal representation
         JEQ,JNE,JMP,
         INCLUDE,
@@ -359,6 +360,7 @@ public class Interpreter {
             case "false" -> tokens.add(new ValueToken(Value.FALSE,   reader.currentPos()));
 
             case "bool"     -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),      reader.currentPos()));
+            case "byte"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),      reader.currentPos()));
             case "int"      -> tokens.add(new ValueToken(Value.ofType(Type.INT),       reader.currentPos()));
             case "char"     -> tokens.add(new ValueToken(Value.ofType(Type.CHAR),      reader.currentPos()));
             case "float"    -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),     reader.currentPos()));
@@ -741,7 +743,7 @@ public class Interpreter {
         final Type type;
         private Value value;
 
-        Variable(Type type, boolean isConst, Value value) throws TypeError {
+        Variable(Type type, boolean isConst, Value value) throws ConcatRuntimeError {
             this.type = type;
             this.isConst = isConst;
             setValue(value);
@@ -751,7 +753,7 @@ public class Interpreter {
             return value;
         }
 
-        public void setValue(Value newValue) throws TypeError {
+        public void setValue(Value newValue) throws ConcatRuntimeError {
             value=newValue.castTo(type);
         }
     }
@@ -951,7 +953,7 @@ public class Interpreter {
                                 Value list = pop(stack);
                                 stack.addLast(list.get(index));
                             }
-                            case SET_INDEX -> {//array value index ![]
+                            case SET_INDEX -> {//array value index [] =
                                 long index = pop(stack).asLong();
                                 Value val = pop(stack);
                                 Value list = pop(stack);

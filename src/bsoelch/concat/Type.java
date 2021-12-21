@@ -8,6 +8,7 @@ public class Type {
     public static final Type FLOAT = new Type("float");
     public static final Type TYPE = new Type("type");
     public static final Type BOOL = new Type("bool");
+    public static final Type BYTE = new Type("byte");
     public static final Type PROCEDURE = new Type("*->*");
     public static final Type STRUCT = new Type("(struct)");
     /**blank type that could contain any value*/

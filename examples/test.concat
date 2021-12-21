@@ -75,3 +75,5 @@ included child . ()
 struct
 included child_struct . $import
 end println
+
+255 byte cast dup typeof swap "%s: %s\n" printf
