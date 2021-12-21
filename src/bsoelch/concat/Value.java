@@ -102,7 +102,7 @@ public abstract class Value {
     public void setField(String name, Value newValue) throws ConcatRuntimeError {
         throw new TypeError("Field access not supported for type "+type);
     }
-    public void importTo(Interpreter.ProgramState context,boolean allowMuatable) throws ConcatRuntimeError {
+    public void importTo(Interpreter.ProgramState context,boolean allowMutable) throws ConcatRuntimeError {
         throw new TypeError("Field access not supported for type "+type);
     }
 
@@ -877,9 +877,9 @@ public abstract class Value {
         }
 
         @Override
-        public void importTo(Interpreter.ProgramState context,boolean allowMuatable) throws ConcatRuntimeError {
+        public void importTo(Interpreter.ProgramState context,boolean allowMutable) throws ConcatRuntimeError {
             for(Map.Entry<String, Interpreter.Variable> e:variables.entrySet()) {
-                if (allowMuatable||e.getValue().isConst) {
+                if (allowMutable ||e.getValue().isConst) {
                     Interpreter.Variable prev = context.getVariable(e.getKey());
                     if (prev != null) {
                         if (prev.isConst) {
