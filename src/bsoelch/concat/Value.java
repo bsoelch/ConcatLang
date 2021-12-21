@@ -206,7 +206,7 @@ public abstract class Value {
             res*=base;
             res+=valueOf(source.charAt(i),base);
         }
-        return res;
+        return sgn?-res:res;
     }
     private static class IntValue extends Value implements NumberValue{
         final long intValue;
@@ -319,10 +319,8 @@ public abstract class Value {
                 }
                 d=1;
             }else if(isExpChar(str.charAt(i),base)) {
-                if(e!=-1){
-                    throw new ConcatRuntimeError("invalid string-format for float \""+str+"\"");
-                }
                 e = i + 1;
+                break;
             }else{
                 if(val<Long.MAX_VALUE/base){
                     val*=base;
@@ -330,16 +328,14 @@ public abstract class Value {
                     c+=d;
                 }else{
                     valueOf(str.charAt(i),base);//check digit without storing value
-                    if(e==-1) {
-                        c += d - 1;//decrease c if on the left of comma
-                    }
+                    c += d - 1;//decrease c if on the left of comma
                 }
             }
         }
         if (e > 0) {
             c-=(int)parseInt(str.substring(e),base);
         }
-        return val*Math.pow(base,-c);
+        return (sgn?-val:val)*Math.pow(base,-c);
     }
     private static class FloatValue extends Value implements NumberValue{
         final double floatValue;

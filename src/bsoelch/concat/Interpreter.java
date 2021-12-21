@@ -971,22 +971,19 @@ public class Interpreter {
                             }
                             case IMPORT       -> pop(stack).importTo(state, true);
                             case CONST_IMPORT -> pop(stack).importTo(state, false);
-                            case PARSE_INT -> {
-                                pop(stack);
-                                //TODO parse int
-                                throw new UnsupportedOperationException("PARSE_INT is not implemented");
-                            }
+                            case PARSE_INT ->
+                                stack.addLast(Value.ofInt(Value.parseInt(pop(stack).stringValue(),10)));
                             case PARSE_INT_BASE -> {
-                                pop(stack);
-                                throw new UnsupportedOperationException("PARSE_INT_BASE is not implemented");
+                                int base=(int)pop(stack).asLong();
+                                Value str=pop(stack);
+                                stack.addLast(Value.ofInt(Value.parseInt(str.stringValue(),base)));
                             }
-                            case PARSE_FLOAT -> {
-                                pop(stack);
-                                throw new UnsupportedOperationException("PARSE_FLOAT is not implemented");
-                            }
+                            case PARSE_FLOAT ->
+                                    stack.addLast(Value.ofFloat(Value.parseFloat(pop(stack).stringValue(),10)));
                             case PARSE_FLOAT_BASE -> {
-                                pop(stack);
-                                throw new UnsupportedOperationException("PARSE_FLOAT_BASE is not implemented");
+                                int base=(int)pop(stack).asLong();
+                                Value str=pop(stack);
+                                stack.addLast(Value.ofFloat(Value.parseFloat(str.stringValue(),base)));
                             }
                             case BYTES_LE -> stack.addLast(pop(stack).bytes(false));
                             case BYTES_BE -> stack.addLast(pop(stack).bytes(true));

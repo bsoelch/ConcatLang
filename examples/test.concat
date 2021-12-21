@@ -78,4 +78,3 @@ end println
 
 255 byte cast dup typeof swap "%s: %s\n" printf
 0x123456789abcdef bytes asFloat_BE bytes println
-10000000000000000000000000000000000000000000000000000000000000000.0 "%(16)f\n" printf
