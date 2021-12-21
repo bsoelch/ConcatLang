@@ -116,8 +116,8 @@ public class Interpreter {
     static final String HEX_FLOAT_MAGNITUDE = HEX_INT_PATTERN + "\\.?"+HEX_DIGIT+"*";
     static final Pattern floatDec=Pattern.compile("NaN|Infinity|("+
             DEC_FLOAT_MAGNITUDE+"([Ee][+-]?"+DEC_DIGIT+"+)?)");
-    static final Pattern floatHex=Pattern.compile(HEX_FLOAT_MAGNITUDE+"([Pp][+-]?"+HEX_DIGIT+"+)?");
-    static final Pattern floatBin=Pattern.compile(BIN_FLOAT_MAGNITUDE+"([Ee][+-]?"+BIN_DIGIT+"+)?");
+    static final Pattern floatHex=Pattern.compile(HEX_FLOAT_MAGNITUDE+"([PpXx#][+-]?"+HEX_DIGIT+"+)?");
+    static final Pattern floatBin=Pattern.compile(BIN_FLOAT_MAGNITUDE+"([EePpXx#][+-]?"+BIN_DIGIT+"+)?");
 
     static class ParserReader{
         final Reader input;
@@ -330,11 +330,11 @@ public class Interpreter {
                         tokens.add(new ValueToken(Value.ofFloat(d), reader.currentPos()));
                     }else if(floatBin.matcher(str).matches()){
                         //bin-Float
-                        double d=parseBinFloat(str.substring(BIN_PREFIX.length()),reader.currentPos());
+                        double d= Value.parseFloat(str.substring(BIN_PREFIX.length()),2);
                         tokens.add(new ValueToken(Value.ofFloat(d), reader.currentPos()));
                     }else if(floatHex.matcher(str).matches()){
                         //hex-Float
-                        double d=parseHexFloat(str.substring(HEX_PREFIX.length()),reader.currentPos());
+                        double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
                         tokens.add(new ValueToken(Value.ofFloat(d), reader.currentPos()));
                     }else {
                         if(str.length()>0)
@@ -347,7 +347,7 @@ public class Interpreter {
                 }else {
                     throw new SyntaxError(e, reader.currentPos());
                 }
-            }catch(NumberFormatException e){
+            }catch(ConcatRuntimeError|NumberFormatException e){
                 throw new SyntaxError(e, reader.currentPos());
             }
         }
@@ -385,6 +385,12 @@ public class Interpreter {
             case "print"      -> tokens.add(new Token(TokenType.PRINT,   reader.currentPos()));
             case "printf"     -> tokens.add(new Token(TokenType.PRINTF,  reader.currentPos()));
             case "println"    -> tokens.add(new Token(TokenType.PRINTLN, reader.currentPos()));
+
+            case "parseInt"    -> tokens.add(new OperatorToken(OperatorType.PARSE_INT,reader.currentPos()));
+            case "parseFloat"  -> tokens.add(new OperatorToken(OperatorType.PARSE_FLOAT,reader.currentPos()));
+            case "parseIntN"   -> tokens.add(new OperatorToken(OperatorType.PARSE_INT_BASE,reader.currentPos()));
+            case "parseFloatN" -> tokens.add(new OperatorToken(OperatorType.PARSE_FLOAT_BASE,reader.currentPos()));
+
             case "bytes"      -> tokens.add(new OperatorToken(OperatorType.BYTES_LE, reader.currentPos()));
             case "bytes_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_BE, reader.currentPos()));
             case "asInt"      -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_INT_LE,
@@ -662,91 +668,6 @@ public class Interpreter {
             }
             default -> tokens.add(new VariableToken(TokenType.VAR_READ, str, reader.currentPos()));
         }
-    }
-
-    private double parseBinFloat(String str, FilePosition pos) throws SyntaxError {
-        long val=0;
-        int c1=0,c2=0;
-        int d2=0,e=-1;
-        for(int i=0;i<str.length();i++){
-            switch (str.charAt(i)){
-                case '0':
-                case '1':
-                    if(c1<63){
-                        val*=2;
-                        val+=str.charAt(i)-'0';
-                        c1++;
-                        c2+=d2;
-                    }
-                    break;
-                case '.':
-                    if(d2!=0){
-                        throw new SyntaxError("Duplicate decimal point",pos);
-                    }
-                    d2=1;
-                    break;
-                case 'E':
-                case 'e':
-                    e=i+1;
-                    break;
-            }
-        }
-        if (e > 0) {
-            c2-=Integer.parseInt(str.substring(e),2);
-        }
-        return val*Math.pow(2,-c2);
-    }
-    private double parseHexFloat(String str, FilePosition pos) throws SyntaxError {
-        long val=0;
-        int c1=0,c2=0;
-        int d2=0,e=-1;
-        for(int i=0;i<str.length();i++){
-            switch (str.charAt(i)){
-                case '0':case '1':case '2':
-                case '3':case '4':case '5':
-                case '6':case '7':case '8':
-                case '9':
-                    if(c1<15){
-                        val*=16;
-                        val+=str.charAt(i)-'0';
-                        c1++;
-                        c2+=d2;
-                    }
-                    break;
-                case 'A':case 'B':case 'C':
-                case 'D':case 'E':case 'F':
-                    if(c1<15){
-                        val*=16;
-                        val+=str.charAt(i)-'A'+10;
-                        c1++;
-                        c2+=d2;
-                    }
-                    break;
-                case 'a':case 'b':case 'c':
-                case 'd':case 'e':case 'f':
-                    if(c1<15){
-                        val*=16;
-                        val+=str.charAt(i)-'a'+10;
-                        c1++;
-                        c2+=d2;
-                    }
-                    break;
-                case '.':
-                    if(d2!=0){
-                        throw new SyntaxError("Duplicate decimal point",pos);
-                    }
-                    d2=1;
-                    break;
-                case 'P':
-                case 'p':
-                    e=i+1;
-                    break;
-            }
-        }
-        if (e > 0) {
-            c2-=Integer.parseInt(str.substring(e),16);
-        }
-        return val*Math.pow(2,-c2);
     }
 
     static class Variable{
@@ -1050,6 +971,23 @@ public class Interpreter {
                             }
                             case IMPORT       -> pop(stack).importTo(state, true);
                             case CONST_IMPORT -> pop(stack).importTo(state, false);
+                            case PARSE_INT -> {
+                                pop(stack);
+                                //TODO parse int
+                                throw new UnsupportedOperationException("PARSE_INT is not implemented");
+                            }
+                            case PARSE_INT_BASE -> {
+                                pop(stack);
+                                throw new UnsupportedOperationException("PARSE_INT_BASE is not implemented");
+                            }
+                            case PARSE_FLOAT -> {
+                                pop(stack);
+                                throw new UnsupportedOperationException("PARSE_FLOAT is not implemented");
+                            }
+                            case PARSE_FLOAT_BASE -> {
+                                pop(stack);
+                                throw new UnsupportedOperationException("PARSE_FLOAT_BASE is not implemented");
+                            }
                             case BYTES_LE -> stack.addLast(pop(stack).bytes(false));
                             case BYTES_BE -> stack.addLast(pop(stack).bytes(true));
                             case BYTES_AS_INT_LE -> stack.addLast(

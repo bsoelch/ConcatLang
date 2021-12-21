@@ -47,9 +47,9 @@ public class Printf {
         }
         return res.reverse().toString();
     }
-    static String toString(double val, int precision, int base, boolean big,boolean sci,char plusSgn){
+    static String toString(double val, int precision, int base, boolean big,boolean sci,char plusSgn) throws ConcatRuntimeError {
         if(base<2||base>62){
-            throw new IllegalArgumentException("base has to be between 2 and 62");
+            throw new ConcatRuntimeError("base out of range:"+base+" base has to be between 2 and 62");
         }
         StringBuilder res=new StringBuilder();
         if(val<0){

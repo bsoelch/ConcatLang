@@ -108,7 +108,7 @@ public abstract class Value {
 
     public abstract String stringValue();
     /**formatted printing of values*/ //TODO flags unsigned,scientific, bracket-type,escaping of values
-    public String stringValue(int precision, int base,boolean big,char plusChar) {
+    public String stringValue(int precision, int base,boolean big,char plusChar) throws ConcatRuntimeError {
         return stringValue();
     }
 
@@ -151,6 +151,22 @@ public abstract class Value {
     }
 
     private interface NumberValue{}
+    private static int valueOf(char digit,int base) throws ConcatRuntimeError {
+        int val;
+        if(digit>='0'&&digit<='9'){
+            val=digit-'0';
+        }else if(digit>='A'&&digit<='Z'){
+            val=digit-'A'+10;
+        }else if(digit>='a'&&digit<='z'){
+            val=digit-'a'+base<37?10:36;
+        }else{
+            throw new ConcatRuntimeError("invalid digit for base "+base+" number '"+digit+"'");
+        }
+        if(val>=base){
+            throw new ConcatRuntimeError("invalid digit for base "+base+" number '"+digit+"'");
+        }
+        return val;
+    }
 
     public static Value ofInt(long intValue) {
         return new IntValue(intValue);
@@ -172,6 +188,25 @@ public abstract class Value {
             }
         }
         return val;
+    }
+    public static long parseInt(String source,int base) throws ConcatRuntimeError {
+        if(base<2||base>62){
+            throw new ConcatRuntimeError("base out of range:"+base+" base has to be between 2 and 62");
+        }
+        int i=0;
+        boolean sgn=source.startsWith("-");
+        if(sgn){
+            i++;
+        }
+        long res=0;
+        for(;i<source.length();i++){
+            if(res>Long.MAX_VALUE/base){
+                throw new ConcatRuntimeError("invalid string-format for int \""+source+"\" (overflow)");
+            }
+            res*=base;
+            res+=valueOf(source.charAt(i),base);
+        }
+        return res;
     }
     private static class IntValue extends Value implements NumberValue{
         final long intValue;
@@ -252,8 +287,59 @@ public abstract class Value {
         }
     }
 
+    private static boolean isExpChar(char c,int base){
+        switch (c){
+            case 'e','E'-> {return base<('E'-'A'+10+1);}
+            case 'p','P'-> {return base<('P'-'A'+10+1);}
+            case 'x','X'-> {return base<('X'-'A'+10+1);}
+            case '#'-> {return true;}
+            default -> {return false;}
+        }
+    }
+
     public static Value ofFloat(double d) {
         return new FloatValue(d);
+    }
+    public static double parseFloat(String str, int base) throws ConcatRuntimeError {
+        if(base<2||base>62){
+            throw new ConcatRuntimeError("base out of range:"+base+" base has to be between 2 and 62");
+        }
+        int i=0;
+        boolean sgn=str.startsWith("-");
+        if(sgn){
+            i++;
+        }
+        long val=0;
+        int c=0;
+        int d=0,e=-1;
+        for(;i<str.length();i++){
+            if(str.charAt(i)=='.'){
+                if(d!=0){
+                    throw new ConcatRuntimeError("invalid string-format for float \""+str+"\"");
+                }
+                d=1;
+            }else if(isExpChar(str.charAt(i),base)) {
+                if(e!=-1){
+                    throw new ConcatRuntimeError("invalid string-format for float \""+str+"\"");
+                }
+                e = i + 1;
+            }else{
+                if(val<Long.MAX_VALUE/base){
+                    val*=base;
+                    val+=valueOf(str.charAt(i),base);
+                    c+=d;
+                }else{
+                    valueOf(str.charAt(i),base);//check digit without storing value
+                    if(e==-1) {
+                        c += d - 1;//decrease c if on the left of comma
+                    }
+                }
+            }
+        }
+        if (e > 0) {
+            c-=(int)parseInt(str.substring(e),base);
+        }
+        return val*Math.pow(base,-c);
     }
     private static class FloatValue extends Value implements NumberValue{
         final double floatValue;
@@ -292,7 +378,7 @@ public abstract class Value {
             return Double.toString(floatValue);
         }
         @Override
-        public String stringValue(int precision, int base,boolean big,char plusChar) {
+        public String stringValue(int precision, int base,boolean big,char plusChar) throws ConcatRuntimeError {
             return Printf.toString(floatValue,precision,base,big,false,plusChar);
         }
 
@@ -658,11 +744,11 @@ public abstract class Value {
             return elements.toString();
         }
         @Override
-        public String stringValue(int precision, int base, boolean big, char plusChar) {
+        public String stringValue(int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
             return toString(elements,precision, base, big, plusChar);
         }
 
-        static String toString(List<Value> elements,int precision, int base, boolean big, char plusChar) {
+        static String toString(List<Value> elements,int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
             StringBuilder str=new StringBuilder("[");
             for(Value v:elements){
                 if(str.length()>1){
@@ -705,7 +791,7 @@ public abstract class Value {
             return "Itr{"+elements.subList(0,i)+"^"+elements.subList(i,elements.size())+"}";
         }
         @Override
-        public String stringValue(int precision, int base, boolean big, char plusChar) {
+        public String stringValue(int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
             return "Itr{"+ListValue.toString(elements.subList(0,i),precision,base,big,plusChar)+"^"
                     +ListValue.toString(elements.subList(i,elements.size()),precision,base,big,plusChar)+"}";
         }
@@ -823,7 +909,7 @@ public abstract class Value {
             return str.append("}").toString();
         }
         @Override
-        public String stringValue(int precision, int base, boolean big, char plusChar) {
+        public String stringValue(int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
             StringBuilder str=new StringBuilder("{");
             for(Map.Entry<String, Interpreter.Variable> e:variables.entrySet()){
                 if(str.length()>1){
