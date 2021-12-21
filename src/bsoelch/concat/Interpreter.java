@@ -11,7 +11,7 @@ public class Interpreter {
     }
     enum TokenType {
         VALUE,OPERATOR,
-        DECLARE,CONST_DECLARE,NAME,WRITE_TO,HAS_VAR,
+        DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,HAS_VAR,
         IF,START,ELIF,ELSE,DO,WHILE,END,
         PROCEDURE,RETURN, PROCEDURE_START,
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
@@ -450,7 +450,7 @@ public class Interpreter {
                             tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
                                     new TokenPosition(fileName,tokens.size())));
                         }
-                        case VALUE,OPERATOR,DECLARE,CONST_DECLARE,NAME,WRITE_TO,START,END,ELSE,DO,PROCEDURE,
+                        case VALUE,OPERATOR,DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, PROCEDURE_START,DUP,DROP,SWAP,JEQ,JNE,JMP,SPRINTF,PRINT,PRINTF,PRINTLN,
                                 STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,HAS_VAR,HAS_FIELD
                                 -> throw new SyntaxError("Invalid block syntax \""+
@@ -532,12 +532,8 @@ public class Interpreter {
             case ":<<"  -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,  reader.currentPos()));
             //<array> <index> []
             case "[]"   -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,  reader.currentPos()));
-            //<array> <val> <index> []
-            case "![]"  -> tokens.add(new OperatorToken(OperatorType.SET_INDEX,  reader.currentPos()));
             //<array> <off> <to> [:]
             case "[:]"  -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,  reader.currentPos()));
-            //<array> <val> <off> <to> [:]
-            case "![:]" -> tokens.add(new OperatorToken(OperatorType.SET_SLICE,  reader.currentPos()));
 
             case "^.." -> tokens.add(new OperatorToken(OperatorType.ITR_START, reader.currentPos()));
             case "..^" -> tokens.add(new OperatorToken(OperatorType.ITR_END,   reader.currentPos()));
@@ -580,27 +576,78 @@ public class Interpreter {
             case "import"  -> tokens.add(new OperatorToken(OperatorType.IMPORT,       reader.currentPos()));
             case "$import" -> tokens.add(new OperatorToken(OperatorType.CONST_IMPORT, reader.currentPos()));
 
-            default ->{
-                if(str.charAt(0) == '!') {
-                    tokens.add(new VariableToken(TokenType.WRITE_TO, str.substring(1),      reader.currentPos()));
-                }else if(str.charAt(0) == ':') {
-                    tokens.add(new VariableToken(TokenType.DECLARE, str.substring(1),       reader.currentPos()));
-                }else if(str.charAt(0) == '$') {
-                    tokens.add(new VariableToken(TokenType.CONST_DECLARE, str.substring(1), reader.currentPos()));
-                }else if(str.charAt(0) == '?') {
-                    tokens.add(new VariableToken(TokenType.HAS_VAR, str.substring(1),       reader.currentPos()));
-                }else if(str.charAt(0)=='.'){
-                    if(str.length()>1&&str.charAt(1)=='!'){
-                        tokens.add(new VariableToken(TokenType.FIELD_WRITE, str.substring(2), reader.currentPos()));
-                    }else if(str.length()>1&&str.charAt(1)=='?'){
-                        tokens.add(new VariableToken(TokenType.HAS_FIELD, str.substring(2),   reader.currentPos()));
+            case "="->{
+                Token prev=tokens.get(tokens.size()-1);
+                if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_INDEX){
+                    //<array> <val> <index> []
+                    tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_INDEX,prev.pos));
+                }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_SLICE){
+                    //<array> <val> <off> <to> [:]
+                    tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_SLICE,prev.pos));
+                }else if(prev instanceof VariableToken){
+                    if(prev.tokenType == TokenType.VAR_READ){
+                        prev=new VariableToken(TokenType.VAR_WRITE,((VariableToken) prev).name,prev.pos);
+                    }else if(prev.tokenType == TokenType.FIELD_READ){
+                        prev=new VariableToken(TokenType.FIELD_WRITE,((VariableToken) prev).name,prev.pos);
                     }else{
-                        tokens.add(new VariableToken(TokenType.FIELD_READ, str.substring(1),  reader.currentPos()));
+                        throw new SyntaxError("invalid token for '=' modifier: "+prev,reader.currentPos());
                     }
+                    tokens.set(tokens.size()-1,prev);
                 }else{
-                    tokens.add(new VariableToken(TokenType.NAME, str, reader.currentPos()));
+                    throw new SyntaxError("invalid token for '=' modifier: "+prev,reader.currentPos());
                 }
             }
+            case "."->{
+                Token prev=tokens.get(tokens.size()-1);
+                if(!(prev instanceof VariableToken)){
+                    throw new SyntaxError("invalid token for '.' modifier: "+prev,reader.currentPos());
+                }
+                if(prev.tokenType == TokenType.VAR_READ){
+                    prev=new VariableToken(TokenType.FIELD_READ,((VariableToken) prev).name,prev.pos);
+                }else{
+                    throw new SyntaxError("invalid token for '.' modifier: "+prev,reader.currentPos());
+                }
+                tokens.set(tokens.size()-1,prev);
+            }
+            case "?"->{
+                Token prev=tokens.get(tokens.size()-1);
+                if(!(prev instanceof VariableToken)){
+                    throw new SyntaxError("invalid token for '?' modifier: "+prev,reader.currentPos());
+                }
+                if(prev.tokenType == TokenType.VAR_READ){
+                    prev=new VariableToken(TokenType.HAS_VAR,((VariableToken) prev).name,prev.pos);
+                }else if(prev.tokenType == TokenType.FIELD_READ){
+                    prev=new VariableToken(TokenType.HAS_FIELD,((VariableToken) prev).name,prev.pos);
+                }else{
+                    throw new SyntaxError("invalid token for '?' modifier: "+prev,reader.currentPos());
+                }
+                tokens.set(tokens.size()-1,prev);
+            }
+            case "=:"->{
+                Token prev=tokens.get(tokens.size()-1);
+                if(!(prev instanceof VariableToken)){
+                    throw new SyntaxError("invalid token for '=:' modifier: "+prev,reader.currentPos());
+                }
+                if(prev.tokenType == TokenType.VAR_READ){
+                    prev=new VariableToken(TokenType.DECLARE,((VariableToken) prev).name,prev.pos);
+                }else{
+                    throw new SyntaxError("invalid token for '=:' modifier "+prev,reader.currentPos());
+                }
+                tokens.set(tokens.size()-1,prev);
+            }
+            case "=$"->{
+                Token prev=tokens.get(tokens.size()-1);
+                if(!(prev instanceof VariableToken)){
+                    throw new SyntaxError("invalid token for '=$' modifier: "+prev,reader.currentPos());
+                }
+                if(prev.tokenType == TokenType.VAR_READ){
+                    prev=new VariableToken(TokenType.CONST_DECLARE,((VariableToken) prev).name,prev.pos);
+                }else{
+                    throw new SyntaxError("invalid token for '=$' modifier: "+prev,reader.currentPos());
+                }
+                tokens.set(tokens.size()-1,prev);
+            }
+            default -> tokens.add(new VariableToken(TokenType.VAR_READ, str, reader.currentPos()));
         }
     }
 
@@ -1010,14 +1057,14 @@ public class Interpreter {
                         state.declareVariable(((VariableToken) next).name, type.asType(),
                                 next.tokenType == TokenType.CONST_DECLARE, value);
                     }
-                    case NAME -> {
+                    case VAR_READ -> {
                         Variable var = state.getVariable(((VariableToken) next).name);
                         if (var == null) {
                             throw new ConcatRuntimeError("Variable " + ((VariableToken) next).name + " does not exist ");
                         }
                         stack.addLast(var.getValue());
                     }
-                    case WRITE_TO -> {
+                    case VAR_WRITE -> {
                         Variable var = state.getVariable(((VariableToken) next).name);
                         if (var == null) {
                             throw new ConcatRuntimeError("Variable " + ((VariableToken) next).name + " does not exist");

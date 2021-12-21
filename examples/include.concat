@@ -1,15 +1,15 @@
-if ?included : ## ensures that file is only included once
+if included ? : ## ensures that file is only included once
 "This file was already included" println
 else
 "including file" println
 struct ## use structs as replacements for modules
 proc
 "included Procedure" println
-end *->* $child
+end *->* child =$
 struct
-"included field" string :field
-"included constant" string $const_field
-end (struct) $child_struct
-end (struct) $included
+"included field" string field =:
+"included constant" string const_field =$
+end (struct) child_struct =$
+end (struct) included =$
 
 end

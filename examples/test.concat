@@ -1,10 +1,10 @@
 proc
-  dup float $a float :x
+  dup float a =$ float x =:
   while x x * a - 1E-16 > :
-   a x / x + 2 / !x
+   a x / x + 2 / x =
   end
   x
-end *->* $sqrt
+end *->* sqrt =$
 
 proc
  if dup 1 > :
@@ -14,7 +14,7 @@ proc
  else
   0
  end
-end *->* $fib
+end *->* fib =$
 
 2.0 sqrt () println
 3 sqrt () println
@@ -24,7 +24,7 @@ end *->* $fib
  1 +
 end drop
 
-proc 0 != end *->* $intToBool
+proc 0 != end *->* intToBool =$
 
 3 intToBool () println
 0 intToBool () println
@@ -39,39 +39,39 @@ proc 0 != end *->* $intToBool
 
 proc #_ list ? -> list ? _#
 ## store type and length of the list
-dup typeof unwrap type :arg.type
-dup length        int  :arg.length
+dup typeof unwrap type arg.type   =:
+dup length        int  arg.length =:
 ## Iterate though the elements in reverse order
 ..^ while <^ : swap end drop
 ## reassemble the list
 arg.type arg.length {}
-end *->* $reverse
+end *->* reverse =$
 
 "Hello World" reverse () println
 
 proc #_ list ? -> ?  _#
-0 var :tmp ## Initialize sum to 0
+0 var tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
 ^.. while ^> :
- tmp swap + !tmp
+ tmp swap + tmp =
 end drop
 tmp ## load the total sum onto the stack
-end *->* $sum
+end *->* sum =$
 
 1 2 3 4 5 6 7 8 9 int 9 {} sum () println
 1.5 2.5 3.5 4.5 float 4 {} sum () println
 
-struct 1 int :a 2 int $b end (struct) :test
-test .a println
-test 42 .!a println
+struct 1 int a =: 2 int b =$ end (struct) test =:
+test a . println
+test 42 a . = println
 
-"Hello World?" '!' 11 ![] println
-"Hello World!" "Programmer" 6 11 ![:] println
-"Hello World!" "" 5 11 ![:] println
+"Hello World?" '!' 11 [] = println
+"Hello World!" "Programmer" 6 11 [:] = println
+"Hello World!" "" 5 11 [:] = println
 
 "./examples/include.concat" include
 "./examples/include.concat" include
-included .child ()
+included child . ()
 struct
-included .child_struct $import
+included child_struct . $import
 end println

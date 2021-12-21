@@ -21,7 +21,7 @@ proc
  else
    0
  end
-end *->* $fib
+end *->* fib =$
 
 #_ print 10th Fibonacci Number: _#
 10 fib () println
@@ -174,8 +174,8 @@ drop ## Drop iterator
 reverse a list:
 ```Julia
 ## store type and length of the list
-dup typeof unwrap type :arg.type
-dup length        int  :arg.length
+dup typeof unwrap type arg.type   =:
+dup length        int  arg.length =:
 ## Iterate though the elements in reverse order
 ..^ while <^ : swap end drop
 ## reassemble the list
@@ -183,10 +183,10 @@ arg.type arg.length {}
 ```
 Sum all elements of a list
 ```Julia
-0 var :tmp ## Initialize sum to 0
+0 var tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
 ^.. while ^> :
- tmp swap + !tmp
+ tmp swap + tmp =
 end drop
 tmp ## load the total sum onto the stack
 ```
@@ -204,8 +204,8 @@ type `type` and pushes the result
 - `>>:` `:<<` add a new element at the start/end of a list
 - `[]` get an element of a list
    - syntax: `<list> <index> []`
-- `![]`  set an element of a list
-  - syntax: `<list> <value> <index> ![]`
+- `[] =`  set an element of a list
+  - syntax: `<list> <value> <index> [] =`
   - the element at index will be set to value cast to 
 the type of the list-elements
   - the modified list is pushed back on the stack
@@ -214,8 +214,8 @@ the type of the list-elements
   - returns a new list containing the elements 
 of the list with indices between `<off>` included
 and `<to>` excluded
-- `![:]` replace a sublist of a list
-  - syntax: `<list> <value> <off> <to> ![:]`
+- `[:] =` replace a sublist of a list
+  - syntax: `<list> <value> <off> <to> [:] =`
   - all the specified section of the list will be replaced 
 with the new value cast to the type of the list
   - the modified list is pushed back on the stack
@@ -231,9 +231,9 @@ int list list drop ## list of list of ints
 "Hello" ' ' "World" >>: ++ '!' :<< println
 4 fib () #_ call procedure fib with argument 4 _#
 "Hello World!" 7 9 [:] println
-"Hello World?" '!' 11 ![] println
-"Hello World!" "Programmer" 6 11 ![:] println
-"Hello World!" "" 5 11 ![:] println
+"Hello World?" '!' 11 [] = println
+"Hello World!" "Programmer" 6 11 [:] = println
+"Hello World!" "" 5 11 [:] = println
 ```
 prints 
 ```C++
@@ -348,7 +348,7 @@ Examples:
 ## inline procedure
 1 2 proc + end () println 
 ## declare a procedure variable 
-proc 0 != end *->* $intToBool
+proc 0 != end *->* intToBool =$
 3 intToBool () println
 0 intToBool () println
 ## procedures can have a variable number of arguements
@@ -356,12 +356,12 @@ proc 0 != end *->* $intToBool
 ## drops the first [n] elements from the stack, 
 ## with [n] beeing the top element on the stack
 proc 
-  int :n ## store top element of the stack as n
+  int n =: ## store top element of the stack as n
   while n 0 > :
     drop
-    n 1 - !n
+    n 1 - n =
   end
-end *->* $dropN
+end *->* dropN =$
 0 1 2 3 3 dropN () println ## drop 3 element 
 ```
 prints:
@@ -375,20 +375,22 @@ false
 ### Variables
 All commands that are not reserved names or values
 are interpreted as variables.
-
-- `<varName>` pushes the value of a variable on the stack
-- `!<varName>` writes the top element of the stack
-  in the given variable
-- `:<varName>` declares a new variable
-- `$<varName>` declares a new constant
+All variables perform a read action on default
+#### Variable modification operators
+These operators change the type a variable
+they are evaluated while parsing and therefor only work if 
+placed directly after the corresponding variable
+- `=` change read variable to write variable
+- `=:` change read-variable to declare-variable
+- `=$` change read-variable to declare-constant
 
 Examples:
 ```Python
-1 int :a #_ declare a as integer with value 1 _#
-42 !a #_ store 42 in a _#
-a println #_ print the value of a _#
-3.14 float :a #_ redeclare a as float _#
-2.718281828 float $e #_ declare a constant with the name e_#
+1 int a =: #_ declare a as integer with value 1 _#
+42 a = #_ store 42 in a _#
+a println  #_ print the value of a _#
+3.14 float a =: #_ redeclare a as float _#
+2.718281828 float e =$ #_ declare a constant with the name e_#
 ```
 #### Scopes
 - At a given point all variables of procedures 
@@ -404,19 +406,19 @@ not at declaration time
 Examples:
 ```Rust
 proc 
-1 int :local1
+1 int local1 =:
 proc2 ()
-end *->* $proc1
+end *->* proc1 =$
 
 proc 
-1 int :local2
-2 !local1
+1 int local2 =:
+2 local1 =
 proc3 ()
-end *->* $proc2
+end *->* proc2 =$
 
 proc 
 local1 local2 + println
-end *->* $proc3
+end *->* proc3 =$
 
 proc1 ()
 ```
@@ -425,11 +427,11 @@ works fine and prints `3`
 But
 ```Rust
 proc 
-1 int :local1
+1 int local1 =:
 proc
 local1
 end
-end *->* $proc1
+end *->* proc1 =$
 proc1 () ()
 ```
 crashes since `local1` is not accessible when calling 
@@ -445,19 +447,23 @@ The variable type for structures is `(struct)`
 
 Example:
 ```
-struct 1 int :a 2 int $b end (struct) :test
+struct 1 int a =: 2 int b =$ end (struct) test =:
 ```
 
 #### Field access
-- `.<varName>` pushes a fields onto the stack, syntax: `<struct> .<varname>`
-- `.!<varName>`  writes a value to a field and pushes the updates struct
-syntax: `<struct> <newValue> .!<varname>`
+- reading fields
+  - syntax: `<struct> <varname> .`
+  - pushes the field `<varName>` onto the stack,
+- writing fields
+  - syntax: `<struct> <newValue> <varname> . =`
+  - writes a `<newValue>` to the field `<varName>`
+and pushes the updated struct
 
 Example:
 ```
-struct 1 int :a 2 int $b end (struct) :test
-test .a println    
-test 42 .!a println
+struct 1 int a =: 2 int b =$ end (struct) test =:
+test a . println    
+test 42 a . = println
 ```
 prints
 ```
