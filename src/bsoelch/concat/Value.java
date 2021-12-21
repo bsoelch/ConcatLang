@@ -45,13 +45,20 @@ public abstract class Value {
     public double asDouble() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to float");
     }
-    public ValueIterator asItr() throws TypeError {
-        throw new TypeError("Cannot convert "+type+" to itr");
-    }
-
     public Type asType() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to type");
     }
+    public ValueIterator asItr() throws TypeError {
+        throw new TypeError("Cannot convert "+type+" to itr");
+    }
+    public List<Byte> asByteArray() throws TypeError {
+        throw new TypeError("Cannot convert "+type+" to byte list");
+    }
+    //TODO? implement bytes-method all (primitive) Values
+    public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
+        throw new TypeError("Converting "+type+" to raw-bytes is not supported");
+    }
+
     public Interpreter.TokenPosition asProcedure() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to procedure");
     }
@@ -148,6 +155,24 @@ public abstract class Value {
     public static Value ofInt(long intValue) {
         return new IntValue(intValue);
     }
+    /**converts a byte[] to an int, assumes little-endian byte-order*/
+    public static long intFromBytes(List<Byte> bytes) throws ConcatRuntimeError {
+        if(bytes.size()>8){
+            throw new ConcatRuntimeError("too much bytes from convert to int:"+bytes.size()+" maximum: 8");
+        }
+        long val=0;
+        if(bytes.size()>0){
+            int shift=0;
+            for(Byte b:bytes){
+                val|=(b &0xffL)<<shift;
+                shift+=8;
+            }
+            if(bytes.size()<8&&((bytes.get(bytes.size()-1)&0x80)!=0)){
+                val|=-1L<<shift;
+            }
+        }
+        return val;
+    }
     private static class IntValue extends Value implements NumberValue{
         final long intValue;
         private IntValue(long intValue) {
@@ -155,14 +180,18 @@ public abstract class Value {
             this.intValue = intValue;
         }
 
-        public Value negate(){
-            return ofInt(-intValue);
-        }
-        public Value flip(){
-            return ofInt(~intValue);
-        }
-        public Value invert(){
-            return ofFloat(1.0/intValue);
+        @Override
+        public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
+            ArrayList<Value> bytes=new ArrayList<>(8);
+            long tmp=intValue;
+            for(int i=0;i<8;i++){
+                bytes.add(ofByte((byte)(tmp&0xff)));
+                tmp>>>=8;
+            }
+            if(bigEndian){
+                Collections.reverse(bytes);
+            }
+            return createList(Type.listOf(Type.BYTE),bytes);
         }
 
         @Override
@@ -189,6 +218,16 @@ public abstract class Value {
             }else{
                 return super.castTo(type);
             }
+        }
+
+        public Value negate(){
+            return ofInt(-intValue);
+        }
+        public Value flip(){
+            return ofInt(~intValue);
+        }
+        public Value invert(){
+            return ofFloat(1.0/intValue);
         }
 
         @Override
@@ -226,6 +265,19 @@ public abstract class Value {
         @Override
         public double asDouble() {
             return floatValue;
+        }
+        @Override
+        public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
+            ArrayList<Value> bytes=new ArrayList<>(8);
+            long tmp=Double.doubleToRawLongBits(floatValue);
+            for(int i=0;i<8;i++){
+                bytes.add(ofByte((byte)(tmp&0xff)));
+                tmp>>>=8;
+            }
+            if(bigEndian){
+                Collections.reverse(bytes);
+            }
+            return createList(Type.listOf(Type.BYTE),bytes);
         }
 
         public Value negate(){
@@ -348,22 +400,29 @@ public abstract class Value {
         return new ByteValue(aByte);
     }
     private static class ByteValue extends Value{
-        final byte aByte;
-        private ByteValue(byte aByte) {
+        final byte byteValue;
+        private ByteValue(byte byteValue) {
             super(Type.BYTE);
-            this.aByte = aByte;
+            this.byteValue = byteValue;
         }
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
-                return ofInt(aByte);
+                return ofInt(byteValue);
             }else{
                 return super.castTo(type);
             }
         }
+
+        @Override
+        public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
+            return createList(Type.listOf(Type.BYTE),
+                    new ArrayList<>(Collections.singletonList(ofByte(byteValue))));
+        }
+
         @Override
         public String stringValue() {
-            return String.format("0x%02x",aByte);
+            return String.format("0x%02x", byteValue);
         }
 
         @Override
@@ -371,11 +430,11 @@ public abstract class Value {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ByteValue byteValue = (ByteValue) o;
-            return aByte == byteValue.aByte;
+            return this.byteValue == byteValue.byteValue;
         }
         @Override
         public int hashCode() {
-            return Objects.hash(aByte);
+            return Objects.hash(byteValue);
         }
     }
     //addLater allow iterators to modify the underlying objects
@@ -530,6 +589,14 @@ public abstract class Value {
         private ListValue(Type type,ArrayList<Value> elements) {
             super(type);
             this.elements = elements;
+        }
+
+        @Override
+        public List<Byte> asByteArray() throws TypeError {
+            if(type.content()==Type.BYTE){
+                return elements.stream().map(t->((ByteValue)t).byteValue).toList();
+            }
+            return super.asByteArray();
         }
 
         @Override

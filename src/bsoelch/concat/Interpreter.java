@@ -183,6 +183,7 @@ public class Interpreter {
         }
     }
 
+    //addLater? tuple
     public Program parse(File file,Program program) throws IOException, SyntaxError {
         String fileName=file.getAbsolutePath();
         if(program==null){
@@ -380,10 +381,20 @@ public class Interpreter {
             case "drop" -> tokens.add(new Token(TokenType.DROP, reader.currentPos()));
             case "swap" -> tokens.add(new Token(TokenType.SWAP, reader.currentPos()));
 
-            case "sprintf" -> tokens.add(new Token(TokenType.SPRINTF, reader.currentPos()));
-            case "print"   -> tokens.add(new Token(TokenType.PRINT,   reader.currentPos()));
-            case "printf"  -> tokens.add(new Token(TokenType.PRINTF,  reader.currentPos()));
-            case "println" -> tokens.add(new Token(TokenType.PRINTLN, reader.currentPos()));
+            case "sprintf"    -> tokens.add(new Token(TokenType.SPRINTF, reader.currentPos()));
+            case "print"      -> tokens.add(new Token(TokenType.PRINT,   reader.currentPos()));
+            case "printf"     -> tokens.add(new Token(TokenType.PRINTF,  reader.currentPos()));
+            case "println"    -> tokens.add(new Token(TokenType.PRINTLN, reader.currentPos()));
+            case "bytes"      -> tokens.add(new OperatorToken(OperatorType.BYTES_LE, reader.currentPos()));
+            case "bytes_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_BE, reader.currentPos()));
+            case "asInt"      -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_INT_LE,
+                    reader.currentPos()));
+            case "asInt_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_INT_BE,
+                    reader.currentPos()));
+            case "asFloat"    -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_FLOAT_LE,
+                    reader.currentPos()));
+            case "asFloat_BE" -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_FLOAT_BE,
+                    reader.currentPos()));
 
             case "if" -> {
                 Token t = new Token(TokenType.IF, reader.currentPos());
@@ -1039,6 +1050,19 @@ public class Interpreter {
                             }
                             case IMPORT       -> pop(stack).importTo(state, true);
                             case CONST_IMPORT -> pop(stack).importTo(state, false);
+                            case BYTES_LE -> stack.addLast(pop(stack).bytes(false));
+                            case BYTES_BE -> stack.addLast(pop(stack).bytes(true));
+                            case BYTES_AS_INT_LE -> stack.addLast(
+                                    Value.ofInt(Value.intFromBytes(pop(stack).asByteArray())));
+                            case BYTES_AS_INT_BE -> stack.addLast(
+                                    Value.ofInt(Value.intFromBytes(
+                                            ReversedList.reverse(pop(stack).asByteArray()))));
+                            case BYTES_AS_FLOAT_LE -> stack.addLast(
+                                    Value.ofFloat(Double.longBitsToDouble(
+                                            Value.intFromBytes(pop(stack).asByteArray()))));
+                            case BYTES_AS_FLOAT_BE -> stack.addLast(
+                                    Value.ofFloat(Double.longBitsToDouble(Value.intFromBytes(
+                                            ReversedList.reverse(pop(stack).asByteArray())))));
                         }
                     }
                     case SPRINTF -> {

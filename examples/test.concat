@@ -77,3 +77,4 @@ included child_struct . $import
 end println
 
 255 byte cast dup typeof swap "%s: %s\n" printf
+0x123456789abcdef bytes asFloat_BE bytes println
