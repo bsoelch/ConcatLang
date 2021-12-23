@@ -1,5 +1,8 @@
 package bsoelch.concat;
 
+import bsoelch.concat.streams.FileStream;
+import bsoelch.concat.streams.ValueStream;
+
 import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -16,10 +19,10 @@ public class Interpreter {
         PROCEDURE,RETURN, PROCEDURE_START,
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
         DUP,DROP,SWAP,
-        SPRINTF,PRINT,PRINTF,PRINTLN,//fprint,fprintln,fprintf
-        //addLater read operation
-        //jump commands only for internal representation
-        JEQ,JNE,JMP,
+        SPRINTF,PRINT,PRINTF,PRINTLN,
+        //addLater stream IO operations
+        // fprint,fprintf
+        JEQ,JNE,JMP,//jump commands only for internal representation
         INCLUDE,
     }
 
@@ -369,6 +372,7 @@ public class Interpreter {
             case "type"     -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),      reader.currentPos()));
             case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,      reader.currentPos()));
             case "itr"      -> tokens.add(new OperatorToken(OperatorType.ITR_OF,       reader.currentPos()));
+            case "stream"   -> tokens.add(new OperatorToken(OperatorType.STREAM_OF,    reader.currentPos()));
             case "unwrap"   -> tokens.add(new OperatorToken(OperatorType.UNWRAP,       reader.currentPos()));
             case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE), reader.currentPos()));
             case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),    reader.currentPos()));
@@ -563,6 +567,21 @@ public class Interpreter {
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   reader.currentPos()));
             case "()"     -> tokens.add(new OperatorToken(OperatorType.CALL,     reader.currentPos()));
 
+            case "open"          -> tokens.add(new OperatorToken(OperatorType.OPEN,            reader.currentPos()));
+            case "close"         -> tokens.add(new OperatorToken(OperatorType.CLOSE,           reader.currentPos()));
+            case "size"          -> tokens.add(new OperatorToken(OperatorType.SIZE,            reader.currentPos()));
+            case "pos"           -> tokens.add(new OperatorToken(OperatorType.POS,             reader.currentPos()));
+            case "asStream"      -> tokens.add(new OperatorToken(OperatorType.STREAM_OF,       reader.currentPos()));
+            case "reverseStream" -> tokens.add(new OperatorToken(OperatorType.REVERSED_STREAM, reader.currentPos()));
+            case "state"         -> tokens.add(new OperatorToken(OperatorType.STREAM_STATE,    reader.currentPos()));
+            case "read"          -> tokens.add(new OperatorToken(OperatorType.READ,            reader.currentPos()));
+            case "read+"         -> tokens.add(new OperatorToken(OperatorType.READ_MULTIPLE,   reader.currentPos()));
+            case "skip"          -> tokens.add(new OperatorToken(OperatorType.SKIP,            reader.currentPos()));
+            case "seek"          -> tokens.add(new OperatorToken(OperatorType.SEEK,            reader.currentPos()));
+            case "seekEnd"       -> tokens.add(new OperatorToken(OperatorType.SEEK_END,        reader.currentPos()));
+            case "write"         -> tokens.add(new OperatorToken(OperatorType.WRITE,           reader.currentPos()));
+            case "write+"        -> tokens.add(new OperatorToken(OperatorType.WRITE_MULTIPLE,  reader.currentPos()));
+
             case ".include"-> {
                 Token prev=tokens.get(tokens.size()-1);
                 if(prev instanceof ValueToken){
@@ -738,6 +757,13 @@ public class Interpreter {
         }
         return v;
     }
+    static Value peek(ArrayDeque<Value> stack) throws ConcatRuntimeError {
+        Value v=stack.peekLast();
+        if(v==null){
+            throw new ConcatRuntimeError("stack underflow");
+        }
+        return v;
+    }
     private ArrayList<Token> updateTokens(String oldFile, TokenPosition newPos, Program prog, ArrayList<Token> tokens) {
         if(oldFile.equals(newPos.file)){
             return tokens;
@@ -763,19 +789,19 @@ public class Interpreter {
                         switch (((OperatorToken) next).opType) {
                             case NEGATE -> {
                                 Value v = pop(stack);
-                                stack.push(v.negate());
+                                stack.addLast(v.negate());
                             }
                             case INVERT -> {
                                 Value v = pop(stack);
-                                stack.push(v.invert());
+                                stack.addLast(v.invert());
                             }
                             case NOT -> {
                                 Value v = pop(stack);
-                                stack.push(v.asBool() ? Value.FALSE : Value.TRUE);
+                                stack.addLast(v.asBool() ? Value.FALSE : Value.TRUE);
                             }
                             case FLIP -> {
                                 Value v = pop(stack);
-                                stack.push(v.flip());
+                                stack.addLast(v.flip());
                             }
                             case PLUS -> {
                                 Value b = pop(stack);
@@ -934,10 +960,7 @@ public class Interpreter {
                                 stack.addLast(a.iterator(true));
                             }
                             case ITR_NEXT -> {
-                                Value peek = stack.peekLast();
-                                if (peek == null) {
-                                    throw new ConcatRuntimeError("stack underflow");
-                                }
+                                Value peek = peek(stack);
                                 Value.ValueIterator itr = peek.asItr();
                                 if (itr.hasNext()) {
                                     stack.addLast(itr.next());
@@ -947,10 +970,7 @@ public class Interpreter {
                                 }
                             }
                             case ITR_PREV -> {
-                                Value peek = stack.peekLast();
-                                if (peek == null) {
-                                    throw new ConcatRuntimeError("stack underflow");
-                                }
+                                Value peek = peek(stack);
                                 Value.ValueIterator itr = peek.asItr();
                                 if (itr.hasPrev()) {
                                     stack.addLast(itr.prev());
@@ -998,6 +1018,71 @@ public class Interpreter {
                             case BYTES_AS_FLOAT_BE -> stack.addLast(
                                     Value.ofFloat(Double.longBitsToDouble(Value.intFromBytes(
                                             ReversedList.reverse(pop(stack).asByteArray())))));
+                            case STREAM_OF -> stack.addLast(pop(stack).stream(false));
+                            case OPEN -> {
+                                String options = pop(stack).stringValue();
+                                String path    = pop(stack).stringValue();
+                                //TODO add encoding option (optional param to specify encoding)
+                                stack.addLast(Value.ofStream(new FileStream(path,options)));
+                            }
+                            case CLOSE -> {
+                                ValueStream stream = pop(stack).asStream();
+                                stack.addLast(stream.close()?Value.TRUE:Value.FALSE);
+                                //??? keep stream
+                            }
+                            case REVERSED_STREAM -> stack.addLast(pop(stack).stream(true));
+                            case STREAM_STATE -> {
+                                ValueStream stream = peek(stack).asStream();
+                                stack.addLast(Value.ofInt(stream.state()));
+                            }
+                            case SIZE -> {
+                                ValueStream stream  = peek(stack).asStream();
+                                Optional<Long> size = stream.size();
+                                size.ifPresent(x -> stack.addLast(Value.ofInt(x)));
+                                stack.addLast(size.isPresent()?Value.TRUE:Value.FALSE);
+                            }
+                            case POS -> {
+                                ValueStream stream  = peek(stack).asStream();
+                                Optional<Long> pos = stream.pos();
+                                pos.ifPresent(x -> stack.addLast(Value.ofInt(x)));
+                                stack.addLast(pos.isPresent()?Value.TRUE:Value.FALSE);
+                            }
+                            case READ -> {
+                                ValueStream stream = peek(stack).asStream();
+                                Optional<Value> read = stream.read();
+                                read.ifPresent(stack::addLast);
+                                stack.addLast(read.isPresent()?Value.TRUE:Value.FALSE);
+                            }
+                            case READ_MULTIPLE -> {
+                                long count = pop(stack).asLong();
+                                ValueStream stream = peek(stack).asStream();
+                                stack.addLast(Value.createList(Type.listOf(stream.contentType()),
+                                        new ArrayList<>(stream.readMultiple((int)count))));
+                            }
+                            case SKIP -> {
+                                long count = pop(stack).asLong();
+                                ValueStream stream = peek(stack).asStream();
+                                stack.addLast(Value.ofInt(stream.skip((int)count)));
+                            }
+                            case SEEK -> {
+                                long pos = pop(stack).asLong();
+                                ValueStream stream = peek(stack).asStream();
+                                stack.addLast(stream.seek(pos)?Value.TRUE:Value.FALSE);
+                            }
+                            case SEEK_END -> {
+                                ValueStream stream = peek(stack).asStream();
+                                stack.addLast(stream.seekEnd()?Value.TRUE:Value.FALSE);
+                            }
+                            case WRITE -> {
+                                Value val = pop(stack);
+                                ValueStream stream = peek(stack).asStream();
+                                stack.addLast(stream.write(val)?Value.TRUE:Value.FALSE);
+                            }
+                            case WRITE_MULTIPLE -> {
+                                Value val = pop(stack);
+                                ValueStream stream = peek(stack).asStream();
+                                stack.addLast(stream.write(val.stream(false).asStream())?Value.TRUE:Value.FALSE);
+                            }
                         }
                     }
                     case SPRINTF -> {
@@ -1076,10 +1161,7 @@ public class Interpreter {
                         stack.addLast(struct.hasField(((VariableToken)next).name));
                     }
                     case DUP -> {
-                        Value t = stack.peekLast();
-                        if (t == null) {
-                            throw new ConcatRuntimeError("stack underflow");
-                        }
+                        Value t = peek(stack);
                         stack.addLast(t);
                     }
                     case DROP -> pop(stack);

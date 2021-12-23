@@ -78,3 +78,21 @@ end println
 
 255 byte cast dup typeof swap "%s: %s\n" printf
 0x123456789abcdef bytes asFloat_BE bytes println
+
+"examples/testIO.txt" "rw" open
+seekEnd drop
+if pos :
+ 1 - seek drop
+end
+if read :
+ if int cast 1 + 0xff & byte cast write ! :
+   "IO Error" println
+ end
+elif state -1 == :
+ if 0x41 byte cast write ! :
+   "IO Error" println
+ end
+else
+ "IO Error" println
+end
+close drop

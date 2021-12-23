@@ -20,13 +20,14 @@ public class Type {
     };
 
     public static Type STRING() {
-        return ListType.STRING;
+        return ContainerType.STRING;
     }
 
     public Type(String name) {
         this.name = name;
     }
     private final String name;
+
 
     @Override
     public String toString() {
@@ -44,18 +45,35 @@ public class Type {
 
     public static Type listOf(Type contentType) {
         if (contentType == CHAR) {
-            return ListType.STRING;
+            return ContainerType.STRING;
         } else {
-            return new ListType(contentType);
+            return new ContainerType(ContainerType.LIST,contentType);
         }
     }
-    private static class ListType extends Type {
-        static final Type STRING = new ListType(Type.CHAR);
+    public static Type iteratorOf(Type contentType) {
+        return new ContainerType(ContainerType.ITERATOR,contentType);
+    }
+    public static Type streamOf(Type contentType) {
+        if (contentType == CHAR) {
+            return ContainerType.BYTE_STREAM;
+        } else {
+            return new ContainerType(ContainerType.STREAM,contentType);
+        }
+    }
 
+    private static class ContainerType extends Type {
+        public static final String LIST = "list";
+        public static final String ITERATOR = "itr";
+        public static final String STREAM = "stream";
+        static final Type STRING      = new ContainerType(LIST,Type.CHAR);
+        static final Type BYTE_STREAM = new ContainerType(STREAM,Type.BYTE);
+
+        final String containerType;
         final Type contentType;
 
-        ListType(Type contentType) {
-            super(contentType.name + " list");
+        ContainerType(String containerType, Type contentType) {
+            super(contentType.name + " "+containerType);
+            this.containerType = containerType;
             this.contentType = contentType;
         }
 
@@ -65,8 +83,8 @@ public class Type {
 
         @Override
         public boolean canAssignFrom(Type source) {
-            if(source instanceof ListType){
-                return contentType.canAssignFrom(((ListType) source).contentType);
+            if(source instanceof ContainerType&&((ContainerType) source).containerType.equals(containerType)){
+                return contentType.canAssignFrom(((ContainerType) source).contentType);
             }else{
                 return super.canAssignFrom(source);
             }
@@ -77,55 +95,18 @@ public class Type {
             return contentType;
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ListType listType = (ListType) o;
-            return Objects.equals(contentType, listType.contentType);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(contentType);
-        }
-    }
-
-    public static Type iteratorOf(Type contentType) {
-        return new IteratorType(contentType);
-    }
-    private static class IteratorType extends Type {
-        final Type contentType;
-
-        IteratorType(Type contentType) {
-            super(contentType.name + " itr");
-            this.contentType = contentType;
-        }
-
-        @Override
-        public boolean canAssignFrom(Type source) {
-            if(source instanceof IteratorType){
-                return contentType.canAssignFrom(((IteratorType) source).contentType);
-            }else{
-                return super.canAssignFrom(source);
-            }
-        }
-
-        @Override
-        public Type content() {
-            return contentType;
-        }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            IteratorType itrType = (IteratorType) o;
-            return Objects.equals(contentType, itrType.contentType);
+            ContainerType that = (ContainerType) o;
+            return Objects.equals(containerType, that.containerType) && Objects.equals(contentType, that.contentType);
         }
         @Override
         public int hashCode() {
-            return Objects.hash(contentType);
+            return Objects.hash(containerType, contentType);
         }
     }
+
 }

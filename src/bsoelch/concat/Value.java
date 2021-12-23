@@ -1,5 +1,8 @@
 package bsoelch.concat;
 
+import bsoelch.concat.streams.ListStream;
+import bsoelch.concat.streams.ValueStream;
+
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -36,6 +39,9 @@ public abstract class Value {
     public boolean asBool() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to bool");
     }
+    public byte asByte() throws TypeError {
+        throw new TypeError("Cannot convert "+type+" to byte");
+    }
     public int  asChar() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to char");
     }
@@ -50,6 +56,10 @@ public abstract class Value {
     }
     public ValueIterator asItr() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to itr");
+    }
+    public ValueStream asStream() throws TypeError {
+        //TODO stream strings
+        throw new TypeError("Cannot convert "+type+" to stream");
     }
     public List<Byte> asByteArray() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to byte list");
@@ -91,6 +101,9 @@ public abstract class Value {
     }
     public Value iterator(boolean end) throws TypeError {
         throw new TypeError("Cannot iterate over "+type);
+    }
+    public Value stream(boolean reversed) throws TypeError {
+        throw new TypeError("Cannot stream "+type);
     }
 
     public Value hasField(String name) throws TypeError {
@@ -487,6 +500,12 @@ public abstract class Value {
             super(Type.BYTE);
             this.byteValue = byteValue;
         }
+
+        @Override
+        public byte asByte(){
+            return byteValue;
+        }
+
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
@@ -519,7 +538,8 @@ public abstract class Value {
             return Objects.hash(byteValue);
         }
     }
-    //addLater allow iterators to modify the underlying objects
+
+    //addLater? allow iterators to modify the underlying objects
     interface ValueIterator{
         boolean hasNext();
         Value next();
@@ -695,6 +715,16 @@ public abstract class Value {
         public Value iterator(boolean end) {
             return new ListIterator(Type.iteratorOf(type.content()),elements,end);
         }
+
+        @Override
+        public Value stream(boolean reversed){
+            if(reversed){
+                return ofStream(ListStream.create(type.content(),ReversedList.reverse(elements)));
+            }else{
+                return ofStream(ListStream.create(type.content(),elements));
+            }
+        }
+
         @Override
         public Value get(long index) {
             return elements.get((int)index);
@@ -927,6 +957,49 @@ public abstract class Value {
         @Override
         public int hashCode() {
             return Objects.hash(variables);
+        }
+    }
+
+    public static Value ofStream(ValueStream stream) {
+        return new StreamValue(Type.streamOf(stream.contentType()),stream);
+    }
+    private static class StreamValue extends Value{
+        final ValueStream streamValue;
+        private StreamValue(Type type,ValueStream streamValue) {
+            super(type);
+            this.streamValue = streamValue;
+        }
+
+        @Override
+        public ValueStream asStream(){
+            return streamValue;
+        }
+
+        @Override
+        public Value stream(boolean reversed){
+            if(reversed){
+                //addLater reversible streams
+                throw new UnsupportedOperationException("unimplemented");
+            }else{
+                return this;
+            }
+        }
+
+        @Override
+        public String stringValue() {
+            return "["+type+"]";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StreamValue that = (StreamValue) o;
+            return Objects.equals(streamValue, that.streamValue);
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(streamValue);
         }
     }
 

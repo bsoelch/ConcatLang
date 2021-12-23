@@ -31,11 +31,11 @@ public class ReversedList<T> implements List<T> {
     }
     @Override
     public Iterator<T> iterator() {
-        return new ReversedIterator(reversed.listIterator(0));
+        return new ReversedIterator(reversed.listIterator(reversed.size()));
     }
     @Override
     public ListIterator<T> listIterator() {
-        return new ReversedIterator(reversed.listIterator(0));
+        return new ReversedIterator(reversed.listIterator(reversed.size()));
     }
 
     @Override
@@ -100,46 +100,50 @@ public class ReversedList<T> implements List<T> {
 
     @Override
     public boolean add(T t) {
-        throw new UnsupportedOperationException("modifying ReversedList is not supported");
+        reversed.add(0,t);
+        return true;
     }
 
     @Override
     public boolean remove(Object o) {
-        throw new UnsupportedOperationException("modifying ReversedList is not supported");
+        //addLater remove first occurrence of element!
+        return reversed.remove(o);
     }
 
     @Override
     public void add(int index, T element) {
-        throw new UnsupportedOperationException("modifying ReversedList is not supported");
+        reversed.add(reversed.size()-index-1,element);
     }
 
     @Override
     public T remove(int index) {
-        throw new UnsupportedOperationException("modifying ReversedList is not supported");
+        return reversed.remove(reversed.size()-index-1);
     }
     @Override
     public boolean addAll(Collection<? extends T> c) {
-        throw new UnsupportedOperationException("modifying ReversedList is not supported");
+        //noinspection unchecked
+        return reversed.addAll(0,reverse(c instanceof List<?>?(List<T>)c:new ArrayList<>(c)));
     }
 
     @Override
     public boolean addAll(int index, Collection<? extends T> c) {
-        throw new UnsupportedOperationException("modifying ReversedList is not supported");
+        //noinspection unchecked
+        return reversed.addAll(reversed.size()-index-1,reverse(c instanceof List<?>?(List<T>)c:new ArrayList<>(c)));
     }
 
     @Override
     public boolean removeAll(Collection<?> c) {
-        throw new UnsupportedOperationException("modifying ReversedList is not supported");
+        return reversed.removeAll(c);
     }
 
     @Override
     public boolean retainAll(Collection<?> c) {
-        throw new UnsupportedOperationException("modifying ReversedList is not supported");
+        return reversed.retainAll(c);
     }
 
     @Override
     public void clear() {
-        throw new UnsupportedOperationException("modifying ReversedList is not supported");
+        reversed.clear();
     }
     private class ReversedIterator implements ListIterator<T>{
         final ListIterator<T> reversedItrerator;
@@ -180,11 +184,11 @@ public class ReversedList<T> implements List<T> {
         }
         @Override
         public void remove() {
-            throw new UnsupportedOperationException("modifying ReversedList is not supported");
+            reversedItrerator.remove();
         }
         @Override
         public void add(T t) {
-            throw new UnsupportedOperationException("modifying ReversedList is not supported");
+            reversedItrerator.add(t);
         }
     }
 }
