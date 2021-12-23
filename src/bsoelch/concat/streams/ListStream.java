@@ -1,6 +1,5 @@
 package bsoelch.concat.streams;
 
-import bsoelch.concat.ConcatRuntimeError;
 import bsoelch.concat.Type;
 import bsoelch.concat.Value;
 
