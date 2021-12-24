@@ -20,4 +20,5 @@ public enum OperatorType {
     STREAM_OF,REVERSED_STREAM,
     STREAM_STATE,SIZE,POS,
     READ,READ_MULTIPLE,SKIP,SEEK,SEEK_END,WRITE,WRITE_MULTIPLE
+    //TODO cToB, bToC converting between char and byte (list, stream, itr)
 }

@@ -20,8 +20,7 @@ public class Interpreter {
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
         DUP,DROP,SWAP,
         SPRINTF,PRINT,PRINTF,PRINTLN,
-        //addLater stream IO operations
-        // fprint,fprintf
+        //addLater? fprintf
         JEQ,JNE,JMP,//jump commands only for internal representation
         INCLUDE,
     }
@@ -1022,7 +1021,6 @@ public class Interpreter {
                             case OPEN -> {
                                 String options = pop(stack).stringValue();
                                 String path    = pop(stack).stringValue();
-                                //TODO add encoding option (optional param to specify encoding)
                                 stack.addLast(Value.ofStream(new FileStream(path,options)));
                             }
                             case CLOSE -> {
