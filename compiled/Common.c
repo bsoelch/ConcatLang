@@ -1,7 +1,7 @@
 /*
- * Common.c
+ * Main.c
  *
- *  template for common functions in all compiled concat-code
+ *  common functions for all compiled concat-code
  *
  *  Created on: 24.12.2021
  *      Author: bsoelch
@@ -20,6 +20,7 @@
 #define ERR_VAR_NOT_DEFINED  2
 
 typedef struct StackImpl   Stack;
+typedef struct StructImpl Struct;
 typedef struct ContextImpl Context;
 
 typedef void(*Procedure)(Stack*,Context*);
@@ -34,7 +35,7 @@ typedef struct{
 		double    asFloat;
 		//addLater type
 		Procedure asProc;
-		Context*  asStruct;
+		Struct*  asStruct;
 		//addLater list, iterator, stream
 	}data;
 }Value;
@@ -56,17 +57,17 @@ Stack* stackInit(){
 	}
 	return NULL;
 }
-bool stackPush(Stack* stack,const Value aValue){
+void stackPush(Stack* stack,const Value aValue){
 	if(stack->cap<=stack->size){
 		Value* tmp=realloc(stack->data,2*stack->cap);
-		if(tmp!=NULL){
-			stack->data=tmp;
-			stack->cap*=2;
+		if(tmp==NULL){
+			fputs("memory error",stderr);
+			exit(ERR_MEM);
 		}
-		return false;
+		stack->data=tmp;
+		stack->cap*=2;
 	}
 	stack->data[stack->size++]=aValue;
-	return true;
 }
 Value stackPop(Stack* stack){
 	if(stack->size>0){
@@ -95,8 +96,8 @@ void stackDrop(Stack* stack){
 		exit(ERR_STACK_UNDERFLOW);
 	}
 }
-bool stackDup(Stack* stack){
-	return stackPush(stack,stackPeek(stack));
+void stackDup(Stack* stack){
+	stackPush(stack,stackPeek(stack));
 }
 void stackSwap(const Stack* stack){
 	if(stack->size>1){
@@ -110,17 +111,59 @@ void stackSwap(const Stack* stack){
 }
 //stack end
 //context
+typedef struct{
+  //addLater type
+  Value value;
+}Variable;
+//addLater varInit
+void varAssign(Variable* target,Value newValue){
+	//TODO type-cast
+	target->value=newValue;
+}
+
+struct ContextImpl{
+  size_t cap;
+  Variable * vars;
+  Context* parent;
+};
+Context* contextInit(size_t cap,Context* parent){
+	Context* create=malloc(sizeof(Context));
+	if(create!=NULL){
+		create->vars=malloc(cap*sizeof(Variable));
+		if(create->vars==NULL){
+			fputs("memory error",stderr);
+			exit(ERR_MEM);
+		}
+		create->cap=cap;
+		create->parent=parent;
+	}
+	return create;
+}
+Context* contextFree(Context* prev){
+	if(prev!=NULL){
+		Context* parent=prev->parent;
+		//TODO free all unused variables
+		free(prev->vars);
+		return parent;
+	}
+	return NULL;
+}
+
+
+
+//end context
+//Structs
 typedef struct EntryImpl Entry;
 struct EntryImpl{
   const char* name;
   //addLater var-type, isConst
-  Value value;
+  Variable data;
   Entry* next;
 };
-struct ContextImpl{
+struct StructImpl{
 	size_t cap;
 	Entry** data;
-	Context* parent;
+	Struct* parent;
 };
 size_t strHashCode(const char* name,size_t max){
  size_t hash=*name;
@@ -131,8 +174,8 @@ size_t strHashCode(const char* name,size_t max){
  }
  return hash;
 }
-Context* contextInit(size_t initCap){
-  Context* create=malloc(sizeof(Context));
+Struct* structInit(size_t initCap){
+  Struct* create=malloc(sizeof(Struct));
   if(create!=NULL){
 	  create->data=calloc(initCap,sizeof(Entry));
 	  if(create->data!=NULL){
@@ -143,41 +186,42 @@ Context* contextInit(size_t initCap){
   }
   return NULL;
 }
-Value getVariable(const Context* context,const char* name,size_t maxChars){
+//TODO structFree
+Value getVariable(const Struct* aStruct,const char* name,size_t maxChars){
 	size_t hash=strHashCode(name,maxChars);
-	Entry* e=context->data[hash%context->cap];
+	Entry* e=aStruct->data[hash%aStruct->cap];
 	while(e!=NULL){
 		if(strcmp(e->name,name)==0){
-			return e->value;
+			return e->data.value;
 		}
 		e=e->next;
 	}
-	if(context->parent!=NULL){
-		return getVariable(context->parent,name,maxChars);
+	if(aStruct->parent!=NULL){
+		return getVariable(aStruct->parent,name,maxChars);
 	}
 	fprintf(stderr,"Variable %.*s is not defined\n",(int)maxChars,name);
 	exit(ERR_VAR_NOT_DEFINED);
 	return (Value){0};
 }
-void setVariable(const Context* context,const char* name,size_t maxChars,Value newValue){
+void setVariable(const Struct* aStruct,const char* name,size_t maxChars,Value newValue){
 	size_t hash=strHashCode(name,maxChars);
-	Entry* e=context->data[hash%context->cap];
+	Entry* e=aStruct->data[hash%aStruct->cap];
 	while(e!=NULL){
 		if(strcmp(e->name,name)==0){
 			//addLater type-casting
-			e->value=newValue;
+			varAssign(&e->data,newValue);
 		}
 		e=e->next;
 	}
-	if(context->parent!=NULL){
-		setVariable(context->parent,name,maxChars,newValue);
+	if(aStruct->parent!=NULL){
+		setVariable(aStruct->parent,name,maxChars,newValue);
 	}
 	fprintf(stderr,"Variable %.*s is not defined\n",(int)maxChars,name);
 	exit(ERR_VAR_NOT_DEFINED);
 }
-void decalreVariable(const Context* context,const char* name,size_t maxChars,/*TODO type*/Value value){
+void decalreVariable(const Struct* aStruct,const char* name,size_t maxChars,/*TODO type*/Value value){
 	size_t hash=strHashCode(name,maxChars);
-	Entry** e=context->data+(hash%context->cap);
+	Entry** e=aStruct->data+(hash%aStruct->cap);
 	while(*e!=NULL){
 		if(strcmp((*e)->name,name)==0){
 			//TODO replace variable (if not constant)
@@ -191,15 +235,26 @@ void decalreVariable(const Context* context,const char* name,size_t maxChars,/*T
 		exit(ERR_MEM);
 	}
     (*e)->name=name;
-    (*e)->value=value;
+    varAssign(&(*e)->data,value);
     (*e)->next=NULL;
 	//TODO declare new variable
 }
-
 //addLater remove
-//context end
+//struct end
 
+Value addValues(Value a,Value b){
+ //TODO implement add
+ return (Value){0};
+}
 
+void proc_filename_global(Stack* stack,Context* context){
+  //add
+  {
+    Value tmp1=stackPop(stack);
+    Value tmp2=stackPop(stack);
+    stackPush(stack,addValues(tmp1,tmp2));
+  }
+}
 
 
 int main(int argc,char**argv){
