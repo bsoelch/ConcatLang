@@ -15,30 +15,66 @@
 
 #define STACK_INIT_SIZE  1024
 
-#define ERR_MEM             -1
-#define ERR_STACK_UNDERFLOW  1
-#define ERR_VAR_NOT_DEFINED  2
+#define ERR_MEM              -1
+#define ERR_STACK_UNDERFLOW   1
+#define ERR_VAR_NOT_DEFINED   2
+#define ERR_CONST_OVERWRITTEN 3
+#define ERR_CONST_OVERWRITES  4
+#define ERR_CONST_WRITE       5
 
 typedef struct StackImpl   Stack;
-typedef struct StructImpl Struct;
 typedef struct ContextImpl Context;
 
-typedef void(*Procedure)(Stack*,Context*);
+typedef Context*(*Procedure)(Stack*,Context*);
+
+typedef uint8_t Type;
+#define TYPE_VAR       0x00
+#define TYPE_BOOL      0x01
+#define TYPE_BYTE      0x02
+#define TYPE_CHAR      0x03
+#define TYPE_INT       0x04
+#define TYPE_FLOAT     0x05
+#define TYPE_TYPE      0x06
+#define TYPE_DEEP_TYPE 0x07
+#define TYPE_PROCEDURE 0x08
+#define TYPE_STRUCT    0x09
+
+#define DEEP_TYPE_LIST   0x10
+#define DEEP_TYPE_ITR    0x11
+#define DEEP_TYPE_STREAM 0x12
+
+typedef struct{//addLater? replace with uint64_t and modifier functions
+	Type type;
+	uint32_t refCount;
+}RefType;
+
+typedef struct DeepTypeImpl DeepType;
+struct DeepTypeImpl{
+	RefType refType;
+	DeepType* content;
+};
 
 typedef struct{
-	uint64_t flags;
+	RefType refType;
 	union{
 		bool      asBool;
 		uint8_t   asByte;
 		uint32_t  asChar;
 		uint64_t  asInt;
 		double    asFloat;
-		//addLater type
+		Type      asType;
+		DeepType* asDeepType;
 		Procedure asProc;
-		Struct*  asStruct;
+		Context*  asStruct;
 		//addLater list, iterator, stream
 	}data;
 }Value;
+void freeDeepType(DeepType toFree){
+	//TODO freeDeepType
+}
+void freeValue(Value toFree){
+	//TODO freeValue
+}
 // stack
 struct StackImpl{
 	size_t cap;
@@ -112,58 +148,34 @@ void stackSwap(const Stack* stack){
 //stack end
 //context
 typedef struct{
-  //addLater type
+  DeepType varType;
+  bool isConst;
   Value value;
 }Variable;
-//addLater varInit
-void varAssign(Variable* target,Value newValue){
+
+void varAssign(Variable* target,Value newValue,bool ignoreConst){
+	if(target->isConst||!ignoreConst){
+		fputs("tried writing to constant variable \n",stderr);
+		exit(ERR_CONST_WRITE);
+	}
 	//TODO type-cast
 	target->value=newValue;
 }
-
-struct ContextImpl{
-  size_t cap;
-  Variable * vars;
-  Context* parent;
-};
-Context* contextInit(size_t cap,Context* parent){
-	Context* create=malloc(sizeof(Context));
-	if(create!=NULL){
-		create->vars=malloc(cap*sizeof(Variable));
-		if(create->vars==NULL){
-			fputs("memory error",stderr);
-			exit(ERR_MEM);
-		}
-		create->cap=cap;
-		create->parent=parent;
-	}
-	return create;
+void varInit(Variable* target,DeepType type,bool isConst,Value value){
+	target->varType=type;
+	target->isConst=isConst;
+	varAssign(target,value,true);
 }
-Context* contextFree(Context* prev){
-	if(prev!=NULL){
-		Context* parent=prev->parent;
-		//TODO free all unused variables
-		free(prev->vars);
-		return parent;
-	}
-	return NULL;
-}
-
-
-
-//end context
-//Structs
 typedef struct EntryImpl Entry;
 struct EntryImpl{
   const char* name;
-  //addLater var-type, isConst
   Variable data;
   Entry* next;
 };
-struct StructImpl{
+struct ContextImpl{
 	size_t cap;
 	Entry** data;
-	Struct* parent;
+	Context* parent;
 };
 size_t strHashCode(const char* name,size_t max){
  size_t hash=*name;
@@ -174,58 +186,67 @@ size_t strHashCode(const char* name,size_t max){
  }
  return hash;
 }
-Struct* structInit(size_t initCap){
-  Struct* create=malloc(sizeof(Struct));
+Context* contextInit(size_t initCap,Context* parent){
+  Context* create=malloc(sizeof(Context));
   if(create!=NULL){
 	  create->data=calloc(initCap,sizeof(Entry));
 	  if(create->data!=NULL){
 		  create->cap=initCap;
-		  create->parent=NULL;
+		  create->parent=parent;
 		  return create;
 	  }
   }
   return NULL;
 }
-//TODO structFree
-Value getVariable(const Struct* aStruct,const char* name,size_t maxChars){
+Context* contextFree(Context* context){
+	if(context!=NULL){
+		Context* tmp=context->parent;
+		for(size_t i=0;i<context->cap;i++){
+			Entry* e=context->data[i];
+			while(e!=NULL){
+				freeDeepType(e->data.varType);
+				freeValue(e->data.value);
+				Entry* tmp=e->next;
+				free(e);
+				e=tmp;
+			}
+		}
+		free(context->data);
+		return tmp;
+	}
+	return NULL;
+}
+
+Variable* getVariable(const Context* context,const char* name,size_t maxChars){
 	size_t hash=strHashCode(name,maxChars);
-	Entry* e=aStruct->data[hash%aStruct->cap];
+	Entry* e=context->data[hash%context->cap];
 	while(e!=NULL){
 		if(strcmp(e->name,name)==0){
-			return e->data.value;
+			return &e->data;
 		}
 		e=e->next;
 	}
-	if(aStruct->parent!=NULL){
-		return getVariable(aStruct->parent,name,maxChars);
+	if(context->parent!=NULL){
+		return getVariable(context->parent,name,maxChars);
 	}
 	fprintf(stderr,"Variable %.*s is not defined\n",(int)maxChars,name);
 	exit(ERR_VAR_NOT_DEFINED);
-	return (Value){0};
+	return NULL;
 }
-void setVariable(const Struct* aStruct,const char* name,size_t maxChars,Value newValue){
+Variable* declareVariable(const Context* context,const char* name,size_t maxChars,DeepType type,bool isConst,Value value){
 	size_t hash=strHashCode(name,maxChars);
-	Entry* e=aStruct->data[hash%aStruct->cap];
-	while(e!=NULL){
-		if(strcmp(e->name,name)==0){
-			//addLater type-casting
-			varAssign(&e->data,newValue);
-		}
-		e=e->next;
-	}
-	if(aStruct->parent!=NULL){
-		setVariable(aStruct->parent,name,maxChars,newValue);
-	}
-	fprintf(stderr,"Variable %.*s is not defined\n",(int)maxChars,name);
-	exit(ERR_VAR_NOT_DEFINED);
-}
-void decalreVariable(const Struct* aStruct,const char* name,size_t maxChars,/*TODO type*/Value value){
-	size_t hash=strHashCode(name,maxChars);
-	Entry** e=aStruct->data+(hash%aStruct->cap);
+	Entry** e=context->data+(hash%context->cap);
 	while(*e!=NULL){
 		if(strcmp((*e)->name,name)==0){
-			//TODO replace variable (if not constant)
-			return;
+			if((*e)->data.isConst){
+				fprintf(stderr,"cannot replace constant variable %.*s\n",(int)maxChars,name);
+				exit(ERR_CONST_OVERWRITTEN);
+			}else if(isConst){
+				fprintf(stderr,"constant variable %.*s cannot replace existing variables\n",(int)maxChars,name);
+				exit(ERR_CONST_OVERWRITES);
+			}
+		    varInit(&(*e)->data,type,isConst,value);
+			return &(*e)->data;
 		}
 		*e=(*e)->next;
 	}
@@ -235,25 +256,29 @@ void decalreVariable(const Struct* aStruct,const char* name,size_t maxChars,/*TO
 		exit(ERR_MEM);
 	}
     (*e)->name=name;
-    varAssign(&(*e)->data,value);
+    varInit(&(*e)->data,type,isConst,value);
     (*e)->next=NULL;
-	//TODO declare new variable
+	return &(*e)->data;
 }
-//addLater remove
-//struct end
+//addLater? removeVariable
+
+//end context
+
 
 Value addValues(Value a,Value b){
  //TODO implement add
  return (Value){0};
 }
 
-void proc_filename_global(Stack* stack,Context* context){
+//test implementation of the root procedure
+Context* proc_filename_global(Stack* stack,Context* context){
   //add
   {
     Value tmp1=stackPop(stack);
     Value tmp2=stackPop(stack);
     stackPush(stack,addValues(tmp1,tmp2));
   }
+  return context;
 }
 
 
