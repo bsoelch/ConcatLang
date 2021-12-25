@@ -49,29 +49,97 @@ typedef struct{//addLater? replace with uint64_t and modifier functions
 }RefType;
 
 typedef struct DeepTypeImpl DeepType;
+typedef uint64_t DeepTypePtr;
 struct DeepTypeImpl{
 	RefType refType;
-	DeepType* content;
+	DeepTypePtr contentI;
 };
+typedef struct ValueImpl Value;
 
 typedef struct{
+	DeepType contentType;
+	size_t size;
+	size_t cap;
+	Value* values;
+}ListHeader;
+
+typedef struct{
+	size_t index;
+	size_t size;
+	Value* list;
+}ListIterator;
+
+struct ValueImpl{
 	RefType refType;
 	union{
-		bool      asBool;
-		uint8_t   asByte;
-		uint32_t  asChar;
-		uint64_t  asInt;
-		double    asFloat;
-		Type      asType;
-		DeepType* asDeepType;
-		Procedure asProc;
-		Context*  asStruct;
-		//addLater list, iterator, stream
+		bool        asBool;
+		uint8_t     asByte;
+		uint32_t    asChar;
+		uint64_t    asInt;
+		double      asFloat;
+		Type        asType;
+		DeepTypePtr asDeepType;
+		Procedure   asProc;
+		Context*    asStruct;
+		ListHeader* asList;
+		//addLater  iterator, stream
 	}data;
-}Value;
-void freeDeepType(DeepType toFree){
-	//TODO freeDeepType
+};
+
+//memory allocator for DeepTypes
+#define TYPE_POOL_INIT 1024
+size_t  deepTypeFreeCount=0;
+size_t  deepTypeFreedCap=0;
+DeepTypePtr* deepTypeFreed=NULL;
+
+size_t deepTypePoolCap=0;
+DeepTypePtr deepTypeMaxId=0;
+DeepType* deepTypePool;
+
+DeepType deepTypeById(DeepTypePtr id){
+ return deepTypePool[id];
 }
+DeepTypePtr deepTypeAlloc(){
+	if(deepTypeFreeCount>0){
+		return deepTypeFreed[deepTypeFreeCount--];
+	}
+	if(deepTypePool==NULL){
+		deepTypePool=malloc(TYPE_POOL_INIT*sizeof(DeepType*));
+		deepTypePoolCap=TYPE_POOL_INIT;
+	}else if(deepTypeMaxId>=deepTypePoolCap){//update sizer
+		deepTypePool=realloc(deepTypePool,2*deepTypePoolCap*sizeof(DeepType*));
+		deepTypePoolCap*=2;
+	}
+	if(deepTypePool==NULL){
+		fputs("memory error",stderr);
+		exit(ERR_MEM);
+	}
+	return deepTypeMaxId++;
+}
+void freeDeepType(DeepTypePtr toFree){
+	if(toFree==deepTypeMaxId-1){
+		deepTypeMaxId--;
+	}else{
+		if(deepTypeFreed==NULL){
+			deepTypeFreed=malloc((TYPE_POOL_INIT>>2)*sizeof(DeepTypePtr));
+			deepTypeFreedCap=(TYPE_POOL_INIT>>2);
+		}else if(deepTypeFreeCount<=deepTypeFreedCap){
+			deepTypeFreed=realloc(deepTypeFreed,2*deepTypeFreedCap*sizeof(DeepTypePtr));
+			deepTypeFreedCap*=2;
+		}
+		if(deepTypeFreed==NULL){
+			fputs("memory error",stderr);
+			exit(ERR_MEM);
+		}
+		deepTypeFreed[deepTypeFreeCount++]=toFree;
+	}
+}
+void unlinkDeepType(DeepType toFree){
+	//TODO unlinkDeepType
+}
+
+//end DeepTypes mem-alloc
+
 void freeValue(Value toFree){
 	//TODO freeValue
 }
@@ -204,7 +272,7 @@ Context* contextFree(Context* context){
 		for(size_t i=0;i<context->cap;i++){
 			Entry* e=context->data[i];
 			while(e!=NULL){
-				freeDeepType(e->data.varType);
+				unlinkDeepType(e->data.varType);
 				freeValue(e->data.value);
 				Entry* tmp=e->next;
 				free(e);

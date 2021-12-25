@@ -31,7 +31,7 @@ proc 0 != end *->* intToBool =$
 
 2 3 proc + 2.0 / end () println
 
-"Hello" ' ' "World" >>: ++ println
+"Hello" ' ' "World" >>: :+ println
 
 "Hello World!" 7 9 [:] println
 

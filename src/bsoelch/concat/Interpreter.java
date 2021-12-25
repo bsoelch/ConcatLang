@@ -18,7 +18,7 @@ public class Interpreter {
         IF,START,ELIF,ELSE,DO,WHILE,END,
         PROCEDURE,RETURN, PROCEDURE_START,
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
-        DUP,DROP,SWAP,
+        DUP,DROP,SWAP,//TODO CLONE (deep Clone of value)
         SPRINTF,PRINT,PRINTF,PRINTLN,
         //addLater? fprintf
         JEQ,JNE,JMP,//jump commands only for internal representation
@@ -549,9 +549,10 @@ public class Interpreter {
             case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  reader.currentPos()));
             case ".<<" -> tokens.add(new OperatorToken(OperatorType.SLSHIFT, reader.currentPos()));
 
-            case "++"   -> tokens.add(new OperatorToken(OperatorType.CONCAT,     reader.currentPos()));
-            case ">>:"  -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST, reader.currentPos()));
-            case ":<<"  -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,  reader.currentPos()));
+            case ">>:" -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     reader.currentPos()));
+            case ":<<" -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      reader.currentPos()));
+            case "+:"  -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, reader.currentPos()));
+            case ":+"  -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_LAST,  reader.currentPos()));
             //<array> <index> []
             case "[]"   -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,  reader.currentPos()));
             //<array> <off> <to> [:]
@@ -936,15 +937,20 @@ public class Interpreter {
                                 Value a = pop(stack);
                                 stack.addLast(Value.pushFirst(a, b));
                             }
-                            case CONCAT -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.concat(a, b));
-                            }
                             case PUSH_LAST -> {
                                 Value b = pop(stack);
                                 Value a = pop(stack);
                                 stack.addLast(Value.pushLast(a, b));
+                            }
+                            case PUSH_ALL_FIRST -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.pushAllFirst(a, b));
+                            }
+                            case PUSH_ALL_LAST -> {
+                                Value b = pop(stack);
+                                Value a = pop(stack);
+                                stack.addLast(Value.pushAllLast(a, b));
                             }
                             case ITR_OF -> {
                                 Type contentType = pop(stack).asType();

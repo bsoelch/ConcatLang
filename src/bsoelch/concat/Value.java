@@ -1003,18 +1003,20 @@ public abstract class Value {
         }
     }
 
-
-    public static Value concat(Value a,Value b) throws ConcatRuntimeError {
-        if(a.type.isList()&&b.type.isList()){
-            if(a.type.content().canAssignFrom(b.type.content())){
-                ArrayList<Value> elements=new ArrayList<>(a.elements());
-                elements.addAll(b.elements());
-                return createList(a.type,elements);
-            }else if(b.type.content().canAssignFrom(a.type.content())){
-                ArrayList<Value> elements=new ArrayList<>(a.elements());
-                elements.addAll(b.elements());
-                return createList(b.type,elements);
-            }
+    //TODO change value in place
+    public static Value pushAllFirst(Value a,Value b) throws ConcatRuntimeError {
+        if(a.type.isList()&&b.type.isList()&&b.type.content().canAssignFrom(a.type.content())){
+            ArrayList<Value> elements=new ArrayList<>(a.elements());
+            elements.addAll(b.elements());
+            return createList(b.type,elements);
+        }
+        throw new TypeError("Cannot concat "+a.type+" and "+b.type);
+    }
+    public static Value pushAllLast(Value a,Value b) throws ConcatRuntimeError {
+        if(a.type.isList()&&b.type.isList()&&a.type.content().canAssignFrom(b.type.content())){
+            ArrayList<Value> elements=new ArrayList<>(a.elements());
+            elements.addAll(b.elements());
+            return createList(a.type,elements);
         }
         throw new TypeError("Cannot concat "+a.type+" and "+b.type);
     }
