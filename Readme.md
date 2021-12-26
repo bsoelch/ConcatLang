@@ -200,8 +200,9 @@ type `type` and pushes the result
 - `unwrap` unwraps iterator and list types
 - `{}` creates a new list (syntax:
 `<elements> <type> <count> {}`)
-- `++` concatenates two lists of the same type
 - `>>:` `:<<` add a new element at the start/end of a list
+- `:+` `+:`   concatenates two lists, changes the value of 
+the argument on the side of the `:`
 - `[]` get an element of a list
    - syntax: `<list> <index> []`
 - `[] =`  set an element of a list
@@ -254,6 +255,10 @@ interacting with the specific values
 - `dup`  duplicates the top element on the stack
 - `drop` removes the top element from the stack
 - `swap` swaps the top 2 element on the stack
+- `clone` pushes a shallow copy of the 
+  top element on the stack (without removing the object)
+- `clone!` pushes a deep copy of the
+  top element on the stack (without removing the object)
 
 
 ### Control Flow

@@ -18,7 +18,7 @@ public class Interpreter {
         IF,START,ELIF,ELSE,DO,WHILE,END,
         PROCEDURE,RETURN, PROCEDURE_START,
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
-        DUP,DROP,SWAP,//TODO CLONE (deep Clone of value)
+        DUP,DROP,SWAP,CLONE,DEEP_CLONE,
         SPRINTF,PRINT,PRINTF,PRINTLN,
         //addLater? fprintf
         JEQ,JNE,JMP,//jump commands only for internal representation
@@ -185,7 +185,7 @@ public class Interpreter {
         }
     }
 
-    //addLater? tuple
+    //addLater? tuple/ const size array
     public Program parse(File file,Program program) throws IOException, SyntaxError {
         String fileName=file.getAbsolutePath();
         if(program==null){
@@ -380,9 +380,11 @@ public class Interpreter {
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    reader.currentPos()));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, reader.currentPos()));
 
-            case "dup"  -> tokens.add(new Token(TokenType.DUP,  reader.currentPos()));
-            case "drop" -> tokens.add(new Token(TokenType.DROP, reader.currentPos()));
-            case "swap" -> tokens.add(new Token(TokenType.SWAP, reader.currentPos()));
+            case "dup"    -> tokens.add(new Token(TokenType.DUP,        reader.currentPos()));
+            case "drop"   -> tokens.add(new Token(TokenType.DROP,       reader.currentPos()));
+            case "swap"   -> tokens.add(new Token(TokenType.SWAP,       reader.currentPos()));
+            case "clone"  -> tokens.add(new Token(TokenType.CLONE,      reader.currentPos()));
+            case "clone!" -> tokens.add(new Token(TokenType.DEEP_CLONE, reader.currentPos()));
 
             case "sprintf"    -> tokens.add(new Token(TokenType.SPRINTF, reader.currentPos()));
             case "print"      -> tokens.add(new Token(TokenType.PRINT,   reader.currentPos()));
@@ -473,7 +475,7 @@ public class Interpreter {
                                     new TokenPosition(fileName,tokens.size())));
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
-                                RETURN, PROCEDURE_START,DUP,DROP,SWAP,JEQ,JNE,JMP,SPRINTF,PRINT,PRINTF,PRINTLN,
+                                RETURN, PROCEDURE_START,DUP,DROP,SWAP,CLONE,DEEP_CLONE,JEQ,JNE,JMP,SPRINTF,PRINT,PRINTF,PRINTLN,
                                 STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,HAS_VAR,HAS_FIELD
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
@@ -935,22 +937,26 @@ public class Interpreter {
                             case PUSH_FIRST -> {
                                 Value b = pop(stack);
                                 Value a = pop(stack);
-                                stack.addLast(Value.pushFirst(a, b));
+                                b.push(a,true);
+                                stack.addLast(b);
                             }
                             case PUSH_LAST -> {
                                 Value b = pop(stack);
                                 Value a = pop(stack);
-                                stack.addLast(Value.pushLast(a, b));
+                                a.push(b,false);
+                                stack.addLast(a);
                             }
                             case PUSH_ALL_FIRST -> {
                                 Value b = pop(stack);
                                 Value a = pop(stack);
-                                stack.addLast(Value.pushAllFirst(a, b));
+                                b.pushAll(a,true);
+                                stack.addLast(b);
                             }
                             case PUSH_ALL_LAST -> {
                                 Value b = pop(stack);
                                 Value a = pop(stack);
-                                stack.addLast(Value.pushAllLast(a, b));
+                                a.pushAll(b,false);
+                                stack.addLast(a);
                             }
                             case ITR_OF -> {
                                 Type contentType = pop(stack).asType();
@@ -1167,6 +1173,14 @@ public class Interpreter {
                     case DUP -> {
                         Value t = peek(stack);
                         stack.addLast(t);
+                    }
+                    case CLONE -> {
+                        Value t = peek(stack);
+                        stack.addLast(t.clone(false));
+                    }
+                    case DEEP_CLONE -> {
+                        Value t = peek(stack);
+                        stack.addLast(t.clone(true));
                     }
                     case DROP -> pop(stack);
                     case SWAP -> {

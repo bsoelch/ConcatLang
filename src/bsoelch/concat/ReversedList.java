@@ -3,14 +3,20 @@ package bsoelch.concat;
 import java.util.*;
 
 /**immutable reversed View of a List*/
-@SuppressWarnings("ClassCanBeRecord")
 public class ReversedList<T> implements List<T> {
     final List<T> reversed;
     public static <T> List<T> reverse(List<T> list){
         if(list instanceof ReversedList<T>){
             return ((ReversedList<T>) list).reversed;
+        }else if(list instanceof RandomAccess){
+            return new RAReverseList<>(list);
         }else{
             return new ReversedList<>(list);
+        }
+    }
+    private static class RAReverseList<T> extends ReversedList<T> implements RandomAccess{
+        private RAReverseList(List<T> reversed) {
+            super(reversed);
         }
     }
     private ReversedList(List<T> reversed) {
@@ -106,8 +112,25 @@ public class ReversedList<T> implements List<T> {
 
     @Override
     public boolean remove(Object o) {
-        //addLater remove first occurrence of element!
-        return reversed.remove(o);
+        if(reversed instanceof RandomAccess){
+            //noinspection SuspiciousMethodCalls
+            int index = reversed.lastIndexOf(o);
+            if(index>=0) {
+                reversed.remove(index);
+                return true;
+            }else{
+                return false;
+            }
+        }else{
+            ListIterator<T> itr=reversed.listIterator(reversed.size());
+            while(itr.hasPrevious()){
+                if(Objects.equals(itr.previous(),equals(o))){
+                    itr.remove();
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     @Override
@@ -146,49 +169,49 @@ public class ReversedList<T> implements List<T> {
         reversed.clear();
     }
     private class ReversedIterator implements ListIterator<T>{
-        final ListIterator<T> reversedItrerator;
+        final ListIterator<T> reversedIterator;
 
-        public ReversedIterator(ListIterator<T> reversedItrerator) {
-            this.reversedItrerator = reversedItrerator;
+        public ReversedIterator(ListIterator<T> reversedIterator) {
+            this.reversedIterator = reversedIterator;
         }
         @Override
         public boolean hasNext() {
-            return reversedItrerator.hasPrevious();
+            return reversedIterator.hasPrevious();
         }
         @Override
         public T next() {
-            return reversedItrerator.previous();
+            return reversedIterator.previous();
         }
         @Override
         public boolean hasPrevious() {
-            return reversedItrerator.hasNext();
+            return reversedIterator.hasNext();
         }
         @Override
         public T previous() {
-            return reversedItrerator.previous();
+            return reversedIterator.previous();
         }
 
         @Override
         public int nextIndex() {
-            return reversed.size()- reversedItrerator.previousIndex()-1;
+            return reversed.size()- reversedIterator.previousIndex()-1;
         }
 
         @Override
         public int previousIndex() {
-            return reversed.size()- reversedItrerator.nextIndex()-1;
+            return reversed.size()- reversedIterator.nextIndex()-1;
         }
 
         @Override
         public void set(T t) {
-            reversedItrerator.set(t);
+            reversedIterator.set(t);
         }
         @Override
         public void remove() {
-            reversedItrerator.remove();
+            reversedIterator.remove();
         }
         @Override
         public void add(T t) {
-            reversedItrerator.add(t);
+            reversedIterator.add(t);
         }
     }
 }

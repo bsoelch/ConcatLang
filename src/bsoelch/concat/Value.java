@@ -57,8 +57,8 @@ public abstract class Value {
     public ValueIterator asItr() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to itr");
     }
+    //TODO string streams
     public ValueStream asStream() throws TypeError {
-        //TODO stream strings
         throw new TypeError("Cannot convert "+type+" to stream");
     }
     public List<Byte> asByteArray() throws TypeError {
@@ -93,6 +93,12 @@ public abstract class Value {
     public void set(long index,Value value) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
+    public void push(Value value,boolean start) throws ConcatRuntimeError {
+        throw new TypeError("adding elements is not supported for type "+type);
+    }
+    public void pushAll(Value value,boolean start) throws ConcatRuntimeError {
+        throw new TypeError("adding elements is not supported for type "+type);
+    }
     public Value getSlice(long off, long to) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
@@ -104,6 +110,9 @@ public abstract class Value {
     }
     public Value stream(boolean reversed) throws TypeError {
         throw new TypeError("Cannot stream "+type);
+    }
+    public Value clone(boolean deep) {
+        return this;
     }
 
     public Value hasField(String name) throws TypeError {
@@ -139,7 +148,6 @@ public abstract class Value {
             throw new TypeError("cannot cast from "+this.type+" to "+type);
         }
     }
-
 
     /**A wrapper for TypeError that can be thrown inside functional interfaces*/
     private static class WrappedConcatError extends RuntimeException {
@@ -616,8 +624,43 @@ public abstract class Value {
         }
 
         @Override
+        public void push(Value value, boolean start) throws ConcatRuntimeError {
+            String s=String.valueOf(Character.toChars(value.castTo(Type.CHAR).asChar()));
+            if(start){
+                stringValue=s+stringValue;
+            }else{
+                stringValue=stringValue+s;
+            }
+        }
+        @Override
+        public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
+            String s;
+            if(value instanceof StringValue){
+                s=((StringValue) value).stringValue;
+            }else{
+                try {
+                    s = value.elements().stream().map(v ->
+                            String.valueOf(Character.toChars(v.unsafeCastTo(Type.CHAR).unsafeAsChar())))
+                            .reduce("", (a, b) -> a + b);
+                }catch (WrappedConcatError e){
+                    throw e.wrapped;
+                }
+            }
+            if(start){
+                stringValue=s+stringValue;
+            }else{
+                stringValue=stringValue+s;
+            }
+        }
+
+        @Override
         public Value iterator(boolean end) {
             return new StringIterator(stringValue,end);
+        }
+
+        @Override
+        public Value clone(boolean deep) {
+            return new StringValue(stringValue);
         }
 
         @Override
@@ -641,6 +684,16 @@ public abstract class Value {
             super(Type.iteratorOf(Type.CHAR));
             this.codePoints = stringValue.codePoints().toArray();
             i=end?codePoints.length:0;
+        }
+
+        private StringIterator(int[] codePoints, int i) {
+            super(Type.iteratorOf(Type.CHAR));
+            this.codePoints=codePoints;
+            this.i=i;
+        }
+        @Override
+        public Value clone(boolean deep) {
+            return new StringIterator(codePoints,i);
         }
 
         @Override
@@ -691,6 +744,17 @@ public abstract class Value {
         private ListValue(Type type,ArrayList<Value> elements) {
             super(type);
             this.elements = elements;
+        }
+
+        @Override
+        public Value clone(boolean deep) {
+            ArrayList<Value> newElements;
+            if(deep){
+                newElements=elements.stream().map(v->v.clone(true)).collect(Collectors.toCollection(ArrayList::new));
+            }else{
+                newElements=new ArrayList<>(elements);
+            }
+            return new ListValue(type,newElements);
         }
 
         @Override
@@ -751,6 +815,32 @@ public abstract class Value {
         }
 
         @Override
+        public void push(Value value, boolean start) throws ConcatRuntimeError {
+            if(start){
+                elements.add(0,value.castTo(type.content()));
+            }else{
+                elements.add(value.castTo(type.content()));
+            }
+        }
+        @Override
+        public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
+            if(value.type.isList()){
+                try{
+                    List<Value> push=value.elements().stream().map(v->v.unsafeCastTo(type.content())).toList();
+                    if(start){
+                        elements.addAll(0,push);
+                    }else{
+                        elements.addAll(push);
+                    }
+                }catch (WrappedConcatError e){
+                    throw e.wrapped;
+                }
+            }else{
+                throw new TypeError("Cannot concat "+type+" and "+value.type);
+            }
+        }
+
+        @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type.isList()){
                 Type c=type.content();
@@ -803,9 +893,23 @@ public abstract class Value {
         int i;
 
         protected ListIterator(Type type, ArrayList<Value> elements,boolean end) {
+            this(type,elements,end?elements.size():0);
+        }
+        private ListIterator(Type type, ArrayList<Value> elements, int index) {
             super(type);
             this.elements = elements;
-            i=end?elements.size():0;
+            i=index;
+        }
+
+        @Override
+        public Value clone(boolean deep) {
+            ArrayList<Value> newElements;
+            if(deep){
+                newElements=elements.stream().map(v->v.clone(true)).collect(Collectors.toCollection(ArrayList::new));
+            }else{
+                newElements=new ArrayList<>(elements);
+            }
+            return new ListIterator(type,newElements,i);
         }
 
         @Override
@@ -881,6 +985,11 @@ public abstract class Value {
         private StructValue(HashMap<String, Interpreter.Variable> variables) {
             super(Type.STRUCT);
             this.variables = variables;
+        }
+
+        @Override
+        public Value clone(boolean deep) {
+            throw new UnsupportedOperationException("cloning of "+type+" is currently not supported");
         }
 
         @Override
@@ -969,6 +1078,10 @@ public abstract class Value {
             super(type);
             this.streamValue = streamValue;
         }
+        @Override
+        public Value clone(boolean deep) {
+            throw new UnsupportedOperationException("cloning of "+type+" is currently not supported");
+        }
 
         @Override
         public ValueStream asStream(){
@@ -1001,42 +1114,6 @@ public abstract class Value {
         public int hashCode() {
             return Objects.hash(streamValue);
         }
-    }
-
-    //TODO change value in place
-    public static Value pushAllFirst(Value a,Value b) throws ConcatRuntimeError {
-        if(a.type.isList()&&b.type.isList()&&b.type.content().canAssignFrom(a.type.content())){
-            ArrayList<Value> elements=new ArrayList<>(a.elements());
-            elements.addAll(b.elements());
-            return createList(b.type,elements);
-        }
-        throw new TypeError("Cannot concat "+a.type+" and "+b.type);
-    }
-    public static Value pushAllLast(Value a,Value b) throws ConcatRuntimeError {
-        if(a.type.isList()&&b.type.isList()&&a.type.content().canAssignFrom(b.type.content())){
-            ArrayList<Value> elements=new ArrayList<>(a.elements());
-            elements.addAll(b.elements());
-            return createList(a.type,elements);
-        }
-        throw new TypeError("Cannot concat "+a.type+" and "+b.type);
-    }
-
-    public static Value pushFirst(Value a,Value b) throws ConcatRuntimeError {
-        if(b.type.isList()&&b.type.content().canAssignFrom(a.type)) {
-            ArrayList<Value> elements = new ArrayList<>();
-            elements.add(a);
-            elements.addAll(b.elements());
-            return createList(b.type, elements);
-        }
-        throw new TypeError("Cannot add "+a.type+" to "+b.type);
-    }
-    public static Value pushLast(Value a,Value b) throws ConcatRuntimeError {
-        if(a.type.isList()&&a.type.content().canAssignFrom(b.type)) {
-            ArrayList<Value> elements = new ArrayList<>(a.elements());
-            elements.add(b);
-            return createList(a.type, elements);
-        }
-        throw new TypeError("Cannot add "+b.type+" to "+a.type);
     }
 
     private static Value cmpToValue(int c, OperatorType opType) {

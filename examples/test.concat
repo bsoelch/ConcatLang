@@ -96,3 +96,6 @@ else
  "IO Error" println
 end
 close drop
+
+"Test" dup "A" :+ clone "B" :+ println println println
+"Test" string 1 {} clone! clone 0 [] "C" :+ :<< println println
