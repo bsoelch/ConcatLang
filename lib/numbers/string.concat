@@ -243,7 +243,6 @@ proc ## str:string base:int -> float
   if e 0 > :
     c str e str length [:] base stringToInt () - c =
   end
-  ## TODO? more precise algorithm
   if sgn : -_ end base c -_ float cast ** *
 end *->* stringToFloat =$
 
