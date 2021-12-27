@@ -1,0 +1,6 @@
+if NUMBER_LIMITS_DEFINED ? ! :
+  true bool NUMBER_LIMITS_DEFINED =$
+  0x7fffffffffffffff int int_MAX =$  ## addLater? make constants native
+  -0x8000000000000000 int int_MIN =$
+  #_ addLater float limits _#
+end

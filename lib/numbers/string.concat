@@ -1,4 +1,5 @@
 chars include
+numbers/limits include
 
 proc ## value:int base:int big:bool -> char
     bool big =:
@@ -15,7 +16,7 @@ proc ## value:int base:int big:bool -> char
     else
         value 36 - 'a' +char () return
     end
-end *->* digit =$ ## addLater private functions
+end *->* getDigit =$ ## addLater private functions
 
 proc ## value:int base:int big:bool addLater? uint
   bool big =:
@@ -36,7 +37,7 @@ proc ## value:int base:int big:bool addLater? uint
   end
   ## TODO handle int.min_value
   while value 0 > :
-      value base % base big digit () swap >>:
+      value base % base big getDigit () swap >>:
       value base / value =
   end
   if neg :
@@ -102,11 +103,11 @@ proc ## value:float precision:int base:int big:bool sci:bool
     while if n 1 - 0 > : buff n 1 - [] 0 == else true end :
       n 1 - n =
     end
-    buff 0 [] base big digit () :<<
+    buff 0 [] base big getDigit () :<<
     if n 1 > :
       '.' :<<
       1 while dup n < :
-         swap over buff swap [] base big digit () :<<
+         swap over buff swap [] base big getDigit () :<<
          swap 1 +
       end drop
     end
@@ -115,7 +116,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
     e_max base big intToString () :+
   elif e_max 0 >= :
     0 while dup n < :
-      swap over buff swap [] base big digit () :<<
+      swap over buff swap [] base big getDigit () :<<
       if if over e_max == : over n 1 - < else false end :
         '.' :<<
       end
@@ -128,11 +129,122 @@ proc ## value:float precision:int base:int big:bool sci:bool
       swap 1 -
     end drop
     0 while dup n < :
-      swap over buff swap [] base big digit () :<<
+      swap over buff swap [] base big getDigit () :<<
       swap 1 +
     end drop
   end
 end *->* floatToString =$
 
-## TODO stringToInt
-## TODO stringToFloat
+proc ## digit:char base:int -> value:int
+  int  base =:
+  char digit =:
+  if if digit '0' >= : digit '9' <= else false end :
+    digit '0' charDiff ()
+  elif if digit 'A' >= : digit 'Z' <= else false end :
+    digit 'A' charDiff () 10 +
+  elif if digit 'a' >= : digit 'Z' <= else false end :
+    digit 'a' charDiff () if base 37 < : 10 else 36 end +
+  else
+    "invalid digit for base " print base print " number: '" print digit print "'" println
+    1 exit
+  end
+  if dup base >= :
+    "invalid digit for base " print base print " number '" print digit print "'" println
+  end
+end *->* valueOfDigit =$
+
+proc ## source:string base:int -> int
+  int base =:
+  string source =:
+  if if base 2 < : true else base 62 > end :
+    "Base out of range: " print base print ", base has to be between 2 and 62" println
+    1 exit
+  end
+  0 ## res
+  if source 0 [] '-' == :
+    true bool sgn =:
+    1 ## i = 1
+  else
+    false bool sgn =:
+    0 ## i = 0
+  end
+  int_MAX base / int max =:
+  while dup source length < :
+    swap
+    if dup max > :
+      "invalid string-format for int \"" print source print "\" (overflow)" println
+      1 exit
+    end
+    base * over source swap [] base valueOfDigit () +
+    swap 1 +
+  end drop
+  if sgn : -_ end
+end *->* stringToInt =$
+
+proc 10 stringToInt () end *->* parseInt =$
+
+proc ## c:char base:int -> bool
+  int base =:
+  if if dup 'e' == : true else dup 'E' == end : drop ## addLater switch/match statement
+    base 'E' 'A' - 10 + 1 + <
+  elif if dup 'p' == : true else dup 'P' == end : drop
+    base 'P' 'A' - 10 + 1 + <
+  elif if dup 'x' == : true else dup 'X' == end : drop
+    base 'X' 'A' - 10 + 1 + <
+  elif '#' == :
+    true
+  else
+    false
+  end
+end *->* isExpChar =$
+
+proc ## str:string base:int -> float
+  int base =:
+  string str =:
+  if if base 2 < : true else base 62 > end :
+    "Base out of range: " print base print ", base has to be between 2 and 62" println
+    1 exit
+  end
+  0 ## val
+  if str 0 [] '-' == :
+    true bool sgn =:
+    1 ## i = 1
+  else
+    false bool sgn =:
+    0 ## i = 0
+  end
+  0  int c =:
+  0  int d =:
+  -1 int e =:
+  2 53 ** int max =: ## maximum precision of ieee float64
+  while dup str length < :
+    if dup str swap [] '.' == : ## str[i] == '.'
+      if d 0 != :
+        "invalid string-format for float \"" print str print "\"" println
+        1 exit
+      end
+      1 d =
+    elif dup str swap [] base isExpChar () :
+      dup 1 + e =
+      str length + ## break by setting i to value >= str.length addLater break
+    else
+      swap
+      if dup max < :
+        base * over str swap [] base valueOfDigit () +
+        c d + c =
+      else
+        over str swap [] base valueOfDigit () drop ## check digit without storing value
+        c 1 d - + c =
+      end
+      swap
+    end
+    1 +
+  end drop
+  if e 0 > :
+    c str e str length [:] base stringToInt () - c =
+  end
+  ## TODO? more precise algorithm
+  if sgn : -_ end base c -_ float cast ** *
+end *->* stringToFloat =$
+
+proc 10 stringToFloat () end *->* parseFloat =$

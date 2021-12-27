@@ -21,7 +21,7 @@ public class Interpreter {
         PROCEDURE,RETURN, PROCEDURE_START,
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
         DUP,DROP,SWAP,OVER,CLONE,DEEP_CLONE,
-        SPRINTF,PRINT,PRINTF,PRINTLN,//TODO move (s)printf to concat standard library
+        SPRINTF,PRINT,PRINTF,PRINTLN,//impleTODO move (s)printf to concat standard library
         JEQ,JNE,JMP,//jump commands only for internal representation
         INCLUDE,
         EXIT
@@ -396,11 +396,6 @@ public class Interpreter {
             case "print"      -> tokens.add(new Token(TokenType.PRINT,   reader.currentPos()));
             case "printf"     -> tokens.add(new Token(TokenType.PRINTF,  reader.currentPos()));
             case "println"    -> tokens.add(new Token(TokenType.PRINTLN, reader.currentPos()));
-
-            case "parseInt"    -> tokens.add(new OperatorToken(OperatorType.PARSE_INT,reader.currentPos()));
-            case "parseFloat"  -> tokens.add(new OperatorToken(OperatorType.PARSE_FLOAT,reader.currentPos()));
-            case "parseIntN"   -> tokens.add(new OperatorToken(OperatorType.PARSE_INT_BASE,reader.currentPos()));
-            case "parseFloatN" -> tokens.add(new OperatorToken(OperatorType.PARSE_FLOAT_BASE,reader.currentPos()));
 
             case "bytes"      -> tokens.add(new OperatorToken(OperatorType.BYTES_LE, reader.currentPos()));
             case "bytes_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_BE, reader.currentPos()));
@@ -1015,20 +1010,7 @@ public class Interpreter {
                             }
                             case IMPORT       -> pop(stack).importTo(state, true);
                             case CONST_IMPORT -> pop(stack).importTo(state, false);
-                            case PARSE_INT ->
-                                stack.addLast(Value.ofInt(Value.parseInt(pop(stack).stringValue(),10)));
-                            case PARSE_INT_BASE -> {
-                                int base=(int)pop(stack).asLong();
-                                Value str=pop(stack);
-                                stack.addLast(Value.ofInt(Value.parseInt(str.stringValue(),base)));
-                            }
-                            case PARSE_FLOAT ->
-                                    stack.addLast(Value.ofFloat(Value.parseFloat(pop(stack).stringValue(),10)));
-                            case PARSE_FLOAT_BASE -> {
-                                int base=(int)pop(stack).asLong();
-                                Value str=pop(stack);
-                                stack.addLast(Value.ofFloat(Value.parseFloat(str.stringValue(),base)));
-                            }
+
                             case BYTES_LE -> stack.addLast(pop(stack).bytes(false));
                             case BYTES_BE -> stack.addLast(pop(stack).bytes(true));
                             case BYTES_AS_INT_LE -> stack.addLast(

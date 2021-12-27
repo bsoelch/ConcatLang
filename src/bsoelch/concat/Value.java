@@ -136,7 +136,7 @@ public abstract class Value {
 
     @Override
     public String toString() {
-        return stringValue();
+        return type+":"+stringValue();
     }
 
     public Value castTo(Type type) throws ConcatRuntimeError {
@@ -349,7 +349,7 @@ public abstract class Value {
                     c+=d;
                 }else{
                     valueOf(str.charAt(i),base);//check digit without storing value
-                    c += d - 1;//decrease c if on the left of comma
+                    c += 1 - d;//decrease c if on the left of comma
                 }
             }
         }

@@ -1,3 +1,6 @@
 proc
-int cast + char cast
+  int cast + char cast
 end *->* +char =$
+proc
+ swap int cast swap int cast -
+end *->* charDiff =$
