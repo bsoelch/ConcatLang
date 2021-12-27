@@ -35,7 +35,7 @@ proc 0 != end *->* intToBool =$
 
 "Hello World!" 7 9 [:] println
 
-0x42 "0x%04x" sprintf 3.41592653589793238 -20 0 16 "%s %*.*(*)f\n" printf
+0x42 "0x%04x" sprintf 3.141592653589793238 -20 0 16 "%s %*.*(*)f\n" printf
 
 proc #_ list ? -> list ? _#
 ## store type and length of the list
@@ -65,9 +65,9 @@ struct 1 int a =: 2 int b =$ end (struct) test =:
 test a . println
 test 42 a . = println
 
-"Hello World?" '!' 11 [] = println
-"Hello World!" "Programmer" 6 11 [:] = println
-"Hello World!" "" 5 11 [:] = println
+"Hello World?" dup '!' 11 [] = println
+"Hello World!" dup "Programmer" 6 11 [:] = println
+"Hello World!" dup "" 5 11 [:] = println
 
 "./examples/include.concat" include
 "./examples/include.concat" include
@@ -85,7 +85,7 @@ if pos :
  1 - seek drop
 end
 if read :
- if int cast 1 + 0xff & byte cast write ! :
+ if int cast 1 + 0x7f & byte cast write ! :
    "IO Error" println
  end
 elif state -1 == :
@@ -99,3 +99,7 @@ close drop
 
 "Test" dup "A" :+ clone "B" :+ println println println
 "Test" string 1 {} clone! clone 0 [] "C" :+ :<< println println
+
+numbers/string include
+-123456 36 true intToString () println
+3.141592653589793238 0 16 false false floatToString () println

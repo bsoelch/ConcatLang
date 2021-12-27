@@ -5,6 +5,7 @@ public enum OperatorType {
     INVERT,MULT,DIV,MOD,
     POW,
     NOT,FLIP,AND,OR,XOR,
+    LOG,FLOOR,CEIL,
     LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,
     GT,GE,EQ,NE,LE,LT,
     CAST,TYPE_OF,

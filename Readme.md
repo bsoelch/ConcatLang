@@ -209,7 +209,6 @@ the argument on the side of the `:`
   - syntax: `<list> <value> <index> [] =`
   - the element at index will be set to value cast to 
 the type of the list-elements
-  - the modified list is pushed back on the stack
 - `[:]`  get a sublist of a list
   - syntax: `<list> <off> <to> [:]`
   - returns a new list containing the elements 
@@ -219,7 +218,6 @@ and `<to>` excluded
   - syntax: `<list> <value> <off> <to> [:] =`
   - all the specified section of the list will be replaced 
 with the new value cast to the type of the list
-  - the modified list is pushed back on the stack
 - `()` call a procedure
 
 Examples:

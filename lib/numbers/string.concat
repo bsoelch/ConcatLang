@@ -1,0 +1,138 @@
+chars include
+
+proc ## value:int base:int big:bool -> char
+    bool big =:
+    int base =:
+    int value =:
+    if if value 0 < : true else value base >= end :
+        "Digit out of range: " print value print " base: " print base println
+        1 exit
+    end
+    if value 10 < :
+        value '0' +char () return
+    elif value 36 < :
+        value 10 - if if big : true else base 36 > end : 'A'  else 'a' end +char () return
+    else
+        value 36 - 'a' +char () return
+    end
+end *->* digit =$ ## addLater private functions
+
+proc ## value:int base:int big:bool addLater? uint
+  bool big =:
+  int base =:
+  int value =:
+  if if base 2 < : true else base 62 > end :
+    "Base out of range: " print base print ", base has to be between 2 and 62" println
+    1 exit
+  end
+  if value 0 == :
+    "0" return
+  end
+  false bool neg =:
+  "" ## result
+  if value 0 < :
+    true neg =
+    value -_ value =
+  end
+  ## TODO handle int.min_value
+  while value 0 > :
+      value base % base big digit () swap >>:
+      value base / value =
+  end
+  if neg :
+    "-" swap +:
+  end
+end *->* intToString =$
+
+proc ## value:float precision:int base:int big:bool sci:bool
+  bool  sci =:
+  bool  big =:
+  int   base =:
+  int   precision =:
+  float value =:
+  if if base 2 < : true else base 62 > end :
+    "Base out of range: " print base print ", base has to be between 2 and 62" println
+    1 exit
+  end
+  "" ## result
+  if value 0 < :
+    true neg =
+    value -_ value =
+  end
+  0b1e-110100 #_2^-52_# value * float eps =: ##? better implementation of eps
+  value log base log / floor int e =:
+  e int e_max =:
+  base e float cast ** float p =:
+  int 0 {} int list buff =: ## (ensure cap=64) TODO ensure capacity
+  0 int n =:
+  while p eps > :
+    buff value p / int cast :<< buff =
+    n 1 + n =
+    value p % value =
+    p base / p =
+    e 1 + e =
+  end
+  if if precision 0 == : true else precision n >= end :
+    n 1 -
+  else
+    precision
+  end n =
+  if buff n [] base 2 / >= :
+    n 1 - int j =:
+    true bool inc =:
+    while if inc : j 0 >= else false end :
+      buff   buff j [] 1 +   j [] =
+      if buff j [] base >= :
+          buff   buff j [] base -  j [] =
+      else
+          false inc =
+      end
+      j 1 - j =
+    end
+    if inc :
+      1 buff >>: buff =
+      e_max 1 + e_max =
+      n 1 + n =
+    end
+  end
+  while if n 1 - e_max > : buff n 1 - [] 0 == else false end :
+    n 1 - n =
+  end
+  if if sci : true elif e_max n >= : true else e_max -5 < end :
+    while if n 1 - 0 > : buff n 1 - [] 0 == else true end :
+      n 1 - n =
+    end
+    buff 0 [] base big digit () :<<
+    if n 1 > :
+      '.' :<<
+      1 while dup n < :
+         swap over buff swap [] base big digit () :<<
+         swap 1 +
+      end drop
+    end
+    if base 10 <= : 'E' elif base 30 <= : 'X' else '#' end :<<
+    if e_max 0 >= : '+' :<< end
+    e_max base big intToString () :+
+  elif e_max 0 >= :
+    0 while dup n < :
+      swap over buff swap [] base big digit () :<<
+      if if over e_max == : over n 1 - < else false end :
+        '.' :<<
+      end
+      swap 1 +
+    end drop
+  else
+    "0." :+
+    e_max -_ 1 - while dup 0 > :
+      swap '0' :<<
+      swap 1 -
+    end drop
+    0 while dup n < :
+      swap over buff swap [] base big digit () :<<
+      swap 1 +
+    end drop
+  end
+end *->* floatToString =$
+
+## TODO stringToInt
+## TODO stringToFloat

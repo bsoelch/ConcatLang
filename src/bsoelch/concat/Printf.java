@@ -21,6 +21,7 @@ public class Printf {
             return (char)(value-36+'a');
         }
     }
+    //TODO handle Long.MIN
     static String toString(boolean unsigned,long val,int base,boolean big,char plus_Sgn){
         if(val==0){
             return (plus_Sgn!=0)?plus_Sgn+"0":"0";

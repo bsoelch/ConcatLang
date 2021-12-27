@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 
 public class Interpreter {
 
+    public static final String DEFAULT_FILE_EXTENSION = "concat";
+
     enum WordState{
         ROOT,STRING,COMMENT,LINE_COMMENT
     }
@@ -18,11 +20,11 @@ public class Interpreter {
         IF,START,ELIF,ELSE,DO,WHILE,END,
         PROCEDURE,RETURN, PROCEDURE_START,
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
-        DUP,DROP,SWAP,CLONE,DEEP_CLONE,
-        SPRINTF,PRINT,PRINTF,PRINTLN,
-        //addLater? fprintf
+        DUP,DROP,SWAP,OVER,CLONE,DEEP_CLONE,
+        SPRINTF,PRINT,PRINTF,PRINTLN,//TODO move (s)printf to concat standard library
         JEQ,JNE,JMP,//jump commands only for internal representation
         INCLUDE,
+        EXIT
     }
 
     record FilePosition(String path, long line, int posInLine) {
@@ -100,6 +102,8 @@ public class Interpreter {
     }
 
     private Interpreter() {}
+
+    static String libPath;
 
     static final String DEC_DIGIT = "[0-9]";
     static final String BIN_DIGIT = "[01]";
@@ -293,7 +297,8 @@ public class Interpreter {
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
         if(openBlocks.size()>0){
-            throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(), reader.currentPos());
+            throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(),
+                    openBlocks.lastEntry().getValue().pos);
         }
         program.fileTokens.put(fileName,tokenBuffer);
         return program;
@@ -383,6 +388,7 @@ public class Interpreter {
             case "dup"    -> tokens.add(new Token(TokenType.DUP,        reader.currentPos()));
             case "drop"   -> tokens.add(new Token(TokenType.DROP,       reader.currentPos()));
             case "swap"   -> tokens.add(new Token(TokenType.SWAP,       reader.currentPos()));
+            case "over"   -> tokens.add(new Token(TokenType.OVER,       reader.currentPos()));
             case "clone"  -> tokens.add(new Token(TokenType.CLONE,      reader.currentPos()));
             case "clone!" -> tokens.add(new Token(TokenType.DEEP_CLONE, reader.currentPos()));
 
@@ -475,8 +481,9 @@ public class Interpreter {
                                     new TokenPosition(fileName,tokens.size())));
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
-                                RETURN, PROCEDURE_START,DUP,DROP,SWAP,CLONE,DEEP_CLONE,JEQ,JNE,JMP,SPRINTF,PRINT,PRINTF,PRINTLN,
-                                STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,HAS_VAR,HAS_FIELD
+                                RETURN, PROCEDURE_START,DUP,DROP,SWAP,OVER,CLONE,DEEP_CLONE,JEQ,JNE,JMP,
+                                SPRINTF,PRINT,PRINTF,PRINTLN,STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,
+                                HAS_VAR,HAS_FIELD,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
                     }
@@ -525,6 +532,7 @@ public class Interpreter {
                 tokens.add(t);
             }
             case "return" -> tokens.add(new Token(TokenType.RETURN,  reader.currentPos()));
+            case "exit"   -> tokens.add(new Token(TokenType.EXIT,  reader.currentPos()));
 
             case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,   reader.currentPos()));
             case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,  reader.currentPos()));
@@ -550,6 +558,10 @@ public class Interpreter {
             case ".>>" -> tokens.add(new OperatorToken(OperatorType.SRSHIFT, reader.currentPos()));
             case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  reader.currentPos()));
             case ".<<" -> tokens.add(new OperatorToken(OperatorType.SLSHIFT, reader.currentPos()));
+
+            case "log"   -> tokens.add(new OperatorToken(OperatorType.LOG, reader.currentPos()));
+            case "floor" -> tokens.add(new OperatorToken(OperatorType.FLOOR, reader.currentPos()));
+            case "ceil"  -> tokens.add(new OperatorToken(OperatorType.CEIL, reader.currentPos()));
 
             case ">>:" -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     reader.currentPos()));
             case ":<<" -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      reader.currentPos()));
@@ -584,18 +596,6 @@ public class Interpreter {
             case "write"         -> tokens.add(new OperatorToken(OperatorType.WRITE,           reader.currentPos()));
             case "write+"        -> tokens.add(new OperatorToken(OperatorType.WRITE_MULTIPLE,  reader.currentPos()));
 
-            case ".include"-> {
-                Token prev=tokens.get(tokens.size()-1);
-                if(prev instanceof ValueToken){
-                    tokens.remove(tokens.size()-1);
-                    String name=((ValueToken) prev).value.stringValue();
-                    assert name!=null;//temporary line to silence compiler warnings
-                    //addLater library includes
-                    throw new UnsupportedOperationException("including library-files is currently not implemented");
-                }else{
-                    throw new UnsupportedOperationException("include path has to be a string literal");
-                }
-            }
             case "include" -> {
                 Token prev=tokens.get(tokens.size()-1);
                 if(prev instanceof ValueToken){
@@ -609,8 +609,20 @@ public class Interpreter {
                     }else{
                         throw new SyntaxError("File "+name+" does not exist",reader.currentPos());
                     }
+                }else if(prev instanceof VariableToken){
+                    tokens.remove(tokens.size()-1);
+                    String name = ((VariableToken) prev).name;
+                    String path=libPath+File.separator+ name + "." + DEFAULT_FILE_EXTENSION;
+                    File file=new File(path);
+                    if(file.exists()){
+                        parse(file,program);
+                        tokens.add(new JumpToken(TokenType.INCLUDE,reader.currentPos(),
+                                new TokenPosition(file.getAbsolutePath(),0)));
+                    }else{
+                        throw new SyntaxError(name+" is not part of the standard library",reader.currentPos());
+                    }
                 }else{
-                    throw new UnsupportedOperationException("include path has to be a string literal");
+                    throw new UnsupportedOperationException("include path has to be a string literal or identifier");
                 }
             }
             case "import"  -> tokens.add(new OperatorToken(OperatorType.IMPORT,       reader.currentPos()));
@@ -786,7 +798,7 @@ public class Interpreter {
             boolean incIp=true;
             try {
                 switch (next.tokenType) {
-                    case VALUE -> stack.addLast(((ValueToken) next).value);
+                    case VALUE -> stack.addLast(((ValueToken) next).value.clone(true));
                     case OPERATOR -> {
                         switch (((OperatorToken) next).opType) {
                             case NEGATE -> {
@@ -856,6 +868,9 @@ public class Interpreter {
                                 Value a = pop(stack);
                                 stack.addLast(Value.logicOp(a, b, (x, y) -> x ^ y, (x, y) -> x ^ y));
                             }
+                            case LOG   -> stack.addLast(Value.ofFloat(Math.log(pop(stack).asDouble())));
+                            case FLOOR -> stack.addLast(Value.ofFloat(Math.floor(pop(stack).asDouble())));
+                            case CEIL  -> stack.addLast(Value.ofFloat(Math.ceil(pop(stack).asDouble())));
                             case LSHIFT -> {
                                 Value b = pop(stack);
                                 Value a = pop(stack);
@@ -918,7 +933,6 @@ public class Interpreter {
                                 Value val = pop(stack);
                                 Value list = pop(stack);
                                 list.set(index,val);
-                                stack.addLast(list);
                             }
                             case GET_SLICE -> {
                                 long to = pop(stack).asLong();
@@ -932,7 +946,6 @@ public class Interpreter {
                                 Value val = pop(stack);
                                 Value list = pop(stack);
                                 list.setSlice(off,to,val);
-                                stack.addLast(list);
                             }
                             case PUSH_FIRST -> {
                                 Value b = pop(stack);
@@ -1174,6 +1187,12 @@ public class Interpreter {
                         Value t = peek(stack);
                         stack.addLast(t);
                     }
+                    case OVER -> {// a b -> a b a
+                        Value b=pop(stack);
+                        Value a=peek(stack);
+                        stack.addLast(b);
+                        stack.addLast(a);
+                    }
                     case CLONE -> {
                         Value t = peek(stack);
                         stack.addLast(t.clone(false));
@@ -1220,8 +1239,13 @@ public class Interpreter {
                             incIp = false;
                         }
                     }
+                    case EXIT -> {
+                        long exitCode=pop(stack).asLong();
+                        System.out.println("exited with exit code:"+exitCode);
+                        return stack;
+                    }
                 }
-            }catch (ConcatRuntimeError e){
+            }catch (ConcatRuntimeError|IndexOutOfBoundsException e){
                 System.err.println(e.getMessage());
                 Token token = tokens.get(ip);
                 System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
@@ -1270,10 +1294,29 @@ public class Interpreter {
     }
 
     public static void main(String[] args) throws IOException {
+        if(args.length==0){
+            System.out.println("usage: <pathToFile> (-lib <libPath>)");
+            return;
+        }
+        String path=args[0];
+        if(args.length>1&&args[1].equals("-lib")){
+            if(args.length<3){
+                System.out.println("missing parameter for -lib");
+                return;
+            }
+            libPath=args[2];
+        }else{
+            libPath=System.getProperty("user.dir")+File.separator+"lib/";
+        }
+        File libDir=new File(libPath);
+        if(!(libDir.exists()||libDir.mkdirs())){
+            System.out.println(libPath+"  is no valid library path");
+            return;
+        }
         Interpreter ip = new Interpreter();
         Program program;
         try {
-            program = ip.parse(new File("./examples/test.concat"),null);
+            program = ip.parse(new File(path),null);
         }catch (SyntaxError e){
             SyntaxError s = e;
             System.err.println(s.getMessage());
