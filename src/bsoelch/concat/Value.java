@@ -68,6 +68,11 @@ public abstract class Value {
     public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
         throw new TypeError("Converting "+type+" to raw-bytes is not supported");
     }
+    /**checks if this and v have equal values (in concat),
+     * equals cannot be used for that purpose, because NaN values violate the contract*/
+    boolean isEqualTo(Value v){
+        return equals(v);
+    }
 
     public Interpreter.TokenPosition asProcedure() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to procedure");
@@ -414,6 +419,11 @@ public abstract class Value {
             if (o == null || getClass() != o.getClass()) return false;
             FloatValue that = (FloatValue) o;
             return Double.compare(that.floatValue, floatValue) == 0;
+        }
+        @Override
+        boolean isEqualTo(Value v) {
+            return v instanceof FloatValue&&
+                   floatValue==((FloatValue) v).floatValue;
         }
 
         @Override
@@ -1142,17 +1152,17 @@ public abstract class Value {
     }
 
     public static Value compare(Value a, OperatorType opType, Value b) throws TypeError {
-        if(a instanceof StringValue&&b instanceof StringValue){
+         if(opType==OperatorType.EQ){
+            return a.isEqualTo(b)?TRUE:FALSE;
+        }else if(opType==OperatorType.NE){
+            return a.isEqualTo(b)?FALSE:TRUE;
+        }else if(a instanceof StringValue&&b instanceof StringValue){
             int c=a.stringValue().compareTo(b.stringValue());
             return cmpToValue(c, opType);
         }else if(a instanceof CharValue &&b instanceof CharValue){
             return cmpToValue(Integer.compare(((CharValue) a).codePoint,((CharValue) b).codePoint), opType);
         }else if(a instanceof NumberValue&&b instanceof NumberValue){
             return mathOp(a,b,(x,y)->cmpToValue(x.compareTo(y),opType),(x,y)->cmpToValue(x.compareTo(y),opType));
-        }else if(opType==OperatorType.EQ){
-            return a.equals(b)?TRUE:FALSE;
-        }else if(opType==OperatorType.NE){
-            return a.equals(b)?FALSE:TRUE;
         }else{
             throw new TypeError("cannot compare "+a.type+" and "+b.type);
         }

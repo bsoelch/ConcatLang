@@ -103,5 +103,10 @@ close drop
 numbers/string include
 -123456 36 true intToString () println
 3.141592653589793238 0 16 false false floatToString () println
+3.141592653589793238 println
 "3.141592653589793238" parseFloat () println
 "11001001" 2 stringToInt () println
+0.0 0 16 false false floatToString () println
+ 1 0.0 / 0 16 false false floatToString () println
+-1 0.0 / 0 16 false false floatToString () println
+ 0 0.0 / 0 16 false false floatToString () println

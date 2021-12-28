@@ -1,0 +1,53 @@
+proc ## str:string base:int -> float
+  int base =:
+  string str =:
+  if if base 2 < : true else base 62 > end :
+    "Base out of range: " print base print ", base has to be between 2 and 62" println
+    1 exit
+  end
+  0.0 ## val
+  if str 0 [] '-' == :
+    true bool sgn =:
+    1 ## i = 1
+  elif str 0 [] '+' == :
+    false bool sgn =:
+    1 ## i = 1
+  else
+    false bool sgn =:
+    0 ## i = 0
+  end
+  0 int mode =:
+  while if mode 0 == : dup str length < else false end : ## before . or exponent
+    if dup str swap [] '.' == : ## str[i] == '.'
+      1 mode =
+    elif dup str swap [] base isExpChar () :
+      2 mode =
+    else
+      swap
+      base * over str swap [] base valueOfDigit () +
+      swap
+    end
+    1 +
+  end
+  base /_ float e =:
+  while if mode 1 == : dup str length < else false end : ## part between .  and exponent
+    if dup str swap [] '.' == : ## str[i] == '.'
+      "invalid string-format for float \"" print str print "\"" println
+      1 exit
+    elif dup str swap [] base isExpChar () :
+      2 mode =
+    else
+      swap
+      over str swap [] base valueOfDigit () e * +
+      swap
+    end
+    e base / e =
+    1 +
+  end
+  if dup str length < : ## exponent
+    base swap str swap str length [:] base stringToInt () ** *
+  else
+    drop ## drop index
+  end
+  if sgn : -_ end
+end *->* stringToFloat2 =$

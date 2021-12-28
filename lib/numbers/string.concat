@@ -55,9 +55,20 @@ proc ## value:float precision:int base:int big:bool sci:bool
     "Base out of range: " print base print ", base has to be between 2 and 62" println
     1 exit
   end
+  if value float_isFinite () ! :
+    if value float_isNaN () :
+      "\"NaN\""
+    elif value 0 > :
+      "\"Infinity\""
+    else
+      "\"-Infinity\""
+    end return
+  elif if value 0.0 == : true else value -0.0 == end :
+    "0" return
+  end
   "" ## result
   if value 0 < :
-    true neg =
+    '-' :<<
     value -_ value =
   end
   0b1e-110100 #_2^-52_# value * float eps =: ##? better implementation of eps
@@ -164,6 +175,9 @@ proc ## source:string base:int -> int
   if source 0 [] '-' == :
     true bool sgn =:
     1 ## i = 1
+  elif source 0 [] '+' == :
+    false bool sgn =:
+    1 ## i = 1
   else
     false bool sgn =:
     0 ## i = 0
@@ -185,13 +199,14 @@ proc 10 stringToInt () end *->* parseInt =$
 
 proc ## c:char base:int -> bool
   int base =:
-  if if dup 'e' == : true else dup 'E' == end : drop ## addLater switch/match statement
+  char c =:
+  if if c 'e' == : true else c 'E' == end : ## addLater switch/match statement
     base 'E' 'A' - 10 + 1 + <
-  elif if dup 'p' == : true else dup 'P' == end : drop
+  elif if c 'p' == : true else c 'P' == end :
     base 'P' 'A' - 10 + 1 + <
-  elif if dup 'x' == : true else dup 'X' == end : drop
+  elif if c 'x' == : true else c 'X' == end :
     base 'X' 'A' - 10 + 1 + <
-  elif '#' == :
+  elif c '#' == :
     true
   else
     false
@@ -208,6 +223,9 @@ proc ## str:string base:int -> float
   0 ## val
   if str 0 [] '-' == :
     true bool sgn =:
+    1 ## i = 1
+  elif str 0 [] '+' == :
+    false bool sgn =:
     1 ## i = 1
   else
     false bool sgn =:
