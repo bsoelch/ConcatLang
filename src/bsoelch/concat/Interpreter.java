@@ -527,27 +527,29 @@ public class Interpreter {
             case "return" -> tokens.add(new Token(TokenType.RETURN,  reader.currentPos()));
             case "exit"   -> tokens.add(new Token(TokenType.EXIT,  reader.currentPos()));
 
-            case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,   reader.currentPos()));
-            case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,  reader.currentPos()));
-            case "-_"  -> tokens.add(new OperatorToken(OperatorType.NEGATE, reader.currentPos()));
-            case "/_"  -> tokens.add(new OperatorToken(OperatorType.INVERT, reader.currentPos()));
-            case "*"   -> tokens.add(new OperatorToken(OperatorType.MULT,   reader.currentPos()));
-            case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,    reader.currentPos()));
-            case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,    reader.currentPos()));
-            case "**"  -> tokens.add(new OperatorToken(OperatorType.POW,    reader.currentPos()));
-            case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,    reader.currentPos()));
-            case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,   reader.currentPos()));
-            case "&"   -> tokens.add(new OperatorToken(OperatorType.AND,    reader.currentPos()));
-            case "|"   -> tokens.add(new OperatorToken(OperatorType.OR,     reader.currentPos()));
-            case "xor" -> tokens.add(new OperatorToken(OperatorType.XOR,    reader.currentPos()));
-            case "<"   -> tokens.add(new OperatorToken(OperatorType.LT,     reader.currentPos()));
-            case "<="  -> tokens.add(new OperatorToken(OperatorType.LE,     reader.currentPos()));
-            case "=="  -> tokens.add(new OperatorToken(OperatorType.EQ,     reader.currentPos()));
-            case "!="  -> tokens.add(new OperatorToken(OperatorType.NE,     reader.currentPos()));
-            case "===" -> tokens.add(new OperatorToken(OperatorType.REF_EQ, reader.currentPos()));
-            case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE, reader.currentPos()));
-            case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,     reader.currentPos()));
-            case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,     reader.currentPos()));
+            case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,          reader.currentPos()));
+            case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,         reader.currentPos()));
+            case "-_"  -> tokens.add(new OperatorToken(OperatorType.NEGATE,        reader.currentPos()));
+            case "/_"  -> tokens.add(new OperatorToken(OperatorType.INVERT,        reader.currentPos()));
+            case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      reader.currentPos()));
+            case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           reader.currentPos()));
+            case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           reader.currentPos()));
+            case "u/"   -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_DIV, reader.currentPos()));
+            case "u%"   -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_MOD, reader.currentPos()));
+            case "**"  -> tokens.add(new OperatorToken(OperatorType.POW,           reader.currentPos()));
+            case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           reader.currentPos()));
+            case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          reader.currentPos()));
+            case "&"   -> tokens.add(new OperatorToken(OperatorType.AND,           reader.currentPos()));
+            case "|"   -> tokens.add(new OperatorToken(OperatorType.OR,            reader.currentPos()));
+            case "xor" -> tokens.add(new OperatorToken(OperatorType.XOR,           reader.currentPos()));
+            case "<"   -> tokens.add(new OperatorToken(OperatorType.LT,            reader.currentPos()));
+            case "<="  -> tokens.add(new OperatorToken(OperatorType.LE,            reader.currentPos()));
+            case "=="  -> tokens.add(new OperatorToken(OperatorType.EQ,            reader.currentPos()));
+            case "!="  -> tokens.add(new OperatorToken(OperatorType.NE,            reader.currentPos()));
+            case "===" -> tokens.add(new OperatorToken(OperatorType.REF_EQ,        reader.currentPos()));
+            case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE,        reader.currentPos()));
+            case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,            reader.currentPos()));
+            case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,            reader.currentPos()));
 
             case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  reader.currentPos()));
             case ".>>" -> tokens.add(new OperatorToken(OperatorType.SRSHIFT, reader.currentPos()));
@@ -846,7 +848,7 @@ public class Interpreter {
                                 Value a = pop(stack);
                                 stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y), (x, y) -> Value.ofFloat(x - y)));
                             }
-                            case MULT -> {
+                            case MULTIPLY -> {
                                 Value b = pop(stack);
                                 Value a = pop(stack);
                                 stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y), (x, y) -> Value.ofFloat(x * y)));
@@ -860,6 +862,16 @@ public class Interpreter {
                                 Value b = pop(stack);
                                 Value a = pop(stack);
                                 stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x % y), (x, y) -> Value.ofFloat(x % y)));
+                            }
+                            case UNSIGNED_DIV -> {
+                                long b = pop(stack).asLong();
+                                long a = pop(stack).asLong();
+                                stack.addLast(Value.ofInt(Long.divideUnsigned(a,b)));
+                            }
+                            case UNSIGNED_MOD -> {
+                                long b = pop(stack).asLong();
+                                long a = pop(stack).asLong();
+                                stack.addLast(Value.ofInt(Long.remainderUnsigned(a,b)));
                             }
                             case POW -> {
                                 Value b = pop(stack);

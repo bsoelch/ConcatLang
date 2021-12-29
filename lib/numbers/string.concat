@@ -23,7 +23,7 @@ end *->* getDigit =$ ## addLater private functions
 proc ## unsigned:bool value:int base:int big:bool
   bool big =:
   int base =:
-  bool unsigned =: ## TODO handle unsigned values
+  bool unsigned =:
   int value =:
   if if base 2 < : true else base 62 > end :
     "Base out of range: " print base print ", base has to be between 2 and 62" println
@@ -35,8 +35,13 @@ proc ## unsigned:bool value:int base:int big:bool
   false bool neg =:
   "" ## result
   if value 0 < :
-    true neg =
-    value -_ value =
+    if unsigned :
+      value base u% base big getDigit () :<<
+      value base u/ value =
+    else
+      true neg =
+      value -_ value =
+    end
   end
   ## TODO handle int.min_value
   while value 0 > :
