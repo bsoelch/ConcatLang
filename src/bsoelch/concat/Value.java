@@ -67,8 +67,8 @@ public abstract class Value {
     public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
         throw new TypeError("Converting "+type+" to raw-bytes is not supported");
     }
-    /**checks if this and v have equal values (in concat),
-     * equals cannot be used for that purpose, because NaN values violate the contract*/
+    /**checks if this and v are the same object (reference)
+     * unlike equals this method distinguishes mutable objects with different ids but the same elements*/
     boolean isEqualTo(Value v){
         return equals(v);
     }
@@ -582,6 +582,12 @@ public abstract class Value {
         }
 
         @Override
+        boolean isEqualTo(Value v) {
+            return v instanceof ListValue &&
+                    ((ListValue) v).elements==elements;//check reference equality
+        }
+
+        @Override
         public Value clone(boolean deep) {
             ArrayList<Value> newElements;
             if(deep){
@@ -758,6 +764,11 @@ public abstract class Value {
         }
 
         @Override
+        boolean isEqualTo(Value v) {
+            return this == v;
+        }
+
+        @Override
         public Value clone(boolean deep) {
             ArrayList<Value> newElements;
             if(deep){
@@ -815,6 +826,12 @@ public abstract class Value {
         private TupleValue(Type.Tuple type,Value[] elements){
             super(type);
             this.elements = elements;
+        }
+
+        @Override
+        boolean isEqualTo(Value v) {
+            return v instanceof TupleValue &&
+                    ((TupleValue) v).elements==elements;//reference equality
         }
 
         @Override
@@ -923,6 +940,11 @@ public abstract class Value {
         }
 
         @Override
+        boolean isEqualTo(Value v) {
+            return v == this;
+        }
+
+        @Override
         public Value clone(boolean deep) {
             throw new UnsupportedOperationException("cloning of "+type+" is currently not supported");
         }
@@ -1013,6 +1035,12 @@ public abstract class Value {
             super(type);
             this.streamValue = streamValue;
         }
+
+        @Override
+        boolean isEqualTo(Value v) {
+            return v == this;
+        }
+
         @Override
         public Value clone(boolean deep) {
             throw new UnsupportedOperationException("cloning of "+type+" is currently not supported");
@@ -1077,10 +1105,14 @@ public abstract class Value {
     }
 
     public static Value compare(Value a, OperatorType opType, Value b) throws TypeError {
-         if(opType==OperatorType.EQ){
+        if(opType==OperatorType.REF_EQ){
             return a.isEqualTo(b)?TRUE:FALSE;
-        }else if(opType==OperatorType.NE){
+        }else if(opType==OperatorType.REF_NE){
             return a.isEqualTo(b)?FALSE:TRUE;
+        }else if(opType==OperatorType.EQ){
+            return a.equals(b)?TRUE:FALSE;
+        }else if(opType==OperatorType.NE){
+            return a.equals(b)?FALSE:TRUE;
         }else if(a.isString()&&b.isString()){
             int c=a.stringValue().compareTo(b.stringValue());
             return cmpToValue(c, opType);

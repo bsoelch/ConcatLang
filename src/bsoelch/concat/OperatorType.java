@@ -8,7 +8,8 @@ public enum OperatorType {
     NOT,FLIP,AND,OR,XOR,
     LOG,FLOOR,CEIL,
     LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,
-    GT,GE,EQ,NE,LE,LT,//TODO distinguish between value equality and reference equality
+    GT,GE,EQ,NE,LE,LT,//value equality
+    REF_EQ,REF_NE,//reference equality
     CAST,TYPE_OF,
     LIST_OF,ITR_OF,UNWRAP,
     NEW_LIST,LENGTH,ENSURE_CAP,

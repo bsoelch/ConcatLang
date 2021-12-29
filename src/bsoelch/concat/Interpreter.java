@@ -545,6 +545,8 @@ public class Interpreter {
             case "<="  -> tokens.add(new OperatorToken(OperatorType.LE,     reader.currentPos()));
             case "=="  -> tokens.add(new OperatorToken(OperatorType.EQ,     reader.currentPos()));
             case "!="  -> tokens.add(new OperatorToken(OperatorType.NE,     reader.currentPos()));
+            case "===" -> tokens.add(new OperatorToken(OperatorType.REF_EQ, reader.currentPos()));
+            case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE, reader.currentPos()));
             case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,     reader.currentPos()));
             case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,     reader.currentPos()));
 
@@ -870,7 +872,7 @@ public class Interpreter {
                                 stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(longPow(x, y)),
                                         (x, y) -> Value.ofFloat(Math.pow(x, y))));
                             }
-                            case EQ, NE, GT, GE, LE, LT -> {
+                            case EQ, NE, GT, GE, LE, LT,REF_EQ,REF_NE -> {
                                 Value b = pop(stack);
                                 Value a = pop(stack);
                                 stack.addLast(Value.compare(a, ((OperatorToken) next).opType, b));

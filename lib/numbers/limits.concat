@@ -10,7 +10,7 @@ if NUMBER_LIMITS_DEFINED ? ! :
 
   proc
     float val =:
-    val val !=
+    val val =!=
   end *->* float_isNaN =$
   proc
     float val =:
