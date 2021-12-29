@@ -41,9 +41,12 @@ proc ## unsigned:bool value:int base:int big:bool
     else
       true neg =
       value -_ value =
+      if value 0 < : ## int_MIN
+        value base u% base big getDigit () :<<
+        value base u/ value =
+      end
     end
   end
-  ## TODO handle int.min_value
   while value 0 > :
       value base % base big getDigit () swap >>:
       value base / value =
