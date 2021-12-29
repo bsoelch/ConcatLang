@@ -16,11 +16,10 @@ public class Interpreter {
     }
     enum TokenType {
         VALUE,OPERATOR,
-        DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,HAS_VAR,
+        DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,HAS_VAR,//addLater undef/free
         IF,START,ELIF,ELSE,DO,WHILE,END,
         PROCEDURE,RETURN, PROCEDURE_START,
-        STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,
-        DUP,DROP,SWAP,OVER,CLONE,DEEP_CLONE,
+        STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,//TODO rename struct
         SPRINTF,PRINT,PRINTF,PRINTLN,//impleTODO move (s)printf to concat standard library
         JEQ,JNE,JMP,//jump commands only for internal representation
         INCLUDE,
@@ -189,7 +188,6 @@ public class Interpreter {
         }
     }
 
-    //addLater? tuple/ const size array
     public Program parse(File file,Program program) throws IOException, SyntaxError {
         String fileName=file.getAbsolutePath();
         if(program==null){
@@ -381,16 +379,17 @@ public class Interpreter {
             case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE), reader.currentPos()));
             case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),    reader.currentPos()));
             case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),       reader.currentPos()));
+            case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,      reader.currentPos()));
 
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    reader.currentPos()));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, reader.currentPos()));
 
-            case "dup"    -> tokens.add(new Token(TokenType.DUP,        reader.currentPos()));
-            case "drop"   -> tokens.add(new Token(TokenType.DROP,       reader.currentPos()));
-            case "swap"   -> tokens.add(new Token(TokenType.SWAP,       reader.currentPos()));
-            case "over"   -> tokens.add(new Token(TokenType.OVER,       reader.currentPos()));
-            case "clone"  -> tokens.add(new Token(TokenType.CLONE,      reader.currentPos()));
-            case "clone!" -> tokens.add(new Token(TokenType.DEEP_CLONE, reader.currentPos()));
+            case "dup"    -> tokens.add(new OperatorToken(OperatorType.DUP,        reader.currentPos()));
+            case "drop"   -> tokens.add(new OperatorToken(OperatorType.DROP,       reader.currentPos()));
+            case "swap"   -> tokens.add(new OperatorToken(OperatorType.SWAP,       reader.currentPos()));
+            case "over"   -> tokens.add(new OperatorToken(OperatorType.OVER,       reader.currentPos()));
+            case "clone"  -> tokens.add(new OperatorToken(OperatorType.CLONE,      reader.currentPos()));
+            case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, reader.currentPos()));
 
             case "sprintf"    -> tokens.add(new Token(TokenType.SPRINTF, reader.currentPos()));
             case "print"      -> tokens.add(new Token(TokenType.PRINT,   reader.currentPos()));
@@ -476,7 +475,7 @@ public class Interpreter {
                                     new TokenPosition(fileName,tokens.size())));
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
-                                RETURN, PROCEDURE_START,DUP,DROP,SWAP,OVER,CLONE,DEEP_CLONE,JEQ,JNE,JMP,
+                                RETURN, PROCEDURE_START,JEQ,JNE,JMP,
                                 SPRINTF,PRINT,PRINTF,PRINTLN,STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,
                                 HAS_VAR,HAS_FIELD,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
@@ -575,6 +574,9 @@ public class Interpreter {
             case "{}"     -> tokens.add(new OperatorToken(OperatorType.NEW_LIST, reader.currentPos()));
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   reader.currentPos()));
             case "()"     -> tokens.add(new OperatorToken(OperatorType.CALL,     reader.currentPos()));
+
+            case "new"       -> tokens.add(new OperatorToken(OperatorType.NEW,        reader.currentPos()));
+            case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, reader.currentPos()));
 
             case "open"          -> tokens.add(new OperatorToken(OperatorType.OPEN,            reader.currentPos()));
             case "close"         -> tokens.add(new OperatorToken(OperatorType.CLOSE,           reader.currentPos()));
@@ -796,6 +798,31 @@ public class Interpreter {
                     case VALUE -> stack.addLast(((ValueToken) next).value.clone(true));
                     case OPERATOR -> {
                         switch (((OperatorToken) next).opType) {
+                            case DUP -> {
+                                Value t = peek(stack);
+                                stack.addLast(t);
+                            }
+                            case OVER -> {// a b -> a b a
+                                Value b=pop(stack);
+                                Value a=peek(stack);
+                                stack.addLast(b);
+                                stack.addLast(a);
+                            }
+                            case CLONE -> {
+                                Value t = peek(stack);
+                                stack.addLast(t.clone(false));
+                            }
+                            case DEEP_CLONE -> {
+                                Value t = peek(stack);
+                                stack.addLast(t.clone(true));
+                            }
+                            case DROP -> pop(stack);
+                            case SWAP -> {
+                                Value tmp1 = pop(stack);
+                                Value tmp2 = pop(stack);
+                                stack.addLast(tmp1);
+                                stack.addLast(tmp2);
+                            }
                             case NEGATE -> {
                                 Value v = pop(stack);
                                 stack.addLast(v.negate());
@@ -918,6 +945,10 @@ public class Interpreter {
                                 Value val = pop(stack);
                                 stack.addLast(Value.ofInt(val.length()));
                             }
+                            case ENSURE_CAP -> {
+                                long newCap=pop(stack).asLong();
+                                peek(stack).ensureCap(newCap);
+                            }
                             case GET_INDEX -> {//array index []
                                 long index = pop(stack).asLong();
                                 Value list = pop(stack);
@@ -969,6 +1000,30 @@ public class Interpreter {
                             case ITR_OF -> {
                                 Type contentType = pop(stack).asType();
                                 stack.addLast(Value.ofType(Type.iteratorOf(contentType)));
+                            }
+                            case TUPLE -> {
+                                long count=pop(stack).asLong();
+                                Type[] types=new Type[(int)count];
+                                for(int i=1;i<=count;i++){
+                                    types[types.length-i]=pop(stack).asType();
+                                }
+                                stack.addLast(Value.ofType(Type.Tuple.create(types)));
+                            }
+                            case NEW -> {
+                                Type type=pop(stack).asType();
+                                if(type instanceof Type.Tuple){
+                                    int count=((Type.Tuple)type).elementCount();
+                                    Value[] values=new Value[count];
+                                    for(int i=1;i<= values.length;i++){
+                                        values[count-i]=pop(stack).castTo(((Type.Tuple) type).get(count-i));
+                                    }
+                                    stack.addLast(Value.createTuple((Type.Tuple)type,values));
+                                }else if(type.isList()){
+                                    long initCap=pop(stack).asLong();
+                                    stack.addLast(Value.createList(type,initCap));
+                                }else{
+                                    throw new ConcatRuntimeError("new only supports tuples and lists");
+                                }
                             }
                             case ITR_START -> {
                                 Value a = pop(stack);
@@ -1165,31 +1220,6 @@ public class Interpreter {
                         Value struct = pop(stack);
                         stack.addLast(struct.hasField(((VariableToken)next).name));
                     }
-                    case DUP -> {
-                        Value t = peek(stack);
-                        stack.addLast(t);
-                    }
-                    case OVER -> {// a b -> a b a
-                        Value b=pop(stack);
-                        Value a=peek(stack);
-                        stack.addLast(b);
-                        stack.addLast(a);
-                    }
-                    case CLONE -> {
-                        Value t = peek(stack);
-                        stack.addLast(t.clone(false));
-                    }
-                    case DEEP_CLONE -> {
-                        Value t = peek(stack);
-                        stack.addLast(t.clone(true));
-                    }
-                    case DROP -> pop(stack);
-                    case SWAP -> {
-                        Value tmp1 = pop(stack);
-                        Value tmp2 = pop(stack);
-                        stack.addLast(tmp1);
-                        stack.addLast(tmp2);
-                    }
                     case PROCEDURE_START,JMP -> {
                         tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
                         file=((JumpToken) next).target.file;
@@ -1227,7 +1257,7 @@ public class Interpreter {
                         return stack;
                     }
                 }
-            }catch (ConcatRuntimeError|IndexOutOfBoundsException e){
+            }catch (ConcatRuntimeError|IndexOutOfBoundsException|NegativeArraySizeException e){
                 System.err.println(e.getMessage());
                 Token token = tokens.get(ip);
                 System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);

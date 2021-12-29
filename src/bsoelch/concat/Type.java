@@ -109,4 +109,26 @@ public class Type {
         }
     }
 
+    public static class Tuple extends Type{
+        public static Tuple create(Type[] elements){
+            StringBuilder name=new StringBuilder();
+            for(Type t:elements){
+                name.append(t.name).append(' ');
+            }
+            return new Tuple(name.append(elements.length).append(" tuple").toString(),elements);
+        }
+        final Type[] elements;
+        private Tuple(String name,Type[] elements) {
+            super(name);
+            this.elements=elements;
+        }
+
+        public int elementCount(){
+            return elements.length;
+        }
+        public Type get(int i) {
+            return elements[i];
+        }
+    }
+
 }

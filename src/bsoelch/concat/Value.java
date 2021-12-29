@@ -98,6 +98,9 @@ public abstract class Value {
     public void set(long index,Value value) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
+    public void ensureCap(long newCap) throws TypeError {
+        throw new TypeError("changing capacity is not supported for type "+type);
+    }
     public void push(Value value,boolean start) throws ConcatRuntimeError {
         throw new TypeError("adding elements is not supported for type "+type);
     }
@@ -749,6 +752,10 @@ public abstract class Value {
             return new ListValue(type,elements);
         }
     }
+    public static Value createList(Type type, long initCap) {
+        return new ListValue(type,new ArrayList<>((int)Math.min(initCap,Integer.MAX_VALUE)));
+    }
+
     private static class ListValue extends Value{
         final ArrayList<Value> elements;
         private ListValue(Type type,ArrayList<Value> elements) {
@@ -822,6 +829,11 @@ public abstract class Value {
             }catch (WrappedConcatError e){
                 throw e.wrapped;
             }
+        }
+
+        @Override
+        public void ensureCap(long newCap){
+            elements.ensureCapacity((int)Math.min(newCap,Integer.MAX_VALUE));
         }
 
         @Override
@@ -951,6 +963,85 @@ public abstract class Value {
         @Override
         public Value prev() {
             return elements.get(--i);
+        }
+    }
+
+    public static Value createTuple(Type.Tuple type,Value[] elements) throws ConcatRuntimeError {
+        if(elements.length!=type.elementCount()){
+            throw new IllegalArgumentException("elements has to have the same length as types");
+        }
+        for(int i=0;i<elements.length;i++){
+            elements[i]=elements[i].castTo(type.get(i));
+        }
+        return new TupleValue(type, elements);
+    }
+    private static class TupleValue extends Value{
+        final Value[] elements;
+
+        private TupleValue(Type.Tuple type,Value[] elements){
+            super(type);
+            this.elements = elements;
+        }
+
+        @Override
+        public Value clone(boolean deep) {
+            Value[] newElements;
+            if(deep){
+                newElements=Arrays.stream(elements).map(v->v.clone(true)).toArray(Value[]::new);
+            }else{
+                newElements=elements.clone();
+            }
+            return new TupleValue((Type.Tuple) type,newElements);
+        }
+
+        @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(type instanceof Type.Tuple&&
+                    ((Type.Tuple) type).elementCount()==((Type.Tuple)this.type).elementCount()){
+                Value[] newValues=new Value[elements.length];
+                return createTuple((Type.Tuple)type,newValues);
+            }else if(type.isList()){
+                ArrayList<Value> newElements=new ArrayList<>(elements.length);
+                for (Value element : elements) {
+                    newElements.add(element.castTo(type.content()));
+                }
+                return new ListValue(type,newElements);
+            }else{
+                return super.castTo(type);
+            }
+        }
+
+        @Override
+        public Value get(long index){
+            return elements[(int)index];
+        }
+        @Override
+        public void set(long index, Value value) throws ConcatRuntimeError {
+            elements[(int)index]=value.castTo(((Type.Tuple)type).get((int)index));
+        }
+
+        @Override
+        public String stringValue() {
+            StringBuilder res=new StringBuilder("(");
+            for(int i=0;i<elements.length;i++){
+                if(i>0){
+                    res.append(',');
+                }
+                res.append(elements[i]);
+            }
+            return res.append(")").toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TupleValue that = (TupleValue) o;
+            return Arrays.equals(elements, that.elements);
+        }
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(elements);
         }
     }
 
