@@ -14,13 +14,13 @@ public class Interpreter {
     enum WordState{
         ROOT,STRING,COMMENT,LINE_COMMENT
     }
-    enum TokenType {
+    enum TokenType { //TODO macros
         VALUE,OPERATOR,
         DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,HAS_VAR,//addLater undef/free
         IF,START,ELIF,ELSE,DO,WHILE,END,
         PROCEDURE,RETURN, PROCEDURE_START,
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,//TODO rename struct
-        SPRINTF,PRINT,PRINTF,PRINTLN,//impleTODO move (s)printf to concat standard library
+        SPRINTF,PRINT,PRINTF,PRINTLN,//TODO move (s)printf to concat standard library
         JEQ,JNE,JMP,//jump commands only for internal representation
         INCLUDE,
         EXIT
@@ -373,13 +373,13 @@ public class Interpreter {
             case "string"   -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),  reader.currentPos()));
             case "type"     -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),      reader.currentPos()));
             case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,      reader.currentPos()));
-            case "itr"      -> tokens.add(new OperatorToken(OperatorType.ITR_OF,       reader.currentPos()));
             case "stream"   -> tokens.add(new OperatorToken(OperatorType.STREAM_OF,    reader.currentPos()));
-            case "unwrap"   -> tokens.add(new OperatorToken(OperatorType.UNWRAP,       reader.currentPos()));
+            case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT,       reader.currentPos()));
             case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE), reader.currentPos()));
             case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),    reader.currentPos()));
             case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),       reader.currentPos()));
-            case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,      reader.currentPos()));
+            case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,        reader.currentPos()));
+            case "(list)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST), reader.currentPos()));
 
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    reader.currentPos()));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, reader.currentPos()));
@@ -568,10 +568,6 @@ public class Interpreter {
             //<array> <off> <to> [:]
             case "[:]"  -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,  reader.currentPos()));
 
-            case "^.." -> tokens.add(new OperatorToken(OperatorType.ITR_START, reader.currentPos()));
-            case "..^" -> tokens.add(new OperatorToken(OperatorType.ITR_END,   reader.currentPos()));
-            case "^>"  -> tokens.add(new OperatorToken(OperatorType.ITR_NEXT,  reader.currentPos()));
-            case "<^"  -> tokens.add(new OperatorToken(OperatorType.ITR_PREV,  reader.currentPos()));
             //<e0> ... <eN> <N> {}
             case "{}"     -> tokens.add(new OperatorToken(OperatorType.NEW_LIST, reader.currentPos()));
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   reader.currentPos()));
@@ -919,7 +915,7 @@ public class Interpreter {
                                 Type contentType = pop(stack).asType();
                                 stack.addLast(Value.ofType(Type.listOf(contentType)));
                             }
-                            case UNWRAP -> {
+                            case CONTENT -> {
                                 Type wrappedType = pop(stack).asType();
                                 stack.addLast(Value.ofType(wrappedType.content()));
                             }
@@ -999,10 +995,6 @@ public class Interpreter {
                                 a.pushAll(b,false);
                                 stack.addLast(a);
                             }
-                            case ITR_OF -> {
-                                Type contentType = pop(stack).asType();
-                                stack.addLast(Value.ofType(Type.iteratorOf(contentType)));
-                            }
                             case TUPLE -> {
                                 long count=pop(stack).asLong();
                                 Type[] types=new Type[(int)count];
@@ -1025,34 +1017,6 @@ public class Interpreter {
                                     stack.addLast(Value.createList(type,initCap));
                                 }else{
                                     throw new ConcatRuntimeError("new only supports tuples and lists");
-                                }
-                            }
-                            case ITR_START -> {
-                                Value a = pop(stack);
-                                stack.addLast(a.iterator(false));
-                            }
-                            case ITR_END -> {
-                                Value a = pop(stack);
-                                stack.addLast(a.iterator(true));
-                            }
-                            case ITR_NEXT -> {
-                                Value peek = peek(stack);
-                                Value.ValueIterator itr = peek.asItr();
-                                if (itr.hasNext()) {
-                                    stack.addLast(itr.next());
-                                    stack.addLast(Value.TRUE);
-                                } else {
-                                    stack.addLast(Value.FALSE);
-                                }
-                            }
-                            case ITR_PREV -> {
-                                Value peek = peek(stack);
-                                Value.ValueIterator itr = peek.asItr();
-                                if (itr.hasPrev()) {
-                                    stack.addLast(itr.prev());
-                                    stack.addLast(Value.TRUE);
-                                } else {
-                                    stack.addLast(Value.FALSE);
                                 }
                             }
                             case CALL -> {

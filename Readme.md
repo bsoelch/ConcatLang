@@ -142,42 +142,60 @@ true
 false
 ```
 
+### Optionals 
+Optionals hold a optional value.
+Optionals are defined in the standard library and
+can be included with `optional include`
+
+- `wrap ()`   wraps the top value on the stack in an optional
+- `unwrap ()` unwraps an optional value
+  - if the value is present it will be pushed on the stack
+  - if no value is present the program will exit
+- `?? ()` checks if the optional is present
+  - if the optional has a value it will push true
+  - if no value is present it will push false 
+  - this operation does not consume the optional
+
 ### iterators
 Iterators simplify iterating over all elements of a list,
-they are designed to work well with for-each loops
-- `itr` wraps a type in the corresponding iterator-type
-- `^..` created a new iterator at the start of 
+they are designed to work well with for-each loops.
+Iterators are defined in the standard library and 
+can be included with `iterators include`, iterators 
+also includes optional
+
+- `^.. ()` created a new iterator at the start of 
 the current element (the current element has to be a list)
-- `..^` created a new iterator at the end of
+- `..^ ()` created a new iterator at the end of
   the current element (the current element has to be a list)
-- `^>` moves the iterator to the next element,
-  - if the list has a next element the iterator pushes itself,
-  the value of the element and the `true`
+- `^> ()` moves the iterator to the next element,
+  - if the list has a next element the iterator pushes
+    itself, and an optional wrapping the next element
   - otherwise, the iterator pushes itself,
-    followed by `false`
-- `<^` moves the iterator to the previous element
+    followed by an empty optional
+- `<^ ()` moves the iterator to the previous element
   - if the list has a previous element the iterator pushes 
-    itself, the value of the element and the `true`
+    itself, and an optional wrapping the previous element
   - otherwise, the iterator pushes itself,
-    followed by `false`
+    followed by an empty optional
 
 Examples:
 template of for-each loop:
 ```Julia
-array ^.. ## create iterator
-while ^> :  ## iterate over all elements
- println ## do something with data
+array ^.. () ## create iterator
+while ^> () ?? () :   ## iterate over all elements
+ unwrap () println ## do something with data
 end 
+drop ## Drop empty element
 drop ## Drop iterator
 ```
 
 reverse a list:
 ```Julia
 ## store type and length of the list
-dup typeof unwrap type arg.type   =:
-dup length        int  arg.length =:
+dup typeof content type arg.type   =:
+dup length         int  arg.length =:
 ## Iterate though the elements in reverse order
-..^ while <^ : swap end drop
+..^ () while <^ () ?? () : unwrap () swap end drop drop
 ## reassemble the list
 arg.type arg.length {}
 ```
@@ -185,9 +203,9 @@ Sum all elements of a list
 ```Julia
 0 var tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
-^.. while ^> :
- tmp swap + tmp =
-end drop
+^.. () while ^> () ?? () :
+ unwrap () tmp swap + tmp =
+end drop drop
 tmp ## load the total sum onto the stack
 ```
 
@@ -197,7 +215,7 @@ with its type
 - `cast` typecast `val type cast` casts `val` to 
 type `type` and pushes the result
 - `list`  wraps a type in the corresponding list-type
-- `unwrap` unwraps iterator and list types
+- `content` unwraps list and stream types
 - `{}` creates a new list (syntax:
 `<elements> <type> <count> {}`)
 - `>>:` `:<<` add a new element at the start/end of a list

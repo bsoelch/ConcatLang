@@ -53,9 +53,6 @@ public abstract class Value {
     public Type asType() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to type");
     }
-    public ValueIterator asItr() throws TypeError {
-        throw new TypeError("Cannot convert "+type+" to itr");
-    }
     //TODO string streams
     public ValueStream asStream() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to stream");
@@ -111,9 +108,6 @@ public abstract class Value {
     }
     public void setSlice(long off, long to,Value value) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
-    }
-    public Value iterator(boolean end) throws TypeError {
-        throw new TypeError("Cannot iterate over "+type);
     }
     public Value stream(boolean reversed) throws TypeError {
         throw new TypeError("Cannot stream "+type);
@@ -555,14 +549,6 @@ public abstract class Value {
         }
     }
 
-    //addLater? allow iterators to modify the underlying objects
-    interface ValueIterator{
-        boolean hasNext();
-        Value next();
-        boolean hasPrev();
-        Value prev();
-    }
-
     public static Value ofString(String stringValue) {
         return new ListValue(Type.STRING(),stringValue.codePoints().mapToObj(Value::ofChar)
                 .collect(Collectors.toCollection(ArrayList::new)));
@@ -614,11 +600,6 @@ public abstract class Value {
         @Override
         public List<Value> elements() {
             return new ArrayList<>(elements);
-        }
-
-        @Override
-        public Value iterator(boolean end) {
-            return new ListIterator(Type.iteratorOf(type.content()),elements,end);
         }
 
         @Override
@@ -688,7 +669,9 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type.isList()){
+            if(type==Type.GENERIC_LIST){
+                return this;
+            }else if(type.isList()){
                 Type c=type.content();
                 try {
                     return createList(type, elements.stream().map(v -> v.unsafeCastTo(c))
@@ -750,67 +733,6 @@ public abstract class Value {
             return Objects.hash(elements);
         }
     }
-    private static class ListIterator extends Value implements ValueIterator{
-        final ArrayList<Value> elements;
-        int i;
-
-        protected ListIterator(Type type, ArrayList<Value> elements,boolean end) {
-            this(type,elements,end?elements.size():0);
-        }
-        private ListIterator(Type type, ArrayList<Value> elements, int index) {
-            super(type);
-            this.elements = elements;
-            i=index;
-        }
-
-        @Override
-        boolean isEqualTo(Value v) {
-            return this == v;
-        }
-
-        @Override
-        public Value clone(boolean deep) {
-            ArrayList<Value> newElements;
-            if(deep){
-                newElements=elements.stream().map(v->v.clone(true)).collect(Collectors.toCollection(ArrayList::new));
-            }else{
-                newElements=new ArrayList<>(elements);
-            }
-            return new ListIterator(type,newElements,i);
-        }
-
-        @Override
-        public ValueIterator asItr() {
-            return this;
-        }
-        @Override
-        public String stringValue() {
-            return "Itr{"+elements.subList(0,i)+"^"+elements.subList(i,elements.size())+"}";
-        }
-        @Override
-        public String stringValue(int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
-            return "Itr{"+ListValue.toString(type.content(),elements.subList(0,i),precision,base,big,plusChar)+"^"
-                    +ListValue.toString(type.content(),elements.subList(i,elements.size()),precision,base,big,plusChar)+"}";
-        }
-
-        @Override
-        public boolean hasNext() {
-            return i<elements.size();
-        }
-        @Override
-        public Value next() {
-            return elements.get(i++);
-        }
-        @Override
-        public boolean hasPrev() {
-            return i>0;
-        }
-        @Override
-        public Value prev() {
-            return elements.get(--i);
-        }
-    }
-
     public static Value createTuple(Type.Tuple type,Value[] elements) throws ConcatRuntimeError {
         if(elements.length!=type.elementCount()){
             throw new IllegalArgumentException("elements has to have the same length as types");
@@ -849,7 +771,7 @@ public abstract class Value {
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type instanceof Type.Tuple&&
                     ((Type.Tuple) type).elementCount()==((Type.Tuple)this.type).elementCount()){
-                Value[] newValues=new Value[elements.length];
+                Value[] newValues=elements.clone();
                 return createTuple((Type.Tuple)type,newValues);
             }else if(type.isList()){
                 ArrayList<Value> newElements=new ArrayList<>(elements.length);

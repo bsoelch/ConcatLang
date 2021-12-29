@@ -11,6 +11,9 @@ public class Type {
     public static final Type BYTE = new Type("byte");
     public static final Type PROCEDURE = new Type("*->*");
     public static final Type STRUCT = new Type("(struct)");
+
+    public static final Type GENERIC_LIST = new Type("(list)");
+
     /**blank type that could contain any value*/
     public static final Type ANY = new Type("var") {
         @Override
@@ -50,9 +53,7 @@ public class Type {
             return new ContainerType(ContainerType.LIST,contentType);
         }
     }
-    public static Type iteratorOf(Type contentType) {
-        return new ContainerType(ContainerType.ITERATOR,contentType);
-    }
+
     public static Type streamOf(Type contentType) {
         if (contentType == CHAR) {
             return ContainerType.BYTE_STREAM;
@@ -63,7 +64,6 @@ public class Type {
 
     private static class ContainerType extends Type {
         public static final String LIST = "list";
-        public static final String ITERATOR = "itr";
         public static final String STREAM = "stream";
         static final Type STRING      = new ContainerType(LIST,Type.CHAR);
         static final Type BYTE_STREAM = new ContainerType(STREAM,Type.BYTE);

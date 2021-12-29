@@ -1,0 +1,42 @@
+optional include
+
+(list) int 2 tuple type iterator =$
+
+proc ## <?> list <index> -> <?> itr
+  (list) elements =:
+  elements 0 iterator new
+end *->* iterateStart =$
+
+proc ## <?> list <index> -> <?> itr
+  (list) elements =:
+  elements elements length iterator new
+end *->* iterateEnd =$
+
+proc ## <?> itr => <?> itr optional
+  iterator mItr =:
+  mItr
+  if mItr 1 [] mItr 0 [] length < :
+    mItr 0 [] mItr 1 [] [] optional_of () ## push element
+    mItr  mItr 1 [] 1 +  1 [] = ## increment iterator
+  else
+    optional_empty
+  end
+end *->* iteratorNext =$
+
+proc ## <?> itr => <?> itr optional
+  iterator mItr =:
+  mItr
+  if mItr 1 [] 0 > :
+    mItr  mItr 1 [] 1 -  1 [] = ## decrement iterator
+    mItr 0 [] mItr 1 [] [] optional_of () ## push element
+  else
+    optional_empty
+  end
+end *->* iteratorPrev =$
+
+## addLater allow iterators to modify the underlying list
+
+iterateStart *->* ^.. =$
+iterateEnd   *->* ..^ =$
+iteratorNext *->* ^>  =$
+iteratorPrev *->* <^  =$

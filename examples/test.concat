@@ -37,12 +37,13 @@ proc 0 != end *->* intToBool =$
 
 0x42 "0x%04x" sprintf 3.141592653589793238 -20 0 16 "%s %*.*(*)f\n" printf
 
+iterator include
 proc #_ list ? -> list ? _#
 ## store type and length of the list
-dup typeof unwrap type arg.type   =:
-dup length        int  arg.length =:
+dup typeof content type arg.type   =:
+dup length         int  arg.length =:
 ## Iterate though the elements in reverse order
-..^ while <^ : swap end drop
+..^ () while <^ () ?? () : unwrap () swap end drop drop
 ## reassemble the list
 arg.type arg.length {}
 end *->* reverse =$
@@ -52,9 +53,9 @@ end *->* reverse =$
 proc #_ list ? -> ?  _#
 0 var tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
-^.. while ^> :
- tmp swap + tmp =
-end drop
+^.. () while ^> () ?? () :
+ unwrap () tmp swap + tmp =
+end drop drop
 tmp ## load the total sum onto the stack
 end *->* sum =$
 
@@ -117,3 +118,8 @@ numbers/string include
  clone dup  42 1 [] = println
  dup   dup 2.0 0 [] = println
  2 [] println
+
+ "Hello" iterateStart ()
+ while iteratorNext () optional_hasValue () :
+   optional_getValue () println
+ end drop drop ## iterator and optional
