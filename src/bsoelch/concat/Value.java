@@ -7,7 +7,6 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public abstract class Value {
     public static final Value FALSE = new Value(Type.BOOL) {
@@ -136,6 +135,9 @@ public abstract class Value {
         throw new TypeError("Field access not supported for type "+type);
     }
 
+    public boolean isString(){
+        return Type.STRING().equals(type);
+    }
     public abstract String stringValue();
     /**formatted printing of values*/ //TODO flags unsigned,scientific, bracket-type,escaping of values
     public String stringValue(int precision, int base,boolean big,char plusChar) throws ConcatRuntimeError {
@@ -162,13 +164,6 @@ public abstract class Value {
         final ConcatRuntimeError wrapped;
         public WrappedConcatError(ConcatRuntimeError wrapped) {
             this.wrapped = wrapped;
-        }
-    }
-    private int unsafeAsChar(){
-        try {
-            return asChar();
-        } catch (TypeError e) {
-            throw new WrappedConcatError(e);
         }
     }
     private Value unsafeCastTo(Type type) throws WrappedConcatError {
@@ -567,190 +562,13 @@ public abstract class Value {
         boolean hasPrev();
         Value prev();
     }
+
     public static Value ofString(String stringValue) {
-        return new StringValue(stringValue);
+        return new ListValue(Type.STRING(),stringValue.codePoints().mapToObj(Value::ofChar)
+                .collect(Collectors.toCollection(ArrayList::new)));
     }
-    private static class StringValue extends Value{
-        private String stringValue;
-        private StringValue(String stringValue) {
-            super(Type.STRING());
-            this.stringValue = stringValue;
-        }
-
-        @Override
-        public int length() {
-            return stringValue.length();
-        }
-        @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type.isList()){
-                Type c=type.content();
-                try {
-                    return createList(type, stringValue.codePoints().mapToObj(v -> ofChar(v).unsafeCastTo(c))
-                            .collect(Collectors.toCollection(ArrayList::new)));
-                }catch (WrappedConcatError e){
-                    throw e.wrapped;
-                }
-            }else{
-                return super.castTo(type);
-            }
-        }
-
-        @Override
-        public String stringValue() {
-            return stringValue;
-        }
-
-        @Override
-        public List<Value> elements() {
-            return stringValue.codePoints().mapToObj(Value::ofChar).toList();
-        }
-
-        @Override
-        public Value get(long index) {
-            return ofChar(stringValue.codePoints().toArray()[(int)index]);
-        }
-
-        @Override
-        public void set(long index, Value value) throws ConcatRuntimeError {
-            int[] cps=stringValue.codePoints().toArray();
-            cps[(int)index]=value.castTo(Type.CHAR).asChar();
-            stringValue=IntStream.of(cps).mapToObj(c->String.valueOf(Character.toChars(c))).reduce("",(a,b)->a+b);
-        }
-        @Override
-        public Value getSlice(long off, long to) {
-            return ofString(IntStream.of(Arrays.copyOfRange(stringValue.codePoints().toArray(),(int)off,(int)to)).
-                    mapToObj(c->String.valueOf(Character.toChars(c))).reduce("",(a,b)->a+b));
-        }
-        @Override
-        public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
-            ArrayList<Integer> asList=new ArrayList<>(stringValue.codePoints().boxed().toList());
-            List<Integer> slice=asList.subList((int)off,(int)to);
-            slice.clear();
-            try {
-                Type content=type.content();
-                slice.addAll(value.elements().stream().map(e->e.unsafeCastTo(content)).map(Value::unsafeAsChar).toList());
-            }catch (WrappedConcatError e){
-                throw e.wrapped;
-            }
-            stringValue=asList.stream().map(c->String.valueOf(Character.toChars(c))).reduce("",(a, b)->a+b);
-        }
-
-        @Override
-        public void push(Value value, boolean start) throws ConcatRuntimeError {
-            String s=String.valueOf(Character.toChars(value.castTo(Type.CHAR).asChar()));
-            if(start){
-                stringValue=s+stringValue;
-            }else{
-                stringValue=stringValue+s;
-            }
-        }
-        @Override
-        public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
-            String s;
-            if(value instanceof StringValue){
-                s=((StringValue) value).stringValue;
-            }else{
-                try {
-                    s = value.elements().stream().map(v ->
-                            String.valueOf(Character.toChars(v.unsafeCastTo(Type.CHAR).unsafeAsChar())))
-                            .reduce("", (a, b) -> a + b);
-                }catch (WrappedConcatError e){
-                    throw e.wrapped;
-                }
-            }
-            if(start){
-                stringValue=s+stringValue;
-            }else{
-                stringValue=stringValue+s;
-            }
-        }
-
-        @Override
-        public Value iterator(boolean end) {
-            return new StringIterator(stringValue,end);
-        }
-
-        @Override
-        public Value clone(boolean deep) {
-            return new StringValue(stringValue);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            StringValue that = (StringValue) o;
-            return Objects.equals(stringValue, that.stringValue);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(stringValue);
-        }
-    }
-    private static class StringIterator extends Value implements ValueIterator{
-        final int[] codePoints;
-        int i;
-
-        protected StringIterator(String stringValue,boolean end) {
-            super(Type.iteratorOf(Type.CHAR));
-            this.codePoints = stringValue.codePoints().toArray();
-            i=end?codePoints.length:0;
-        }
-
-        private StringIterator(int[] codePoints, int i) {
-            super(Type.iteratorOf(Type.CHAR));
-            this.codePoints=codePoints;
-            this.i=i;
-        }
-        @Override
-        public Value clone(boolean deep) {
-            return new StringIterator(codePoints,i);
-        }
-
-        @Override
-        public ValueIterator asItr() {
-            return this;
-        }
-
-        @Override
-        public String stringValue() {
-            return "Itr{\""+ IntStream.of(Arrays.copyOfRange(codePoints, 0, i))
-                    .mapToObj(c -> String.valueOf(Character.toChars(c))).reduce("", (a, b) -> a + b)
-                    +"\"^\""+ IntStream.of(Arrays.copyOfRange(codePoints, i,codePoints.length))
-                    .mapToObj(c -> String.valueOf(Character.toChars(c))).reduce("", (a, b) -> a + b)+"\"}";
-        }
-
-        @Override
-        public boolean hasNext() {
-            return i<codePoints.length;
-        }
-        @Override
-        public Value next() {
-            return ofChar(codePoints[i++]);
-        }
-        @Override
-        public boolean hasPrev() {
-            return i>0;
-        }
-        @Override
-        public Value prev() {
-            return ofChar(codePoints[--i]);
-        }
-    }
-
     public static Value createList(Type type, ArrayList<Value> elements) throws ConcatRuntimeError {
-        if(type.equals(Type.STRING())){
-            try {
-                return ofString(elements.stream().map(Value::unsafeAsChar).map(Character::toChars).map(String::valueOf).
-                        reduce("", (a, b) -> a + b));
-            }catch (WrappedConcatError e){
-                throw e.wrapped;
-            }
-        }else{
-            return new ListValue(type,elements);
-        }
+        return new ListValue(type,elements);
     }
     public static Value createList(Type type, long initCap) {
         return new ListValue(type,new ArrayList<>((int)Math.min(initCap,Integer.MAX_VALUE)));
@@ -879,22 +697,38 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            return elements.toString();
+            if(Type.CHAR.equals(type.content())){
+                StringBuilder str=new StringBuilder();
+                for(Value v:elements){
+                    str.append(Character.toChars(((CharValue)v).asChar()));
+                }
+                return str.toString();
+            }else{
+                return elements.toString();
+            }
         }
         @Override
         public String stringValue(int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
-            return toString(elements,precision, base, big, plusChar);
+            return toString(type.content(),elements,precision, base, big, plusChar);
         }
 
-        static String toString(List<Value> elements,int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
-            StringBuilder str=new StringBuilder("[");
-            for(Value v:elements){
-                if(str.length()>1){
-                    str.append(',');
+        static String toString(Type content,List<Value> elements,int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
+            if(Type.CHAR.equals(content)){
+                StringBuilder str=new StringBuilder("\"");
+                for(Value v:elements){
+                    str.append(Character.toChars(v.asChar()));
                 }
-                str.append(v.stringValue(precision, base, big, plusChar));
+                return str.append("\"").toString();
+            }else{
+                StringBuilder str=new StringBuilder("[");
+                for(Value v:elements){
+                    if(str.length()>1){
+                        str.append(',');
+                    }
+                    str.append(v.stringValue(precision, base, big, plusChar));
+                }
+                return str.append(']').toString();
             }
-            return str.append(']').toString();
         }
 
         @Override
@@ -944,8 +778,8 @@ public abstract class Value {
         }
         @Override
         public String stringValue(int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
-            return "Itr{"+ListValue.toString(elements.subList(0,i),precision,base,big,plusChar)+"^"
-                    +ListValue.toString(elements.subList(i,elements.size()),precision,base,big,plusChar)+"}";
+            return "Itr{"+ListValue.toString(type.content(),elements.subList(0,i),precision,base,big,plusChar)+"^"
+                    +ListValue.toString(type.content(),elements.subList(i,elements.size()),precision,base,big,plusChar)+"}";
         }
 
         @Override
@@ -1247,7 +1081,7 @@ public abstract class Value {
             return a.isEqualTo(b)?TRUE:FALSE;
         }else if(opType==OperatorType.NE){
             return a.isEqualTo(b)?FALSE:TRUE;
-        }else if(a instanceof StringValue&&b instanceof StringValue){
+        }else if(a.isString()&&b.isString()){
             int c=a.stringValue().compareTo(b.stringValue());
             return cmpToValue(c, opType);
         }else if(a instanceof CharValue &&b instanceof CharValue){
