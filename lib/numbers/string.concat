@@ -57,11 +57,11 @@ proc ## value:float precision:int base:int big:bool sci:bool
   end
   if value float_isFinite () ! :
     if value float_isNaN () :
-      "\"NaN\""
+      "[NaN]"
     elif value 0 > :
-      "\"Infinity\""
+      "[Infinity]"
     else
-      "\"-Infinity\""
+      "-[Infinity]"
     end return
   elif if value 0.0 == : true else value -0.0 == end :
     "0" return
