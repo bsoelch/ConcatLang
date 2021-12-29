@@ -35,28 +35,29 @@ proc 0 != end *->* intToBool =$
 
 "Hello World!" 7 9 [:] println
 
-0x42 "0x%04x" sprintf 3.141592653589793238 -20 0 16 "%s %*.*(*)f\n" printf
+printf include
+0x42 "0x%04x" formatString () 3.141592653589793238 -20 0 16 "%s %*.*(*)f\n" printf ()
 
 iterator include
 proc #_ list ? -> list ? _#
-## store type and length of the list
-dup typeof content type arg.type   =:
-dup length         int  arg.length =:
-## Iterate though the elements in reverse order
-..^ () while <^ () ?? () : unwrap () swap end drop drop
-## reassemble the list
-arg.type arg.length {}
+  ## store type and length of the list
+  dup typeof content type arg.type   =:
+  dup length         int  arg.length =:
+  ## Iterate though the elements in reverse order
+  ..^ () while <^ () ?? () : unwrap () swap end drop drop
+  ## reassemble the list
+  arg.type arg.length {}
 end *->* reverse =$
 
 "Hello World" reverse () println
 
 proc #_ list ? -> ?  _#
-0 var tmp =: ## Initialize sum to 0
-## Iterate though all elements of the list
-^.. () while ^> () ?? () :
- unwrap () tmp swap + tmp =
-end drop drop
-tmp ## load the total sum onto the stack
+  0 var tmp =: ## Initialize sum to 0
+  ## Iterate though all elements of the list
+  ^.. () while ^> () ?? () :
+   unwrap () tmp swap + tmp =
+  end drop drop
+  tmp ## load the total sum onto the stack
 end *->* sum =$
 
 1 2 3 4 5 6 7 8 9 int 9 {} sum () println
@@ -77,7 +78,7 @@ struct
 included child_struct . $import
 end println
 
-255 byte cast dup typeof swap "%s: %s\n" printf
+255 byte cast dup typeof swap "%s: %s\n" printf ()
 0x123456789abcdef bytes asFloat_BE bytes println
 
 "examples/testIO.txt" "rw" open
@@ -102,7 +103,7 @@ close drop
 "Test" string 1 {} clone! clone 0 [] "C" :+ :<< println println
 
 numbers/string include
--123456 36 true intToString () println
+-123456 false 36 true intToString () println
 3.141592653589793238 0 16 false false floatToString () println
 3.141592653589793238 println
 "3.141592653589793238" parseFloat () println

@@ -41,9 +41,6 @@ public abstract class Value {
     public byte asByte() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to byte");
     }
-    public int  asChar() throws TypeError {
-        throw new TypeError("Cannot convert "+type+" to char");
-    }
     public long asLong() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to int");
     }
@@ -133,10 +130,6 @@ public abstract class Value {
         return Type.STRING().equals(type);
     }
     public abstract String stringValue();
-    /**formatted printing of values*/ //TODO flags unsigned,scientific, bracket-type,escaping of values
-    public String stringValue(int precision, int base,boolean big,char plusChar) throws ConcatRuntimeError {
-        return stringValue();
-    }
 
     @Override
     public String toString() {
@@ -288,11 +281,6 @@ public abstract class Value {
             return Long.toString(intValue);
         }
         @Override
-        public String stringValue(int precision, int base,boolean big,char plusChar) {
-            return Printf.toString(false,intValue,base,big,plusChar);
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -391,10 +379,6 @@ public abstract class Value {
         public String stringValue() {
             return Double.toString(floatValue);
         }
-        @Override
-        public String stringValue(int precision, int base,boolean big,char plusChar) throws ConcatRuntimeError {
-            return Printf.toString(floatValue,precision,base,big,false,plusChar);
-        }
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
@@ -468,8 +452,7 @@ public abstract class Value {
             this.codePoint = codePoint;
         }
 
-        @Override
-        public int asChar() {
+        public int getChar() {
             return codePoint;
         }
 
@@ -689,34 +672,11 @@ public abstract class Value {
             if(Type.CHAR.equals(type.content())){
                 StringBuilder str=new StringBuilder();
                 for(Value v:elements){
-                    str.append(Character.toChars(((CharValue)v).asChar()));
+                    str.append(Character.toChars(((CharValue)v).getChar()));
                 }
                 return str.toString();
             }else{
                 return elements.toString();
-            }
-        }
-        @Override
-        public String stringValue(int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
-            return toString(type.content(),elements,precision, base, big, plusChar);
-        }
-
-        static String toString(Type content,List<Value> elements,int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
-            if(Type.CHAR.equals(content)){
-                StringBuilder str=new StringBuilder("\"");
-                for(Value v:elements){
-                    str.append(Character.toChars(v.asChar()));
-                }
-                return str.append("\"").toString();
-            }else{
-                StringBuilder str=new StringBuilder("[");
-                for(Value v:elements){
-                    if(str.length()>1){
-                        str.append(',');
-                    }
-                    str.append(v.stringValue(precision, base, big, plusChar));
-                }
-                return str.append(']').toString();
             }
         }
 
@@ -919,18 +879,6 @@ public abstract class Value {
                     str.append(", ");
                 }
                 str.append('.').append(e.getKey()).append("=").append(e.getValue().getValue().stringValue());
-            }
-            return str.append("}").toString();
-        }
-        @Override
-        public String stringValue(int precision, int base, boolean big, char plusChar) throws ConcatRuntimeError {
-            StringBuilder str=new StringBuilder("{");
-            for(Map.Entry<String, Interpreter.Variable> e:variables.entrySet()){
-                if(str.length()>1){
-                    str.append(", ");
-                }
-                str.append('.').append(e.getKey()).append("=").append(e.getValue().getValue()
-                        .stringValue(precision, base, big, plusChar));
             }
             return str.append("}").toString();
         }

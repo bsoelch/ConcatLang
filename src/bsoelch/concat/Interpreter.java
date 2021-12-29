@@ -14,13 +14,14 @@ public class Interpreter {
     enum WordState{
         ROOT,STRING,COMMENT,LINE_COMMENT
     }
+    //TODO short circuit and/or
     enum TokenType { //TODO macros
         VALUE,OPERATOR,
         DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,HAS_VAR,//addLater undef/free
         IF,START,ELIF,ELSE,DO,WHILE,END,
         PROCEDURE,RETURN, PROCEDURE_START,
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,//TODO rename struct
-        SPRINTF,PRINT,PRINTF,PRINTLN,//TODO move (s)printf to concat standard library
+        PRINT,PRINTLN,
         JEQ,JNE,JMP,//jump commands only for internal representation
         INCLUDE,
         EXIT
@@ -391,9 +392,7 @@ public class Interpreter {
             case "clone"  -> tokens.add(new OperatorToken(OperatorType.CLONE,      reader.currentPos()));
             case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, reader.currentPos()));
 
-            case "sprintf"    -> tokens.add(new Token(TokenType.SPRINTF, reader.currentPos()));
             case "print"      -> tokens.add(new Token(TokenType.PRINT,   reader.currentPos()));
-            case "printf"     -> tokens.add(new Token(TokenType.PRINTF,  reader.currentPos()));
             case "println"    -> tokens.add(new Token(TokenType.PRINTLN, reader.currentPos()));
 
             case "bytes"      -> tokens.add(new OperatorToken(OperatorType.BYTES_LE, reader.currentPos()));
@@ -476,7 +475,7 @@ public class Interpreter {
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, PROCEDURE_START,JEQ,JNE,JMP,
-                                SPRINTF,PRINT,PRINTF,PRINTLN,STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,
+                                PRINT,PRINTLN,STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,
                                 HAS_VAR,HAS_FIELD,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
@@ -1111,17 +1110,7 @@ public class Interpreter {
                             }
                         }
                     }
-                    case SPRINTF -> {
-                        String format = pop(stack).castTo(Type.STRING()).stringValue();
-                        StringBuilder build = new StringBuilder();
-                        Printf.printf(format, stack, build::append);
-                        stack.addLast(Value.ofString(build.toString()));
-                    }
                     case PRINT -> System.out.print(pop(stack).stringValue());
-                    case PRINTF -> {
-                        String format = pop(stack).castTo(Type.STRING()).stringValue();
-                        Printf.printf(format, stack, System.out::print);
-                    }
                     case PRINTLN -> System.out.println(pop(stack).stringValue());
                     case DECLARE, CONST_DECLARE -> {
                         Value type = pop(stack);

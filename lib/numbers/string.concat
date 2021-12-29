@@ -1,3 +1,5 @@
+if intToString ? ! :
+
 chars include
 numbers/limits include
 
@@ -18,9 +20,10 @@ proc ## value:int base:int big:bool -> char
     end
 end *->* getDigit =$ ## addLater private functions
 
-proc ## value:int base:int big:bool addLater? uint
+proc ## unsigned:bool value:int base:int big:bool
   bool big =:
   int base =:
+  bool unsigned =: ## TODO handle unsigned values
   int value =:
   if if base 2 < : true else base 62 > end :
     "Base out of range: " print base print ", base has to be between 2 and 62" println
@@ -75,7 +78,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
   value log base log / floor int e =:
   e int e_max =:
   base e float cast ** float p =:
-  int 0 {} int list buff =: ## (ensure cap=64) TODO ensure capacity
+  64 int list new int list buff =:
   0 int n =:
   while p eps > :
     buff value p / int cast :<< buff =
@@ -124,7 +127,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
     end
     if base 10 <= : 'E' elif base 30 <= : 'X' else '#' end :<<
     if e_max 0 >= : '+' :<< end
-    e_max base big intToString () :+
+    e_max false base big intToString () :+
   elif e_max 0 >= :
     0 while dup n < :
       swap over buff swap [] base big getDigit () :<<
@@ -244,7 +247,7 @@ proc ## str:string base:int -> float
       1 d =
     elif dup str swap [] base isExpChar () :
       dup 1 + e =
-      str length + ## break by setting i to value >= str.length addLater break
+      str length + ## break by setting i to value >= str.length addLater? break
     else
       swap
       if dup max < :
@@ -265,3 +268,5 @@ proc ## str:string base:int -> float
 end *->* stringToFloat =$
 
 proc 10 stringToFloat () end *->* parseFloat =$
+
+end

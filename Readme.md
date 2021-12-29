@@ -66,12 +66,13 @@ leaves the following values on the stack:
 
 ### IO
 - `print` removes and prints the top value on the stack
-- `printf` removes the top value and uses it as a 
-format-string for printing, consuming one element
-for each element used in the format string
 - `println` like `print` but adds a new-line add the end
+- `printf` (can be included with `printf include`)
+  removes the top value and uses it as a
+  format-string for printing, consuming one element
+  for each element used in the format string
 
-(there will be more IO operations)
+[//]: # (TODO streams)
 
 ### Operators
 Operators are evaluated in postfix notation
@@ -143,7 +144,7 @@ false
 ```
 
 ### Optionals 
-Optionals hold a optional value.
+Optionals hold an optional value.
 Optionals are defined in the standard library and
 can be included with `optional include`
 

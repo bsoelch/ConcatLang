@@ -1,0 +1,386 @@
+numbers/string include
+1 int __PRINTF_FLAG_PAD_0 =$
+2 int __PRINTF_FLAG_ALIGN_LEFT =$
+4 int __PRINTF_FLAG_SGN =$
+8 int __PRINTF_FLAG_SGN_SPACE =$
+
+## isValue:bool value:string$
+bool string 2 tuple   type __PRINTF_FormatString =$
+##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:char
+bool int int int bool int bool int bool char 10 tuple   type __PRINTF_FormatValue =$
+
+proc ## __PRINTF_FormatValue , var list -> string
+  (list) values =:
+  __PRINTF_FormatValue format =:
+  format 1 [] int  index =:
+  format 2 [] int  flags =:
+  format 3 [] int  w     =:
+  format 4 [] bool w_ptr =:
+  format 5 [] int  p     =:
+  format 6 [] bool p_ptr =:
+  format 7 [] int  b     =:
+  format 8 [] bool b_ptr =:
+  format 9 [] char fType =:
+
+  flags __PRINTF_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
+  if w_ptr : values w [] int cast else w end int width =:
+  if width 0 < : ##negative precision => alignment on left side
+    alignLeft ! alignLeft =
+    width -_ width =
+  end
+  if p_ptr : values p [] int cast else p end int precision =:
+  if precision 0 < : ## 0 -> default
+      "printf: precision has to be at greater that or equal to 0" println
+      1 exit
+  end
+  if b_ptr : values b [] int cast else b end int base =:
+  if base 0 == :
+    10 base =
+  end
+  '\0' char plusSgn =:
+  if flags __PRINTF_FLAG_SGN & 0 != :
+    '+' plusSgn =
+  elif flags __PRINTF_FLAG_SGN_SPACE & 0 != :
+    ' ' plusSgn =
+  end
+  if fType 'b' == :
+    if values index [] cast bool : "true" else "false" end
+  elif fType 'B' == :
+    if values index [] cast bool : "TRUE" else "FALSE" end
+  elif fType 'i' == :
+    values index [] false base false intToString ()
+    if plusSgn '\0' != :
+      if values index [] 0 >= :
+        plusSgn swap >>:
+      end
+    end
+  elif fType 'I' == :
+    values index [] false base true intToString ()
+    if plusSgn '\0' != :
+      if values index [] 0 >= :
+        plusSgn swap >>:
+      end
+    end
+  elif fType 'u' == :
+    values index [] true  base false intToString ()
+    if plusSgn '\0' != :
+        plusSgn swap >>:
+    end
+  elif fType 'U' == :
+    values index [] true  base true intToString ()
+    if plusSgn '\0' != :
+      plusSgn swap >>:
+    end
+  elif fType 'd' == :
+    values index [] false 10 false intToString ()
+    if plusSgn '\0' != :
+      if values index [] 0 >= :
+        plusSgn swap >>:
+      end
+    end
+  elif fType 'x' == :
+    values index [] true  16 false intToString ()
+    if plusSgn '\0' != :
+      plusSgn swap >>:
+    end
+  elif fType 'X' == :
+    values index [] true  16 true intToString ()
+    if plusSgn '\0' != :
+      plusSgn swap >>:
+    end
+  elif fType 'e' == :
+    values index [] precision base false true  floatToString ()
+    if plusSgn '\0' != :
+      if values index [] 0 >= :
+        plusSgn swap >>:
+      end
+    end
+  elif fType 'E' == :
+    values index [] precision base true  true  floatToString ()
+    if plusSgn '\0' != :
+      if values index [] 0 >= :
+        plusSgn swap >>:
+      end
+    end
+  elif fType 'f' == :
+    values index [] precision base false false floatToString ()
+    if plusSgn '\0' != :
+      if values index [] 0 >= :
+        plusSgn swap >>:
+      end
+    end
+  elif fType 'F' == :
+    values index [] precision base true  false floatToString ()
+    if plusSgn '\0' != :
+      if values index [] 0 >= :
+        plusSgn swap >>:
+      end
+    end
+  elif fType 'c' == :
+    values index [] char 1 {}
+  elif fType 's' == :
+    values index [] string cast
+  elif fType 'S' == :
+    values index [] string cast
+  elif fType '%' == :
+    "%"
+  else
+    fType " is no valid format specifier" >>: println
+    1 exit
+  end string res =:
+  if res length width < :
+    width res length - int count =:
+    if flags __PRINTF_FLAG_PAD_0 & 0 != : '0' else ' ' end char padChar =:
+    count char list new char list padding =:
+    0 while dup count < : ## addLater fill-Array method
+      padding padChar :<< padding =
+      1 +
+    end drop
+    if alignLeft :
+      res padding :+ res =
+    else
+      padding res +: res =
+    end
+  end
+  res
+end *->* __PRINTF_printValue =$
+
+proc ## bool -> char
+  char c =:
+  "bBiIuUdxXfFeEcsS%" string formats =: ## addLater? formatted printing of lists
+  0 int i =:
+  while i formats length < :
+    if formats i [] c == :
+      true return
+    end
+    i 1 + i =
+  end
+  false
+end *->* isFormatChar =$
+
+proc ## args:... format:string
+  string format =:
+
+  format length 4 / var list new var list parts =:
+  0 int i0 =:
+  0 int i  =:
+  format length int n  =:
+   0 int count =:
+  -1 int maxFormat =:
+  0 char tmpC =:
+  0 string new string tmp =:
+  while i0 n < :
+    i0 i =
+    while if i format length < : format i [] '%' != else false end :
+      i 1 + i =
+    end
+    if i format length >= :
+      parts   false format i0 format length [:] __PRINTF_FormatString new   :<< parts =
+      n i0 =
+    else
+      parts   false format i0 i [:] __PRINTF_FormatString new   :<< parts =
+      i 1 + dup i0 = i =
+      while if i0 format length < : format i0 [] isFormatChar () ! else false end :
+        i0 1 + i0 =
+      end
+      if i0 format length >= :
+        "printf: unfinished or invalid format String: " print format i format length [:] println
+        1 exit
+      end
+      format i0 [] char _formatChar =:
+      format i i0 [:] string _formatString =:
+      i0 1 + i0 =
+      if _formatChar '%' == :
+        if _formatString length 0 > :
+          "printf: invalid Format String:" print _formatString print
+           "% format '%' does not allow any additional parameters" println
+           1 exit
+        end
+        parts   false "%" __PRINTF_FormatString new   :<< parts =
+      else
+        count int  index =:
+        count 1 +  count =
+        0     int  flags =:
+        0     int  w     =:
+        false bool w_ptr =:
+        0     int  p     =:
+        false bool p_ptr =:
+        0     int  b     =:
+        false bool b_ptr =:
+        0 i =
+        tmp "" 0 tmp length [:] = ## clear tmp
+        tmp _formatString length ensureCap
+        ## ([0-9]+$)?  index
+        while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+          _formatString i [] :<<
+          i 1 + i =
+        end tmp =
+        if if i _formatString length < : _formatString i [] '$' ==  else false end :
+          tmp parseInt index =
+          tmp "" 0 tmp length [:] = ## clear tmp
+        end
+        ## ([-+ 0]+)? flags
+        ## '-'  The result will be left-justified.
+        ## '+'  The result will always include a sign
+        ## ' '  The result will include a leading space for positive values
+        ## '0'  The result will be zero-padded
+        0 int i1 =:
+        while if i1 tmp length < : tmp i1 [] '0' == else false end :
+          flags __PRINTF_FLAG_PAD_0 | flags =
+          i1 1 + i1 =
+        end
+        tmp "" 0 i1 [:] =
+        if tmp length 0 == :
+          true while if #_ loop condition on stack _#: i _formatString length < else false end :
+            _formatString i [] tmpC =
+            if tmpC '-' == :
+              flags __PRINTF_FLAG_ALIGN_LEFT | flags =
+              i 1 + i =
+              true ## continue loop
+            elif tmpC '+' == :
+              flags __PRINTF_FLAG_SGN | flags =
+              i 1 + i =
+              true ## continue loop
+            elif tmpC ' ' == :
+              flags __PRINTF_FLAG_SGN_SPACE | flags =
+              i 1 + i =
+              true ## continue loop
+            elif tmpC '0' == :
+              flags __PRINTF_FLAG_PAD_0 | flags =
+              i 1 + i =
+              true ## continue loop
+            else
+              false ## break loop
+            end
+          end
+          tmp while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+            _formatString i [] :<<
+            i 1 + i =
+          end tmp =
+        end
+        ## ([0-9]+)? width
+        if tmp length 0 > :
+          tmp parseInt () w =
+          tmp "" 0 tmp length [:] = ## clear tmp
+        elif if i _formatString length < : _formatString i [] '*' == else false end : ## *(<index>).
+          i 1 + i =
+          true w_ptr =
+          count w =
+          count 1 + count =
+          tmp while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+            _formatString i [] :<<
+            i 1 + i =
+          end tmp =
+          if tmp length 0 > :
+            tmp parseInt () w =
+            tmp "" 0 tmp length [:] = ## clear tmp
+          end
+        end
+        ## (.[0-9]+)? precision
+        if if i _formatString length < : _formatString i [] '.' == else false end :
+          if   _formatChar 'f' == : elif _formatChar 'F' == :
+          elif _formatChar 'e' == : elif _formatChar 'E' == :
+          else
+            "printf: invalid Format String:" print _formatString print _formatChar print
+                             " precision-parameter only allowed for formats f, F, e, E, s and S" println
+            1 exit
+          end
+          i 1 + i =
+          if if i _formatString length < : _formatString i [] '*' == else false end :
+            i 1 + i =
+            true p_ptr =
+            count p =
+            count 1 + count =
+          end
+          tmp while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+            _formatString i [] :<<
+            i 1 + i =
+          end tmp =
+          if if p_ptr : tmp length 0 > else true end :
+            tmp parseInt () p =
+            tmp "" 0 tmp length [:] = ## clear tmp
+          end
+        end
+        ## '('[0-9]+')' base
+        if if i _formatString length < : _formatString i [] '(' == else false end :
+            if _formatChar 'i' == : elif _formatChar 'I' == :
+          elif _formatChar 'u' == : elif _formatChar 'U' == :
+          elif _formatChar 'f' == : elif _formatChar 'F' == :
+          elif _formatChar 'e' == : elif _formatChar 'E' == :
+          else
+            "printf: invalid Format String:" print _formatString print _formatChar print
+                             " base-parameter only allowed for formats i,u,f,e and s" println
+            1 exit
+          end
+          i 1 + i =
+          if if i _formatString length < : _formatString i [] '*' == else false end :
+            i 1 + i =
+            true b_ptr =
+            count b =
+            count 1 + count =
+          end
+          tmp while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+            _formatString i [] :<<
+            i 1 + i =
+          end tmp =
+          if if i _formatString length < : _formatString i [] ')' == else false end :
+            if if b_ptr : tmp length 0 > else true end :
+              tmp parseInt () b =
+              tmp "" 0 tmp length [:] = ## clear tmp
+            end
+            i 1 + i =
+          else
+            "printf: invalid Format String:" print _formatString print _formatChar println
+            1 exit
+          end
+        end
+        if if i _formatString length < : true else tmp length 0 > end :
+          "printf: invalid Format String:" print _formatString print _formatChar println
+          1 exit
+        end
+        parts   true index flags w w_ptr p p_ptr b b_ptr _formatChar __PRINTF_FormatValue new   :<< parts =
+        if maxFormat index < :
+          index maxFormat =
+        end
+        if w_ptr :
+          if maxFormat w < :
+            w maxFormat =
+          end
+        end
+        if p_ptr :
+          if maxFormat p < :
+            p maxFormat =
+          end
+        end
+        if b_ptr :
+          if maxFormat b < :
+            b maxFormat =
+          end
+        end
+      end
+    end
+  end
+  maxFormat 1 + count =
+  count var list new var list args =:
+  0 int i =:
+  while i count < :
+    args >>: args = ## get var-arg arguments from stack
+    i 1 + i =
+  end
+  0 i =
+  while i parts length < :
+    tmp
+    if parts i [] 0 [] :  ## Value format
+      parts i [] args __PRINTF_printValue ()
+    else ## string format
+      parts i [] 1 []
+    end
+    :+ tmp =
+    i 1 + i =
+  end
+  tmp
+end *->* formatString =$
+
+proc
+formatString () print
+end *->* printf =$
