@@ -161,7 +161,7 @@ Iterators simplify iterating over all elements of a list,
 they are designed to work well with for-each loops.
 Iterators are defined in the standard library and 
 can be included with `iterators include`, iterators 
-also includes optional
+also includes [optional](https://github.com/bsoelch/ConcatLang#operators)
 
 - `^.. ()` created a new iterator at the start of 
 the current element (the current element has to be a list)
