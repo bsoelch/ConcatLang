@@ -124,3 +124,12 @@ numbers/string include
  while iteratorNext () optional_hasValue () :
    optional_getValue () println
  end drop drop ## iterator and optional
+
+&& "A " print true  : "B " print true   end println
+&& "A " print true  : "B " print false  end println
+&& "A " print false : "B " print true   end println
+&& "A " print false : "B " print false  end println
+|| "A " print true  : "B " print true   end println
+|| "A " print true  : "B " print false  end println
+|| "A " print false : "B " print true   end println
+|| "A " print false : "B " print false  end println

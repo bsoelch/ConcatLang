@@ -7,14 +7,14 @@ proc ## value:int base:int big:bool -> char
     bool big =:
     int base =:
     int value =:
-    if if value 0 < : true else value base >= end :
+    if || value 0 < : value base >= end :
         "Digit out of range: " print value print " base: " print base println
         1 exit
     end
     if value 10 < :
         value '0' +char () return
     elif value 36 < :
-        value 10 - if if big : true else base 36 > end : 'A'  else 'a' end +char () return
+        value 10 - if || big : base 36 > end : 'A'  else 'a' end +char () return
     else
         value 36 - 'a' +char () return
     end
@@ -25,7 +25,7 @@ proc ## unsigned:bool value:int base:int big:bool
   int base =:
   bool unsigned =:
   int value =:
-  if if base 2 < : true else base 62 > end :
+  if || base 2 < : base 62 > end :
     "Base out of range: " print base print ", base has to be between 2 and 62" println
     1 exit
   end
@@ -62,7 +62,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
   int   base =:
   int   precision =:
   float value =:
-  if if base 2 < : true else base 62 > end :
+  if || base 2 < : base 62 > end :
     "Base out of range: " print base print ", base has to be between 2 and 62" println
     1 exit
   end
@@ -74,7 +74,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
     else
       "-[Infinity]"
     end return
-  elif if value 0.0 == : true else value -0.0 == end :
+  elif || value 0.0 == : value -0.0 == end :
     "0" return
   end
   "" ## result
@@ -95,7 +95,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
     p base / p =
     e 1 + e =
   end
-  if if precision 0 == : true else precision n >= end :
+  if || precision 0 == : precision n >= end :
     n 1 -
   else
     precision
@@ -103,7 +103,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
   if buff n [] base 2 / >= :
     n 1 - int j =:
     true bool inc =:
-    while if inc : j 0 >= else false end :
+    while && inc : j 0 >= end :
       buff   buff j [] 1 +   j [] =
       if buff j [] base >= :
           buff   buff j [] base -  j [] =
@@ -118,11 +118,11 @@ proc ## value:float precision:int base:int big:bool sci:bool
       n 1 + n =
     end
   end
-  while if n 1 - e_max > : buff n 1 - [] 0 == else false end :
+  while && n 1 - e_max > : buff n 1 - [] 0 == end :
     n 1 - n =
   end
-  if if sci : true elif e_max n >= : true else e_max -5 < end :
-    while if n 1 - 0 > : buff n 1 - [] 0 == else true end :
+  if || sci : || e_max n >= : e_max -5 < end end :
+    while && n 1 - 0 > : buff n 1 - [] 0 == end :
       n 1 - n =
     end
     buff 0 [] base big getDigit () :<<
@@ -139,7 +139,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
   elif e_max 0 >= :
     0 while dup n < :
       swap over buff swap [] base big getDigit () :<<
-      if if over e_max == : over n 1 - < else false end :
+      if && over e_max == : over n 1 - < end :
         '.' :<<
       end
       swap 1 +
@@ -160,11 +160,11 @@ end *->* floatToString =$
 proc ## digit:char base:int -> value:int
   int  base =:
   char digit =:
-  if if digit '0' >= : digit '9' <= else false end :
+  if && digit '0' >= : digit '9' <= end :
     digit '0' charDiff ()
-  elif if digit 'A' >= : digit 'Z' <= else false end :
+  elif && digit 'A' >= : digit 'Z' <= end :
     digit 'A' charDiff () 10 +
-  elif if digit 'a' >= : digit 'Z' <= else false end :
+  elif && digit 'a' >= : digit 'Z' <= end :
     digit 'a' charDiff () if base 37 < : 10 else 36 end +
   else
     "invalid digit for base " print base print " number: '" print digit print "'" println
@@ -178,7 +178,7 @@ end *->* valueOfDigit =$
 proc ## source:string base:int -> int
   int base =:
   string source =:
-  if if base 2 < : true else base 62 > end :
+  if || base 2 < : base 62 > end :
     "Base out of range: " print base print ", base has to be between 2 and 62" println
     1 exit
   end
@@ -211,11 +211,11 @@ proc 10 stringToInt () end *->* parseInt =$
 proc ## c:char base:int -> bool
   int base =:
   char c =:
-  if if c 'e' == : true else c 'E' == end : ## addLater switch/match statement
+  if || c 'e' == : c 'E' == end : ## addLater switch/match statement
     base 'E' 'A' - 10 + 1 + <
-  elif if c 'p' == : true else c 'P' == end :
+  elif || c 'p' == : c 'P' == end :
     base 'P' 'A' - 10 + 1 + <
-  elif if c 'x' == : true else c 'X' == end :
+  elif || c 'x' == : c 'X' == end :
     base 'X' 'A' - 10 + 1 + <
   elif c '#' == :
     true
@@ -227,7 +227,7 @@ end *->* isExpChar =$
 proc ## str:string base:int -> float
   int base =:
   string str =:
-  if if base 2 < : true else base 62 > end :
+  if || base 2 < : base 62 > end :
     "Base out of range: " print base print ", base has to be between 2 and 62" println
     1 exit
   end

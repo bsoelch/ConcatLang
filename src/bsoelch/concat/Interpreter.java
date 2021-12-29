@@ -19,6 +19,7 @@ public class Interpreter {
         VALUE,OPERATOR,
         DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,HAS_VAR,//addLater undef/free
         IF,START,ELIF,ELSE,DO,WHILE,END,
+        SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
         PROCEDURE,RETURN, PROCEDURE_START,
         STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,//TODO rename struct
         PRINT,PRINTLN,
@@ -411,6 +412,16 @@ public class Interpreter {
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
+            case "&&" -> { //addLater chaining of short circuit operators   && A || B : C end
+                Token t = new Token(TokenType.SHORT_AND_HEADER, reader.currentPos());
+                openBlocks.put(tokens.size(),t);
+                tokens.add(t);
+            }
+            case "||" -> {
+                Token t = new Token(TokenType.SHORT_OR_HEADER, reader.currentPos());
+                openBlocks.put(tokens.size(),t);
+                tokens.add(t);
+            }
             case ":" -> {
                 Token s = new Token(TokenType.START, reader.currentPos());
                 openBlocks.put(tokens.size(),s);
@@ -468,13 +479,23 @@ public class Interpreter {
                                         new TokenPosition(fileName,tokens.size())));
                             }
                         }
+                        case SHORT_AND_HEADER -> {
+                            tokens.add(t);
+                            tokens.set(start.getKey(),new JumpToken(TokenType.SHORT_AND_JMP,start.getValue().pos,
+                                    new TokenPosition(fileName,tokens.size())));
+                        }
+                        case SHORT_OR_HEADER -> {
+                            tokens.add(t);
+                            tokens.set(start.getKey(),new JumpToken(TokenType.SHORT_OR_JMP,start.getValue().pos,
+                                    new TokenPosition(fileName,tokens.size())));
+                        }
                         case WHILE -> {//while ... : ... end
                             tokens.add(new JumpToken(TokenType.JMP,t.pos,new TokenPosition(fileName,label.getKey())));
                             tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
                                     new TokenPosition(fileName,tokens.size())));
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
-                                RETURN, PROCEDURE_START,JEQ,JNE,JMP,
+                                RETURN, PROCEDURE_START,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
                                 PRINT,PRINTLN,STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,
                                 HAS_VAR,HAS_FIELD,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
@@ -1147,8 +1168,30 @@ public class Interpreter {
                         var.setValue(pop(stack));
                     }
                     case HAS_VAR -> stack.addLast(state.hasVariable(((VariableToken) next).name));
-                    case IF, ELIF, DO, WHILE, END -> {
+                    case IF, ELIF,SHORT_AND_HEADER,SHORT_OR_HEADER,DO, WHILE, END -> {
                         //labels are no-ops
+                    }
+                    case SHORT_AND_JMP -> {
+                        Value c = peek(stack);
+                        if (c.asBool()) {
+                            pop(stack);// remove and evaluate branch
+                        }else{
+                            tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
+                            file=((JumpToken) next).target.file;
+                            ip=((JumpToken) next).target.ip;
+                            incIp = false;
+                        }
+                    }
+                    case SHORT_OR_JMP -> {
+                        Value c = peek(stack);
+                        if (c.asBool()) {//  remove and evaluate branch
+                            tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
+                            file=((JumpToken) next).target.file;
+                            ip=((JumpToken) next).target.ip;
+                            incIp = false;
+                        }else{
+                            pop(stack);// remove token
+                        }
                     }
                     case START, ELSE, PROCEDURE -> throw new RuntimeException("Tokens of type " + next.tokenType +
                             " should be eliminated at compile time");

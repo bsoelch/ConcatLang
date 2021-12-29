@@ -171,7 +171,7 @@ proc ## args:... format:string
   0 string new string tmp =:
   while i0 n < :
     i0 i =
-    while if i format length < : format i [] '%' != else false end :
+    while && i format length < : format i [] '%' != end :
       i 1 + i =
     end
     if i format length >= :
@@ -180,7 +180,7 @@ proc ## args:... format:string
     else
       parts   false format i0 i [:] __PRINTF_FormatString new   :<< parts =
       i 1 + dup i0 = i =
-      while if i0 format length < : format i0 [] isFormatChar () ! else false end :
+      while && i0 format length < : format i0 [] isFormatChar () ! end :
         i0 1 + i0 =
       end
       if i0 format length >= :
@@ -211,11 +211,11 @@ proc ## args:... format:string
         tmp "" 0 tmp length [:] = ## clear tmp
         tmp _formatString length ensureCap
         ## ([0-9]+$)?  index
-        while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+        while && i _formatString length < : && '0' _formatString i [] <= : '9' _formatString i [] >= end end :
           _formatString i [] :<<
           i 1 + i =
         end tmp =
-        if if i _formatString length < : _formatString i [] '$' ==  else false end :
+        if && i _formatString length < : _formatString i [] '$' == end :
           tmp parseInt index =
           tmp "" 0 tmp length [:] = ## clear tmp
         end
@@ -225,13 +225,13 @@ proc ## args:... format:string
         ## ' '  The result will include a leading space for positive values
         ## '0'  The result will be zero-padded
         0 int i1 =:
-        while if i1 tmp length < : tmp i1 [] '0' == else false end :
+        while && i1 tmp length < : tmp i1 [] '0' == end :
           flags __PRINTF_FLAG_PAD_0 | flags =
           i1 1 + i1 =
         end
         tmp "" 0 i1 [:] =
         if tmp length 0 == :
-          true while if #_ loop condition on stack _#: i _formatString length < else false end :
+          true while && #_ loop condition on stack _#: i _formatString length < end :
             _formatString i [] tmpC =
             if tmpC '-' == :
               flags __PRINTF_FLAG_ALIGN_LEFT | flags =
@@ -253,7 +253,7 @@ proc ## args:... format:string
               false ## break loop
             end
           end
-          tmp while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+          tmp while && i _formatString length < : && '0' _formatString i [] <= : '9' _formatString i [] >= end end :
             _formatString i [] :<<
             i 1 + i =
           end tmp =
@@ -262,12 +262,12 @@ proc ## args:... format:string
         if tmp length 0 > :
           tmp parseInt () w =
           tmp "" 0 tmp length [:] = ## clear tmp
-        elif if i _formatString length < : _formatString i [] '*' == else false end : ## *(<index>).
+        elif && i _formatString length < : _formatString i [] '*' == end : ## *(<index>).
           i 1 + i =
           true w_ptr =
           count w =
           count 1 + count =
-          tmp while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+          tmp while && i _formatString length < : && '0' _formatString i [] <= : '9' _formatString i [] >= end end :
             _formatString i [] :<<
             i 1 + i =
           end tmp =
@@ -277,7 +277,7 @@ proc ## args:... format:string
           end
         end
         ## (.[0-9]+)? precision
-        if if i _formatString length < : _formatString i [] '.' == else false end :
+        if && i _formatString length < : _formatString i [] '.' == end :
           if   _formatChar 'f' == : elif _formatChar 'F' == :
           elif _formatChar 'e' == : elif _formatChar 'E' == :
           else
@@ -286,23 +286,23 @@ proc ## args:... format:string
             1 exit
           end
           i 1 + i =
-          if if i _formatString length < : _formatString i [] '*' == else false end :
+          if && i _formatString length < : _formatString i [] '*' == end :
             i 1 + i =
             true p_ptr =
             count p =
             count 1 + count =
           end
-          tmp while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+          tmp while && i _formatString length < : && '0' _formatString i [] <= : '9' _formatString i [] >= end end :
             _formatString i [] :<<
             i 1 + i =
           end tmp =
-          if if p_ptr : tmp length 0 > else true end :
+          if || p_ptr ! : tmp length 0 > end :
             tmp parseInt () p =
             tmp "" 0 tmp length [:] = ## clear tmp
           end
         end
         ## '('[0-9]+')' base
-        if if i _formatString length < : _formatString i [] '(' == else false end :
+        if && i _formatString length < : _formatString i [] '(' == end :
             if _formatChar 'i' == : elif _formatChar 'I' == :
           elif _formatChar 'u' == : elif _formatChar 'U' == :
           elif _formatChar 'f' == : elif _formatChar 'F' == :
@@ -313,18 +313,18 @@ proc ## args:... format:string
             1 exit
           end
           i 1 + i =
-          if if i _formatString length < : _formatString i [] '*' == else false end :
+          if && i _formatString length < : _formatString i [] '*' == end :
             i 1 + i =
             true b_ptr =
             count b =
             count 1 + count =
           end
-          tmp while if i _formatString length < : if '0' _formatString i [] <= : '9' _formatString i [] >= else false end else false end :
+          tmp while && i _formatString length < : && '0' _formatString i [] <= : '9' _formatString i [] >= end end :
             _formatString i [] :<<
             i 1 + i =
           end tmp =
-          if if i _formatString length < : _formatString i [] ')' == else false end :
-            if if b_ptr : tmp length 0 > else true end :
+          if && i _formatString length < : _formatString i [] ')' == end :
+            if || b_ptr ! : tmp length 0 > end :
               tmp parseInt () b =
               tmp "" 0 tmp length [:] = ## clear tmp
             end
@@ -334,7 +334,7 @@ proc ## args:... format:string
             1 exit
           end
         end
-        if if i _formatString length < : true else tmp length 0 > end :
+        if || i _formatString length < : tmp length 0 > end :
           "printf: invalid Format String:" print _formatString print _formatChar println
           1 exit
         end

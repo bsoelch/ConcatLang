@@ -50,7 +50,6 @@ public abstract class Value {
     public Type asType() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to type");
     }
-    //TODO string streams
     public ValueStream asStream() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to stream");
     }
