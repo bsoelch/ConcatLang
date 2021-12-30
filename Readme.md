@@ -72,7 +72,7 @@ leaves the following values on the stack:
   format-string for printing, consuming one element
   for each element used in the format string
 
-[//]: # (TODO streams)
+[//]: # (TODO file io)
 
 ### Operators
 Operators are evaluated in postfix notation

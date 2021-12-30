@@ -1,7 +1,6 @@
 package bsoelch.concat;
 
 import bsoelch.concat.streams.FileStream;
-import bsoelch.concat.streams.ValueStream;
 
 import java.io.*;
 import java.util.*;
@@ -16,7 +15,7 @@ public class Interpreter {
 
     enum TokenType {
         VALUE,OPERATOR,
-        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,HAS_VAR,//addLater free-Variable
+        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,HAS_VAR,//addLater option to free variables
         IF,START,ELIF,ELSE,DO,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
         PROCEDURE,RETURN, PROCEDURE_START,
@@ -538,13 +537,13 @@ public class Interpreter {
             case "string"   -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),     pos));
             case "type"     -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),         pos));
             case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,         pos));
-            case "stream"   -> tokens.add(new OperatorToken(OperatorType.STREAM_OF,       pos));
             case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT,         pos));
             case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),    pos));
             case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),       pos));
             case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),          pos));
             case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,           pos));
             case "(list)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST), pos));
+            case "(file)"   -> tokens.add(new ValueToken(Value.ofType(Type.FILE),         pos));
 
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
@@ -758,20 +757,15 @@ public class Interpreter {
             case "new"       -> tokens.add(new OperatorToken(OperatorType.NEW,        pos));
             case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
 
-            case "open"          -> tokens.add(new OperatorToken(OperatorType.OPEN,            pos));
-            case "close"         -> tokens.add(new OperatorToken(OperatorType.CLOSE,           pos));
-            case "size"          -> tokens.add(new OperatorToken(OperatorType.SIZE,            pos));
-            case "pos"           -> tokens.add(new OperatorToken(OperatorType.POS,             pos));
-            case "asStream"      -> tokens.add(new OperatorToken(OperatorType.STREAM_OF,       pos));
-            case "reverseStream" -> tokens.add(new OperatorToken(OperatorType.REVERSED_STREAM, pos));
-            case "state"         -> tokens.add(new OperatorToken(OperatorType.STREAM_STATE,    pos));
-            case "read"          -> tokens.add(new OperatorToken(OperatorType.READ,            pos));
-            case "read+"         -> tokens.add(new OperatorToken(OperatorType.READ_MULTIPLE,   pos));
-            case "skip"          -> tokens.add(new OperatorToken(OperatorType.SKIP,            pos));
-            case "seek"          -> tokens.add(new OperatorToken(OperatorType.SEEK,            pos));
-            case "seekEnd"       -> tokens.add(new OperatorToken(OperatorType.SEEK_END,        pos));
-            case "write"         -> tokens.add(new OperatorToken(OperatorType.WRITE,           pos));
-            case "write+"        -> tokens.add(new OperatorToken(OperatorType.WRITE_MULTIPLE,  pos));
+            case "open"     -> tokens.add(new OperatorToken(OperatorType.OPEN,     pos));
+            case "close"    -> tokens.add(new OperatorToken(OperatorType.CLOSE,    pos));
+            case "size"     -> tokens.add(new OperatorToken(OperatorType.SIZE,     pos));
+            case "pos"      -> tokens.add(new OperatorToken(OperatorType.POS,      pos));
+            case "read"     -> tokens.add(new OperatorToken(OperatorType.READ,     pos));
+            case "seek"     -> tokens.add(new OperatorToken(OperatorType.SEEK,     pos));
+            case "seekEnd"  -> tokens.add(new OperatorToken(OperatorType.SEEK_END, pos));
+            case "write"    -> tokens.add(new OperatorToken(OperatorType.WRITE,    pos));
+            case "truncate" -> tokens.add(new OperatorToken(OperatorType.TRUNCATE, pos));
 
             case "import"  -> tokens.add(new OperatorToken(OperatorType.IMPORT,       pos));
             case "$import" -> tokens.add(new OperatorToken(OperatorType.CONST_IMPORT, pos));
@@ -1137,69 +1131,50 @@ public class Interpreter {
                             case BYTES_AS_FLOAT_BE -> stack.addLast(
                                     Value.ofFloat(Double.longBitsToDouble(Value.intFromBytes(
                                             ReversedList.reverse(pop(stack).asByteArray())))));
-                            case STREAM_OF -> stack.addLast(pop(stack).stream(false));
                             case OPEN -> {
                                 String options = pop(stack).stringValue();
                                 String path    = pop(stack).stringValue();
-                                stack.addLast(Value.ofStream(new FileStream(path,options)));
+                                stack.addLast(Value.ofFile(new FileStream(path,options)));
                             }
                             case CLOSE -> {
-                                ValueStream stream = pop(stack).asStream();
+                                FileStream stream = pop(stack).asStream();
                                 stack.addLast(stream.close()?Value.TRUE:Value.FALSE);
                                 //??? keep stream
                             }
-                            case REVERSED_STREAM -> stack.addLast(pop(stack).stream(true));
-                            case STREAM_STATE -> {
-                                ValueStream stream = peek(stack).asStream();
-                                stack.addLast(Value.ofInt(stream.state()));
+                            case READ -> {//<file> <buff> <off> <count> read => <nRead>
+                                long count  = pop(stack).asLong();
+                                long off    = pop(stack).asLong();
+                                Value buff  = pop(stack);
+                                FileStream stream = pop(stack).asStream();
+                                stack.addLast(Value.ofInt(stream.read(buff.elements(),off,count)));
+                            }
+                            case WRITE -> {//<file> <buff> <off> <count> write => <isOk>
+                                long count  = pop(stack).asLong();
+                                long off    = pop(stack).asLong();
+                                Value buff  = pop(stack);
+                                FileStream stream = pop(stack).asStream();
+                                stack.addLast(stream.write(buff.elements(),off,count)?Value.TRUE:Value.FALSE);
                             }
                             case SIZE -> {
-                                ValueStream stream  = peek(stack).asStream();
-                                Optional<Long> size = stream.size();
-                                size.ifPresent(x -> stack.addLast(Value.ofInt(x)));
-                                stack.addLast(size.isPresent()?Value.TRUE:Value.FALSE);
+                                FileStream stream  = pop(stack).asStream();
+                                stack.addLast(Value.ofInt(stream.size()));
                             }
                             case POS -> {
-                                ValueStream stream  = peek(stack).asStream();
-                                Optional<Long> pos = stream.pos();
-                                pos.ifPresent(x -> stack.addLast(Value.ofInt(x)));
-                                stack.addLast(pos.isPresent()?Value.TRUE:Value.FALSE);
+                                FileStream stream  = pop(stack).asStream();
+                                stack.addLast(Value.ofInt(stream.pos()));
                             }
-                            case READ -> {
-                                ValueStream stream = peek(stack).asStream();
-                                Optional<Value> read = stream.read();
-                                read.ifPresent(stack::addLast);
-                                stack.addLast(read.isPresent()?Value.TRUE:Value.FALSE);
-                            }
-                            case READ_MULTIPLE -> {
-                                long count = pop(stack).asLong();
-                                ValueStream stream = peek(stack).asStream();
-                                stack.addLast(Value.createList(Type.listOf(stream.contentType()),
-                                        new ArrayList<>(stream.readMultiple((int)count))));
-                            }
-                            case SKIP -> {
-                                long count = pop(stack).asLong();
-                                ValueStream stream = peek(stack).asStream();
-                                stack.addLast(Value.ofInt(stream.skip((int)count)));
+                            case TRUNCATE -> {
+                                FileStream stream = pop(stack).asStream();
+                                stack.addLast(stream.truncate()?Value.TRUE:Value.FALSE);
                             }
                             case SEEK -> {
                                 long pos = pop(stack).asLong();
-                                ValueStream stream = peek(stack).asStream();
+                                FileStream stream = pop(stack).asStream();
                                 stack.addLast(stream.seek(pos)?Value.TRUE:Value.FALSE);
                             }
                             case SEEK_END -> {
-                                ValueStream stream = peek(stack).asStream();
+                                FileStream stream = pop(stack).asStream();
                                 stack.addLast(stream.seekEnd()?Value.TRUE:Value.FALSE);
-                            }
-                            case WRITE -> {
-                                Value val = pop(stack);
-                                ValueStream stream = peek(stack).asStream();
-                                stack.addLast(stream.write(val)?Value.TRUE:Value.FALSE);
-                            }
-                            case WRITE_MULTIPLE -> {
-                                Value val = pop(stack);
-                                ValueStream stream = peek(stack).asStream();
-                                stack.addLast(stream.write(val.stream(false).asStream())?Value.TRUE:Value.FALSE);
                             }
                         }
                     }
@@ -1328,6 +1303,7 @@ public class Interpreter {
                     }
                 }
             }catch (ConcatRuntimeError|IndexOutOfBoundsException|NegativeArraySizeException e){
+                //TODO readable messages for Java index errors
                 System.err.println(e.getMessage());
                 Token token = tokens.get(ip);
                 System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);

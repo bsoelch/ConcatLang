@@ -10,14 +10,8 @@ import java.io.RandomAccessFile;
 
 import java.util.*;
 
-public class FileStream implements ByteStream {
-    public static final int STATE_OK  =  0;
-    public static final int STATE_EOF = -1;
-    public static final int STATE_ERR =  1;//addLater? distinguish different exceptions
-
+public class FileStream {
     final RandomAccessFile file;
-
-    private int state=STATE_OK;
 
     public FileStream(String path,String options) throws ConcatRuntimeError {
         try {
@@ -26,177 +20,87 @@ public class FileStream implements ByteStream {
             throw new ConcatRuntimeError(e.getMessage());
         }
     }
-    @Override
-    public int state() {
-        return state;
-    }
-    @Override
-    public void resetState(){
-        state=STATE_OK;
-    }
-    @Override
-    public Optional<Value> read(){
+
+    public long read(ArrayList<Value> buff,long off,long count){
+        buff.ensureCapacity((int)count);
+        byte[] tmp=new byte[(int)count];
         try {
-            int r=file.read();//TODO caching
-            if(r<0){
-                state=STATE_EOF;
-                return Optional.empty();
+            count=file.read(tmp);
+
+            for(int i=0;i<count;i++){//addLater? more effective method
+                int j = (int) off + i;
+                if(j<buff.size()){
+                    buff.set(j,Value.ofByte(tmp[i]));
+                }else{
+                    buff.add(Value.ofByte(tmp[i]));
+                }
             }
-            return Optional.of(Value.ofByte((byte)r));
+
+            return count;
         } catch (IOException e) {
-            state=STATE_ERR;
-            return Optional.empty();
+            //TODO better handling of return codes
+            // - ensure that IOException and EOF can be distinguished
+            // - the return value should tell the actual number of bytes read
+            return -2;
         }
     }
-    @Override
-    public List<Value> readMultiple(int c){
+    public boolean write(ArrayList<Value> buff,long off,long count) throws TypeError {
+        byte[] tmp=new byte[(int)count];
+        for(int i=0;i<count;i++){
+            tmp[i]=buff.get(((int)off)+i).asByte();
+        }
         try {
-            byte[] buf=new byte[c];
-            int n=file.read(buf);
-            if(n<0){
-                state=STATE_EOF;
-                return Collections.emptyList();
-            }
-            ArrayList<Value> res=new ArrayList<>(n);
-            for(int i=0;i<n;i++){
-                res.add(Value.ofByte(buf[i]));
-            }
-            return res;
-        }catch (IOException e){
-            state=STATE_ERR;
-            return Collections.emptyList();
-        }
-    }
-    @Override
-    public int readBytes(byte[] buffer){
-        try {
-            int n=file.read(buffer);
-            if(n<0){
-                state=STATE_EOF;
-            }
-            return n;
-        }catch (IOException e){
-            state=STATE_ERR;
-            return 0;
-        }
-    }
-    @Override
-    public int readValues(Value[] buffer) {
-        byte[] buff2=new byte[buffer.length];
-        int r=readBytes(buff2);
-        for(int i=0;i<r;i++){
-            buffer[i]=Value.ofByte(buff2[i]);
-        }
-        return r;
-    }
-    @Override
-    public Optional<Long> size(){
-        try {
-            return Optional.of(file.length());
+            file.write(tmp);
+            return true;
         } catch (IOException e) {
-            state=STATE_ERR;
-            return Optional.empty();
+            return false;
         }
     }
-    @Override
-    public long skip(int n) {
+
+    public long size(){
         try {
-            return file.skipBytes(n);
+            return file.length();
         } catch (IOException e) {
-            state=STATE_ERR;
-            return 0;
+            return -1;
         }
     }
-    @Override
     public boolean seek(long pos) {
         try {
             file.seek(pos);
             return true;
         } catch (IOException e) {
-            state=STATE_ERR;
             return false;
         }
     }
-
-    @Override
+    /**truncate file at current pos*/
+    public boolean truncate() {
+        try {
+            file.getChannel().truncate(file.getFilePointer());
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
     public boolean seekEnd() {
         try {
             file.seek(file.length());
             return true;
         } catch (IOException e) {
-            state=STATE_ERR;
             return false;
         }
     }
-
-    @Override
-    public Optional<Long> pos() {
+    public long pos() {
         try {
-            return Optional.of(file.getFilePointer());
+            return file.getFilePointer();
         } catch (IOException e) {
-            return Optional.empty();
+            return -1;
         }
     }
-
-    @Override
-    public boolean write(byte value) {
-        try {
-            file.write(value);
-            return true;
-        } catch (IOException e) {
-            state=STATE_ERR;
-            return false;
-        }
-    }
-    @Override
-    public boolean write(byte[] value, int n){
-        try {
-            file.write(value, 0, n);
-            return true;
-        } catch (IOException e) {
-            state=STATE_ERR;
-            return false;
-        }
-    }
-    @Override
-    public boolean write(Value value) throws TypeError {
-        return write(value.asByte());
-    }
-    @Override
-    public boolean write(Value[] source,int c) throws TypeError {
-        byte[] bytes = new byte[source.length];
-        for (int i = 0; i < source.length; i++) {
-            bytes[i] = source[i].asByte();
-        }
-        return write(bytes, bytes.length);
-    }
-    @Override
-    public boolean write(ValueStream source) throws TypeError {
-        if(source instanceof ByteStream) {
-            byte[] buffer = new byte[8192];
-            int r;
-            while ((r = ((ByteStream)source).readBytes(buffer)) > 0) {
-                write(buffer, r);
-            }
-        }else{
-            Value[] buffer = new Value[8192];
-            int r;
-            while ((r = source.readValues(buffer)) > 0) {
-                if(!write(buffer,r)){
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    @Override
     public boolean close(){
         try {
             file.close();
             return true;
         } catch (IOException e) {
-            state=STATE_ERR;
             return false;
         }
     }

@@ -1,7 +1,6 @@
 package bsoelch.concat;
 
-import bsoelch.concat.streams.ListStream;
-import bsoelch.concat.streams.ValueStream;
+import bsoelch.concat.streams.FileStream;
 
 import java.util.*;
 import java.util.function.BiFunction;
@@ -50,7 +49,7 @@ public abstract class Value {
     public Type asType() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to type");
     }
-    public ValueStream asStream() throws TypeError {
+    public FileStream asStream() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to stream");
     }
     public List<Byte> asByteArray() throws TypeError {
@@ -81,7 +80,7 @@ public abstract class Value {
     public int length() throws TypeError {
         throw new TypeError(type+" does not have a length");
     }
-    public List<Value> elements() throws TypeError {
+    public ArrayList<Value> elements() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to list");
     }
     public Value get(long index) throws TypeError {
@@ -104,9 +103,6 @@ public abstract class Value {
     }
     public void setSlice(long off, long to,Value value) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
-    }
-    public Value stream(boolean reversed) throws TypeError {
-        throw new TypeError("Cannot stream "+type);
     }
     public Value clone(boolean deep) {
         return this;
@@ -580,17 +576,8 @@ public abstract class Value {
         }
 
         @Override
-        public List<Value> elements() {
-            return new ArrayList<>(elements);
-        }
-
-        @Override
-        public Value stream(boolean reversed){
-            if(reversed){
-                return ofStream(ListStream.create(type.content(),ReversedList.reverse(elements)));
-            }else{
-                return ofStream(ListStream.create(type.content(),elements));
-            }
+        public ArrayList<Value> elements() {
+            return elements;
         }
 
         @Override
@@ -895,13 +882,13 @@ public abstract class Value {
         }
     }
 
-    public static Value ofStream(ValueStream stream) {
-        return new StreamValue(Type.streamOf(stream.contentType()),stream);
+    public static Value ofFile(FileStream stream) {
+        return new FileValue(stream);
     }
-    private static class StreamValue extends Value{
-        final ValueStream streamValue;
-        private StreamValue(Type type,ValueStream streamValue) {
-            super(type);
+    private static class FileValue extends Value{
+        final FileStream streamValue;
+        private FileValue(FileStream streamValue) {
+            super(Type.FILE);
             this.streamValue = streamValue;
         }
 
@@ -916,18 +903,8 @@ public abstract class Value {
         }
 
         @Override
-        public ValueStream asStream(){
+        public FileStream asStream(){
             return streamValue;
-        }
-
-        @Override
-        public Value stream(boolean reversed){
-            if(reversed){
-                //addLater reversible streams
-                throw new UnsupportedOperationException("unimplemented");
-            }else{
-                return this;
-            }
         }
 
         @Override
@@ -939,7 +916,7 @@ public abstract class Value {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            StreamValue that = (StreamValue) o;
+            FileValue that = (FileValue) o;
             return Objects.equals(streamValue, that.streamValue);
         }
         @Override

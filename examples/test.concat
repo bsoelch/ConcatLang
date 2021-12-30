@@ -81,23 +81,14 @@ end println
 255 byte cast dup typeof swap "%s: %s\n" printf
 0x123456789abcdef bytes asFloat_BE bytes println
 
-"examples/testIO.txt" "rw" open
-seekEnd drop
-if pos :
- 1 - seek drop
+"examples/testIO.txt" "rw" open (file) file =:
+10 byte list new byte list IO_Buff =:
+file IO_Buff 0 64 read int n =:
+if n 0 > :
+  file IO_Buff 0 n write drop
+  file truncate drop
+  file close drop
 end
-if read :
- if int cast 1 + 0x7f & byte cast write ! :
-   "IO Error" println
- end
-elif state -1 == :
- if 0x41 byte cast write ! :
-   "IO Error" println
- end
-else
- "IO Error" println
-end
-close drop
 
 "Test" dup "A" :+ clone "B" :+ println println println
 "Test" string 1 {} clone! clone 0 [] "C" :+ :<< println println

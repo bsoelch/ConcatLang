@@ -10,9 +10,13 @@ public class Type {
     public static final Type BOOL = new Type("bool");
     public static final Type BYTE = new Type("byte");
     public static final Type PROCEDURE = new Type("*->*");
+    //addLater allow signatures for procedures
     public static final Type STRUCT = new Type("(struct)");
 
+    public static final Type FILE = new Type("(file)");
+
     public static final Type GENERIC_LIST = new Type("(list)");
+    //addLater GENERIC_TUPLE
 
     /**blank type that could contain any value*/
     public static final Type ANY = new Type("var") {
@@ -53,20 +57,9 @@ public class Type {
             return new ContainerType(ContainerType.LIST,contentType);
         }
     }
-
-    public static Type streamOf(Type contentType) {
-        if (contentType == CHAR) {
-            return ContainerType.BYTE_STREAM;
-        } else {
-            return new ContainerType(ContainerType.STREAM,contentType);
-        }
-    }
-
     private static class ContainerType extends Type {
         public static final String LIST = "list";
-        public static final String STREAM = "stream";
         static final Type STRING      = new ContainerType(LIST,Type.CHAR);
-        static final Type BYTE_STREAM = new ContainerType(STREAM,Type.BYTE);
 
         final String containerType;
         final Type contentType;
