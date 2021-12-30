@@ -7,131 +7,132 @@ numbers/string #include
 
 ## isValue:bool value:string$
 bool string 2 tuple   type __PRINTF_FormatString =$
+__PRINTF.isValue #define 0 [] #end
+__PRINTF.value   #define 1 [] #end
 ##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:char
 bool int int int bool int bool int bool char 10 tuple   type __PRINTF_FormatValue =$
+__PRINTF.index   #define 1 [] #end
+__PRINTF.flags   #define 2 [] #end
+__PRINTF.w       #define 3 [] #end
+__PRINTF.w_ptr   #define 4 [] #end
+__PRINTF.p       #define 5 [] #end
+__PRINTF.p_ptr   #define 6 [] #end
+__PRINTF.b       #define 7 [] #end
+__PRINTF.b_ptr   #define 8 [] #end
+__PRINTF.format  #define 9 [] #end
 
 proc ## __PRINTF_FormatValue , var list -> string
   (list) values =:
   __PRINTF_FormatValue format =:
-  format 1 [] int  index =:
-  format 2 [] int  flags =:
-  format 3 [] int  w     =:
-  format 4 [] bool w_ptr =:
-  format 5 [] int  p     =:
-  format 6 [] bool p_ptr =:
-  format 7 [] int  b     =:
-  format 8 [] bool b_ptr =:
-  format 9 [] char fType =:
-
-  flags __PRINTF_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
-  if w_ptr : values w [] int cast else w end int width =:
+  format __PRINTF.flags __PRINTF_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
+  if format __PRINTF.w_ptr : values format __PRINTF.w [] int cast else format __PRINTF.w end int width =:
   if width 0 < : ##negative precision => alignment on left side
     alignLeft ! alignLeft =
     width -_ width =
   end
-  if p_ptr : values p [] int cast else p end int precision =:
+  if format __PRINTF.p_ptr  : values format __PRINTF.p  [] int cast else format __PRINTF.p  end int precision =:
   if precision 0 < : ## 0 -> default
       "printf: precision has to be at greater that or equal to 0" println
       1 exit
   end
-  if b_ptr : values b [] int cast else b end int base =:
+  if format __PRINTF.b_ptr  : values format __PRINTF.b  [] int cast else format __PRINTF.b  end int base =:
   if base 0 == :
     10 base =
   end
   '\0' char plusSgn =:
-  if flags __PRINTF_FLAG_SGN & 0 != :
+  if format __PRINTF.flags __PRINTF_FLAG_SGN & 0 != :
     '+' plusSgn =
-  elif flags __PRINTF_FLAG_SGN_SPACE & 0 != :
+  elif format __PRINTF.flags __PRINTF_FLAG_SGN_SPACE & 0 != :
     ' ' plusSgn =
   end
-  if fType 'b' == :
-    if values index [] cast bool : "true" else "false" end
-  elif fType 'B' == :
-    if values index [] cast bool : "TRUE" else "FALSE" end
-  elif fType 'i' == :
-    values index [] false base false intToString ()
+  if format __PRINTF.format  'b' == :
+    if values format __PRINTF.index [] cast bool : "true" else "false" end
+  elif format __PRINTF.format  'B' == :
+    if values format __PRINTF.index [] cast bool : "TRUE" else "FALSE" end
+  elif format __PRINTF.format  'i' == :
+    values format __PRINTF.index [] false base false intToString ()
     if plusSgn '\0' != :
-      if values index [] 0 >= :
+      if values format __PRINTF.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif fType 'I' == :
-    values index [] false base true intToString ()
+  elif format __PRINTF.format  'I' == :
+    values format __PRINTF.index [] false base true intToString ()
     if plusSgn '\0' != :
-      if values index [] 0 >= :
+      if values format __PRINTF.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif fType 'u' == :
-    values index [] true  base false intToString ()
+  elif format __PRINTF.format  'u' == :
+    values format __PRINTF.index [] true  base false intToString ()
     if plusSgn '\0' != :
         plusSgn swap >>:
     end
-  elif fType 'U' == :
-    values index [] true  base true intToString ()
+  elif format __PRINTF.format  'U' == :
+    values format __PRINTF.index [] true  base true intToString ()
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
-  elif fType 'd' == :
-    values index [] false 10 false intToString ()
+  elif format __PRINTF.format  'd' == :
+    values format __PRINTF.index [] false 10 false intToString ()
     if plusSgn '\0' != :
-      if values index [] 0 >= :
+      if values format __PRINTF.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif fType 'x' == :
-    values index [] true  16 false intToString ()
+  elif format __PRINTF.format  'x' == :
+    values format __PRINTF.index [] true  16 false intToString ()
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
-  elif fType 'X' == :
-    values index [] true  16 true intToString ()
+  elif format __PRINTF.format  'X' == :
+    values format __PRINTF.index [] true  16 true intToString ()
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
-  elif fType 'e' == :
-    values index [] precision base false true  floatToString ()
+  elif format __PRINTF.format  'e' == :
+    values format __PRINTF.index [] precision base false true  floatToString ()
     if plusSgn '\0' != :
-      if values index [] 0 >= :
+      if values format __PRINTF.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif fType 'E' == :
-    values index [] precision base true  true  floatToString ()
+  elif format __PRINTF.format  'E' == :
+    values format __PRINTF.index [] precision base true  true  floatToString ()
     if plusSgn '\0' != :
-      if values index [] 0 >= :
+      if values format __PRINTF.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif fType 'f' == :
-    values index [] precision base false false floatToString ()
+  elif format __PRINTF.format  'f' == :
+    values format __PRINTF.index [] precision base false false floatToString ()
     if plusSgn '\0' != :
-      if values index [] 0 >= :
+      if values format __PRINTF.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif fType 'F' == :
-    values index [] precision base true  false floatToString ()
+  elif format __PRINTF.format  'F' == :
+    values format __PRINTF.index [] precision base true  false floatToString ()
     if plusSgn '\0' != :
-      if values index [] 0 >= :
+      if values format __PRINTF.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif fType 'c' == :
-    values index [] char 1 {}
-  elif fType 's' == :
-    values index [] string cast
-  elif fType 'S' == :
-    values index [] string cast
-  elif fType '%' == :
+  elif format __PRINTF.format  'c' == :
+    values format __PRINTF.index [] char 1 {}
+  elif format __PRINTF.format  's' == :
+    values format __PRINTF.index [] string cast
+  elif format __PRINTF.format  'S' == :
+    values format __PRINTF.index [] string cast
+  elif format __PRINTF.format  '%' == :
     "%"
   else
-    fType " is no valid format specifier" >>: println
+    format __PRINTF.format  " is no valid format specifier" >>: println
     1 exit
   end string res =:
   if res length width < :
     width res length - int count =:
-    if flags __PRINTF_FLAG_PAD_0 & 0 != : '0' else ' ' end char padChar =:
+    if format __PRINTF.flags __PRINTF_FLAG_PAD_0 & 0 != : '0' else ' ' end char padChar =:
     count char list new char list padding =:
     0 while dup count < : ## addLater fill-Array method
       padding padChar :<< padding =
@@ -371,10 +372,10 @@ proc ## args:... format:string
   0 i =
   while i parts length < :
     tmp
-    if parts i [] 0 [] :  ## Value format
+    if parts i [] __PRINTF.isValue :  ## Value format
       parts i [] args __PRINTF_printValue ()
     else ## string format
-      parts i [] 1 []
+      parts i [] __PRINTF.value
     end
     :+ tmp =
     i 1 + i =
