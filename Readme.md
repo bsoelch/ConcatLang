@@ -67,7 +67,7 @@ leaves the following values on the stack:
 ### IO
 - `print` removes and prints the top value on the stack
 - `println` like `print` but adds a new-line add the end
-- `printf` (can be included with `printf include`)
+- `printf` (can be included with `printf #include`)
   removes the top value and uses it as a
   format-string for printing, consuming one element
   for each element used in the format string
@@ -146,13 +146,13 @@ false
 ### Optionals 
 Optionals hold an optional value.
 Optionals are defined in the standard library and
-can be included with `optional include`
+can be included with `optional #include`
 
-- `wrap ()`   wraps the top value on the stack in an optional
-- `unwrap ()` unwraps an optional value
+- `wrap`   wraps the top value on the stack in an optional
+- `unwrap` unwraps an optional value
   - if the value is present it will be pushed on the stack
   - if no value is present the program will exit
-- `?? ()` checks if the optional is present
+- `??` checks if the optional is present
   - if the optional has a value it will push true
   - if no value is present it will push false 
   - this operation does not consume the optional
@@ -164,16 +164,16 @@ Iterators are defined in the standard library and
 can be included with `iterators include`, iterators 
 also includes [optional](https://github.com/bsoelch/ConcatLang#optionals)
 
-- `^.. ()` created a new iterator at the start of 
+- `^..` created a new iterator at the start of 
 the current element (the current element has to be a list)
-- `..^ ()` created a new iterator at the end of
+- `..^` created a new iterator at the end of
   the current element (the current element has to be a list)
-- `^> ()` moves the iterator to the next element,
+- `^>` moves the iterator to the next element,
   - if the list has a next element the iterator pushes
     itself, and an optional wrapping the next element
   - otherwise, the iterator pushes itself,
     followed by an empty optional
-- `<^ ()` moves the iterator to the previous element
+- `<^` moves the iterator to the previous element
   - if the list has a previous element the iterator pushes 
     itself, and an optional wrapping the previous element
   - otherwise, the iterator pushes itself,
@@ -182,9 +182,9 @@ the current element (the current element has to be a list)
 Examples:
 template of for-each loop:
 ```Julia
-array ^.. () ## create iterator
-while ^> () ?? () :   ## iterate over all elements
- unwrap () println ## do something with data
+array ^.. ## create iterator
+while ^> ?? :   ## iterate over all elements
+  unwrap println ## do something with data
 end 
 drop ## Drop empty element
 drop ## Drop iterator
@@ -196,7 +196,7 @@ reverse a list:
 dup typeof content type arg.type   =:
 dup length         int  arg.length =:
 ## Iterate though the elements in reverse order
-..^ () while <^ () ?? () : unwrap () swap end drop drop
+..^ while <^ ?? : unwrap swap end drop drop
 ## reassemble the list
 arg.type arg.length {}
 ```
@@ -204,8 +204,8 @@ Sum all elements of a list
 ```Julia
 0 var tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
-^.. () while ^> () ?? () :
- unwrap () tmp swap + tmp =
+^.. while ^> ?? :
+ unwrap tmp swap + tmp =
 end drop drop
 tmp ## load the total sum onto the stack
 ```

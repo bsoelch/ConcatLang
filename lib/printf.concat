@@ -1,4 +1,5 @@
-numbers/string include
+if __PRINTF_FLAG_PAD_0 ? ! :
+numbers/string #include
 1 int __PRINTF_FLAG_PAD_0 =$
 2 int __PRINTF_FLAG_ALIGN_LEFT =$
 4 int __PRINTF_FLAG_SGN =$
@@ -381,6 +382,5 @@ proc ## args:... format:string
   tmp
 end *->* formatString =$
 
-proc
-formatString () print
-end *->* printf =$
+end
+printf #define formatString () print #end

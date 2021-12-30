@@ -8,16 +8,15 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 public class Interpreter {
-
     public static final String DEFAULT_FILE_EXTENSION = "concat";
 
     enum WordState{
         ROOT,STRING,COMMENT,LINE_COMMENT
     }
-    //TODO short circuit and/or
-    enum TokenType { //TODO macros
+
+    enum TokenType {
         VALUE,OPERATOR,
-        DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,HAS_VAR,//addLater undef/free
+        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,HAS_VAR,//addLater free-Variable
         IF,START,ELIF,ELSE,DO,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
         PROCEDURE,RETURN, PROCEDURE_START,
@@ -39,6 +38,20 @@ public class Interpreter {
         @Override
         public String toString() {
             return ip+" in "+file;
+        }
+    }
+
+    record StringWithPos(String str,FilePosition start){
+        @Override
+        public String toString() {
+            return str + "at "+ start;
+        }
+    }
+    record Macro(FilePosition pos, String name,
+                 ArrayList<StringWithPos> content) {
+        @Override
+        public String toString() {
+            return "macro " +name+":"+content;
         }
     }
 
@@ -180,7 +193,7 @@ public class Interpreter {
         }
     }
 
-    record Program(String mainFile,HashMap<String,ArrayList<Token>> fileTokens){
+    record Program(String mainFile,HashMap<String,ArrayList<Token>> fileTokens,HashMap<String,Macro> macros){
         @Override
         public String toString() {
             return "Program{" +
@@ -193,40 +206,45 @@ public class Interpreter {
     public Program parse(File file,Program program) throws IOException, SyntaxError {
         String fileName=file.getAbsolutePath();
         if(program==null){
-            program=new Program(fileName,new HashMap<>());
+            program=new Program(fileName,new HashMap<>(),new HashMap<>());
         }else if(program.fileTokens.containsKey(fileName)){
             return program;
         }
         ParserReader reader=new ParserReader(fileName);
         ArrayList<Token> tokenBuffer=new ArrayList<>();
         TreeMap<Integer,Token> openBlocks=new TreeMap<>();
+        Macro[] currentMacroPtr=new Macro[1];
         int c;
         reader.nextToken();
         WordState state=WordState.ROOT;
-        int stringStart=-1;
         while((c=reader.nextChar())>=0){
             switch(state){
                 case ROOT:
                     if(Character.isWhitespace(c)){
-                        finishWord(tokenBuffer,openBlocks, reader.buffer,reader,program,fileName);
+                        finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,reader.currentPos(),program,fileName);
+                        reader.nextToken();
                     }else{
                         switch (c) {
                             case '"', '\'' -> {
                                 state = WordState.STRING;
-                                stringStart = (char) c;
                                 if(reader.buffer.length()>0) {
                                     throw new SyntaxError("Illegal string prefix:\"" + reader.buffer + "\"",
                                             reader.currentPos());
                                 }
+                                reader.buffer.append((char)c);
                             }
                             case '#' -> {
                                 c = reader.forceNextChar();
                                 if (c == '#') {
                                     state = WordState.LINE_COMMENT;
-                                    finishWord(tokenBuffer,openBlocks, reader.buffer,reader,program,fileName);
+                                    finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,
+                                            reader.currentPos(),program,fileName);
+                                    reader.nextToken();
                                 } else if (c == '_') {
                                     state = WordState.COMMENT;
-                                    finishWord(tokenBuffer,openBlocks, reader.buffer,reader,program,fileName);
+                                    finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,
+                                            reader.currentPos(),program,fileName);
+                                    reader.nextToken();
                                 } else {
                                     reader.buffer.append('#').append((char) c);
                                 }
@@ -236,17 +254,9 @@ public class Interpreter {
                     }
                     break;
                 case STRING:
-                    if(c==stringStart){
-                        if(c=='\''){//char literal
-                            if(reader.buffer.codePoints().count()==1){
-                                int codePoint = reader.buffer.codePointAt(0);
-                                tokenBuffer.add(new ValueToken(Value.ofChar(codePoint), reader.currentPos()));
-                            }else{
-                                throw new SyntaxError("A char-literal must contain exactly one character", reader.currentPos());
-                            }
-                        }else{
-                            tokenBuffer.add(new ValueToken(Value.ofString(reader.buffer.toString()),   reader.currentPos()));
-                        }
+                    if(c==reader.buffer.charAt(0)){
+                        finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,
+                                reader.currentPos(),program,fileName);
                         reader.nextToken();
                         state=WordState.ROOT;
                     }else{
@@ -291,7 +301,10 @@ public class Interpreter {
             }
         }
         switch (state){
-            case ROOT->finishWord(tokenBuffer,openBlocks,reader.buffer,reader,program,fileName);
+            case ROOT->{
+                finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,reader.currentPos(),program,fileName);
+                reader.nextToken();
+            }
             case LINE_COMMENT ->{} //do nothing
             case STRING ->throw new SyntaxError("unfinished string", reader.currentPos());
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
@@ -305,125 +318,271 @@ public class Interpreter {
     }
 
     /**@return false if the value was an integer otherwise true*/
-    private boolean tryParseInt(ArrayList<Token> tokens, String str,ParserReader reader) throws SyntaxError {
+    private boolean tryParseInt(ArrayList<Token> tokens, String str,FilePosition pos) throws SyntaxError {
         try {
             if(intDec.matcher(str).matches()){//dez-Int
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 10)), reader.currentPos()));
+                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 10)), pos));
                 return false;
             }else if(intBin.matcher(str).matches()){//bin-Int
                 str=str.replaceAll(BIN_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 2)), reader.currentPos()));
+                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 2)),  pos));
                 return false;
             }else if(intHex.matcher(str).matches()){ //hex-Int
                 str=str.replaceAll(HEX_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 16)), reader.currentPos()));
+                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 16)), pos));
                 return false;
             }
         } catch (NumberFormatException nfeL) {
-            throw new SyntaxError("Number out of Range:"+str, reader.currentPos());
+            throw new SyntaxError("Number out of Range:"+str,pos);
         }
         return true;
     }
 
-    private void finishWord(ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks, StringBuilder buffer,
-                            ParserReader reader,Program program,String fileName) throws SyntaxError, IOException {
+    private void finishWord(CharSequence buffer,ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks,
+                            Macro[] currentMacroPtr,FilePosition pos,Program program,String fileName) throws SyntaxError, IOException {
         if (buffer.length() > 0) {
             String str=buffer.toString();
+            if(currentMacroPtr[0]!=null){//handle macros
+                if(str.equals("#end")){
+                    program.macros.put(currentMacroPtr[0].name,currentMacroPtr[0]);
+                    currentMacroPtr[0]=null;
+                }else if(str.startsWith("#")){
+                    throw new SyntaxError(str+" is not allowed in macros",pos);
+                }else{
+                    currentMacroPtr[0].content.add(new StringWithPos(str,pos));
+                }
+                return;
+            }
+            {//preprocessor
+                Token prev=tokens.size()>0?tokens.get(tokens.size()-1):null;
+                String prevId=(prev!=null&&prev.tokenType==TokenType.IDENTIFIER)?
+                        ((VariableToken)prev).name:null;
+                switch (str){
+                    case "#define"->{
+                        if(prevId!=null){
+                            tokens.remove(tokens.size()-1);
+                            currentMacroPtr[0]=new Macro(pos,prevId,new ArrayList<>());
+                        }else{
+                            throw new SyntaxError("invalid token preceding #define "+prev+" expected identifier",pos);
+                        }
+                        return;
+                    }
+                    case "#undef"->{
+                        if(prev!=null&&prev.tokenType==TokenType.MACRO_EXPAND){
+                            tokens.remove(tokens.size()-1);
+                            if(program.macros.remove(((VariableToken)prev).name)==null){
+                                throw new RuntimeException("macro "+prev+" does not exists");
+                            }
+                        }else{
+                            throw new SyntaxError("invalid token preceding #undef "+prev+" expected macro-name",pos);
+                        }
+                        return;
+                    }
+                    //addLater #ifdef #ifndef ...
+                    case "#end"-> throw new SyntaxError("#end outside of macro",pos);
+                    case "#include" -> {
+                        if(prev instanceof ValueToken){
+                            tokens.remove(tokens.size()-1);
+                            String name=((ValueToken) prev).value.stringValue();
+                            File file=new File(name);
+                            if(file.exists()){
+                                parse(file,program);
+                                tokens.add(new JumpToken(TokenType.INCLUDE,pos,
+                                        new TokenPosition(file.getAbsolutePath(),0)));
+                            }else{
+                                throw new SyntaxError("File "+name+" does not exist",pos);
+                            }
+                        }else if(prevId != null){
+                            tokens.remove(tokens.size()-1);
+                            String path=libPath+File.separator+ prevId + "." + DEFAULT_FILE_EXTENSION;
+                            File file=new File(path);
+                            if(file.exists()){
+                                parse(file,program);
+                                tokens.add(new JumpToken(TokenType.INCLUDE,pos,
+                                        new TokenPosition(file.getAbsolutePath(),0)));
+                            }else{
+                                throw new SyntaxError(prevId+" is not part of the standard library",pos);
+                            }
+                        }else{
+                            throw new UnsupportedOperationException("include path has to be a string literal or identifier");
+                        }
+                        return;
+                    }
+                    case "="->{
+                        if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_INDEX){
+                            //<array> <val> <index> []
+                            tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_INDEX,prev.pos));
+                        }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_SLICE){
+                            //<array> <val> <off> <to> [:]
+                            tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_SLICE,prev.pos));
+                        }else if(prev instanceof VariableToken){
+                            if(prev.tokenType == TokenType.IDENTIFIER){
+                                prev=new VariableToken(TokenType.VAR_WRITE,((VariableToken) prev).name,prev.pos);
+                            }else if(prev.tokenType == TokenType.FIELD_READ){
+                                prev=new VariableToken(TokenType.FIELD_WRITE,((VariableToken) prev).name,prev.pos);
+                            }else{
+                                throw new SyntaxError("invalid token for '=' modifier: "+prev,pos);
+                            }
+                            tokens.set(tokens.size()-1,prev);
+                        }else{
+                            throw new SyntaxError("invalid token for '=' modifier: "+prev,pos);
+                        }
+                        return;
+                    }
+                    case "."->{
+                        if(prevId!=null){
+                            prev=new VariableToken(TokenType.FIELD_READ,prevId,prev.pos);
+                        }else{
+                            throw new SyntaxError("invalid token for '.' modifier: "+prev,pos);
+                        }
+                        tokens.set(tokens.size()-1,prev);
+                        return;
+                    }
+                    case "?"->{
+                        if(!(prev instanceof VariableToken)){
+                            throw new SyntaxError("invalid token for '?' modifier: "+prev,pos);
+                        }
+                        if(prevId!=null){
+                            prev=new VariableToken(TokenType.HAS_VAR,((VariableToken) prev).name,prev.pos);
+                        }else if(prev.tokenType == TokenType.FIELD_READ){
+                            prev=new VariableToken(TokenType.HAS_FIELD,((VariableToken) prev).name,prev.pos);
+                        }else{
+                            throw new SyntaxError("invalid token for '?' modifier: "+prev,pos);
+                        }
+                        tokens.set(tokens.size()-1,prev);
+                        return;
+                    }
+                    case "=:"->{
+                        if(prevId!=null){
+                            prev=new VariableToken(TokenType.DECLARE,prevId,prev.pos);
+                        }else{
+                            throw new SyntaxError("invalid token for '=:' modifier "+prev,pos);
+                        }
+                        tokens.set(tokens.size()-1,prev);
+                        return;
+                    }
+                    case "=$"->{
+                        if(prevId!=null){
+                            prev=new VariableToken(TokenType.CONST_DECLARE,prevId,prev.pos);
+                        }else{
+                            throw new SyntaxError("invalid token for '=$' modifier: "+prev,pos);
+                        }
+                        tokens.set(tokens.size()-1,prev);
+                        return;
+                    }
+                }
+                if(prev!=null&&prev.tokenType==TokenType.MACRO_EXPAND){
+                    tokens.remove(tokens.size()-1);//remove prev
+                    Macro m=program.macros.get(((VariableToken)prev).name);
+                    for(StringWithPos s:m.content){//expand macro
+                        //TODO remember position of expansion
+                        finishWord(s.str,tokens,openBlocks,currentMacroPtr,s.start,program,fileName);
+                    }
+                }
+            }
+            if(str.charAt(0)=='\''){//char literal
+                str=str.substring(1);
+                if(str.codePoints().count()==1){
+                    int codePoint = str.codePointAt(0);
+                    tokens.add(new ValueToken(Value.ofChar(codePoint), pos));
+                }else{
+                    throw new SyntaxError("A char-literal must contain exactly one character", pos);
+                }
+                return;
+            }else if(str.charAt(0)=='"'){
+                str=str.substring(1);
+                tokens.add(new ValueToken(Value.ofString(str),  pos));
+                return;
+            }
             try{
-                if (tryParseInt(tokens, str,reader)) {
+                if (tryParseInt(tokens, str,pos)) {
                     if(floatDec.matcher(str).matches()){
                         //dez-Float
                         double d = Double.parseDouble(str);
-                        tokens.add(new ValueToken(Value.ofFloat(d), reader.currentPos()));
+                        tokens.add(new ValueToken(Value.ofFloat(d), pos));
                     }else if(floatBin.matcher(str).matches()){
                         //bin-Float
                         double d= Value.parseFloat(str.substring(BIN_PREFIX.length()),2);
-                        tokens.add(new ValueToken(Value.ofFloat(d), reader.currentPos()));
+                        tokens.add(new ValueToken(Value.ofFloat(d), pos));
                     }else if(floatHex.matcher(str).matches()){
                         //hex-Float
                         double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
-                        tokens.add(new ValueToken(Value.ofFloat(d), reader.currentPos()));
+                        tokens.add(new ValueToken(Value.ofFloat(d), pos));
                     }else {
-                        if(str.length()>0)
-                            addWord(str,tokens,openBlocks,reader,program,fileName);
+                        addWord(str,tokens,openBlocks,program.macros,pos, fileName);
                     }
                 }
             }catch(SyntaxError e){
-                if(e.pos.equals(reader.currentPos())){
+                if(e.pos.equals(pos)){
                     throw e;//avoid duplicate positions in stack trace
                 }else {
-                    throw new SyntaxError(e, reader.currentPos());
+                    throw new SyntaxError(e, pos);
                 }
             }catch(ConcatRuntimeError|NumberFormatException e){
-                throw new SyntaxError(e, reader.currentPos());
+                throw new SyntaxError(e, pos);
             }
         }
-        reader.nextToken();
     }
 
-    private void addWord(String str,ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks,
-                         ParserReader reader,Program program,String fileName) throws SyntaxError, IOException {
+    private void addWord(String str, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks, HashMap<String, Macro> macros,
+                         FilePosition pos, String fileName) throws SyntaxError {
         switch (str) {
-            case "true"  -> tokens.add(new ValueToken(Value.TRUE,    reader.currentPos()));
-            case "false" -> tokens.add(new ValueToken(Value.FALSE,   reader.currentPos()));
+            case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
+            case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
 
-            case "bool"     -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),      reader.currentPos()));
-            case "byte"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),      reader.currentPos()));
-            case "int"      -> tokens.add(new ValueToken(Value.ofType(Type.INT),       reader.currentPos()));
-            case "char"     -> tokens.add(new ValueToken(Value.ofType(Type.CHAR),      reader.currentPos()));
-            case "float"    -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),     reader.currentPos()));
-            case "string"   -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),  reader.currentPos()));
-            case "type"     -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),      reader.currentPos()));
-            case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,      reader.currentPos()));
-            case "stream"   -> tokens.add(new OperatorToken(OperatorType.STREAM_OF,    reader.currentPos()));
-            case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT,       reader.currentPos()));
-            case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE), reader.currentPos()));
-            case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),    reader.currentPos()));
-            case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),       reader.currentPos()));
-            case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,        reader.currentPos()));
-            case "(list)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST), reader.currentPos()));
+            case "bool"     -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),         pos));
+            case "byte"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),         pos));
+            case "int"      -> tokens.add(new ValueToken(Value.ofType(Type.INT),          pos));
+            case "char"     -> tokens.add(new ValueToken(Value.ofType(Type.CHAR),         pos));
+            case "float"    -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),        pos));
+            case "string"   -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),     pos));
+            case "type"     -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),         pos));
+            case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,         pos));
+            case "stream"   -> tokens.add(new OperatorToken(OperatorType.STREAM_OF,       pos));
+            case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT,         pos));
+            case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),    pos));
+            case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),       pos));
+            case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),          pos));
+            case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,           pos));
+            case "(list)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST), pos));
 
-            case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    reader.currentPos()));
-            case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, reader.currentPos()));
+            case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
+            case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
 
-            case "dup"    -> tokens.add(new OperatorToken(OperatorType.DUP,        reader.currentPos()));
-            case "drop"   -> tokens.add(new OperatorToken(OperatorType.DROP,       reader.currentPos()));
-            case "swap"   -> tokens.add(new OperatorToken(OperatorType.SWAP,       reader.currentPos()));
-            case "over"   -> tokens.add(new OperatorToken(OperatorType.OVER,       reader.currentPos()));
-            case "clone"  -> tokens.add(new OperatorToken(OperatorType.CLONE,      reader.currentPos()));
-            case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, reader.currentPos()));
+            case "dup"    -> tokens.add(new OperatorToken(OperatorType.DUP,        pos));
+            case "drop"   -> tokens.add(new OperatorToken(OperatorType.DROP,       pos));
+            case "swap"   -> tokens.add(new OperatorToken(OperatorType.SWAP,       pos));
+            case "over"   -> tokens.add(new OperatorToken(OperatorType.OVER,       pos));
+            case "clone"  -> tokens.add(new OperatorToken(OperatorType.CLONE,      pos));
+            case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, pos));
 
-            case "print"      -> tokens.add(new Token(TokenType.PRINT,   reader.currentPos()));
-            case "println"    -> tokens.add(new Token(TokenType.PRINTLN, reader.currentPos()));
+            case "print"      -> tokens.add(new Token(TokenType.PRINT,   pos));
+            case "println"    -> tokens.add(new Token(TokenType.PRINTLN, pos));
 
-            case "bytes"      -> tokens.add(new OperatorToken(OperatorType.BYTES_LE, reader.currentPos()));
-            case "bytes_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_BE, reader.currentPos()));
-            case "asInt"      -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_INT_LE,
-                    reader.currentPos()));
-            case "asInt_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_INT_BE,
-                    reader.currentPos()));
-            case "asFloat"    -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_FLOAT_LE,
-                    reader.currentPos()));
-            case "asFloat_BE" -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_FLOAT_BE,
-                    reader.currentPos()));
+            case "bytes"      -> tokens.add(new OperatorToken(OperatorType.BYTES_LE,          pos));
+            case "bytes_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_BE,          pos));
+            case "asInt"      -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_INT_LE,   pos));
+            case "asInt_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_INT_BE,   pos));
+            case "asFloat"    -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_FLOAT_LE, pos));
+            case "asFloat_BE" -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_FLOAT_BE, pos));
 
             case "if" -> {
-                Token t = new Token(TokenType.IF, reader.currentPos());
+                Token t = new Token(TokenType.IF, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
-            case "&&" -> { //addLater chaining of short circuit operators   && A || B : C end
-                Token t = new Token(TokenType.SHORT_AND_HEADER, reader.currentPos());
+            case "&&" -> {
+                Token t = new Token(TokenType.SHORT_AND_HEADER, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
             case "||" -> {
-                Token t = new Token(TokenType.SHORT_OR_HEADER, reader.currentPos());
+                Token t = new Token(TokenType.SHORT_OR_HEADER, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
             case ":" -> {
-                Token s = new Token(TokenType.START, reader.currentPos());
+                Token s = new Token(TokenType.START, pos);
                 openBlocks.put(tokens.size(),s);
                 tokens.add(s);
             }
@@ -431,7 +590,7 @@ public class Interpreter {
                 Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
                 Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
                 if(label!=null&&(label.getValue().tokenType==TokenType.IF||label.getValue().tokenType==TokenType.ELIF)){
-                    Token t = new Token(TokenType.ELIF, reader.currentPos());
+                    Token t = new Token(TokenType.ELIF, pos);
                     openBlocks.put(tokens.size(),t);
                     if(label.getValue().tokenType==TokenType.ELIF){//jump before elif to chain jumps
                         tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,
@@ -441,14 +600,14 @@ public class Interpreter {
                     tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
                             new TokenPosition(fileName,tokens.size())));
                 }else{
-                    throw new SyntaxError("elif has to be preceded with if or elif followed by a :",reader.currentPos());
+                    throw new SyntaxError("elif has to be preceded with if or elif followed by a :",pos);
                 }
             }
             case "else" -> {
                 Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
                 Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
                 if(label!=null&&(label.getValue().tokenType==TokenType.IF||label.getValue().tokenType==TokenType.ELIF)){
-                    Token t = new Token(TokenType.ELSE, reader.currentPos());
+                    Token t = new Token(TokenType.ELSE, pos);
                     openBlocks.put(tokens.size(),t);
                     if(label.getValue().tokenType==TokenType.ELIF){
                         //jump before else to chain jumps
@@ -459,14 +618,14 @@ public class Interpreter {
                     tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
                             new TokenPosition(fileName,tokens.size())));
                 }else{
-                    throw new SyntaxError("else has to be preceded with if or elif followed by a :",reader.currentPos());
+                    throw new SyntaxError("else has to be preceded with if or elif followed by a :",pos);
                 }
             }
             case "end" ->{
-                Token t = new Token(TokenType.END, reader.currentPos());
+                Token t = new Token(TokenType.END, pos);
                 Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
                 if(start==null){
-                    throw new SyntaxError("unexpected end statement",reader.currentPos());
+                    throw new SyntaxError("unexpected end statement",pos);
                 }else if(start.getValue().tokenType==TokenType.START){
                     Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
                     switch (label.getValue().tokenType){
@@ -494,7 +653,8 @@ public class Interpreter {
                             tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
                                     new TokenPosition(fileName,tokens.size())));
                         }
-                        case VALUE,OPERATOR,DECLARE,CONST_DECLARE, VAR_READ, VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
+                        case VALUE,OPERATOR,DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,
+                                VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, PROCEDURE_START,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
                                 PRINT,PRINTLN,STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,
                                 HAS_VAR,HAS_FIELD,EXIT
@@ -505,7 +665,7 @@ public class Interpreter {
                     Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
                     if(label.getValue().tokenType!=TokenType.DO){
                         throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
-                                " 'do ... while'  or 'else'",reader.currentPos());
+                                " 'do ... while'  or 'else'",pos);
                     }
                     tokens.add(new JumpToken(TokenType.JEQ,t.pos,new TokenPosition(fileName,label.getKey())));
                 }else if(start.getValue().tokenType==TokenType.ELSE){// ... else ... end
@@ -513,210 +673,110 @@ public class Interpreter {
                     tokens.set(start.getKey(),new JumpToken(TokenType.JMP,start.getValue().pos,
                             new TokenPosition(fileName,tokens.size())));
                 }else if(start.getValue().tokenType==TokenType.PROCEDURE){// proc ... : ... end
-                    tokens.add(new Token(TokenType.RETURN,reader.currentPos()));
+                    tokens.add(new Token(TokenType.RETURN,pos));
                     tokens.add(t);
                     tokens.set(start.getKey(),new JumpToken(TokenType.PROCEDURE_START,start.getValue().pos,
                             new TokenPosition(fileName,tokens.size())));
-                    tokens.add(new ValueToken(Value.ofProcedureId(new TokenPosition(fileName,start.getKey()+1)),reader.currentPos()));
+                    tokens.add(new ValueToken(Value.ofProcedureId(new TokenPosition(fileName,start.getKey()+1)),pos));
                 }else if(start.getValue().tokenType==TokenType.STRUCT_START){//struct ... end
-                    tokens.add(new Token(TokenType.STRUCT_END,reader.currentPos()));
+                    tokens.add(new Token(TokenType.STRUCT_END,pos));
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
-                            " 'do ... while'  or 'else' got:"+start.getValue(),reader.currentPos());
+                            " 'do ... while'  or 'else' got:"+start.getValue(),pos);
                 }
             }
             case "while" -> {
-                Token t = new Token(TokenType.WHILE, reader.currentPos());
+                Token t = new Token(TokenType.WHILE, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
             case "do" -> {
-                Token t = new Token(TokenType.DO, reader.currentPos());
+                Token t = new Token(TokenType.DO, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
             case "proc","procedure" -> {
-                Token t = new Token(TokenType.PROCEDURE, reader.currentPos());
+                Token t = new Token(TokenType.PROCEDURE, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
             case "struct" -> {
-                Token t = new Token(TokenType.STRUCT_START, reader.currentPos());
+                Token t = new Token(TokenType.STRUCT_START, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
-            case "return" -> tokens.add(new Token(TokenType.RETURN,  reader.currentPos()));
-            case "exit"   -> tokens.add(new Token(TokenType.EXIT,  reader.currentPos()));
+            case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
+            case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
 
-            case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,          reader.currentPos()));
-            case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,         reader.currentPos()));
-            case "-_"  -> tokens.add(new OperatorToken(OperatorType.NEGATE,        reader.currentPos()));
-            case "/_"  -> tokens.add(new OperatorToken(OperatorType.INVERT,        reader.currentPos()));
-            case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      reader.currentPos()));
-            case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           reader.currentPos()));
-            case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           reader.currentPos()));
-            case "u/"   -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_DIV, reader.currentPos()));
-            case "u%"   -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_MOD, reader.currentPos()));
-            case "**"  -> tokens.add(new OperatorToken(OperatorType.POW,           reader.currentPos()));
-            case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           reader.currentPos()));
-            case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          reader.currentPos()));
-            case "&"   -> tokens.add(new OperatorToken(OperatorType.AND,           reader.currentPos()));
-            case "|"   -> tokens.add(new OperatorToken(OperatorType.OR,            reader.currentPos()));
-            case "xor" -> tokens.add(new OperatorToken(OperatorType.XOR,           reader.currentPos()));
-            case "<"   -> tokens.add(new OperatorToken(OperatorType.LT,            reader.currentPos()));
-            case "<="  -> tokens.add(new OperatorToken(OperatorType.LE,            reader.currentPos()));
-            case "=="  -> tokens.add(new OperatorToken(OperatorType.EQ,            reader.currentPos()));
-            case "!="  -> tokens.add(new OperatorToken(OperatorType.NE,            reader.currentPos()));
-            case "===" -> tokens.add(new OperatorToken(OperatorType.REF_EQ,        reader.currentPos()));
-            case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE,        reader.currentPos()));
-            case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,            reader.currentPos()));
-            case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,            reader.currentPos()));
+            case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,          pos));
+            case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,         pos));
+            case "-_"  -> tokens.add(new OperatorToken(OperatorType.NEGATE,        pos));
+            case "/_"  -> tokens.add(new OperatorToken(OperatorType.INVERT,        pos));
+            case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
+            case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
+            case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
+            case "u/"   -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_DIV, pos));
+            case "u%"   -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_MOD, pos));
+            case "**"  -> tokens.add(new OperatorToken(OperatorType.POW,           pos));
+            case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           pos));
+            case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          pos));
+            case "&"   -> tokens.add(new OperatorToken(OperatorType.AND,           pos));
+            case "|"   -> tokens.add(new OperatorToken(OperatorType.OR,            pos));
+            case "xor" -> tokens.add(new OperatorToken(OperatorType.XOR,           pos));
+            case "<"   -> tokens.add(new OperatorToken(OperatorType.LT,            pos));
+            case "<="  -> tokens.add(new OperatorToken(OperatorType.LE,            pos));
+            case "=="  -> tokens.add(new OperatorToken(OperatorType.EQ,            pos));
+            case "!="  -> tokens.add(new OperatorToken(OperatorType.NE,            pos));
+            case "===" -> tokens.add(new OperatorToken(OperatorType.REF_EQ,        pos));
+            case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE,        pos));
+            case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,            pos));
+            case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,            pos));
 
-            case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  reader.currentPos()));
-            case ".>>" -> tokens.add(new OperatorToken(OperatorType.SRSHIFT, reader.currentPos()));
-            case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  reader.currentPos()));
-            case ".<<" -> tokens.add(new OperatorToken(OperatorType.SLSHIFT, reader.currentPos()));
+            case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
+            case ".>>" -> tokens.add(new OperatorToken(OperatorType.SRSHIFT, pos));
+            case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  pos));
+            case ".<<" -> tokens.add(new OperatorToken(OperatorType.SLSHIFT, pos));
 
-            case "log"   -> tokens.add(new OperatorToken(OperatorType.LOG, reader.currentPos()));
-            case "floor" -> tokens.add(new OperatorToken(OperatorType.FLOOR, reader.currentPos()));
-            case "ceil"  -> tokens.add(new OperatorToken(OperatorType.CEIL, reader.currentPos()));
+            case "log"   -> tokens.add(new OperatorToken(OperatorType.LOG, pos));
+            case "floor" -> tokens.add(new OperatorToken(OperatorType.FLOOR, pos));
+            case "ceil"  -> tokens.add(new OperatorToken(OperatorType.CEIL, pos));
 
-            case ">>:" -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     reader.currentPos()));
-            case ":<<" -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      reader.currentPos()));
-            case "+:"  -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, reader.currentPos()));
-            case ":+"  -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_LAST,  reader.currentPos()));
+            case ">>:" -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     pos));
+            case ":<<" -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
+            case "+:"  -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, pos));
+            case ":+"  -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_LAST,  pos));
             //<array> <index> []
-            case "[]"   -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,  reader.currentPos()));
+            case "[]"   -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,  pos));
             //<array> <off> <to> [:]
-            case "[:]"  -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,  reader.currentPos()));
+            case "[:]"  -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,  pos));
 
             //<e0> ... <eN> <N> {}
-            case "{}"     -> tokens.add(new OperatorToken(OperatorType.NEW_LIST, reader.currentPos()));
-            case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   reader.currentPos()));
-            case "()"     -> tokens.add(new OperatorToken(OperatorType.CALL,     reader.currentPos()));
+            case "{}"     -> tokens.add(new OperatorToken(OperatorType.NEW_LIST, pos));
+            case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   pos));
+            case "()"     -> tokens.add(new OperatorToken(OperatorType.CALL,     pos));
 
-            case "new"       -> tokens.add(new OperatorToken(OperatorType.NEW,        reader.currentPos()));
-            case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, reader.currentPos()));
+            case "new"       -> tokens.add(new OperatorToken(OperatorType.NEW,        pos));
+            case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
 
-            case "open"          -> tokens.add(new OperatorToken(OperatorType.OPEN,            reader.currentPos()));
-            case "close"         -> tokens.add(new OperatorToken(OperatorType.CLOSE,           reader.currentPos()));
-            case "size"          -> tokens.add(new OperatorToken(OperatorType.SIZE,            reader.currentPos()));
-            case "pos"           -> tokens.add(new OperatorToken(OperatorType.POS,             reader.currentPos()));
-            case "asStream"      -> tokens.add(new OperatorToken(OperatorType.STREAM_OF,       reader.currentPos()));
-            case "reverseStream" -> tokens.add(new OperatorToken(OperatorType.REVERSED_STREAM, reader.currentPos()));
-            case "state"         -> tokens.add(new OperatorToken(OperatorType.STREAM_STATE,    reader.currentPos()));
-            case "read"          -> tokens.add(new OperatorToken(OperatorType.READ,            reader.currentPos()));
-            case "read+"         -> tokens.add(new OperatorToken(OperatorType.READ_MULTIPLE,   reader.currentPos()));
-            case "skip"          -> tokens.add(new OperatorToken(OperatorType.SKIP,            reader.currentPos()));
-            case "seek"          -> tokens.add(new OperatorToken(OperatorType.SEEK,            reader.currentPos()));
-            case "seekEnd"       -> tokens.add(new OperatorToken(OperatorType.SEEK_END,        reader.currentPos()));
-            case "write"         -> tokens.add(new OperatorToken(OperatorType.WRITE,           reader.currentPos()));
-            case "write+"        -> tokens.add(new OperatorToken(OperatorType.WRITE_MULTIPLE,  reader.currentPos()));
+            case "open"          -> tokens.add(new OperatorToken(OperatorType.OPEN,            pos));
+            case "close"         -> tokens.add(new OperatorToken(OperatorType.CLOSE,           pos));
+            case "size"          -> tokens.add(new OperatorToken(OperatorType.SIZE,            pos));
+            case "pos"           -> tokens.add(new OperatorToken(OperatorType.POS,             pos));
+            case "asStream"      -> tokens.add(new OperatorToken(OperatorType.STREAM_OF,       pos));
+            case "reverseStream" -> tokens.add(new OperatorToken(OperatorType.REVERSED_STREAM, pos));
+            case "state"         -> tokens.add(new OperatorToken(OperatorType.STREAM_STATE,    pos));
+            case "read"          -> tokens.add(new OperatorToken(OperatorType.READ,            pos));
+            case "read+"         -> tokens.add(new OperatorToken(OperatorType.READ_MULTIPLE,   pos));
+            case "skip"          -> tokens.add(new OperatorToken(OperatorType.SKIP,            pos));
+            case "seek"          -> tokens.add(new OperatorToken(OperatorType.SEEK,            pos));
+            case "seekEnd"       -> tokens.add(new OperatorToken(OperatorType.SEEK_END,        pos));
+            case "write"         -> tokens.add(new OperatorToken(OperatorType.WRITE,           pos));
+            case "write+"        -> tokens.add(new OperatorToken(OperatorType.WRITE_MULTIPLE,  pos));
 
-            case "include" -> {
-                Token prev=tokens.get(tokens.size()-1);
-                if(prev instanceof ValueToken){
-                    tokens.remove(tokens.size()-1);
-                    String name=((ValueToken) prev).value.stringValue();
-                    File file=new File(name);
-                    if(file.exists()){
-                        parse(file,program);
-                        tokens.add(new JumpToken(TokenType.INCLUDE,reader.currentPos(),
-                                new TokenPosition(file.getAbsolutePath(),0)));
-                    }else{
-                        throw new SyntaxError("File "+name+" does not exist",reader.currentPos());
-                    }
-                }else if(prev instanceof VariableToken){
-                    tokens.remove(tokens.size()-1);
-                    String name = ((VariableToken) prev).name;
-                    String path=libPath+File.separator+ name + "." + DEFAULT_FILE_EXTENSION;
-                    File file=new File(path);
-                    if(file.exists()){
-                        parse(file,program);
-                        tokens.add(new JumpToken(TokenType.INCLUDE,reader.currentPos(),
-                                new TokenPosition(file.getAbsolutePath(),0)));
-                    }else{
-                        throw new SyntaxError(name+" is not part of the standard library",reader.currentPos());
-                    }
-                }else{
-                    throw new UnsupportedOperationException("include path has to be a string literal or identifier");
-                }
-            }
-            case "import"  -> tokens.add(new OperatorToken(OperatorType.IMPORT,       reader.currentPos()));
-            case "$import" -> tokens.add(new OperatorToken(OperatorType.CONST_IMPORT, reader.currentPos()));
+            case "import"  -> tokens.add(new OperatorToken(OperatorType.IMPORT,       pos));
+            case "$import" -> tokens.add(new OperatorToken(OperatorType.CONST_IMPORT, pos));
 
-            case "="->{
-                Token prev=tokens.get(tokens.size()-1);
-                if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_INDEX){
-                    //<array> <val> <index> []
-                    tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_INDEX,prev.pos));
-                }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_SLICE){
-                    //<array> <val> <off> <to> [:]
-                    tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_SLICE,prev.pos));
-                }else if(prev instanceof VariableToken){
-                    if(prev.tokenType == TokenType.VAR_READ){
-                        prev=new VariableToken(TokenType.VAR_WRITE,((VariableToken) prev).name,prev.pos);
-                    }else if(prev.tokenType == TokenType.FIELD_READ){
-                        prev=new VariableToken(TokenType.FIELD_WRITE,((VariableToken) prev).name,prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '=' modifier: "+prev,reader.currentPos());
-                    }
-                    tokens.set(tokens.size()-1,prev);
-                }else{
-                    throw new SyntaxError("invalid token for '=' modifier: "+prev,reader.currentPos());
-                }
-            }
-            case "."->{
-                Token prev=tokens.get(tokens.size()-1);
-                if(!(prev instanceof VariableToken)){
-                    throw new SyntaxError("invalid token for '.' modifier: "+prev,reader.currentPos());
-                }
-                if(prev.tokenType == TokenType.VAR_READ){
-                    prev=new VariableToken(TokenType.FIELD_READ,((VariableToken) prev).name,prev.pos);
-                }else{
-                    throw new SyntaxError("invalid token for '.' modifier: "+prev,reader.currentPos());
-                }
-                tokens.set(tokens.size()-1,prev);
-            }
-            case "?"->{
-                Token prev=tokens.get(tokens.size()-1);
-                if(!(prev instanceof VariableToken)){
-                    throw new SyntaxError("invalid token for '?' modifier: "+prev,reader.currentPos());
-                }
-                if(prev.tokenType == TokenType.VAR_READ){
-                    prev=new VariableToken(TokenType.HAS_VAR,((VariableToken) prev).name,prev.pos);
-                }else if(prev.tokenType == TokenType.FIELD_READ){
-                    prev=new VariableToken(TokenType.HAS_FIELD,((VariableToken) prev).name,prev.pos);
-                }else{
-                    throw new SyntaxError("invalid token for '?' modifier: "+prev,reader.currentPos());
-                }
-                tokens.set(tokens.size()-1,prev);
-            }
-            case "=:"->{
-                Token prev=tokens.get(tokens.size()-1);
-                if(!(prev instanceof VariableToken)){
-                    throw new SyntaxError("invalid token for '=:' modifier: "+prev,reader.currentPos());
-                }
-                if(prev.tokenType == TokenType.VAR_READ){
-                    prev=new VariableToken(TokenType.DECLARE,((VariableToken) prev).name,prev.pos);
-                }else{
-                    throw new SyntaxError("invalid token for '=:' modifier "+prev,reader.currentPos());
-                }
-                tokens.set(tokens.size()-1,prev);
-            }
-            case "=$"->{
-                Token prev=tokens.get(tokens.size()-1);
-                if(!(prev instanceof VariableToken)){
-                    throw new SyntaxError("invalid token for '=$' modifier: "+prev,reader.currentPos());
-                }
-                if(prev.tokenType == TokenType.VAR_READ){
-                    prev=new VariableToken(TokenType.CONST_DECLARE,((VariableToken) prev).name,prev.pos);
-                }else{
-                    throw new SyntaxError("invalid token for '=$' modifier: "+prev,reader.currentPos());
-                }
-                tokens.set(tokens.size()-1,prev);
-            }
-            default -> tokens.add(new VariableToken(TokenType.VAR_READ, str, reader.currentPos()));
+            default -> tokens.add(new VariableToken(macros.containsKey(str)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,str, pos));
         }
     }
 
@@ -1151,7 +1211,7 @@ public class Interpreter {
                         state.declareVariable(((VariableToken) next).name, type.asType(),
                                 next.tokenType == TokenType.CONST_DECLARE, value);
                     }
-                    case VAR_READ -> {
+                    case IDENTIFIER -> {
                         Variable var = state.getVariable(((VariableToken) next).name);
                         if (var == null) {
                             throw new ConcatRuntimeError("Variable " + ((VariableToken) next).name + " does not exist ");
@@ -1193,7 +1253,7 @@ public class Interpreter {
                             pop(stack);// remove token
                         }
                     }
-                    case START, ELSE, PROCEDURE -> throw new RuntimeException("Tokens of type " + next.tokenType +
+                    case MACRO_EXPAND,START, ELSE, PROCEDURE -> throw new RuntimeException("Tokens of type " + next.tokenType +
                             " should be eliminated at compile time");
                     case RETURN -> {
                         TokenPosition ret=callStack.poll();

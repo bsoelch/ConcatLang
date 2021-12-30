@@ -1,7 +1,7 @@
 if intToString ? ! :
 
-chars include
-numbers/limits include
+chars #include
+numbers/limits #include
 
 proc ## value:int base:int big:bool -> char
     bool big =:
@@ -12,11 +12,11 @@ proc ## value:int base:int big:bool -> char
         1 exit
     end
     if value 10 < :
-        value '0' +char () return
+        value '0' +char return
     elif value 36 < :
-        value 10 - if || big : base 36 > end : 'A'  else 'a' end +char () return
+        value 10 - if || big : base 36 > end : 'A'  else 'a' end +char return
     else
-        value 36 - 'a' +char () return
+        value 36 - 'a' +char return
     end
 end *->* getDigit =$ ## addLater private functions
 
@@ -161,11 +161,11 @@ proc ## digit:char base:int -> value:int
   int  base =:
   char digit =:
   if && digit '0' >= : digit '9' <= end :
-    digit '0' charDiff ()
+    digit '0' charDiff
   elif && digit 'A' >= : digit 'Z' <= end :
-    digit 'A' charDiff () 10 +
+    digit 'A' charDiff 10 +
   elif && digit 'a' >= : digit 'Z' <= end :
-    digit 'a' charDiff () if base 37 < : 10 else 36 end +
+    digit 'a' charDiff if base 37 < : 10 else 36 end +
   else
     "invalid digit for base " print base print " number: '" print digit print "'" println
     1 exit

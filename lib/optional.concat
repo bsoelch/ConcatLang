@@ -24,7 +24,7 @@ if optional ? ! :
     end
   end *->* optional_getValue =$
 
-  optional_of       *->* wrap   =$
-  optional_getValue *->* unwrap =$
-  optional_hasValue *->* ??     =$
+  wrap   #define optional_of       () #end
+  unwrap #define optional_getValue () #end
+  ??     #define optional_hasValue () #end
 end
