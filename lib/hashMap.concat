@@ -116,4 +116,9 @@ end *->* __HASH_remove =$
 
 end
 
-hashCode #define __hashCode () #end
+hashCode       #define __hashCode ()    #end
+HashMap        #define __HASH_Map       #end
+newHashMap     #define __HASH_newMap () #end
+HashMap.put    #define __HASH_put       #end
+HashMap.get    #define __HASH_get       #end
+HashMap.remove #define __HASH_remove    #end

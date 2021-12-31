@@ -9,8 +9,8 @@ public class Type {
     public static final Type TYPE = new Type("type");
     public static final Type BOOL = new Type("bool");
     public static final Type BYTE = new Type("byte");
+    //TODO (optional) type signatures for procedures
     public static final Type PROCEDURE = new Type("*->*");
-    //addLater allow signatures for procedures
     public static final Type STRUCT = new Type("(struct)");
 
     public static final Type FILE = new Type("(file)");

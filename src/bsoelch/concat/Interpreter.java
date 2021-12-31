@@ -377,7 +377,6 @@ public class Interpreter {
                         }
                         return;
                     }
-                    //addLater #ifdef #ifndef ...
                     case "#end"-> throw new SyntaxError("#end outside of macro",pos);
                     case "#include" -> {
                         if(prev instanceof ValueToken){
