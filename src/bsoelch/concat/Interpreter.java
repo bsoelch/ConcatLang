@@ -1013,6 +1013,11 @@ public class Interpreter {
                             case NEW_LIST -> {//e1 e2 ... eN type count {}
                                 long count = pop(stack).asLong();
                                 Type type = pop(stack).asType();
+                                if(count<0){
+                                    throw new ConcatRuntimeError("he element count has to be at least 0");
+                                }else if(count>Integer.MAX_VALUE){
+                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+                                }
                                 ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
                                 while (count > 0) {
                                     tmp.addFirst(pop(stack).castTo(type));
@@ -1095,6 +1100,11 @@ public class Interpreter {
                             }
                             case TUPLE -> {
                                 long count=pop(stack).asLong();
+                                if(count<0){
+                                    throw new ConcatRuntimeError("he element count has to be at least 0");
+                                }else if(count>Integer.MAX_VALUE){
+                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+                                }
                                 Type[] types=new Type[(int)count];
                                 for(int i=1;i<=count;i++){
                                     types[types.length-i]=pop(stack).asType();
@@ -1314,8 +1324,7 @@ public class Interpreter {
                         return stack;
                     }
                 }
-            }catch (ConcatRuntimeError|IndexOutOfBoundsException|NegativeArraySizeException e){
-                //TODO readable messages for Java index errors
+            }catch (ConcatRuntimeError e){
                 System.err.println(e.getMessage());
                 Token token = tokens.get(ip);
                 System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);

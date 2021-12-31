@@ -18,7 +18,7 @@ proc ## value:int base:int big:bool -> char
     else
         value 36 - 'a' +char return
     end
-end *->* getDigit =$ ## addLater private functions
+end *->* __NUMBER_getDigit =$
 
 proc ## unsigned:bool value:int base:int big:bool
   bool big =:
@@ -36,19 +36,19 @@ proc ## unsigned:bool value:int base:int big:bool
   "" ## result
   if value 0 < :
     if unsigned :
-      value base u% base big getDigit () :<<
+      value base u% base big __NUMBER_getDigit () :<<
       value base u/ value =
     else
       true neg =
       value -_ value =
       if value 0 < : ## int_MIN
-        value base u% base big getDigit () :<<
+        value base u% base big __NUMBER_getDigit () :<<
         value base u/ value =
       end
     end
   end
   while value 0 > :
-      value base % base big getDigit () swap >>:
+      value base % base big __NUMBER_getDigit () swap >>:
       value base / value =
   end
   if neg :
@@ -125,11 +125,11 @@ proc ## value:float precision:int base:int big:bool sci:bool
     while && n 1 - 0 > : buff n 1 - [] 0 == end :
       n 1 - n =
     end
-    buff 0 [] base big getDigit () :<<
+    buff 0 [] base big __NUMBER_getDigit () :<<
     if n 1 > :
       '.' :<<
       1 while dup n < :
-         swap over buff swap [] base big getDigit () :<<
+         swap over buff swap [] base big __NUMBER_getDigit () :<<
          swap 1 +
       end drop
     end
@@ -138,7 +138,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
     e_max false base big intToString () :+
   elif e_max 0 >= :
     0 while dup n < :
-      swap over buff swap [] base big getDigit () :<<
+      swap over buff swap [] base big __NUMBER_getDigit () :<<
       if && over e_max == : over n 1 - < end :
         '.' :<<
       end
@@ -151,7 +151,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
       swap 1 -
     end drop
     0 while dup n < :
-      swap over buff swap [] base big getDigit () :<<
+      swap over buff swap [] base big __NUMBER_getDigit () :<<
       swap 1 +
     end drop
   end
@@ -173,7 +173,7 @@ proc ## digit:char base:int -> value:int
   if dup base >= :
     "invalid digit for base " print base print " number '" print digit print "'" println
   end
-end *->* valueOfDigit =$
+end *->* __NUMBER_valueOfDigit =$
 
 proc ## source:string base:int -> int
   int base =:
@@ -200,7 +200,7 @@ proc ## source:string base:int -> int
       "invalid string-format for int \"" print source print "\" (overflow)" println
       1 exit
     end
-    base * over source swap [] base valueOfDigit () +
+    base * over source swap [] base __NUMBER_valueOfDigit () +
     swap 1 +
   end drop
   if sgn : -_ end
@@ -259,10 +259,10 @@ proc ## str:string base:int -> float
     else
       swap
       if dup max < :
-        base * over str swap [] base valueOfDigit () +
+        base * over str swap [] base __NUMBER_valueOfDigit () +
         c d + c =
       else
-        over str swap [] base valueOfDigit () drop ## check digit without storing value
+        over str swap [] base __NUMBER_valueOfDigit () drop ## check digit without storing value
         c 1 d - + c =
       end
       swap

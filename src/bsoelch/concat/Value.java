@@ -58,7 +58,6 @@ public abstract class Value {
     public List<Byte> asByteArray() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to byte list");
     }
-    //TODO? implement bytes-method all (primitive) Values
     public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
         throw new TypeError("Converting "+type+" to raw-bytes is not supported");
     }
@@ -92,23 +91,23 @@ public abstract class Value {
     public void set(long index,Value value) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
+    public Value getSlice(long off, long to) throws ConcatRuntimeError {
+        throw new TypeError("Element access not supported for type "+type);
+    }
+    public void setSlice(long off, long to,Value value) throws ConcatRuntimeError {
+        throw new TypeError("Element access not supported for type "+type);
+    }
+    public void ensureCap(long newCap) throws ConcatRuntimeError {
+        throw new TypeError("changing capacity is not supported for type "+type);
+    }
     public void fill(Value val, long off, long count) throws ConcatRuntimeError {
         throw new TypeError("fill is not supported for type "+type);
-    }
-    public void ensureCap(long newCap) throws TypeError {
-        throw new TypeError("changing capacity is not supported for type "+type);
     }
     public void push(Value value,boolean start) throws ConcatRuntimeError {
         throw new TypeError("adding elements is not supported for type "+type);
     }
     public void pushAll(Value value,boolean start) throws ConcatRuntimeError {
         throw new TypeError("adding elements is not supported for type "+type);
-    }
-    public Value getSlice(long off, long to) throws ConcatRuntimeError {
-        throw new TypeError("Element access not supported for type "+type);
-    }
-    public void setSlice(long off, long to,Value value) throws ConcatRuntimeError {
-        throw new TypeError("Element access not supported for type "+type);
     }
     public Value clone(boolean deep) {
         return this;
@@ -265,6 +264,9 @@ public abstract class Value {
                 return Value.ofByte((byte)intValue);
 
             }else if(type==Type.CHAR){
+                if(intValue<0||intValue>Character.MAX_CODE_POINT){
+                    throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to char");
+                }
                 return Value.ofChar((int)intValue);
             }else if(type==Type.FLOAT){
                 return ofFloat(intValue);
@@ -588,8 +590,13 @@ public abstract class Value {
     public static Value createList(Type type, ArrayList<Value> elements) throws ConcatRuntimeError {
         return new ListValue(type,elements);
     }
-    public static Value createList(Type type, long initCap) {
-        return new ListValue(type,new ArrayList<>((int)Math.min(initCap,Integer.MAX_VALUE)));
+    public static Value createList(Type type, long initCap) throws ConcatRuntimeError {
+        if(initCap<0){
+            throw new ConcatRuntimeError("initial capacity has to be at least 0");
+        }else if(initCap>Integer.MAX_VALUE){
+            throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+        }
+        return new ListValue(type,new ArrayList<>((int) initCap));
     }
 
     private static class ListValue extends Value{
@@ -640,20 +647,32 @@ public abstract class Value {
         }
 
         @Override
-        public Value get(long index) {
+        public Value get(long index) throws ConcatRuntimeError {
+            if(index<0||index>=elements.size()){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.size());
+            }
             return elements.get((int)index);
         }
         @Override
         public void set(long index,Value value) throws ConcatRuntimeError {
+            if(index<0||index>=elements.size()){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.size());
+            }
             elements.set((int)index,value.castTo(type.content()));
         }
         @Override
         public Value getSlice(long off, long to) throws ConcatRuntimeError {
+            if(off<0||to>elements.size()||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+elements.size());
+            }
             return createList(type,new ArrayList<>(elements.subList((int)off,(int)to)));
         }
 
         @Override
         public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
+            if(off<0||to>elements.size()||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+elements.size());
+            }
             List<Value> sublist=elements.subList((int)off,(int)to);
             sublist.clear();
             try {
@@ -666,6 +685,15 @@ public abstract class Value {
 
         @Override
         public void fill(Value val, long off, long count) throws ConcatRuntimeError {
+            if(off<0){
+                throw new ConcatRuntimeError("Index out of bounds:"+off+" length:"+elements.size());
+            }
+            if(count<0){
+                throw new ConcatRuntimeError("Count has to be at least 0");
+            }
+            if(off+count>Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+            }
             val=val.castTo(type.content());
             elements.ensureCapacity((int)(off+count));
             int set=(int)Math.min(elements.size()-off,count);
@@ -679,8 +707,11 @@ public abstract class Value {
         }
 
         @Override
-        public void ensureCap(long newCap){
-            elements.ensureCapacity((int)Math.min(newCap,Integer.MAX_VALUE));
+        public void ensureCap(long newCap) throws ConcatRuntimeError {
+            if(newCap> Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+            }
+            elements.ensureCapacity((int)newCap);
         }
 
         @Override
@@ -811,11 +842,17 @@ public abstract class Value {
         }
 
         @Override
-        public Value get(long index){
+        public Value get(long index) throws ConcatRuntimeError {
+            if(index<0||index>=elements.length){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.length);
+            }
             return elements[(int)index];
         }
         @Override
         public void set(long index, Value value) throws ConcatRuntimeError {
+            if(index<0||index>=elements.length){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.length);
+            }
             elements[(int)index]=value.castTo(((Type.Tuple)type).get((int)index));
         }
 
