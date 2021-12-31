@@ -39,7 +39,7 @@ proc ## keyType:type valType:type cap:int -> __HASH_Map
   keyType valType data __HASH_Map new
 end *->* __HASH_newMap =$
 
-proc ## map:__HASH_Map key:val value:val -> prevVal:optional<var>
+proc ## map:__HASH_Map key:var value:var -> prevVal:optional<var>
   var value =:
   var key =:
   __HASH_Map map =:
@@ -56,7 +56,7 @@ proc ## map:__HASH_Map key:val value:val -> prevVal:optional<var>
     while entry __HASH_Entry.next __HASH_Empty =!= :
       if entry __HASH_Entry.key key == :
         entry __HASH_Entry.val
-        entry val __HASH_Entry.val=
+        entry value __HASH_Entry.val=
         wrap return
       end
       entry __HASH_Entry.next entry =
@@ -87,7 +87,30 @@ proc ## map:__HASH_Map key:var -> value:optional<var>
   optional_empty return
 end *->* __HASH_get =$
 
-## TODO hashRemove
+proc ## map:__HASH_Map key:var -> prevVal:optional<var>
+  var key =:
+  __HASH_Map map =:
+  key __hashCode () int hash =:
+  hash map __HASH_Map.data length % int i =:
+  if map __HASH_Map.data i [] __HASH_Empty === :
+    optional_empty return
+  elif map __HASH_Map.data i [] __HASH_Entry.key key == :
+    map __HASH_Map.data i [] __HASH_Entry.val ## get previous value
+    map __HASH_Map.data   map __HASH_Map.data i [] __HASH_Entry.next  i [] = ## remove entry
+    wrap return
+  else
+    map __HASH_Map.data i [] __HASH_Entry entry =:
+    while entry __HASH_Entry.next __HASH_Empty =!= :
+      if entry __HASH_Entry.next __HASH_Entry.key key == :
+        entry __HASH_Entry.next __HASH_Entry.val ## get previous value
+        entry   entry __HASH_Entry.next __HASH_Entry.next  __HASH_Entry.next= ## remove entry
+        wrap return
+      end
+      entry __HASH_Entry.next entry =
+    end
+    optional_empty return
+  end
+end *->* __HASH_remove =$
 
 ## addLater? hashPrint
 

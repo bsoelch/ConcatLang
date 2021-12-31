@@ -129,15 +129,27 @@ hashMap #include
 1 2 3 int 3 {} dup refId println hashCode println
 1 2 3 int 3 {} dup refId println hashCode println
 
-int int 16 __HASH_newMap () var map =:
+int int 4 __HASH_newMap () var map =:
 "put:" println
 map 0 0 __HASH_put () println
 map 1 1 __HASH_put () println
-map 0 2 __HASH_put () println
-map 2 3 __HASH_put () println
+map 2 2 __HASH_put () println
+map 3 3 __HASH_put () println
+map 4 4 __HASH_put () println
+map 5 5 __HASH_put () println
+map 6 6 __HASH_put () println
+map 7 7 __HASH_put () println
+map 0 8 __HASH_put () println
+map 3 9 __HASH_put () println
 "get:" println
 map 0 __HASH_get () println
 map 2 __HASH_get () println
 map 4 __HASH_get () println
+map 8 __HASH_get () println
+"remove:" println
+map 1 __HASH_remove () println
+map 3 __HASH_remove () println
+map 5 __HASH_remove () println
+map 9 __HASH_remove () println
 "map:" println
 map println
