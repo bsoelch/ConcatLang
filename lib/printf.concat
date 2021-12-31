@@ -134,10 +134,7 @@ proc ## __PRINTF_FormatValue , var list -> string
     width res length - int count =:
     if format __PRINTF.flags __PRINTF_FLAG_PAD_0 & 0 != : '0' else ' ' end char padChar =:
     count char list new char list padding =:
-    0 while dup count < : ## addLater fill-Array method
-      padding padChar :<< padding =
-      1 +
-    end drop
+    padding 0 count padChar fill
     if alignLeft :
       res padding :+ res =
     else

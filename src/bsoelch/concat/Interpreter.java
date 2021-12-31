@@ -760,6 +760,7 @@ public class Interpreter {
 
             case "new"       -> tokens.add(new OperatorToken(OperatorType.NEW,        pos));
             case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
+            case "fill"      -> tokens.add(new OperatorToken(OperatorType.FILL,       pos));
 
             case "open"     -> tokens.add(new OperatorToken(OperatorType.OPEN,     pos));
             case "close"    -> tokens.add(new OperatorToken(OperatorType.CLOSE,    pos));
@@ -1037,6 +1038,13 @@ public class Interpreter {
                             case ENSURE_CAP -> {
                                 long newCap=pop(stack).asLong();
                                 peek(stack).ensureCap(newCap);
+                            }
+                            case FILL -> {
+                                Value val   = pop(stack);
+                                long  count = pop(stack).asLong();
+                                long  off   = pop(stack).asLong();
+                                Value list  = pop(stack);
+                                list.fill(val,off,count);
                             }
                             case GET_INDEX -> {//array index []
                                 long index = pop(stack).asLong();

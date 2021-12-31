@@ -128,3 +128,10 @@ numbers/string #include
 hashMap #include
 1 2 3 int 3 {} dup refId println hashCode println
 1 2 3 int 3 {} dup refId println hashCode println
+
+int int 16 __HASH_newMap () var map =:
+map 0 0 __HASH_put ()
+map 1 1 __HASH_put ()
+map 0 1 __HASH_put ()
+map 2 0 __HASH_put ()
+map println

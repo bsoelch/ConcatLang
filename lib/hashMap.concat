@@ -18,11 +18,63 @@ proc ## var -> int
 end *->* __hashCode =$
 
 var  var  (tuple)           3 tuple type __HASH_Entry =$
+__HASH_Entry.key   #define 0 []   #end
+__HASH_Entry.val   #define 1 []   #end
+__HASH_Entry.val=  #define 1 [] = #end
+__HASH_Entry.next  #define 2 []   #end
+__HASH_Entry.next= #define 2 [] = #end
 type type __HASH_Entry list 3 tuple type __HASH_Map   =$
+__HASH_Map.keyType #define 0 [] #end
+__HASH_Map.valType #define 1 [] #end
+__HASH_Map.data    #define 2 [] #end
 
-## TODO <keyType> <valType> <cap> newHashMap => <map>
-## TODO <map> <key> <value>       hashMapPut
-## TODO <map> <key>               hashMapGet => optional[<value>]
+false false  0 tuple new  __HASH_Entry new __HASH_Entry __HASH_Empty =$
+
+proc ## keyType:type valType:type cap:int -> __HASH_Map
+  int cap =:
+  type keyType =:
+  type valType =:
+  cap __HASH_Entry list new __HASH_Entry list data =:
+  data 0 cap __HASH_Empty fill
+  keyType valType data __HASH_Map new
+end *->* __HASH_newMap =$
+
+proc ## map:__HASH_Map key:val value:val -> addLater? return replaced entry
+var value =:
+var key =:
+__HASH_Map map =:
+## cast elements to correct types
+value map __HASH_Map.valType cast value =
+key   map __HASH_Map.keyType cast key =
+key __hashCode () int hash =:
+hash map __HASH_Map.data length % int i =:
+if map __HASH_Map.data i [] __HASH_Empty === :
+  map __HASH_Map.data  key value __HASH_Empty __HASH_Entry new  i [] =
+else
+  map __HASH_Map.data i [] __HASH_Entry entry =:
+  while entry __HASH_Entry.next __HASH_Empty =!= :
+    if entry __HASH_Entry.key key == :
+      entry val __HASH_Entry.val=
+      return
+    end
+    entry __HASH_Entry.next entry =
+  end
+  if entry __HASH_Entry.key key == :
+    entry value __HASH_Entry.val=
+  else
+    entry key value __HASH_Empty __HASH_Entry new __HASH_Entry.next=
+  end
+end
+end *->* __HASH_put =$
+
+proc ## map:__HASH_Map key:val
+
+## TODO hashMapGet
+end *->* __HASH_get =$
+
+## TODO hashRemove
+
+## addLater? hashPrint
 
 end
 

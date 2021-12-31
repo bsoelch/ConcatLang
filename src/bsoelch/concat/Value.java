@@ -92,6 +92,9 @@ public abstract class Value {
     public void set(long index,Value value) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
+    public void fill(Value val, long off, long count) throws ConcatRuntimeError {
+        throw new TypeError("fill is not supported for type "+type);
+    }
     public void ensureCap(long newCap) throws TypeError {
         throw new TypeError("changing capacity is not supported for type "+type);
     }
@@ -143,6 +146,7 @@ public abstract class Value {
             throw new TypeError("cannot cast from "+this.type+" to "+type);
         }
     }
+
 
     /**A wrapper for TypeError that can be thrown inside functional interfaces*/
     private static class WrappedConcatError extends RuntimeException {
@@ -661,6 +665,20 @@ public abstract class Value {
         }
 
         @Override
+        public void fill(Value val, long off, long count) throws ConcatRuntimeError {
+            val=val.castTo(type.content());
+            elements.ensureCapacity((int)(off+count));
+            int set=(int)Math.min(elements.size()-off,count);
+            int add=(int)(count-set);
+            for(int i=0;i<set;i++){
+                elements.set(i+(int)off,val);
+            }
+            for(int i=0;i<add;i++){
+                elements.add(val);
+            }
+        }
+
+        @Override
         public void ensureCap(long newCap){
             elements.ensureCapacity((int)Math.min(newCap,Integer.MAX_VALUE));
         }
@@ -693,7 +711,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.GENERIC_LIST){
+            if(type==Type.GENERIC_LIST||this.type.equals(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -775,7 +793,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.GENERIC_TUPLE){
+            if(type==Type.GENERIC_TUPLE||this.type.equals(type)){
                 return this;
             }else if(type instanceof Type.Tuple&&
                     ((Type.Tuple) type).elementCount()==((Type.Tuple)this.type).elementCount()){
