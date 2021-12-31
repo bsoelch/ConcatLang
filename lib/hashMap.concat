@@ -39,37 +39,52 @@ proc ## keyType:type valType:type cap:int -> __HASH_Map
   keyType valType data __HASH_Map new
 end *->* __HASH_newMap =$
 
-proc ## map:__HASH_Map key:val value:val -> addLater? return replaced entry
-var value =:
-var key =:
-__HASH_Map map =:
-## cast elements to correct types
-value map __HASH_Map.valType cast value =
-key   map __HASH_Map.keyType cast key =
-key __hashCode () int hash =:
-hash map __HASH_Map.data length % int i =:
-if map __HASH_Map.data i [] __HASH_Empty === :
-  map __HASH_Map.data  key value __HASH_Empty __HASH_Entry new  i [] =
-else
-  map __HASH_Map.data i [] __HASH_Entry entry =:
-  while entry __HASH_Entry.next __HASH_Empty =!= :
+proc ## map:__HASH_Map key:val value:val -> prevVal:optional<var>
+  var value =:
+  var key =:
+  __HASH_Map map =:
+  ## cast elements to correct types
+  value map __HASH_Map.valType cast value =
+  key   map __HASH_Map.keyType cast key =
+  key __hashCode () int hash =:
+  hash map __HASH_Map.data length % int i =:
+  if map __HASH_Map.data i [] __HASH_Empty === :
+    map __HASH_Map.data  key value __HASH_Empty __HASH_Entry new  i [] =
+    optional_empty return
+  else
+    map __HASH_Map.data i [] __HASH_Entry entry =:
+    while entry __HASH_Entry.next __HASH_Empty =!= :
+      if entry __HASH_Entry.key key == :
+        entry __HASH_Entry.val
+        entry val __HASH_Entry.val=
+        wrap return
+      end
+      entry __HASH_Entry.next entry =
+    end
     if entry __HASH_Entry.key key == :
-      entry val __HASH_Entry.val=
-      return
+      entry __HASH_Entry.val
+      entry value __HASH_Entry.val=
+      wrap return
+    else
+      entry key value __HASH_Empty __HASH_Entry new __HASH_Entry.next=
+      optional_empty return
+    end
+  end
+end *->* __HASH_put =$
+
+proc ## map:__HASH_Map key:var -> value:optional<var>
+  var key =:
+  __HASH_Map map =:
+  key __hashCode () int hash =:
+  hash map __HASH_Map.data length % int i =:
+  map __HASH_Map.data i [] __HASH_Entry entry =:
+  while entry __HASH_Empty =!= :
+    if entry __HASH_Entry.key key == :
+      entry __HASH_Entry.val wrap return
     end
     entry __HASH_Entry.next entry =
   end
-  if entry __HASH_Entry.key key == :
-    entry value __HASH_Entry.val=
-  else
-    entry key value __HASH_Empty __HASH_Entry new __HASH_Entry.next=
-  end
-end
-end *->* __HASH_put =$
-
-proc ## map:__HASH_Map key:val
-
-## TODO hashMapGet
+  optional_empty return
 end *->* __HASH_get =$
 
 ## TODO hashRemove
