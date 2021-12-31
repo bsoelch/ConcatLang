@@ -112,7 +112,8 @@ proc ## map:__HASH_Map key:var -> prevVal:optional<var>
   end
 end *->* __HASH_remove =$
 
-## addLater? hashPrint
+## addLater? HashMap.listEntries
+## addLater? HashMap.toString
 
 end
 

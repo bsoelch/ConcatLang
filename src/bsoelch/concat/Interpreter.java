@@ -26,10 +26,32 @@ public class Interpreter {
         EXIT
     }
 
-    record FilePosition(String path, long line, int posInLine) {
+    static class FilePosition{
+        final String path;
+        final long line;
+        final int posInLine;
+        final FilePosition expandedAt;
+        FilePosition(String path, long line, int posInLine) {
+            this.path=path;
+            this.line=line;
+            this.posInLine=posInLine;
+            expandedAt=null;
+        }
+        FilePosition(FilePosition at,FilePosition expandedAt) {
+            this.path=at.path;
+            this.line=at.line;
+            this.posInLine=at.posInLine;
+            this.expandedAt=expandedAt;
+        }
+
         @Override
         public String toString() {
-            return path+":"+line + ":" + posInLine;
+            if(expandedAt!=null){
+                return path+":"+line + ":" + posInLine+
+                "\nexpanded at "+expandedAt;
+            }else{
+                return path+":"+line + ":" + posInLine;
+            }
         }
     }
 
@@ -473,8 +495,7 @@ public class Interpreter {
                     tokens.remove(tokens.size()-1);//remove prev
                     Macro m=program.macros.get(((VariableToken)prev).name);
                     for(StringWithPos s:m.content){//expand macro
-                        //TODO remember position of expansion
-                        finishWord(s.str,tokens,openBlocks,currentMacroPtr,s.start,program,fileName);
+                        finishWord(s.str,tokens,openBlocks,currentMacroPtr,new FilePosition(s.start,pos),program,fileName);
                     }
                 }
             }
@@ -1407,7 +1428,6 @@ public class Interpreter {
             System.exit(1);
             return;
         }
-        //TODO? compile to C
         ArrayDeque<Value> stack = ip.run(program);
         System.out.println("\nStack:");
         System.out.println(stack);
