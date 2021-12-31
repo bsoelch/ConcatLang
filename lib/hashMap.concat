@@ -1,0 +1,29 @@
+if __hashCode ? ! :
+optional #include
+
+proc ## var -> int
+  var value =:
+  value typeof type valType =:
+  if || valType (list) <= : valType (tuple) <= end :
+    0 int hash =:
+    0 int i =:
+    while i value length < :
+      hash 31 * value i [] __hashCode () + hash =
+      i 1 + i =
+    end
+    hash
+  else
+    value refId
+  end
+end *->* __hashCode =$
+
+var  var  (tuple)           3 tuple type __HASH_Entry =$
+type type __HASH_Entry list 3 tuple type __HASH_Map   =$
+
+## TODO <keyType> <valType> <cap> newHashMap => <map>
+## TODO <map> <key> <value>       hashMapPut
+## TODO <map> <key>               hashMapGet => optional[<value>]
+
+end
+
+hashCode #define __hashCode () #end

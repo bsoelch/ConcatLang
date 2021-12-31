@@ -1,7 +1,8 @@
 package bsoelch.concat;
 
 public enum OperatorType {
-    DUP,DROP,SWAP,OVER,CLONE,DEEP_CLONE,
+    DUP,DROP,SWAP,OVER, //<off> dup, <off> swap, <count> drop
+    REF_ID,CLONE,DEEP_CLONE,
     NEGATE,PLUS,MINUS,
     INVERT, MULTIPLY,DIV,MOD, UNSIGNED_DIV,UNSIGNED_MOD,
     POW,
@@ -20,5 +21,4 @@ public enum OperatorType {
     IMPORT,CONST_IMPORT,
     BYTES_LE,BYTES_BE,BYTES_AS_INT_LE,BYTES_AS_INT_BE,BYTES_AS_FLOAT_LE,BYTES_AS_FLOAT_BE,
     OPEN,CLOSE,SIZE,POS,SEEK,SEEK_END,READ,WRITE,TRUNCATE
-    //TODO cToB, bToC converting between char and byte (list, stream, itr)
 }

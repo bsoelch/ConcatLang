@@ -124,3 +124,7 @@ numbers/string #include
 || "A " print true  : "B " print false  end println
 || "A " print false : "B " print true   end println
 || "A " print false : "B " print false  end println
+
+hashMap #include
+1 2 3 int 3 {} dup refId println hashCode println
+1 2 3 int 3 {} dup refId println hashCode println

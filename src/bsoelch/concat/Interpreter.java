@@ -529,21 +529,22 @@ public class Interpreter {
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
             case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
 
-            case "bool"     -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),         pos));
-            case "byte"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),         pos));
-            case "int"      -> tokens.add(new ValueToken(Value.ofType(Type.INT),          pos));
-            case "char"     -> tokens.add(new ValueToken(Value.ofType(Type.CHAR),         pos));
-            case "float"    -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),        pos));
-            case "string"   -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),     pos));
-            case "type"     -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),         pos));
-            case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,         pos));
-            case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT,         pos));
-            case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),    pos));
-            case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),       pos));
-            case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),          pos));
-            case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,           pos));
-            case "(list)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST), pos));
-            case "(file)"   -> tokens.add(new ValueToken(Value.ofType(Type.FILE),         pos));
+            case "bool"     -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),          pos));
+            case "byte"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),          pos));
+            case "int"      -> tokens.add(new ValueToken(Value.ofType(Type.INT),           pos));
+            case "char"     -> tokens.add(new ValueToken(Value.ofType(Type.CHAR),          pos));
+            case "float"    -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),         pos));
+            case "string"   -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),      pos));
+            case "type"     -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),          pos));
+            case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,          pos));
+            case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT,          pos));
+            case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),     pos));
+            case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),        pos));
+            case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),           pos));
+            case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,            pos));
+            case "(list)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),  pos));
+            case "(tuple)"  -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE), pos));
+            case "(file)"   -> tokens.add(new ValueToken(Value.ofType(Type.FILE),          pos));
 
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
@@ -552,6 +553,9 @@ public class Interpreter {
             case "drop"   -> tokens.add(new OperatorToken(OperatorType.DROP,       pos));
             case "swap"   -> tokens.add(new OperatorToken(OperatorType.SWAP,       pos));
             case "over"   -> tokens.add(new OperatorToken(OperatorType.OVER,       pos));
+
+            case "refId"  -> tokens.add(new OperatorToken(OperatorType.REF_ID,     pos));
+
             case "clone"  -> tokens.add(new OperatorToken(OperatorType.CLONE,      pos));
             case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, pos));
 
@@ -882,6 +886,7 @@ public class Interpreter {
                                 stack.addLast(b);
                                 stack.addLast(a);
                             }
+                            case REF_ID -> stack.addLast(Value.ofInt(pop(stack).id()));
                             case CLONE -> {
                                 Value t = peek(stack);
                                 stack.addLast(t.clone(false));

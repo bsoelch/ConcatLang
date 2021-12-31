@@ -34,6 +34,9 @@ public abstract class Value {
         this.type = type;
     }
 
+    public long id() {
+        return System.identityHashCode(this);
+    }
     public boolean asBool() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to bool");
     }
@@ -83,7 +86,7 @@ public abstract class Value {
     public ArrayList<Value> elements() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to list");
     }
-    public Value get(long index) throws TypeError {
+    public Value get(long index) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
     public void set(long index,Value value) throws ConcatRuntimeError {
@@ -222,6 +225,11 @@ public abstract class Value {
         }
 
         @Override
+        public long id() {
+            return intValue;
+        }
+
+        @Override
         public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
             ArrayList<Value> bytes=new ArrayList<>(8);
             long tmp=intValue;
@@ -346,6 +354,11 @@ public abstract class Value {
         }
 
         @Override
+        public long id() {
+            return Double.doubleToRawLongBits(floatValue);
+        }
+
+        @Override
         public double asDouble() {
             return floatValue;
         }
@@ -414,8 +427,35 @@ public abstract class Value {
         }
 
         @Override
+        public long id() {
+            return System.identityHashCode(typeValue);
+        }
+
+        @Override
         public Type asType() {
             return typeValue;
+        }
+
+        @Override
+        public int length() throws TypeError {
+            if(typeValue instanceof Type.Tuple){
+                return ((Type.Tuple) typeValue).elementCount();
+            }else{
+                return super.length();
+            }
+        }
+
+        @Override
+        public Value get(long index) throws ConcatRuntimeError {
+            if(typeValue instanceof Type.Tuple){
+                if(index<0||index>=((Type.Tuple) typeValue).elementCount()){
+                    throw new ConcatRuntimeError("index out of bounds:"+index+" size:"
+                            +((Type.Tuple) typeValue).elementCount());
+                }
+                return ofType(((Type.Tuple) typeValue).get((int)index));
+            }else{
+                return super.get(index);
+            }
         }
 
         @Override
@@ -445,6 +485,11 @@ public abstract class Value {
         private CharValue(int codePoint) {
             super(Type.CHAR);
             this.codePoint = codePoint;
+        }
+
+        @Override
+        public long id() {
+            return codePoint;
         }
 
         public int getChar() {
@@ -487,6 +532,11 @@ public abstract class Value {
         private ByteValue(byte byteValue) {
             super(Type.BYTE);
             this.byteValue = byteValue;
+        }
+
+        @Override
+        public long id() {
+            return byteValue;
         }
 
         @Override
@@ -543,6 +593,11 @@ public abstract class Value {
         private ListValue(Type type,ArrayList<Value> elements) {
             super(type);
             this.elements = elements;
+        }
+
+        @Override
+        public long id() {
+            return System.identityHashCode(elements);
         }
 
         @Override
@@ -697,6 +752,11 @@ public abstract class Value {
         }
 
         @Override
+        public long id() {
+            return System.identityHashCode(elements);
+        }
+
+        @Override
         boolean isEqualTo(Value v) {
             return v instanceof TupleValue &&
                     ((TupleValue) v).elements==elements;//reference equality
@@ -715,7 +775,9 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type instanceof Type.Tuple&&
+            if(type==Type.GENERIC_TUPLE){
+                return this;
+            }else if(type instanceof Type.Tuple&&
                     ((Type.Tuple) type).elementCount()==((Type.Tuple)this.type).elementCount()){
                 Value[] newValues=elements.clone();
                 return createTuple((Type.Tuple)type,newValues);
@@ -775,6 +837,11 @@ public abstract class Value {
         }
 
         @Override
+        public long id() {
+            return System.identityHashCode(pos);
+        }
+
+        @Override
         public Interpreter.TokenPosition asProcedure() {
             return pos;
         }
@@ -805,6 +872,11 @@ public abstract class Value {
         private StructValue(HashMap<String, Interpreter.Variable> variables) {
             super(Type.STRUCT);
             this.variables = variables;
+        }
+
+        @Override
+        public long id() {
+            return System.identityHashCode(variables);
         }
 
         @Override
@@ -893,6 +965,11 @@ public abstract class Value {
         }
 
         @Override
+        public long id() {
+            return System.identityHashCode(streamValue);
+        }
+
+        @Override
         boolean isEqualTo(Value v) {
             return v == this;
         }
@@ -966,6 +1043,12 @@ public abstract class Value {
             return cmpToValue(Integer.compare(((CharValue) a).codePoint,((CharValue) b).codePoint), opType);
         }else if(a instanceof NumberValue&&b instanceof NumberValue){
             return mathOp(a,b,(x,y)->cmpToValue(x.compareTo(y),opType),(x,y)->cmpToValue(x.compareTo(y),opType));
+        }else if(a instanceof TypeValue&&b instanceof TypeValue&&(opType==OperatorType.GE||opType==OperatorType.LE)){
+            if(opType==OperatorType.LE){
+                return a.asType().isSubtype(b.asType())?TRUE:FALSE;
+            }else {
+                return b.asType().isSubtype(a.asType())?TRUE:FALSE;
+            }
         }else{
             throw new TypeError("cannot compare "+a.type+" and "+b.type);
         }

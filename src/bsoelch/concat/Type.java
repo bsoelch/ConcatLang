@@ -15,19 +15,14 @@ public class Type {
 
     public static final Type FILE = new Type("(file)");
 
-    public static final Type GENERIC_LIST = new Type("(list)");
-    //addLater GENERIC_TUPLE
+    public static final Type GENERIC_LIST  = new Type("(list)");
+    public static final Type GENERIC_TUPLE = new Type("(tuple)");
 
     /**blank type that could contain any value*/
-    public static final Type ANY = new Type("var") {
-        @Override
-        public boolean canAssignFrom(Type source) {
-            return true;
-        }
-    };
+    public static final Type ANY = new Type("var") {};
 
     public static Type STRING() {
-        return ContainerType.STRING;
+        return ListType.STRING;
     }
 
     public Type(String name) {
@@ -35,6 +30,9 @@ public class Type {
     }
     private final String name;
 
+    public boolean isSubtype(Type t){
+        return (t==this)||t==ANY;
+    }
 
     @Override
     public String toString() {
@@ -46,27 +44,20 @@ public class Type {
     public Type content() {
         throw new UnsupportedOperationException();
     }
-    public boolean canAssignFrom(Type source){
-        return this==source;
-    }
-
-    public static Type listOf(Type contentType) {
+        public static Type listOf(Type contentType) {
         if (contentType == CHAR) {
-            return ContainerType.STRING;
+            return ListType.STRING;
         } else {
-            return new ContainerType(ContainerType.LIST,contentType);
+            return new ListType(contentType);
         }
     }
-    private static class ContainerType extends Type {
-        public static final String LIST = "list";
-        static final Type STRING      = new ContainerType(LIST,Type.CHAR);
+    private static class ListType extends Type {
+        static final Type STRING      = new ListType(Type.CHAR);
 
-        final String containerType;
         final Type contentType;
 
-        ContainerType(String containerType, Type contentType) {
-            super(contentType.name + " "+containerType);
-            this.containerType = containerType;
+        ListType(Type contentType) {
+            super(contentType.name+" list");
             this.contentType = contentType;
         }
 
@@ -75,11 +66,11 @@ public class Type {
         }
 
         @Override
-        public boolean canAssignFrom(Type source) {
-            if(source instanceof ContainerType&&((ContainerType) source).containerType.equals(containerType)){
-                return contentType.canAssignFrom(((ContainerType) source).contentType);
+        public boolean isSubtype(Type t) {
+            if(t instanceof ListType){
+                return content().isSubtype(t.content());
             }else{
-                return super.canAssignFrom(source);
+                return t==GENERIC_LIST||super.isSubtype(t);
             }
         }
 
@@ -93,12 +84,12 @@ public class Type {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ContainerType that = (ContainerType) o;
-            return Objects.equals(containerType, that.containerType) && Objects.equals(contentType, that.contentType);
+            ListType that = (ListType) o;
+            return Objects.equals(contentType, that.contentType);
         }
         @Override
         public int hashCode() {
-            return Objects.hash(containerType, contentType);
+            return contentType.hashCode();
         }
     }
 
@@ -114,6 +105,20 @@ public class Type {
         private Tuple(String name,Type[] elements) {
             super(name);
             this.elements=elements;
+        }
+
+        @Override
+        public boolean isSubtype(Type t) {
+            if(t instanceof Tuple&&((Tuple) t).elementCount()==elementCount()){
+                for(int i=0;i<elements.length;i++){
+                    if(!elements[i].isSubtype(((Tuple) t).elements[i])){
+                        return false;
+                    }
+                }
+                return true;
+            }else{
+                return t==GENERIC_TUPLE||super.isSubtype(t);
+            }
         }
 
         public int elementCount(){
