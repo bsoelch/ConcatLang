@@ -605,6 +605,8 @@ public abstract class Value {
 
     private static class ListValue extends Value{
         final ArrayList<Value> elements;
+        /**true when this value is currently used in toString (used to handle self containing lists)*/
+        private boolean inToString;
         private ListValue(Type type,ArrayList<Value> elements) {
             super(type);
             this.elements = elements;
@@ -775,7 +777,14 @@ public abstract class Value {
                 }
                 return str.toString();
             }else{
-                return elements.toString();
+                if(inToString){
+                    return "[...]";
+                }else{
+                    inToString=true;
+                    String ret=elements.toString();
+                    inToString=false;
+                    return ret;
+                }
             }
         }
 
@@ -800,6 +809,8 @@ public abstract class Value {
         final ListValue list;
         final   int off;
         private int to;
+        /**true when this value is currently used in toString (used to handle self containing lists)*/
+        private boolean inToString;
         private ListSlice(ListValue list, int off, int to) {
             super(list.type);
             this.list = list;
@@ -962,7 +973,14 @@ public abstract class Value {
                 }
                 return str.toString();
             }else{
-                return getElements().toString();
+                if(inToString){
+                    return "[...]";
+                }else{
+                    inToString=true;
+                    String ret=getElements().toString();
+                    inToString=false;
+                    return ret;
+                }
             }
         }
 
@@ -995,6 +1013,8 @@ public abstract class Value {
         /**slice end closer to bottom of stack,
          * counted in elements from the top of the stack with 1 being the top element*/
         private int bottom;
+        /**true when this value is currently used in toString (used to handle self containing lists)*/
+        private boolean inToString;
 
         private StackSlice(RandomAccessStack<Value> stack, int top, int bottom) {
             super(Type.listOf(Type.ANY));
@@ -1140,14 +1160,13 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            if(Type.CHAR.equals(type.content())){
-                StringBuilder str=new StringBuilder();
-                for(Value v: getElements()){
-                    str.append(Character.toChars(((CharValue)v).getChar()));
-                }
-                return str.toString();
+            if(inToString){
+                return "[...]";
             }else{
-                return getElements().toString();
+                inToString=true;
+                String ret=getElements().toString();
+                inToString=false;
+                return ret;
             }
         }
 
@@ -1179,6 +1198,8 @@ public abstract class Value {
     }
     private static class TupleValue extends Value{
         final Value[] elements;
+        /**true when this value is currently used in toString (used to handle self containing tuples)*/
+        private boolean inToString;
 
         private TupleValue(Type.Tuple type,Value[] elements){
             super(type);
@@ -1243,14 +1264,20 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            StringBuilder res=new StringBuilder("(");
-            for(int i=0;i<elements.length;i++){
-                if(i>0){
-                    res.append(',');
+            if(inToString){
+                return "(...)";
+            }else{
+                inToString=true;
+                StringBuilder res=new StringBuilder("(");
+                for(int i=0;i<elements.length;i++){
+                    if(i>0){
+                        res.append(',');
+                    }
+                    res.append(elements[i]);
                 }
-                res.append(elements[i]);
+                inToString=false;
+                return res.append(")").toString();
             }
-            return res.append(")").toString();
         }
 
         @Override
