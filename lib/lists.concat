@@ -1,0 +1,44 @@
+
+## TODO binary search
+
+proc ## ? list off to
+int to =:
+int off =:
+(list) input =:
+if off to < :
+  off to + 2 / int c =:
+  input off   c  __LISTS_mergesort_helper ()
+  c 1 + c =
+  input c to __LISTS_mergesort_helper ()
+  ## 0 ... c-1 and c...to-1 are sorted
+  c int i =:
+  while && off c < : c to <= end :
+    while && off c < : input off [] input c [] <= end :
+      off 1 + off =
+    end
+    if off c < :
+      while && i to <= : input off [] input i [] > end :
+        i 1 + i =
+      end
+      input c i [:] 0 0 :[:] = ## push copy of slice onto stack
+      i c - int delta =:
+      input  input off c [:]  off delta + c delta + [:] = ## move remaining part of left half to the right
+      input 0 delta :[:] off off delta + [:] = ## get the elements from the stack
+      "" 0 delta :[:] = ## clear the temporary stack section
+      i c =
+      off 1 + off =
+    end
+  end
+end
+end *->* __LISTS_mergesort_helper =$
+
+proc ## ? list
+(list) input =:
+input 0 input length 1 - __LISTS_mergesort_helper ()
+end *->* __LISTS_mergesort =$
+
+## addLater sort with comparator (needs fixed signature procedures)
+
+## addLater? other sorting algorithms
+
+
