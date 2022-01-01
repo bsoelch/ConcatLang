@@ -1,6 +1,5 @@
-if __hashCode ? ! :
 optional #include
-
+if __hashCode ? ! :
 proc ## var -> int
   var value =:
   value typeof type valType =:

@@ -1,7 +1,8 @@
-if intToString ? ! :
-
+stack #include
 chars #include
 numbers/limits #include
+
+if intToString ? ! :
 
 proc ## value:int base:int big:bool -> char
     bool big =:

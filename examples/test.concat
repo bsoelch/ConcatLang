@@ -1,8 +1,4 @@
-dup  #define 0 :[] #end
-over #define 1 :[] #end
-swap #define 1 :[]  0 2 :[:] 0 3 :[:] = #end
-## TODO move marcos to global location
-
+stack #include
 proc
   dup float a =$ float x =:
   while x x * a - 1E-16 > :
@@ -162,3 +158,5 @@ map println
 lists #include
 1 2 3 4 5 int 5 {} dup __LISTS_mergesort () println
 5 4 3 2 1 int 5 {} dup __LISTS_mergesort () println
+
+1 2 3 4 rot3

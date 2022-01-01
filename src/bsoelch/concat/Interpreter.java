@@ -331,6 +331,9 @@ public class Interpreter {
             case STRING ->throw new SyntaxError("unfinished string", reader.currentPos());
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
+        //pass "##" to finishWord to expand macros at end of file,
+        // "##" will normally be eliminated before it reaches this method and therefore does not lead to any problems
+        finishWord("##",tokenBuffer,openBlocks,currentMacroPtr,reader.currentPos(),program,fileName);
         if(openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(),
                     openBlocks.lastEntry().getValue().pos);
@@ -553,6 +556,7 @@ public class Interpreter {
     private void addWord(String str, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks, HashMap<String, Macro> macros,
                          FilePosition pos, String fileName) throws SyntaxError {
         switch (str) {
+            case "##"    -> {} //## string can only be passed to the method on end of file
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
             case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
 

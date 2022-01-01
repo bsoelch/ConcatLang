@@ -1,5 +1,6 @@
-if __PRINTF_FLAG_PAD_0 ? ! :
+stack #include
 numbers/string #include
+if __PRINTF_FLAG_PAD_0 ? ! :
 1 int __PRINTF_FLAG_PAD_0 =$
 2 int __PRINTF_FLAG_ALIGN_LEFT =$
 4 int __PRINTF_FLAG_SGN =$
