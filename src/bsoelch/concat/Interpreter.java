@@ -15,6 +15,7 @@ public class Interpreter {
 
     enum TokenType {
         VALUE,OPERATOR,
+        DROP,STACK_GET,STACK_SET, STACK_SLICE_GET,STACK_SLICE_SET,
         DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,HAS_VAR,//addLater option to free variables
         IF,START,ELIF,ELSE,DO,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
@@ -430,11 +431,17 @@ public class Interpreter {
                     }
                     case "="->{
                         if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_INDEX){
-                            //<array> <val> <index> []
+                            //<array> <val> <index> [] =
                             tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_INDEX,prev.pos));
                         }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_SLICE){
-                            //<array> <val> <off> <to> [:]
+                            //<array> <val> <off> <to> [:] =
                             tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_SLICE,prev.pos));
+                        }else if(prev!=null&&prev.tokenType==TokenType.STACK_GET){
+                            //<val> <index> :[] =
+                            tokens.set(tokens.size()-1,new Token(TokenType.STACK_SET,prev.pos));
+                        }else if(prev!=null&&prev.tokenType==TokenType.STACK_SLICE_GET){
+                            //<val> <off> <to> :[:] =
+                            tokens.set(tokens.size()-1,new Token(TokenType.STACK_SLICE_SET,prev.pos));
                         }else if(prev instanceof VariableToken){
                             if(prev.tokenType == TokenType.IDENTIFIER){
                                 prev=new VariableToken(TokenType.VAR_WRITE,((VariableToken) prev).name,prev.pos);
@@ -569,10 +576,11 @@ public class Interpreter {
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
 
-            case "dup"    -> tokens.add(new OperatorToken(OperatorType.DUP,        pos));
-            case "drop"   -> tokens.add(new OperatorToken(OperatorType.DROP,       pos));
-            case "swap"   -> tokens.add(new OperatorToken(OperatorType.SWAP,       pos));
-            case "over"   -> tokens.add(new OperatorToken(OperatorType.OVER,       pos));
+            case "drop" -> tokens.add(new Token(TokenType.DROP,            pos));
+            //<index> :[]
+            case ":[]"  -> tokens.add(new Token(TokenType.STACK_GET,       pos));
+            //<off> <to> :[]
+            case ":[:]" -> tokens.add(new Token(TokenType.STACK_SLICE_GET, pos));
 
             case "refId"  -> tokens.add(new OperatorToken(OperatorType.REF_ID,     pos));
 
@@ -677,6 +685,7 @@ public class Interpreter {
                                     new TokenPosition(fileName,tokens.size())));
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,
+                                DROP,STACK_GET,STACK_SLICE_GET,STACK_SET,STACK_SLICE_SET,
                                 VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, PROCEDURE_START,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
                                 PRINT,PRINTLN,STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,
@@ -860,20 +869,6 @@ public class Interpreter {
         }
     }
 
-    static Value pop(ArrayDeque<Value> stack) throws ConcatRuntimeError {
-        Value v=stack.pollLast();
-        if(v==null){
-            throw new ConcatRuntimeError("stack underflow");
-        }
-        return v;
-    }
-    static Value peek(ArrayDeque<Value> stack) throws ConcatRuntimeError {
-        Value v=stack.peekLast();
-        if(v==null){
-            throw new ConcatRuntimeError("stack underflow");
-        }
-        return v;
-    }
     private ArrayList<Token> updateTokens(String oldFile, TokenPosition newPos, Program prog, ArrayList<Token> tokens) {
         if(oldFile.equals(newPos.file)){
             return tokens;
@@ -882,8 +877,8 @@ public class Interpreter {
         }
     }
 
-    public ArrayDeque<Value> run(Program program){
-        ArrayDeque<Value> stack=new ArrayDeque<>();
+    public RandomAccessStack<Value> run(Program program){
+        RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
         ProgramState state=new ProgramState(null);
         String file=program.mainFile;
         int ip=0;
@@ -894,146 +889,129 @@ public class Interpreter {
             boolean incIp=true;
             try {
                 switch (next.tokenType) {
-                    case VALUE -> stack.addLast(((ValueToken) next).value.clone(true));
+                    case VALUE -> stack.push(((ValueToken) next).value.clone(true));
                     case OPERATOR -> {
                         switch (((OperatorToken) next).opType) {
-                            case DUP -> {
-                                Value t = peek(stack);
-                                stack.addLast(t);
-                            }
-                            case OVER -> {// a b -> a b a
-                                Value b=pop(stack);
-                                Value a=peek(stack);
-                                stack.addLast(b);
-                                stack.addLast(a);
-                            }
-                            case REF_ID -> stack.addLast(Value.ofInt(pop(stack).id()));
+                            case REF_ID -> stack.push(Value.ofInt(stack.pop().id()));
                             case CLONE -> {
-                                Value t = peek(stack);
-                                stack.addLast(t.clone(false));
+                                Value t = stack.peek();
+                                stack.push(t.clone(false));
                             }
                             case DEEP_CLONE -> {
-                                Value t = peek(stack);
-                                stack.addLast(t.clone(true));
-                            }
-                            case DROP -> pop(stack);
-                            case SWAP -> {
-                                Value tmp1 = pop(stack);
-                                Value tmp2 = pop(stack);
-                                stack.addLast(tmp1);
-                                stack.addLast(tmp2);
+                                Value t = stack.peek();
+                                stack.push(t.clone(true));
                             }
                             case NEGATE -> {
-                                Value v = pop(stack);
-                                stack.addLast(v.negate());
+                                Value v = stack.pop();
+                                stack.push(v.negate());
                             }
                             case INVERT -> {
-                                Value v = pop(stack);
-                                stack.addLast(v.invert());
+                                Value v = stack.pop();
+                                stack.push(v.invert());
                             }
                             case NOT -> {
-                                Value v = pop(stack);
-                                stack.addLast(v.asBool() ? Value.FALSE : Value.TRUE);
+                                Value v = stack.pop();
+                                stack.push(v.asBool() ? Value.FALSE : Value.TRUE);
                             }
                             case FLIP -> {
-                                Value v = pop(stack);
-                                stack.addLast(v.flip());
+                                Value v = stack.pop();
+                                stack.push(v.flip());
                             }
                             case PLUS -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y), (x, y) -> Value.ofFloat(x + y)));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y), (x, y) -> Value.ofFloat(x + y)));
                             }
                             case MINUS -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y), (x, y) -> Value.ofFloat(x - y)));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y), (x, y) -> Value.ofFloat(x - y)));
                             }
                             case MULTIPLY -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y), (x, y) -> Value.ofFloat(x * y)));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y), (x, y) -> Value.ofFloat(x * y)));
                             }
                             case DIV -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x / y), (x, y) -> Value.ofFloat(x / y)));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x / y), (x, y) -> Value.ofFloat(x / y)));
                             }
                             case MOD -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(x % y), (x, y) -> Value.ofFloat(x % y)));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x % y), (x, y) -> Value.ofFloat(x % y)));
                             }
                             case UNSIGNED_DIV -> {
-                                long b = pop(stack).asLong();
-                                long a = pop(stack).asLong();
-                                stack.addLast(Value.ofInt(Long.divideUnsigned(a,b)));
+                                long b = stack.pop().asLong();
+                                long a = stack.pop().asLong();
+                                stack.push(Value.ofInt(Long.divideUnsigned(a,b)));
                             }
                             case UNSIGNED_MOD -> {
-                                long b = pop(stack).asLong();
-                                long a = pop(stack).asLong();
-                                stack.addLast(Value.ofInt(Long.remainderUnsigned(a,b)));
+                                long b = stack.pop().asLong();
+                                long a = stack.pop().asLong();
+                                stack.push(Value.ofInt(Long.remainderUnsigned(a,b)));
                             }
                             case POW -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.mathOp(a, b, (x, y) -> Value.ofInt(longPow(x, y)),
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(longPow(x, y)),
                                         (x, y) -> Value.ofFloat(Math.pow(x, y))));
                             }
                             case EQ, NE, GT, GE, LE, LT,REF_EQ,REF_NE -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.compare(a, ((OperatorToken) next).opType, b));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.compare(a, ((OperatorToken) next).opType, b));
                             }
                             case AND -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.logicOp(a, b, (x, y) -> x && y, (x, y) -> x & y));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.logicOp(a, b, (x, y) -> x && y, (x, y) -> x & y));
                             }
                             case OR -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.logicOp(a, b, (x, y) -> x || y, (x, y) -> x | y));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.logicOp(a, b, (x, y) -> x || y, (x, y) -> x | y));
                             }
                             case XOR -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.logicOp(a, b, (x, y) -> x ^ y, (x, y) -> x ^ y));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.logicOp(a, b, (x, y) -> x ^ y, (x, y) -> x ^ y));
                             }
-                            case LOG   -> stack.addLast(Value.ofFloat(Math.log(pop(stack).asDouble())));
-                            case FLOOR -> stack.addLast(Value.ofFloat(Math.floor(pop(stack).asDouble())));
-                            case CEIL  -> stack.addLast(Value.ofFloat(Math.ceil(pop(stack).asDouble())));
+                            case LOG   -> stack.push(Value.ofFloat(Math.log(stack.pop().asDouble())));
+                            case FLOOR -> stack.push(Value.ofFloat(Math.floor(stack.pop().asDouble())));
+                            case CEIL  -> stack.push(Value.ofFloat(Math.ceil(stack.pop().asDouble())));
                             case LSHIFT -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.intOp(a, b, (x, y) -> y < 0 ? x >>> -y : x << y));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? x >>> -y : x << y));
                             }
                             case RSHIFT -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.intOp(a, b, (x, y) -> y < 0 ? x << -y : x >>> y));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? x << -y : x >>> y));
                             }
                             case SLSHIFT -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.intOp(a, b, (x, y) -> y < 0 ? x >> -y : slshift(x, y)));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? x >> -y : slshift(x, y)));
                             }
                             case SRSHIFT -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
-                                stack.addLast(Value.intOp(a, b, (x, y) -> y < 0 ? slshift(x, -y) : x >> y));
+                                Value b = stack.pop();
+                                Value a = stack.pop();
+                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? slshift(x, -y) : x >> y));
                             }
                             case LIST_OF -> {
-                                Type contentType = pop(stack).asType();
-                                stack.addLast(Value.ofType(Type.listOf(contentType)));
+                                Type contentType = stack.pop().asType();
+                                stack.push(Value.ofType(Type.listOf(contentType)));
                             }
                             case CONTENT -> {
-                                Type wrappedType = pop(stack).asType();
-                                stack.addLast(Value.ofType(wrappedType.content()));
+                                Type wrappedType = stack.pop().asType();
+                                stack.push(Value.ofType(wrappedType.content()));
                             }
                             case NEW_LIST -> {//e1 e2 ... eN type count {}
-                                long count = pop(stack).asLong();
-                                Type type = pop(stack).asType();
+                                long count = stack.pop().asLong();
+                                Type type = stack.pop().asType();
                                 if(count<0){
                                     throw new ConcatRuntimeError("he element count has to be at least 0");
                                 }else if(count>Integer.MAX_VALUE){
@@ -1041,86 +1019,86 @@ public class Interpreter {
                                 }
                                 ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
                                 while (count > 0) {
-                                    tmp.addFirst(pop(stack).castTo(type));
+                                    tmp.addFirst(stack.pop().castTo(type));
                                     count--;
                                 }
                                 ArrayList<Value> list = new ArrayList<>(tmp);
-                                stack.addLast(Value.createList(Type.listOf(type), list));
+                                stack.push(Value.createList(Type.listOf(type), list));
                             }
                             case CAST -> {
-                                Type type = pop(stack).asType();
-                                Value val = pop(stack);
-                                stack.addLast(val.castTo(type));
+                                Type type = stack.pop().asType();
+                                Value val = stack.pop();
+                                stack.push(val.castTo(type));
                             }
                             case TYPE_OF -> {
-                                Value val = pop(stack);
-                                stack.addLast(Value.ofType(val.type));
+                                Value val = stack.pop();
+                                stack.push(Value.ofType(val.type));
                             }
                             case LENGTH -> {
-                                Value val = pop(stack);
-                                stack.addLast(Value.ofInt(val.length()));
+                                Value val = stack.pop();
+                                stack.push(Value.ofInt(val.length()));
                             }
                             case ENSURE_CAP -> {
-                                long newCap=pop(stack).asLong();
-                                peek(stack).ensureCap(newCap);
+                                long newCap=stack.pop().asLong();
+                                stack.peek().ensureCap(newCap);
                             }
                             case FILL -> {
-                                Value val   = pop(stack);
-                                long  count = pop(stack).asLong();
-                                long  off   = pop(stack).asLong();
-                                Value list  = pop(stack);
+                                Value val   = stack.pop();
+                                long  count = stack.pop().asLong();
+                                long  off   = stack.pop().asLong();
+                                Value list  = stack.pop();
                                 list.fill(val,off,count);
                             }
                             case GET_INDEX -> {//array index []
-                                long index = pop(stack).asLong();
-                                Value list = pop(stack);
-                                stack.addLast(list.get(index));
+                                long index = stack.pop().asLong();
+                                Value list = stack.pop();
+                                stack.push(list.get(index));
                             }
                             case SET_INDEX -> {//array value index [] =
-                                long index = pop(stack).asLong();
-                                Value val = pop(stack);
-                                Value list = pop(stack);
+                                long index = stack.pop().asLong();
+                                Value val = stack.pop();
+                                Value list = stack.pop();
                                 list.set(index,val);
                             }
                             case GET_SLICE -> {
-                                long to = pop(stack).asLong();
-                                long off = pop(stack).asLong();
-                                Value list = pop(stack);
-                                stack.addLast(list.getSlice(off, to));
+                                long to = stack.pop().asLong();
+                                long off = stack.pop().asLong();
+                                Value list = stack.pop();
+                                stack.push(list.getSlice(off, to));
                             }
                             case SET_SLICE -> {
-                                long to = pop(stack).asLong();
-                                long off = pop(stack).asLong();
-                                Value val = pop(stack);
-                                Value list = pop(stack);
+                                long to = stack.pop().asLong();
+                                long off = stack.pop().asLong();
+                                Value val = stack.pop();
+                                Value list = stack.pop();
                                 list.setSlice(off,to,val);
                             }
                             case PUSH_FIRST -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
+                                Value b = stack.pop();
+                                Value a = stack.pop();
                                 b.push(a,true);
-                                stack.addLast(b);
+                                stack.push(b);
                             }
                             case PUSH_LAST -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
+                                Value b = stack.pop();
+                                Value a = stack.pop();
                                 a.push(b,false);
-                                stack.addLast(a);
+                                stack.push(a);
                             }
                             case PUSH_ALL_FIRST -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
+                                Value b = stack.pop();
+                                Value a = stack.pop();
                                 b.pushAll(a,true);
-                                stack.addLast(b);
+                                stack.push(b);
                             }
                             case PUSH_ALL_LAST -> {
-                                Value b = pop(stack);
-                                Value a = pop(stack);
+                                Value b = stack.pop();
+                                Value a = stack.pop();
                                 a.pushAll(b,false);
-                                stack.addLast(a);
+                                stack.push(a);
                             }
                             case TUPLE -> {
-                                long count=pop(stack).asLong();
+                                long count=stack.pop().asLong();
                                 if(count<0){
                                     throw new ConcatRuntimeError("he element count has to be at least 0");
                                 }else if(count>Integer.MAX_VALUE){
@@ -1128,28 +1106,28 @@ public class Interpreter {
                                 }
                                 Type[] types=new Type[(int)count];
                                 for(int i=1;i<=count;i++){
-                                    types[types.length-i]=pop(stack).asType();
+                                    types[types.length-i]=stack.pop().asType();
                                 }
-                                stack.addLast(Value.ofType(Type.Tuple.create(types)));
+                                stack.push(Value.ofType(Type.Tuple.create(types)));
                             }
                             case NEW -> {
-                                Type type=pop(stack).asType();
+                                Type type=stack.pop().asType();
                                 if(type instanceof Type.Tuple){
                                     int count=((Type.Tuple)type).elementCount();
                                     Value[] values=new Value[count];
                                     for(int i=1;i<= values.length;i++){
-                                        values[count-i]=pop(stack).castTo(((Type.Tuple) type).get(count-i));
+                                        values[count-i]=stack.pop().castTo(((Type.Tuple) type).get(count-i));
                                     }
-                                    stack.addLast(Value.createTuple((Type.Tuple)type,values));
+                                    stack.push(Value.createTuple((Type.Tuple)type,values));
                                 }else if(type.isList()){
-                                    long initCap=pop(stack).asLong();
-                                    stack.addLast(Value.createList(type,initCap));
+                                    long initCap=stack.pop().asLong();
+                                    stack.push(Value.createList(type,initCap));
                                 }else{
                                     throw new ConcatRuntimeError("new only supports tuples and lists");
                                 }
                             }
                             case CALL -> {
-                                Value procedure = pop(stack);
+                                Value procedure = stack.pop();
                                 state = new ProgramState(state);
                                 callStack.push(new TokenPosition(file, ip));
                                 TokenPosition newPos=procedure.asProcedure();
@@ -1158,74 +1136,105 @@ public class Interpreter {
                                 ip=newPos.ip;
                                 incIp = false;
                             }
-                            case IMPORT       -> pop(stack).importTo(state, true);
-                            case CONST_IMPORT -> pop(stack).importTo(state, false);
+                            case IMPORT       -> stack.pop().importTo(state, true);
+                            case CONST_IMPORT -> stack.pop().importTo(state, false);
 
-                            case BYTES_LE -> stack.addLast(pop(stack).bytes(false));
-                            case BYTES_BE -> stack.addLast(pop(stack).bytes(true));
-                            case BYTES_AS_INT_LE -> stack.addLast(
-                                    Value.ofInt(Value.intFromBytes(pop(stack).asByteArray())));
-                            case BYTES_AS_INT_BE -> stack.addLast(
+                            case BYTES_LE -> stack.push(stack.pop().bytes(false));
+                            case BYTES_BE -> stack.push(stack.pop().bytes(true));
+                            case BYTES_AS_INT_LE -> stack.push(
+                                    Value.ofInt(Value.intFromBytes(stack.pop().asByteArray())));
+                            case BYTES_AS_INT_BE -> stack.push(
                                     Value.ofInt(Value.intFromBytes(
-                                            ReversedList.reverse(pop(stack).asByteArray()))));
-                            case BYTES_AS_FLOAT_LE -> stack.addLast(
+                                            ReversedList.reverse(stack.pop().asByteArray()))));
+                            case BYTES_AS_FLOAT_LE -> stack.push(
                                     Value.ofFloat(Double.longBitsToDouble(
-                                            Value.intFromBytes(pop(stack).asByteArray()))));
-                            case BYTES_AS_FLOAT_BE -> stack.addLast(
+                                            Value.intFromBytes(stack.pop().asByteArray()))));
+                            case BYTES_AS_FLOAT_BE -> stack.push(
                                     Value.ofFloat(Double.longBitsToDouble(Value.intFromBytes(
-                                            ReversedList.reverse(pop(stack).asByteArray())))));
+                                            ReversedList.reverse(stack.pop().asByteArray())))));
                             case OPEN -> {
-                                String options = pop(stack).stringValue();
-                                String path    = pop(stack).stringValue();
-                                stack.addLast(Value.ofFile(new FileStream(path,options)));
+                                String options = stack.pop().stringValue();
+                                String path    = stack.pop().stringValue();
+                                stack.push(Value.ofFile(new FileStream(path,options)));
                             }
                             case CLOSE -> {
-                                FileStream stream = pop(stack).asStream();
-                                stack.addLast(stream.close()?Value.TRUE:Value.FALSE);
+                                FileStream stream = stack.pop().asStream();
+                                stack.push(stream.close()?Value.TRUE:Value.FALSE);
                                 //??? keep stream
                             }
                             case READ -> {//<file> <buff> <off> <count> read => <nRead>
-                                long count  = pop(stack).asLong();
-                                long off    = pop(stack).asLong();
-                                Value buff  = pop(stack);
-                                FileStream stream = pop(stack).asStream();
-                                stack.addLast(Value.ofInt(stream.read(buff.elements(),off,count)));
+                                long count  = stack.pop().asLong();
+                                long off    = stack.pop().asLong();
+                                Value buff  = stack.pop();
+                                FileStream stream = stack.pop().asStream();
+                                //FIXME! Value.getElements() may not be mutable
+                                stack.push(Value.ofInt(stream.read(buff.getElements(),off,count)));
                             }
                             case WRITE -> {//<file> <buff> <off> <count> write => <isOk>
-                                long count  = pop(stack).asLong();
-                                long off    = pop(stack).asLong();
-                                Value buff  = pop(stack);
-                                FileStream stream = pop(stack).asStream();
-                                stack.addLast(stream.write(buff.elements(),off,count)?Value.TRUE:Value.FALSE);
+                                long count  = stack.pop().asLong();
+                                long off    = stack.pop().asLong();
+                                Value buff  = stack.pop();
+                                FileStream stream = stack.pop().asStream();
+                                stack.push(stream.write(buff.getElements(),off,count)?Value.TRUE:Value.FALSE);
                             }
                             case SIZE -> {
-                                FileStream stream  = pop(stack).asStream();
-                                stack.addLast(Value.ofInt(stream.size()));
+                                FileStream stream  = stack.pop().asStream();
+                                stack.push(Value.ofInt(stream.size()));
                             }
                             case POS -> {
-                                FileStream stream  = pop(stack).asStream();
-                                stack.addLast(Value.ofInt(stream.pos()));
+                                FileStream stream  = stack.pop().asStream();
+                                stack.push(Value.ofInt(stream.pos()));
                             }
                             case TRUNCATE -> {
-                                FileStream stream = pop(stack).asStream();
-                                stack.addLast(stream.truncate()?Value.TRUE:Value.FALSE);
+                                FileStream stream = stack.pop().asStream();
+                                stack.push(stream.truncate()?Value.TRUE:Value.FALSE);
                             }
                             case SEEK -> {
-                                long pos = pop(stack).asLong();
-                                FileStream stream = pop(stack).asStream();
-                                stack.addLast(stream.seek(pos)?Value.TRUE:Value.FALSE);
+                                long pos = stack.pop().asLong();
+                                FileStream stream = stack.pop().asStream();
+                                stack.push(stream.seek(pos)?Value.TRUE:Value.FALSE);
                             }
                             case SEEK_END -> {
-                                FileStream stream = pop(stack).asStream();
-                                stack.addLast(stream.seekEnd()?Value.TRUE:Value.FALSE);
+                                FileStream stream = stack.pop().asStream();
+                                stack.push(stream.seekEnd()?Value.TRUE:Value.FALSE);
                             }
                         }
                     }
-                    case PRINT -> System.out.print(pop(stack).stringValue());
-                    case PRINTLN -> System.out.println(pop(stack).stringValue());
+                    case PRINT -> System.out.print(stack.pop().stringValue());
+                    case PRINTLN -> System.out.println(stack.pop().stringValue());
+                    case DROP -> stack.pop();
+                    case STACK_GET -> {
+                        long index = stack.pop().asLong();
+                        if(index<0||index>=stack.size()){
+                            throw new ConcatRuntimeError("index out of bounds:"+index+" size:"+stack.size());
+                        }
+                        stack.push(stack.get((int)index+1));
+                    }
+                    case STACK_SET -> {
+                        long index = stack.pop().asLong();
+                        Value val=stack.pop();
+                        if(index<0||index>=stack.size()){
+                            throw new ConcatRuntimeError("index out of bounds:"+index+" size:"+stack.size());
+                        }
+                        stack.set((int)index+1,val);
+                    }
+                    case STACK_SLICE_GET -> {
+                        long upper  = stack.pop().asLong();
+                        long lower  = stack.pop().asLong();
+                        stack.push(Value.newStackSlice(stack,lower,upper));
+                    }
+                    case STACK_SLICE_SET -> {
+                        long upper  = stack.pop().asLong();
+                        long lower  = stack.pop().asLong();
+                        Value val=stack.pop();
+                        if(lower<0||upper>stack.size()||lower>upper){
+                            throw new ConcatRuntimeError("invalid stack-slice: "+lower+":"+upper+" length:"+stack.size());
+                        }
+                        stack.setSlice((int)upper,(int)lower,val.getElements());
+                    }
                     case DECLARE, CONST_DECLARE -> {
-                        Value type = pop(stack);
-                        Value value = pop(stack);
+                        Value type = stack.pop();
+                        Value value = stack.pop();
                         state.declareVariable(((VariableToken) next).name, type.asType(),
                                 next.tokenType == TokenType.CONST_DECLARE, value);
                     }
@@ -1234,7 +1243,7 @@ public class Interpreter {
                         if (var == null) {
                             throw new ConcatRuntimeError("Variable " + ((VariableToken) next).name + " does not exist ");
                         }
-                        stack.addLast(var.getValue());
+                        stack.push(var.getValue());
                     }
                     case VAR_WRITE -> {
                         Variable var = state.getVariable(((VariableToken) next).name);
@@ -1243,16 +1252,16 @@ public class Interpreter {
                         } else if (var.isConst) {
                             throw new ConcatRuntimeError("Tried to overwrite const variable " + ((VariableToken) next).name);
                         }
-                        var.setValue(pop(stack));
+                        var.setValue(stack.pop());
                     }
-                    case HAS_VAR -> stack.addLast(state.hasVariable(((VariableToken) next).name));
+                    case HAS_VAR -> stack.push(state.hasVariable(((VariableToken) next).name));
                     case IF, ELIF,SHORT_AND_HEADER,SHORT_OR_HEADER,DO, WHILE, END -> {
                         //labels are no-ops
                     }
                     case SHORT_AND_JMP -> {
-                        Value c = peek(stack);
+                        Value c = stack.peek();
                         if (c.asBool()) {
-                            pop(stack);// remove and evaluate branch
+                            stack.pop();// remove and evaluate branch
                         }else{
                             tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
                             file=((JumpToken) next).target.file;
@@ -1261,14 +1270,14 @@ public class Interpreter {
                         }
                     }
                     case SHORT_OR_JMP -> {
-                        Value c = peek(stack);
+                        Value c = stack.peek();
                         if (c.asBool()) {//  remove and evaluate branch
                             tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
                             file=((JumpToken) next).target.file;
                             ip=((JumpToken) next).target.ip;
                             incIp = false;
                         }else{
-                            pop(stack);// remove token
+                            stack.pop();// remove token
                         }
                     }
                     case MACRO_EXPAND,START, ELSE, PROCEDURE -> throw new RuntimeException("Tokens of type " + next.tokenType +
@@ -1292,21 +1301,21 @@ public class Interpreter {
                         if (state == null) {
                             throw new ConcatRuntimeError("scope-stack underflow");
                         }
-                        stack.addLast(Value.newStruct(tmp.variables));
+                        stack.push(Value.newStruct(tmp.variables));
                     }
                     case FIELD_READ -> {
-                        Value struct = pop(stack);
-                        stack.addLast(struct.getField(((VariableToken)next).name));
+                        Value struct = stack.pop();
+                        stack.push(struct.getField(((VariableToken)next).name));
                     }
                     case FIELD_WRITE -> {
-                        Value val    = pop(stack);
-                        Value struct = pop(stack);
+                        Value val    = stack.pop();
+                        Value struct = stack.pop();
                         struct.setField(((VariableToken)next).name,val);
-                        stack.addLast(struct);
+                        stack.push(struct);
                     }
                     case HAS_FIELD -> {
-                        Value struct = pop(stack);
-                        stack.addLast(struct.hasField(((VariableToken)next).name));
+                        Value struct = stack.pop();
+                        stack.push(struct.hasField(((VariableToken)next).name));
                     }
                     case PROCEDURE_START,JMP -> {
                         tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
@@ -1322,7 +1331,7 @@ public class Interpreter {
                         incIp = false;
                     }
                     case JEQ -> {
-                        Value c = pop(stack);
+                        Value c = stack.pop();
                         if (c.asBool()) {
                             tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
                             file=((JumpToken) next).target.file;
@@ -1331,7 +1340,7 @@ public class Interpreter {
                         }
                     }
                     case JNE -> {
-                        Value c = pop(stack);
+                        Value c = stack.pop();
                         if (!c.asBool()) {
                             tokens= updateTokens(file,((JumpToken) next).target,program,tokens);
                             file=((JumpToken) next).target.file;
@@ -1340,12 +1349,12 @@ public class Interpreter {
                         }
                     }
                     case EXIT -> {
-                        long exitCode=pop(stack).asLong();
+                        long exitCode=stack.pop().asLong();
                         System.out.println("exited with exit code:"+exitCode);
                         return stack;
                     }
                 }
-            }catch (ConcatRuntimeError e){
+            }catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow  e){
                 System.err.println(e.getMessage());
                 Token token = tokens.get(ip);
                 System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
@@ -1428,7 +1437,7 @@ public class Interpreter {
             System.exit(1);
             return;
         }
-        ArrayDeque<Value> stack = ip.run(program);
+        RandomAccessStack<Value> stack = ip.run(program);
         System.out.println("\nStack:");
         System.out.println(stack);
     }

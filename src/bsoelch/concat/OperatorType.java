@@ -1,7 +1,6 @@
 package bsoelch.concat;
 
 public enum OperatorType {
-    DUP,DROP,SWAP,OVER, //<off> dup, <off> swap, <count> drop
     REF_ID,CLONE,DEEP_CLONE,
     NEGATE,PLUS,MINUS,
     INVERT, MULTIPLY,DIV,MOD, UNSIGNED_DIV,UNSIGNED_MOD,

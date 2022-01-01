@@ -1,3 +1,8 @@
+dup  #define 0 :[] #end
+over #define 1 :[] #end
+swap #define 1 :[]  0 2 :[:] 0 3 :[:] = #end
+## TODO move marcos to global location
+
 proc
   dup float a =$ float x =:
   while x x * a - 1E-16 > :

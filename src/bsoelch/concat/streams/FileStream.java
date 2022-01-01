@@ -21,8 +21,7 @@ public class FileStream {
         }
     }
 
-    public long read(ArrayList<Value> buff,long off,long count){
-        buff.ensureCapacity((int)count);
+    public long read(List<Value> buff,long off,long count){
         byte[] tmp=new byte[(int)count];
         try {
             count=file.read(tmp);
@@ -44,7 +43,7 @@ public class FileStream {
             return -2;
         }
     }
-    public boolean write(ArrayList<Value> buff,long off,long count) throws TypeError {
+    public boolean write(List<Value> buff,long off,long count) throws TypeError {
         byte[] tmp=new byte[(int)count];
         for(int i=0;i<count;i++){
             tmp[i]=buff.get(((int)off)+i).asByte();

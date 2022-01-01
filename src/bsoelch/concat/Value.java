@@ -82,7 +82,11 @@ public abstract class Value {
     public int length() throws TypeError {
         throw new TypeError(type+" does not have a length");
     }
-    public ArrayList<Value> elements() throws TypeError {
+    /**returns true if this Value is NOT a list (elements() throws a Type error)*/
+    boolean notList(){
+        return true;
+    }
+    public List<Value> getElements() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to list");
     }
     public Value get(long index) throws ConcatRuntimeError {
@@ -618,7 +622,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value clone(boolean deep) {
+        public ListValue clone(boolean deep) {
             ArrayList<Value> newElements;
             if(deep){
                 newElements=elements.stream().map(v->v.clone(true)).collect(Collectors.toCollection(ArrayList::new));
@@ -642,7 +646,11 @@ public abstract class Value {
         }
 
         @Override
-        public ArrayList<Value> elements() {
+        boolean notList() {
+            return false;
+        }
+        @Override
+        public List<Value> getElements() {
             return elements;
         }
 
@@ -665,7 +673,7 @@ public abstract class Value {
             if(off<0||to>elements.size()||off>to){
                 throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+elements.size());
             }
-            return createList(type,new ArrayList<>(elements.subList((int)off,(int)to)));
+            return new ListSlice(this,(int)off,(int)to);
         }
 
         @Override
@@ -674,10 +682,11 @@ public abstract class Value {
                 throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+elements.size());
             }
             List<Value> sublist=elements.subList((int)off,(int)to);
-            sublist.clear();
             try {
                 Type content=type.content();
-                sublist.addAll(value.elements().stream().map(e->e.unsafeCastTo(content)).toList());
+                List<Value> add=value.getElements().stream().map(e->e.unsafeCastTo(content)).toList();
+                sublist.clear();
+                sublist.addAll(add);
             }catch (WrappedConcatError e){
                 throw e.wrapped;
             }
@@ -726,7 +735,7 @@ public abstract class Value {
         public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
             if(value.type.isList()){
                 try{
-                    List<Value> push=value.elements().stream().map(v->v.unsafeCastTo(type.content())).toList();
+                    List<Value> push=value.getElements().stream().map(v->v.unsafeCastTo(type.content())).toList();
                     if(start){
                         elements.addAll(0,push);
                     }else{
@@ -773,9 +782,12 @@ public abstract class Value {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ListValue listValue = (ListValue) o;
-            return Objects.equals(elements, listValue.elements);
+            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
+            try {
+                return Objects.equals(elements, asValue.getElements());
+            } catch (TypeError e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -783,6 +795,379 @@ public abstract class Value {
             return Objects.hash(elements);
         }
     }
+
+    private static class ListSlice extends Value{
+        final ListValue list;
+        final   int off;
+        private int to;
+        private ListSlice(ListValue list, int off, int to) {
+            super(list.type);
+            this.list = list;
+            this.off = off;
+            this.to = to;
+        }
+
+        @Override
+        boolean isEqualTo(Value v) {
+            return v instanceof ListSlice && ((ListSlice) v).list.isEqualTo(list)
+                    && ((ListSlice) v).off == off&&((ListSlice) v).to == to;
+        }
+
+        @Override
+        public Value clone(boolean deep) {
+            ArrayList<Value> newElements;
+            if(deep){
+                newElements= getElements().stream().map(v->v.clone(true)).collect(Collectors.toCollection(ArrayList::new));
+            }else{
+                newElements=new ArrayList<>(getElements());
+            }
+            return new ListValue(type,newElements);
+        }
+
+        @Override
+        public List<Byte> asByteArray() throws TypeError {
+            if(type.content()==Type.BYTE){
+                return list.elements.subList(off,to).stream().map(t->((ByteValue)t).byteValue).toList();
+            }
+            return super.asByteArray();
+        }
+
+        @Override
+        public int length() {
+            return to-off;
+        }
+
+        @Override
+        boolean notList() {
+            return false;
+        }
+        @Override
+        public List<Value> getElements() {
+            return list.elements.subList(off,to);
+        }
+
+        @Override
+        public Value get(long index) throws ConcatRuntimeError {
+            if(index<0||index>=length()){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length());
+            }
+            return list.get(index+off);
+        }
+        @Override
+        public void set(long index,Value value) throws ConcatRuntimeError {
+            if(index<0||index>=length()){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length());
+            }
+            list.set(index+off,value.castTo(type.content()));
+        }
+        @Override
+        public Value getSlice(long off, long to) throws ConcatRuntimeError {
+            if(off<0||to>length()||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length());
+            }
+            return new ListSlice(list,(int)(this.off+off),(int)(this.off+to));
+        }
+
+        @Override
+        public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
+            if(off<0||to>length()||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length());
+            }
+            list.setSlice(this.off+off,this.off+to,value);
+            this.to+=value.length()-(to-off);
+        }
+
+        @Override
+        public void fill(Value val, long off, long count) throws ConcatRuntimeError {
+            if(off<0){
+                throw new ConcatRuntimeError("Index out of bounds:"+off+" length:"+length());
+            }
+            if(count<0){
+                throw new ConcatRuntimeError("Count has to be at least 0");
+            }
+            if(off+count>Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+            }
+            val=val.castTo(type.content());
+            ensureCap(off+count);
+            int set=(int)Math.min(length()-off,count);
+            int add=(int)(count-set);
+            for(int i=0;i<set;i++){
+                list.elements.set(this.off+i+(int)off,val);
+            }
+            for(int i=0;i<add;i++){
+                list.elements.add(to++,val);
+            }
+        }
+
+        @Override
+        public void ensureCap(long newCap) throws ConcatRuntimeError {
+            if(newCap> Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+            }
+            list.ensureCap(newCap+Math.max(list.length()-length(),0));
+        }
+
+        @Override
+        public void push(Value value, boolean start) throws ConcatRuntimeError {
+            if(start){
+                list.elements.add(off,value.castTo(type.content()));
+            }else{
+                list.elements.add(to,value.castTo(type.content()));
+            }
+            to++;
+        }
+        @Override
+        public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
+            if(value.type.isList()){
+                try{
+                    List<Value> push=value.getElements().stream().map(v->v.unsafeCastTo(type.content())).toList();
+                    if(start){
+                        list.elements.addAll(off,push);
+                    }else{
+                        list.elements.addAll(to,push);
+                    }
+                }catch (WrappedConcatError e){
+                    throw e.wrapped;
+                }
+            }else{
+                throw new TypeError("Cannot concat "+type+" and "+value.type);
+            }
+            to+=value.length();
+        }
+
+        @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(type==Type.GENERIC_LIST||this.type.equals(type)){
+                return this;
+            }else if(type.isList()){
+                Type c=type.content();
+                try {
+                    return createList(type, getElements().stream().map(v -> v.unsafeCastTo(c))
+                            .collect(Collectors.toCollection(ArrayList::new)));
+                }catch (WrappedConcatError e){
+                    throw e.wrapped;
+                }
+            }else{
+                return super.castTo(type);
+            }
+        }
+
+        @Override
+        public String stringValue() {
+            if(Type.CHAR.equals(type.content())){
+                StringBuilder str=new StringBuilder();
+                for(Value v: getElements()){
+                    str.append(Character.toChars(((CharValue)v).getChar()));
+                }
+                return str.toString();
+            }else{
+                return getElements().toString();
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
+            try {
+                return Objects.equals(getElements(), asValue.getElements());
+            } catch (TypeError e) {
+                throw new RuntimeException(e);
+            }
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(getElements());
+        }
+    }
+    public static Value newStackSlice(RandomAccessStack<Value> stack, long lower, long upper) throws ConcatRuntimeError {
+        if(lower<0||upper>stack.size()||lower>upper){
+            throw new ConcatRuntimeError("invalid stack-slice: "+lower+":"+upper+" length:"+stack.size());
+        }
+        return new StackSlice(stack, (int)lower, (int)upper);
+    }
+    private static class StackSlice extends Value{
+        final RandomAccessStack<Value> stack;
+        /**slice end closer to top of stack,
+         * counted in elements from the top of the stack with 1 being the top element*/
+        final   int top;
+        /**slice end closer to bottom of stack,
+         * counted in elements from the top of the stack with 1 being the top element*/
+        private int bottom;
+
+        private StackSlice(RandomAccessStack<Value> stack, int top, int bottom) {
+            super(Type.listOf(Type.ANY));
+            this.stack = stack;
+            this.top = top;
+            this.bottom = bottom;
+        }
+
+        @Override
+        public Value clone(boolean deep) {
+            return new ListValue(Type.listOf(Type.ANY),new ArrayList<>(getElements()));
+        }
+
+        @Override
+        boolean isEqualTo(Value v) {
+            return v instanceof StackSlice && ((StackSlice) v).stack==stack
+                    && ((StackSlice) v).top == top &&((StackSlice) v).bottom == bottom;
+        }
+
+        @Override
+        public List<Byte> asByteArray() throws TypeError {
+            return super.asByteArray();
+        }
+
+        @Override
+        public int length() {
+            return bottom - top;
+        }
+
+        @Override
+        boolean notList() {
+            return false;
+        }
+        @Override
+        public List<Value> getElements() {
+            return stack.subList(bottom,top);
+        }
+
+        @Override
+        public Value get(long index) throws ConcatRuntimeError {
+            if(index<0||index>=length()){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length());
+            }
+            return stack.get(bottom-(int)index);
+        }
+        @Override
+        public void set(long index,Value value) throws ConcatRuntimeError {
+            if(index<0||index>=length()){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length());
+            }
+            stack.set(bottom -(int)index,value.castTo(type.content()));
+        }
+        @Override
+        public Value getSlice(long off, long to) throws ConcatRuntimeError {
+            if(off<0||to>length()||to<off){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length());
+            }
+            return new StackSlice(stack,(int)(bottom -to),(int)(bottom -off));
+        }
+
+        @Override
+        public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
+            if(off<0||to>length()||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length());
+            }
+            stack.setSlice((int)(bottom-to),(int)(bottom -off),value.getElements());
+            this.bottom +=value.length()-(to-off);
+        }
+
+        @Override
+        public void fill(Value val, long off, long count) throws ConcatRuntimeError {
+            if(off<0){
+                throw new ConcatRuntimeError("Index out of bounds:"+off+" length:"+length());
+            }
+            if(count<0){
+                throw new ConcatRuntimeError("Count has to be at least 0");
+            }
+            if(off+count>Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+            }
+            val=val.castTo(type.content());
+            ensureCap(off+count);
+            int set=(int)Math.min(length()-off,count);
+            int add=(int)(count-set);
+            for(int i=0;i<set;i++){
+                stack.set(bottom -(i+(int)off),val);
+            }
+            for(int i=0;i<add;i++){
+                stack.insert(top,val);
+                bottom++;
+            }
+        }
+
+        @Override
+        public void ensureCap(long newCap){
+            //ensure cap does nothing for stack slices
+        }
+
+        @Override
+        public void push(Value value, boolean start) throws ConcatRuntimeError {
+            if(start){
+                stack.insert(bottom,value.castTo(type.content()));
+            }else{
+                stack.insert(top,value.castTo(type.content()));
+            }
+            bottom++;
+        }
+        @Override
+        public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
+            if(value.type.isList()){
+                try{
+                    List<Value> push=value.getElements().stream().map(v->v.unsafeCastTo(type.content())).toList();
+                    if(start){
+                        stack.insertAll(bottom,push);
+                    }else{
+                        stack.insertAll(top,push);
+                    }
+                }catch (WrappedConcatError e){
+                    throw e.wrapped;
+                }
+            }else{
+                throw new TypeError("Cannot concat "+type+" and "+value.type);
+            }
+            bottom +=value.length();
+        }
+
+        @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(type==Type.GENERIC_LIST||this.type.equals(type)){
+                return this;
+            }else if(type.isList()){
+                Type c=type.content();
+                try {
+                    return createList(type, getElements().stream().map(v -> v.unsafeCastTo(c))
+                            .collect(Collectors.toCollection(ArrayList::new)));
+                }catch (WrappedConcatError e){
+                    throw e.wrapped;
+                }
+            }else{
+                return super.castTo(type);
+            }
+        }
+
+        @Override
+        public String stringValue() {
+            if(Type.CHAR.equals(type.content())){
+                StringBuilder str=new StringBuilder();
+                for(Value v: getElements()){
+                    str.append(Character.toChars(((CharValue)v).getChar()));
+                }
+                return str.toString();
+            }else{
+                return getElements().toString();
+            }
+        }
+
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
+            try {
+                return Objects.equals(getElements(), asValue.getElements());
+            } catch (TypeError e) {
+                throw new RuntimeException(e);
+            }
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(getElements());
+        }
+    }
+
     public static Value createTuple(Type.Tuple type,Value[] elements) throws ConcatRuntimeError {
         if(elements.length!=type.elementCount()){
             throw new IllegalArgumentException("elements has to have the same length as types");
