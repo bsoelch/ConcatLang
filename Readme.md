@@ -421,7 +421,7 @@ on the call-stack are accessible
 once that procedure returns.
 - Variable accessibility is determined at call-time 
 not at declaration time
-- Variables in structs/procedures may shadow global variables
+- Variables in modules/procedures may shadow global variables
 - constants cannot overwrite/shadow existing variables
 - constants cannot be shadowed by local variables
 
@@ -460,30 +460,33 @@ crashes since `local1` is not accessible when calling
 the returned procedure
 
 
-### Structs
-Structures allow storing structured data
-A struct starts with the `struct` keyword and ends with the matching `end`.
-At the end of a struct block all variable declared within that block are stored
-as fields and the resulting struct is pushed onto the stack.
-The variable type for structures is `(struct)`
+### Modules
+Modules allow storing variables/constants in a separate scope
+A module starts with the `module` keyword 
+and ends with the matching `end`.
+At all variables declared 
+within a module block are stored in the module,
+with is pushed onto the stack when the `end`-statement 
+is reached.
+The variable type for modules is `(module)`
 
 Example:
 ```
-struct 1 int a =: 2 int b =$ end (struct) test =:
+module 1 int a =: 2 int b =$ end (module) test =:
 ```
 
-#### Field access
-- reading fields
-  - syntax: `<struct> <varname> .`
-  - pushes the field `<varName>` onto the stack,
-- writing fields
-  - syntax: `<struct> <newValue> <varname> . =`
-  - writes a `<newValue>` to the field `<varName>`
-and pushes the updated struct
+#### Variable access
+- reading variables
+  - syntax: `<module> <varname> .`
+  - pushes the variable `<varName>` onto the stack,
+- writing variables
+  - syntax: `<module> <newValue> <varname> . =`
+  - writes a `<newValue>` to the variable `<varName>`
+and pushes the updated module
 
 Example:
 ```
-struct 1 int a =: 2 int b =$ end (struct) test =:
+module 1 int a =: 2 int b =$ end (module) test =:
 test a . println    
 test 42 a . = println
 ```
@@ -492,5 +495,5 @@ prints
 1
 {.a=42,.b=2}
 ```
-writes to the constant field b would crash the program
+writes to the constant variable b would crash the program
 

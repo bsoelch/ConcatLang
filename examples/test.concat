@@ -64,7 +64,7 @@ end *->* sum =$
 1 2 3 4 5 6 7 8 9 int 9 {} sum () println
 1.5 2.5 3.5 4.5 float 4 {} sum () println
 
-struct 1 int a =: 2 int b =$ end (struct) test =:
+module 1 int a =: 2 int b =$ end (module) test =:
 test a . println
 test 42 a . = println
 
@@ -75,8 +75,8 @@ test 42 a . = println
 "./examples/include.concat" #include
 "./examples/include.concat" #include
 included child . ()
-struct
-included child_struct . $import
+module
+included child_module . $import
 end println
 
 255 byte cast dup typeof swap "%s: %s\n" printf

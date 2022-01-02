@@ -11,10 +11,11 @@ public class Type {
     public static final Type BYTE = new Type("byte");
     //TODO (optional) type signatures for procedures
     public static final Type PROCEDURE = new Type("*->*");
-    public static final Type STRUCT = new Type("(struct)");
+    public static final Type MODULE = new Type("(module)");
 
     public static final Type FILE = new Type("(file)");
 
+    //TODO types for compressed lists (string -> compressed char list, bytes -> compressed byte list)
     public static final Type GENERIC_LIST  = new Type("(list)");
     public static final Type GENERIC_TUPLE = new Type("(tuple)");
 

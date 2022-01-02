@@ -117,17 +117,17 @@ public abstract class Value {
         return this;
     }
 
-    public Value hasField(String name) throws TypeError {
-        throw new TypeError("Field access not supported for type "+type);
+    public Value hasVariable(String name) throws TypeError {
+        throw new TypeError("Variable access not supported for type "+type);
     }
-    public Value getField(String name) throws ConcatRuntimeError {
-        throw new TypeError("Field access not supported for type "+type);
+    public Value getVariable(String name) throws ConcatRuntimeError {
+        throw new TypeError("Variable access not supported for type "+type);
     }
-    public void setField(String name, Value newValue) throws ConcatRuntimeError {
-        throw new TypeError("Field access not supported for type "+type);
+    public void setVariable(String name, Value newValue) throws ConcatRuntimeError {
+        throw new TypeError("Variable access not supported for type "+type);
     }
     public void importTo(Interpreter.ProgramState context,boolean allowMutable) throws ConcatRuntimeError {
-        throw new TypeError("Field access not supported for type "+type);
+        throw new TypeError("Variable access not supported for type "+type);
     }
 
     public boolean isString(){
@@ -1331,13 +1331,13 @@ public abstract class Value {
         }
     }
 
-    public static Value newStruct(HashMap<String, Interpreter.Variable> variables) {
-        return new StructValue(variables);
+    public static Value newModule(HashMap<String, Interpreter.Variable> variables) {
+        return new ModuleValue(variables);
     }
-    private static class StructValue extends Value{
+    private static class ModuleValue extends Value{
         final HashMap<String, Interpreter.Variable> variables;
-        private StructValue(HashMap<String, Interpreter.Variable> variables) {
-            super(Type.STRUCT);
+        private ModuleValue(HashMap<String, Interpreter.Variable> variables) {
+            super(Type.MODULE);
             this.variables = variables;
         }
 
@@ -1357,24 +1357,24 @@ public abstract class Value {
         }
 
         @Override
-        public Value hasField(String name){
+        public Value hasVariable(String name){
             return variables.containsKey(name)?TRUE:FALSE;
         }
         @Override
-        public Value getField(String name) throws ConcatRuntimeError {
+        public Value getVariable(String name) throws ConcatRuntimeError {
             Interpreter.Variable var = variables.get(name);
             if (var == null) {
-                throw new ConcatRuntimeError("struct "+this+" does not have a field " + name);
+                throw new ConcatRuntimeError("module "+this+" does not have a variable " + name);
             }
             return var.getValue();
         }
         @Override
-        public void setField(String name, Value newValue) throws ConcatRuntimeError {
+        public void setVariable(String name, Value newValue) throws ConcatRuntimeError {
             Interpreter.Variable var = variables.get(name);
             if (var == null) {
-                throw new ConcatRuntimeError("struct "+this+" does not have a field " + name);
+                throw new ConcatRuntimeError("module "+this+" does not have a variable " + name);
             }else if (var.isConst) {
-                throw new ConcatRuntimeError("Tried to modify constant field " + name);
+                throw new ConcatRuntimeError("Tried to modify constant variable " + name);
             }
             var.setValue(newValue);
         }
@@ -1388,7 +1388,8 @@ public abstract class Value {
                         if (prev.isConst) {
                             throw new ConcatRuntimeError("Tried to overwrite constant variable " + e.getKey());
                         } else if (e.getValue().isConst) {
-                            throw new ConcatRuntimeError("Constant field " + e.getKey() + " cannot overwrite an existing variable");
+                            throw new ConcatRuntimeError("Constant variable " + e.getKey() +
+                                    " cannot overwrite an existing variable");
                         }
                     }
                     context.variables.put(e.getKey(), e.getValue());
@@ -1412,7 +1413,7 @@ public abstract class Value {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            StructValue that = (StructValue) o;
+            ModuleValue that = (ModuleValue) o;
             return Objects.equals(variables, that.variables);
         }
         @Override

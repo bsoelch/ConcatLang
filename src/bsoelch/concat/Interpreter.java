@@ -20,7 +20,7 @@ public class Interpreter {
         IF,START,ELIF,ELSE,DO,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
         PROCEDURE,RETURN, PROCEDURE_START,
-        STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,HAS_FIELD,//TODO rename struct
+        MODULE_START, MODULE_END, MODULE_READ_VAR, MODULE_WRITE_VAR, MODULE_HAS_VAR,
         PRINT,PRINTLN,
         JEQ,JNE,JMP,//jump commands only for internal representation
         INCLUDE,
@@ -448,8 +448,8 @@ public class Interpreter {
                         }else if(prev instanceof VariableToken){
                             if(prev.tokenType == TokenType.IDENTIFIER){
                                 prev=new VariableToken(TokenType.VAR_WRITE,((VariableToken) prev).name,prev.pos);
-                            }else if(prev.tokenType == TokenType.FIELD_READ){
-                                prev=new VariableToken(TokenType.FIELD_WRITE,((VariableToken) prev).name,prev.pos);
+                            }else if(prev.tokenType == TokenType.MODULE_READ_VAR){
+                                prev=new VariableToken(TokenType.MODULE_WRITE_VAR,((VariableToken) prev).name,prev.pos);
                             }else{
                                 throw new SyntaxError("invalid token for '=' modifier: "+prev,pos);
                             }
@@ -461,7 +461,7 @@ public class Interpreter {
                     }
                     case "."->{
                         if(prevId!=null){
-                            prev=new VariableToken(TokenType.FIELD_READ,prevId,prev.pos);
+                            prev=new VariableToken(TokenType.MODULE_READ_VAR,prevId,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '.' modifier: "+prev,pos);
                         }
@@ -474,8 +474,8 @@ public class Interpreter {
                         }
                         if(prevId!=null){
                             prev=new VariableToken(TokenType.HAS_VAR,((VariableToken) prev).name,prev.pos);
-                        }else if(prev.tokenType == TokenType.FIELD_READ){
-                            prev=new VariableToken(TokenType.HAS_FIELD,((VariableToken) prev).name,prev.pos);
+                        }else if(prev.tokenType == TokenType.MODULE_READ_VAR){
+                            prev=new VariableToken(TokenType.MODULE_HAS_VAR,((VariableToken) prev).name,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '?' modifier: "+prev,pos);
                         }
@@ -570,7 +570,7 @@ public class Interpreter {
             case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,          pos));
             case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT,          pos));
             case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),     pos));
-            case "(struct)" -> tokens.add(new ValueToken(Value.ofType(Type.STRUCT),        pos));
+            case "(module)" -> tokens.add(new ValueToken(Value.ofType(Type.MODULE),        pos));
             case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),           pos));
             case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,            pos));
             case "(list)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),  pos));
@@ -692,8 +692,8 @@ public class Interpreter {
                                 DROP,STACK_GET,STACK_SLICE_GET,STACK_SET,STACK_SLICE_SET,
                                 VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, PROCEDURE_START,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
-                                PRINT,PRINTLN,STRUCT_START,STRUCT_END,FIELD_READ,FIELD_WRITE,INCLUDE,
-                                HAS_VAR,HAS_FIELD,EXIT
+                                PRINT,PRINTLN, MODULE_START, MODULE_END, MODULE_READ_VAR, MODULE_WRITE_VAR,INCLUDE,
+                                HAS_VAR, MODULE_HAS_VAR,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
                     }
@@ -714,8 +714,8 @@ public class Interpreter {
                     tokens.set(start.getKey(),new JumpToken(TokenType.PROCEDURE_START,start.getValue().pos,
                             new TokenPosition(fileName,tokens.size())));
                     tokens.add(new ValueToken(Value.ofProcedureId(new TokenPosition(fileName,start.getKey()+1)),pos));
-                }else if(start.getValue().tokenType==TokenType.STRUCT_START){//struct ... end
-                    tokens.add(new Token(TokenType.STRUCT_END,pos));
+                }else if(start.getValue().tokenType==TokenType.MODULE_START){//module ... end
+                    tokens.add(new Token(TokenType.MODULE_END,pos));
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
                             " 'do ... while'  or 'else' got:"+start.getValue(),pos);
@@ -736,8 +736,8 @@ public class Interpreter {
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
-            case "struct" -> {
-                Token t = new Token(TokenType.STRUCT_START, pos);
+            case "module" -> {
+                Token t = new Token(TokenType.MODULE_START, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
@@ -1297,29 +1297,29 @@ public class Interpreter {
                         state = state.getParent();
                         assert state!=null;
                     }
-                    case STRUCT_START ->
+                    case MODULE_START ->
                             state = new ProgramState(state);
-                    case STRUCT_END -> {
+                    case MODULE_END -> {
                         ProgramState tmp=state;
                         state=state.getParent();
                         if (state == null) {
                             throw new ConcatRuntimeError("scope-stack underflow");
                         }
-                        stack.push(Value.newStruct(tmp.variables));
+                        stack.push(Value.newModule(tmp.variables));
                     }
-                    case FIELD_READ -> {
-                        Value struct = stack.pop();
-                        stack.push(struct.getField(((VariableToken)next).name));
+                    case MODULE_READ_VAR -> {
+                        Value module = stack.pop();
+                        stack.push(module.getVariable(((VariableToken)next).name));
                     }
-                    case FIELD_WRITE -> {
+                    case MODULE_WRITE_VAR -> {
                         Value val    = stack.pop();
-                        Value struct = stack.pop();
-                        struct.setField(((VariableToken)next).name,val);
-                        stack.push(struct);
+                        Value module = stack.pop();
+                        module.setVariable(((VariableToken)next).name,val);
+                        stack.push(module);
                     }
-                    case HAS_FIELD -> {
-                        Value struct = stack.pop();
-                        stack.push(struct.hasField(((VariableToken)next).name));
+                    case MODULE_HAS_VAR -> {
+                        Value module = stack.pop();
+                        stack.push(module.hasVariable(((VariableToken)next).name));
                     }
                     case PROCEDURE_START,JMP -> {
                         tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
