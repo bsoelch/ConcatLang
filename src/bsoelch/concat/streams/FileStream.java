@@ -1,14 +1,12 @@
 package bsoelch.concat.streams;
 
 import bsoelch.concat.ConcatRuntimeError;
-import bsoelch.concat.TypeError;
 import bsoelch.concat.Value;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
-import java.util.*;
 
 public class FileStream {
     final RandomAccessFile file;
@@ -21,20 +19,12 @@ public class FileStream {
         }
     }
 
-    public long read(List<Value> buff,long off,long count){
+    public long read(Value.ByteList buff, long off, long count) throws ConcatRuntimeError {
+        buff.ensureCap(count);
         byte[] tmp=new byte[(int)count];
         try {
             count=file.read(tmp);
-
-            for(int i=0;i<count;i++){//addLater? more effective method
-                int j = (int) off + i;
-                if(j<buff.size()){
-                    buff.set(j,Value.ofByte(tmp[i]));
-                }else{
-                    buff.add(Value.ofByte(tmp[i]));
-                }
-            }
-
+            buff.setSlice(off,Math.min(count,buff.length()),tmp);
             return count;
         } catch (IOException e) {
             //TODO better handling of return codes
@@ -43,13 +33,9 @@ public class FileStream {
             return -2;
         }
     }
-    public boolean write(List<Value> buff,long off,long count) throws TypeError {
-        byte[] tmp=new byte[(int)count];
-        for(int i=0;i<count;i++){
-            tmp[i]=buff.get(((int)off)+i).asByte();
-        }
+    public boolean write(Value.ByteList buff,long off,long count) throws ConcatRuntimeError {
         try {
-            file.write(tmp);
+            file.write(buff.getSlice(off,count).toByteArray());
             return true;
         } catch (IOException e) {
             return false;

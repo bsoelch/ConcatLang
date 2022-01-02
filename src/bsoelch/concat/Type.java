@@ -15,21 +15,25 @@ public class Type {
 
     public static final Type FILE = new Type("(file)");
 
-    //TODO types for compressed lists (string -> compressed char list, bytes -> compressed byte list)
     public static final Type GENERIC_LIST  = new Type("(list)");
     public static final Type GENERIC_TUPLE = new Type("(tuple)");
 
     /**blank type that could contain any value*/
     public static final Type ANY = new Type("var") {};
 
+    //TODO introduce primitiveList types for primitive lists (with entries smaller than one pointer)
     public static Type STRING() {
         return ListType.STRING;
+    }
+    public static Type BYTES() {
+        return ListType.BYTES;
     }
 
     public Type(String name) {
         this.name = name;
     }
     private final String name;
+
 
     public boolean isSubtype(Type t){
         return (t==this)||t==ANY;
@@ -48,12 +52,15 @@ public class Type {
         public static Type listOf(Type contentType) {
         if (contentType == CHAR) {
             return ListType.STRING;
+        } else if (contentType == BYTE) {
+            return ListType.BYTES;
         } else {
             return new ListType(contentType);
         }
     }
     private static class ListType extends Type {
-        static final Type STRING      = new ListType(Type.CHAR);
+        static final Type STRING = new ListType(Type.CHAR);
+        static final Type BYTES  = new ListType(Type.BYTE);
 
         final Type contentType;
 

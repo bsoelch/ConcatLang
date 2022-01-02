@@ -1146,16 +1146,15 @@ public class Interpreter {
                             case BYTES_LE -> stack.push(stack.pop().bytes(false));
                             case BYTES_BE -> stack.push(stack.pop().bytes(true));
                             case BYTES_AS_INT_LE -> stack.push(
-                                    Value.ofInt(Value.intFromBytes(stack.pop().asByteArray())));
+                                    Value.ofInt(Value.intFromBytes(stack.pop().bytes(false),false)));
                             case BYTES_AS_INT_BE -> stack.push(
-                                    Value.ofInt(Value.intFromBytes(
-                                            ReversedList.reverse(stack.pop().asByteArray()))));
+                                    Value.ofInt(Value.intFromBytes(stack.pop().bytes(false),true)));
                             case BYTES_AS_FLOAT_LE -> stack.push(
                                     Value.ofFloat(Double.longBitsToDouble(
-                                            Value.intFromBytes(stack.pop().asByteArray()))));
+                                            Value.intFromBytes(stack.pop().bytes(false),false))));
                             case BYTES_AS_FLOAT_BE -> stack.push(
-                                    Value.ofFloat(Double.longBitsToDouble(Value.intFromBytes(
-                                            ReversedList.reverse(stack.pop().asByteArray())))));
+                                    Value.ofFloat(Double.longBitsToDouble(
+                                            Value.intFromBytes(stack.pop().bytes(false),true))));
                             case OPEN -> {
                                 String options = stack.pop().stringValue();
                                 String path    = stack.pop().stringValue();
@@ -1171,15 +1170,14 @@ public class Interpreter {
                                 long off    = stack.pop().asLong();
                                 Value buff  = stack.pop();
                                 FileStream stream = stack.pop().asStream();
-                                //FIXME! Value.getElements() may not be mutable
-                                stack.push(Value.ofInt(stream.read(buff.getElements(),off,count)));
+                                stack.push(Value.ofInt(stream.read(buff.asByteList(),off,count)));
                             }
                             case WRITE -> {//<file> <buff> <off> <count> write => <isOk>
                                 long count  = stack.pop().asLong();
                                 long off    = stack.pop().asLong();
                                 Value buff  = stack.pop();
                                 FileStream stream = stack.pop().asStream();
-                                stack.push(stream.write(buff.getElements(),off,count)?Value.TRUE:Value.FALSE);
+                                stack.push(stream.write(buff.bytes(false),off,count)?Value.TRUE:Value.FALSE);
                             }
                             case SIZE -> {
                                 FileStream stream  = stack.pop().asStream();

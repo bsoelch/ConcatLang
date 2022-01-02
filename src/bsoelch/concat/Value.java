@@ -55,11 +55,11 @@ public abstract class Value {
     public FileStream asStream() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to stream");
     }
-    public List<Byte> asByteArray() throws TypeError {
-        throw new TypeError("Cannot convert "+type+" to byte list");
-    }
-    public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
+    public ByteList bytes(boolean bigEndian) throws ConcatRuntimeError {
         throw new TypeError("Converting "+type+" to raw-bytes is not supported");
+    }
+    public ByteList asByteList() throws ConcatRuntimeError {
+        throw new TypeError(type+" cannot be assigned to byte list");
     }
     /**checks if this and v are the same object (reference)
      * unlike equals this method distinguishes mutable objects with different ids but the same elements*/
@@ -113,6 +113,7 @@ public abstract class Value {
     public void pushAll(Value value,boolean start) throws ConcatRuntimeError {
         throw new TypeError("adding elements is not supported for type "+type);
     }
+    //addLater add instructions to insert/remove arbitrary elements of lists
     public Value clone(boolean deep) {
         return this;
     }
@@ -188,18 +189,25 @@ public abstract class Value {
         return new IntValue(intValue);
     }
     /**converts a byte[] to an int, assumes little-endian byte-order*/
-    public static long intFromBytes(List<Byte> bytes) throws ConcatRuntimeError {
-        if(bytes.size()>8){
-            throw new ConcatRuntimeError("too much bytes from convert to int:"+bytes.size()+" maximum: 8");
+    public static long intFromBytes(ByteList bytes,boolean bigEndian) throws ConcatRuntimeError {
+        if(bytes.length()>8){
+            throw new ConcatRuntimeError("too much bytes from convert to int:"+bytes.length()+" maximum: 8");
         }
         long val=0;
-        if(bytes.size()>0){
+        if(bytes.length()>0){
             int shift=0;
-            for(Byte b:bytes){
-                val|=(b &0xffL)<<shift;
-                shift+=8;
+            if(bigEndian){
+                for(int i=bytes.length()-1;i>=0;i--){
+                    val|=(bytes.getByte(i)&0xffL)<<shift;
+                    shift+=8;
+                }
+            }else{
+                for(int i=0;i<bytes.length();i++){
+                    val|=(bytes.getByte(i)&0xffL)<<shift;
+                    shift+=8;
+                }
             }
-            if(bytes.size()<8&&((bytes.get(bytes.size()-1)&0x80)!=0)){
+            if(bytes.length()<8&&((bytes.getByte(bytes.length()-1)&0x80)!=0)){
                 val|=-1L<<shift;
             }
         }
@@ -237,17 +245,21 @@ public abstract class Value {
         }
 
         @Override
-        public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
-            ArrayList<Value> bytes=new ArrayList<>(8);
+        public ByteList bytes(boolean bigEndian){
+            byte[] bytes=new byte[8];
             long tmp=intValue;
-            for(int i=0;i<8;i++){
-                bytes.add(ofByte((byte)(tmp&0xff)));
-                tmp>>>=8;
-            }
             if(bigEndian){
-                Collections.reverse(bytes);
+                for(int i=7;i>=0;i--){
+                    bytes[i]=(byte)(tmp&0xff);
+                    tmp>>>=8;
+                }
+            }else{
+                for(int i=0;i<8;i++){
+                    bytes[i]=(byte)(tmp&0xff);
+                    tmp>>>=8;
+                }
             }
-            return createList(Type.listOf(Type.BYTE),bytes);
+            return new ByteListImpl(bytes.length,bytes);
         }
 
         @Override
@@ -373,17 +385,21 @@ public abstract class Value {
             return floatValue;
         }
         @Override
-        public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
-            ArrayList<Value> bytes=new ArrayList<>(8);
+        public ByteList bytes(boolean bigEndian){
+            byte[] bytes=new byte[8];
             long tmp=Double.doubleToRawLongBits(floatValue);
-            for(int i=0;i<8;i++){
-                bytes.add(ofByte((byte)(tmp&0xff)));
-                tmp>>>=8;
-            }
             if(bigEndian){
-                Collections.reverse(bytes);
+                for (int i = 7; i >=0; i--) {
+                    bytes[7] = (byte) (tmp & 0xff);
+                    tmp >>>= 8;
+                }
+            }else {
+                for (int i = 0; i < 8; i++) {
+                    bytes[i] = (byte) (tmp & 0xff);
+                    tmp >>>= 8;
+                }
             }
-            return createList(Type.listOf(Type.BYTE),bytes);
+            return new ByteListImpl(bytes.length,bytes);
         }
 
         public Value negate(){
@@ -564,9 +580,10 @@ public abstract class Value {
         }
 
         @Override
-        public Value bytes(boolean bigEndian) throws ConcatRuntimeError {
-            return createList(Type.listOf(Type.BYTE),
-                    new ArrayList<>(Collections.singletonList(ofByte(byteValue))));
+        public ByteList bytes(boolean bigEndian){
+            byte[] data=new byte[16];
+            data[0]=byteValue;
+            return new ByteListImpl(1,data);
         }
 
         @Override
@@ -583,7 +600,7 @@ public abstract class Value {
         }
         @Override
         public int hashCode() {
-            return Objects.hash(byteValue);
+            return Byte.hashCode(byteValue);
         }
     }
 
@@ -600,7 +617,11 @@ public abstract class Value {
         }else if(initCap>Integer.MAX_VALUE){
             throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
         }
-        return new ListValue(type,new ArrayList<>((int) initCap));
+        if(type==Type.BYTES()){
+            return new ByteListImpl((int)initCap);
+        }else{
+            return new ListValue(type,new ArrayList<>((int) initCap));
+        }
     }
 
     private static class ListValue extends Value{
@@ -635,11 +656,15 @@ public abstract class Value {
         }
 
         @Override
-        public List<Byte> asByteArray() throws TypeError {
+        public ByteList bytes(boolean bigEndian) throws ConcatRuntimeError {
             if(type.content()==Type.BYTE){
-                return elements.stream().map(t->((ByteValue)t).byteValue).toList();
+                byte[] bytes=new byte[elements.size()];
+                for(int i=0;i<elements.size();i++){
+                    bytes[i]=elements.get(i).asByte();
+                }
+                return new ByteListImpl(bytes.length,bytes);
             }
-            return super.asByteArray();
+            return super.bytes(bigEndian);
         }
 
         @Override
@@ -804,7 +829,6 @@ public abstract class Value {
             return Objects.hash(elements);
         }
     }
-
     private static class ListSlice extends Value{
         final ListValue list;
         final   int off;
@@ -836,11 +860,18 @@ public abstract class Value {
         }
 
         @Override
-        public List<Byte> asByteArray() throws TypeError {
+        public ByteList bytes(boolean bigEndian) throws ConcatRuntimeError {
             if(type.content()==Type.BYTE){
-                return list.elements.subList(off,to).stream().map(t->((ByteValue)t).byteValue).toList();
+                if(type.content()==Type.BYTE){
+                    List<Value> list = this.list.elements.subList(off, to);
+                    byte[] bytes=new byte[list.size()];
+                    for(int i=0;i<list.size();i++){
+                        bytes[i]= list.get(i).asByte();
+                    }
+                    return new ByteListImpl(bytes.length,bytes);
+                }
             }
-            return super.asByteArray();
+            return super.bytes(bigEndian);
         }
 
         @Override
@@ -999,6 +1030,400 @@ public abstract class Value {
             return Objects.hash(getElements());
         }
     }
+    public static abstract class ByteList extends Value {
+        private ByteList(){
+            super(Type.BYTES());
+        }
+        public abstract int length();
+        @Override
+        public ByteList bytes(boolean bigEndian){
+            return this;
+        }
+        @Override
+        public ByteList asByteList() {
+            return this;
+        }
+        @Override
+        boolean notList() {
+            return false;
+        }
+        @Override
+        public List<Value> getElements() {
+            ArrayList<Value> wrapped=new ArrayList<>(length());
+            for(int i=0;i<length();i++){
+                wrapped.add(ofByte(unsafeGetByte(i)));
+            }
+            return wrapped;
+        }
+        protected abstract byte unsafeGetByte(int index);
+        public byte getByte(long index) throws ConcatRuntimeError {
+            if(index<0||index>=length()){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length());
+            }
+            return unsafeGetByte((int)index);
+        }
+        @Override
+        public Value get(long index) throws ConcatRuntimeError {
+            return ofByte(getByte(index));
+        }
+        public abstract void setByte(long index,byte b) throws ConcatRuntimeError;
+        @Override
+        public void set(long index, Value value) throws ConcatRuntimeError {
+            setByte(index,value.asByte());
+        }
+        @SuppressWarnings("unused")
+        protected abstract void insert(int index, byte b) throws ConcatRuntimeError;
+        @SuppressWarnings("unused")
+        protected abstract void insertAll(int index,byte[] bytes) throws ConcatRuntimeError;
+        public abstract void ensureCap(long newCap) throws ConcatRuntimeError;
+        public abstract ByteList getSlice(long off, long to) throws ConcatRuntimeError;
+        public abstract void setSlice(long off, long to, byte[] bytes) throws ConcatRuntimeError;
+        public abstract byte[] toByteArray();
+        @Override
+        public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
+            setSlice(off, to, value.bytes(false).toByteArray());
+        }
+        public abstract void fill(byte val, long off, long count) throws ConcatRuntimeError;
+        @Override
+        public void fill(Value val, long off, long count) throws ConcatRuntimeError {
+            fill(val.asByte(), off, count);
+        }
+        public abstract void push(byte value, boolean start) throws ConcatRuntimeError;
+        @Override
+        public void push(Value value, boolean start) throws ConcatRuntimeError {
+            push(value.asByte(), start);
+        }
+        public abstract void pushAll(byte[] value, boolean start) throws ConcatRuntimeError;
+        @Override
+        public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
+            pushAll(value.bytes(false).toByteArray(), start);
+        }
+    }
+    private static class ByteListImpl extends ByteList {
+        private byte[] elements;
+        private int size;
+        private ByteListImpl(int initCap) {
+            this.elements = new byte[Math.max(initCap,16)];
+            size=0;
+        }
+        private ByteListImpl(int size, byte[] initValue) {
+            this.size=size;
+            this.elements = initValue;
+        }
+        @Override
+        public long id() {
+            return System.identityHashCode(elements);
+        }
+        @Override
+        boolean isEqualTo(Value v) {
+            return this==v;//check reference equality
+        }
+        @Override
+        public ByteListImpl clone(boolean deep) {
+            return new ByteListImpl(size,elements.clone());
+        }
+        @Override
+        public int length() {
+            return size;
+        }
+        @Override
+        public byte[] toByteArray() {
+            return elements;
+        }
+        @Override
+        protected byte unsafeGetByte(int index) {
+            return elements[index];
+        }
+        @Override
+        public void setByte(long index, byte value) throws ConcatRuntimeError {
+            if(index<0||index>=size){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+size);
+            }
+            elements[(int)index]=value;
+        }
+        @Override
+        protected void insert(int index, byte b) throws ConcatRuntimeError {
+            if(index<0||index>size){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+size);
+            }
+            ensureCap(size+1);
+            System.arraycopy(elements,index,elements,index+1,size);
+            elements[index]=b;
+            size++;
+        }
+        @Override
+        protected void insertAll(int index, byte[] bytes) throws ConcatRuntimeError {
+            if(index<0||index>length()){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length());
+            }
+            ensureCap(size+bytes.length);
+            System.arraycopy(elements,index,elements,index+bytes.length,size);
+            System.arraycopy(bytes,0,elements,index,bytes.length);
+            size+=bytes.length;
+        }
+
+        @Override
+        public ByteList getSlice(long off, long to) throws ConcatRuntimeError {
+            if(off<0||to>size||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+size);
+            }
+            return new ByteListSlice(this,(int)off,(int)to);
+        }
+        @Override
+        public void setSlice(long off, long to, byte[] bytes) throws ConcatRuntimeError {
+            if(off<0||to>size||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+size);
+            }
+            ensureCap(size+bytes.length-(to-off));
+            if(to<size) {
+                System.arraycopy(elements, (int) to, elements, (int) off + bytes.length, size - (int) to);
+            }
+            System.arraycopy(bytes,0,elements,(int)off,bytes.length);
+            size+=bytes.length-(to-off);
+        }
+
+        @Override
+        public void fill(byte val, long off, long count) throws ConcatRuntimeError {
+            if(off<0){
+                throw new ConcatRuntimeError("Index out of bounds:"+off+" length:"+size);
+            }
+            if(count<0){
+                throw new ConcatRuntimeError("Count has to be at least 0");
+            }
+            if(off+count>Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+            }
+            ensureCap((int)(off+count));
+            Arrays.fill(elements,(int)off,(int)(off+count),val);
+            size=Math.max(size,(int)(off+count));
+        }
+        @Override
+        public void ensureCap(long newCap) throws ConcatRuntimeError {
+            if(newCap> Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+            }
+            if(elements.length<newCap){
+                byte[] newElements=new byte[Math.max((int)newCap,size+16)];
+                System.arraycopy(elements,0,newElements,0,size);
+                elements=newElements;
+            }
+        }
+        @Override
+        public void push(byte value, boolean start) throws ConcatRuntimeError {
+            ensureCap(size+1);
+            if(start){
+                System.arraycopy(elements,0,elements,1,size);
+                elements[0]=value;
+            }else{
+                elements[size]=value;
+            }
+            size++;
+        }
+        @Override
+        public void pushAll(byte[] bytes, boolean start) throws ConcatRuntimeError {
+            ensureCap(size+bytes.length);
+            if(start){
+                System.arraycopy(elements,0,elements,bytes.length,size);
+                System.arraycopy(bytes,0,elements,0,bytes.length);
+            }else{
+                System.arraycopy(bytes,0,elements,size,bytes.length);
+            }
+            size+=bytes.length;
+        }
+
+        @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(type==Type.GENERIC_LIST||this.type.equals(type)){
+                return this;
+            }else if(type.isList()){
+                Type c=type.content();
+                try {
+                    return createList(type, getElements().stream().map(v -> v.unsafeCastTo(c))
+                            .collect(Collectors.toCollection(ArrayList::new)));
+                }catch (WrappedConcatError e){
+                    throw e.wrapped;
+                }
+            }else{
+                return super.castTo(type);
+            }
+        }
+
+        @Override
+        public String stringValue() {
+            return Arrays.toString(elements);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
+            try {
+                return Objects.equals(getElements(), asValue.getElements());
+            } catch (TypeError e) {
+                throw new RuntimeException(e);
+            }
+        }
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(elements);
+        }
+    }
+    private static class ByteListSlice extends ByteList{
+        final ByteListImpl list;
+        final int off;
+        int to;
+        private ByteListSlice(ByteListImpl list, int off,int to) {
+            this.list = list;
+            this.off = off;
+            this.to = to;
+        }
+        @Override
+        boolean isEqualTo(Value v) {
+            return v instanceof ByteListSlice && ((ByteListSlice) v).list.isEqualTo(list)
+                    && ((ByteListSlice) v).off == off&&((ByteListSlice) v).to == to;
+        }
+        @Override
+        public ByteList clone(boolean deep) {
+            return new ByteListImpl(length(),toByteArray());
+        }
+        @Override
+        public ByteList bytes(boolean bigEndian){
+            return this;
+        }
+        @Override
+        public int length() {
+            return to-off;
+        }
+
+        @Override
+        boolean notList() {
+            return false;
+        }
+
+        @Override
+        public byte[] toByteArray() {
+            return Arrays.copyOfRange(list.elements,off,to);
+        }
+
+        @Override
+        public byte unsafeGetByte(int index){
+            return list.unsafeGetByte(index+off);
+        }
+        @Override
+        public void setByte(long index,byte value) throws ConcatRuntimeError {
+            if(index<0||index>=length()){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length());
+            }
+            list.setByte(index+off,value);
+        }
+        @Override
+        protected void insert(int index, byte b) throws ConcatRuntimeError {
+            list.insert(index+off,b);
+        }
+        @Override
+        protected void insertAll(int index, byte[] bytes) throws ConcatRuntimeError {
+            list.insertAll(index+off,bytes);
+        }
+        @Override
+        public ByteList getSlice(long off, long to) throws ConcatRuntimeError {
+            if(off<0||to>length()||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length());
+            }
+            return new ByteListSlice(list,(int)(this.off+off),(int)(this.off+to));
+        }
+        @Override
+        public void setSlice(long off, long to, byte[] bytes) throws ConcatRuntimeError {
+            if(off<0||to>length()||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length());
+            }
+            list.setSlice(this.off+off,this.off+to,bytes);
+            this.to+=bytes.length-(to-off);
+        }
+        @Override
+        public void fill(byte val, long off, long count) throws ConcatRuntimeError {
+            if(off<0){
+                throw new ConcatRuntimeError("Index out of bounds:"+off+" length:"+length());
+            }
+            if(count<0){
+                throw new ConcatRuntimeError("Count has to be at least 0");
+            }
+            if(off+count>Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+            }
+            ensureCap(off+count);
+            int set=(int)Math.min(length()-off,count);
+            int add=(int)(count-set);
+            for(int i=0;i<set;i++){
+                list.setByte(this.off+i+(int)off,val);
+            }
+            for(int i=0;i<add;i++){
+                list.insert(to++,val);
+            }
+        }
+
+        @Override
+        public void ensureCap(long newCap) throws ConcatRuntimeError {
+            if(newCap> Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+            }
+            list.ensureCap(newCap+Math.max(list.length()-length(),0));
+        }
+
+        @Override
+        public void push(byte value, boolean start) throws ConcatRuntimeError {
+            if(start){
+                list.insert(off,value);
+            }else{
+                list.insert(to,value);
+            }
+            to++;
+        }
+        @Override
+        public void pushAll(byte[] value, boolean start) throws ConcatRuntimeError {
+            if(start){
+                list.insertAll(off,value);
+            }else{
+                list.insertAll(to,value);
+            }
+        }
+        @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(type==Type.GENERIC_LIST||this.type.equals(type)){
+                return this;
+            }else if(type.isList()){
+                Type c=type.content();
+                try {
+                    return createList(type, getElements().stream().map(v -> v.unsafeCastTo(c))
+                            .collect(Collectors.toCollection(ArrayList::new)));
+                }catch (WrappedConcatError e){
+                    throw e.wrapped;
+                }
+            }else{
+                return super.castTo(type);
+            }
+        }
+
+        @Override
+        public String stringValue() {
+            return Arrays.toString(toByteArray());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
+            try {
+                return Objects.equals(getElements(), asValue.getElements());
+            } catch (TypeError e) {
+                throw new RuntimeException(e);
+            }
+        }
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(toByteArray());
+        }
+    }
+
     public static Value newStackSlice(RandomAccessStack<Value> stack, long lower, long upper) throws ConcatRuntimeError {
         if(lower<0||upper>stack.size()||lower>upper){
             throw new ConcatRuntimeError("invalid stack-slice: "+lower+":"+upper+" length:"+stack.size());
@@ -1032,11 +1457,6 @@ public abstract class Value {
         boolean isEqualTo(Value v) {
             return v instanceof StackSlice && ((StackSlice) v).stack==stack
                     && ((StackSlice) v).top == top &&((StackSlice) v).bottom == bottom;
-        }
-
-        @Override
-        public List<Byte> asByteArray() throws TypeError {
-            return super.asByteArray();
         }
 
         @Override
