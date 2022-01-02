@@ -60,17 +60,31 @@ public class RandomAccessStack<T> {
         }
         data[size-index]=newValue;
     }
-    //TODO implement insert
     /**insert element below position at (counted from top of the stack, starting with 1)*/
     public void insert(int at,T value){
-        throw new UnsupportedOperationException("unimplemented");
+        if(at<0||at>size){
+            throw new IndexOutOfBoundsException("index out of bounds:"+at+" size:"+size);
+        }
+        if(size>=data.length){
+            grow(2*data.length);
+        }
+        System.arraycopy(data,size-at,data,size-at+1,at);
+        data[size-at]=value;
     }
     /**insert elements below position at (counted from top of the stack, starting with 1)*/
     public void insertAll(int at, List<T> elements) {
-        throw new UnsupportedOperationException("unimplemented");
+        if(at<0||at>size){
+            throw new IndexOutOfBoundsException("index out of bounds:"+at+" size:"+size);
+        }
+        Object[] asArray= elements.toArray();
+        if(size+asArray.length>data.length){
+            grow(2*data.length);
+        }
+        System.arraycopy(data,size-at,data,size-at+asArray.length,at);
+        System.arraycopy(asArray,0,data,size-at,asArray.length);
     }
     /** get the elements in this stack between bottom and top as list
-     * !!! bottom bas to be greater or equal to top (the elements of stack slices are accessed in reversed order) !!!
+     * !!! bottom has to be greater or equal to top (the elements of stack slices are accessed in reversed order) !!!
      * @param bottom starting index (counted from top of the stack, starting with 1)
      * @param top    end index      (counted from top of the stack, starting with 1) */
     public List<T> subList(int bottom, int top) {
@@ -81,7 +95,7 @@ public class RandomAccessStack<T> {
         return (List<T>) Arrays.asList(data).subList(size-bottom,size-top);
     }
     /** get the elements in this stack between bottom and top as list
-     * !!! bottom bas to be greater or equal to top (the elements of stack slices are accessed in reversed order) !!!
+     * !!! bottom has to be greater or equal to top (the elements of stack slices are accessed in reversed order) !!!
      * @param bottom starting index (counted from top of the stack, starting with 1)
      * @param top    end index      (counted from top of the stack, starting with 1) */
     public void setSlice(int bottom, int top, List<T> elements) {
