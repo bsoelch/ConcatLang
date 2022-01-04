@@ -159,4 +159,6 @@ lists #include
 1 2 3 4 5 int 5 {} dup __LISTS_mergesort () println
 5 4 3 2 1 int 5 {} dup __LISTS_mergesort () println
 
+1 2 3 4 5 int 5 {} dup __LISTS_reverse () println
+
 1 2 3 4 rot3

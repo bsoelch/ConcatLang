@@ -1,6 +1,18 @@
 
 ## TODO binary search
 
+proc ## (list) ->
+  (list) toReverse =:
+  0 int i =:
+  toReverse length 1 - int maxId =:
+  while i toReverse length 2 / < :
+    toReverse i [] var tmp =:
+    toReverse toReverse maxId i - [] i [] =
+    toReverse tmp maxId i - [] =
+    i 1 + i =
+  end
+end *->* __LISTS_reverse =$
+
 proc ## ? list off to
 int to =:
 int off =:
@@ -32,9 +44,9 @@ if off to < :
 end
 end *->* __LISTS_mergesort_helper =$
 
-proc ## ? list
-(list) input =:
-input 0 input length 1 - __LISTS_mergesort_helper ()
+proc ## ? list ->
+  (list) input =:
+  input 0 input length 1 - __LISTS_mergesort_helper ()
 end *->* __LISTS_mergesort =$
 
 ## addLater sort with comparator (needs fixed signature procedures)
