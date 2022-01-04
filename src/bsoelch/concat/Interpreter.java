@@ -20,7 +20,7 @@ public class Interpreter {
         IF,START,ELIF,ELSE,DO,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
         PROCEDURE,RETURN, PROCEDURE_START,
-        MODULE_START, MODULE_END, MODULE_READ_VAR, MODULE_WRITE_VAR, MODULE_HAS_VAR,
+        MODULE_READ_VAR, MODULE_WRITE_VAR, MODULE_HAS_VAR,
         PRINT,PRINTLN,
         JEQ,JNE,JMP,//jump commands only for internal representation
         INCLUDE,
@@ -363,6 +363,20 @@ public class Interpreter {
         return true;
     }
 
+    //TODO reintroduce modules
+    // - now modules as "preprocessor" commands
+    // - syntax: <name> (<name> '.')+ #module ... #end
+    // - variables/constants/macros are saved in the scope of the current module
+    // - module element access though <name> (<name> '.')+
+    // - imports: <name> (<name> '.')+ #import imports a complete module or a constants into the current scope
+    // - when parsing a variable name the order is: current module > latest import > ... > first import > global
+
+    //TODO update variable resolving in procedures
+    // new order: local variables > local constants of containing procedure > ... > constants outside of procedure
+    // procedures should only be able to access constants of containing contexts
+    // when a procedure refers to a constant that cannot be resolved at compile time the
+    // resulting procedure pointer contains the value of that constant at the time of declaration
+
     private void finishWord(CharSequence buffer,ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks,
                             Macro[] currentMacroPtr,FilePosition pos,Program program,String fileName) throws SyntaxError, IOException {
         if (buffer.length() > 0) {
@@ -570,7 +584,6 @@ public class Interpreter {
             case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,          pos));
             case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT,          pos));
             case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),     pos));
-            case "(module)" -> tokens.add(new ValueToken(Value.ofType(Type.MODULE),        pos));
             case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),           pos));
             case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,            pos));
             case "(list)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),  pos));
@@ -594,12 +607,8 @@ public class Interpreter {
             case "print"      -> tokens.add(new Token(TokenType.PRINT,   pos));
             case "println"    -> tokens.add(new Token(TokenType.PRINTLN, pos));
 
-            case "bytes"      -> tokens.add(new OperatorToken(OperatorType.BYTES_LE,          pos));
-            case "bytes_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_BE,          pos));
-            case "asInt"      -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_INT_LE,   pos));
-            case "asInt_BE"   -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_INT_BE,   pos));
-            case "asFloat"    -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_FLOAT_LE, pos));
-            case "asFloat_BE" -> tokens.add(new OperatorToken(OperatorType.BYTES_AS_FLOAT_BE, pos));
+            case "intAsFloat"   -> tokens.add(new OperatorToken(OperatorType.INT_AS_FLOAT, pos));
+            case "floatAsInt"   -> tokens.add(new OperatorToken(OperatorType.FLOAT_AS_INT, pos));
 
             case "if" -> {
                 Token t = new Token(TokenType.IF, pos);
@@ -692,7 +701,7 @@ public class Interpreter {
                                 DROP,STACK_GET,STACK_SLICE_GET,STACK_SET,STACK_SLICE_SET,
                                 VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, PROCEDURE_START,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
-                                PRINT,PRINTLN, MODULE_START, MODULE_END, MODULE_READ_VAR, MODULE_WRITE_VAR,INCLUDE,
+                                PRINT,PRINTLN, MODULE_READ_VAR, MODULE_WRITE_VAR,INCLUDE,
                                 HAS_VAR, MODULE_HAS_VAR,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
@@ -714,8 +723,6 @@ public class Interpreter {
                     tokens.set(start.getKey(),new JumpToken(TokenType.PROCEDURE_START,start.getValue().pos,
                             new TokenPosition(fileName,tokens.size())));
                     tokens.add(new ValueToken(Value.ofProcedureId(new TokenPosition(fileName,start.getKey()+1)),pos));
-                }else if(start.getValue().tokenType==TokenType.MODULE_START){//module ... end
-                    tokens.add(new Token(TokenType.MODULE_END,pos));
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
                             " 'do ... while'  or 'else' got:"+start.getValue(),pos);
@@ -733,11 +740,6 @@ public class Interpreter {
             }
             case "proc","procedure" -> {
                 Token t = new Token(TokenType.PROCEDURE, pos);
-                openBlocks.put(tokens.size(),t);
-                tokens.add(t);
-            }
-            case "module" -> {
-                Token t = new Token(TokenType.MODULE_START, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
@@ -767,6 +769,7 @@ public class Interpreter {
             case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE,        pos));
             case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,            pos));
             case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,            pos));
+            //addLater compare unsigned
 
             case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
             case ".>>" -> tokens.add(new OperatorToken(OperatorType.SRSHIFT, pos));
@@ -804,9 +807,6 @@ public class Interpreter {
             case "seekEnd"  -> tokens.add(new OperatorToken(OperatorType.SEEK_END, pos));
             case "write"    -> tokens.add(new OperatorToken(OperatorType.WRITE,    pos));
             case "truncate" -> tokens.add(new OperatorToken(OperatorType.TRUNCATE, pos));
-
-            case "import"  -> tokens.add(new OperatorToken(OperatorType.IMPORT,       pos));
-            case "$import" -> tokens.add(new OperatorToken(OperatorType.CONST_IMPORT, pos));
 
             default -> tokens.add(new VariableToken(macros.containsKey(str)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,str, pos));
         }
@@ -1140,21 +1140,8 @@ public class Interpreter {
                                 ip=newPos.ip;
                                 incIp = false;
                             }
-                            case IMPORT       -> stack.pop().importTo(state, true);
-                            case CONST_IMPORT -> stack.pop().importTo(state, false);
-
-                            case BYTES_LE -> stack.push(stack.pop().bytes(false));
-                            case BYTES_BE -> stack.push(stack.pop().bytes(true));
-                            case BYTES_AS_INT_LE -> stack.push(
-                                    Value.ofInt(Value.intFromBytes(stack.pop().bytes(false),false)));
-                            case BYTES_AS_INT_BE -> stack.push(
-                                    Value.ofInt(Value.intFromBytes(stack.pop().bytes(false),true)));
-                            case BYTES_AS_FLOAT_LE -> stack.push(
-                                    Value.ofFloat(Double.longBitsToDouble(
-                                            Value.intFromBytes(stack.pop().bytes(false),false))));
-                            case BYTES_AS_FLOAT_BE -> stack.push(
-                                    Value.ofFloat(Double.longBitsToDouble(
-                                            Value.intFromBytes(stack.pop().bytes(false),true))));
+                            case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
+                            case FLOAT_AS_INT -> stack.push(Value.ofInt(Double.doubleToRawLongBits(stack.pop().asDouble())));
                             case OPEN -> {
                                 String options = stack.pop().stringValue();
                                 String path    = stack.pop().stringValue();
@@ -1177,7 +1164,7 @@ public class Interpreter {
                                 long off    = stack.pop().asLong();
                                 Value buff  = stack.pop();
                                 FileStream stream = stack.pop().asStream();
-                                stack.push(stream.write(buff.bytes(false),off,count)?Value.TRUE:Value.FALSE);
+                                stack.push(stream.write(buff.toByteList(),off,count)?Value.TRUE:Value.FALSE);
                             }
                             case SIZE -> {
                                 FileStream stream  = stack.pop().asStream();
@@ -1295,30 +1282,8 @@ public class Interpreter {
                         state = state.getParent();
                         assert state!=null;
                     }
-                    case MODULE_START ->
-                            state = new ProgramState(state);
-                    case MODULE_END -> {
-                        ProgramState tmp=state;
-                        state=state.getParent();
-                        if (state == null) {
-                            throw new ConcatRuntimeError("scope-stack underflow");
-                        }
-                        stack.push(Value.newModule(tmp.variables));
-                    }
-                    case MODULE_READ_VAR -> {
-                        Value module = stack.pop();
-                        stack.push(module.getVariable(((VariableToken)next).name));
-                    }
-                    case MODULE_WRITE_VAR -> {
-                        Value val    = stack.pop();
-                        Value module = stack.pop();
-                        module.setVariable(((VariableToken)next).name,val);
-                        stack.push(module);
-                    }
-                    case MODULE_HAS_VAR -> {
-                        Value module = stack.pop();
-                        stack.push(module.hasVariable(((VariableToken)next).name));
-                    }
+                    case MODULE_READ_VAR,MODULE_WRITE_VAR,MODULE_HAS_VAR ->
+                        throw new UnsupportedOperationException("modules are currently not supported");
                     case PROCEDURE_START,JMP -> {
                         tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
                         file=((JumpToken) next).target.file;

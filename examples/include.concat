@@ -2,14 +2,5 @@ if included ? : ## ensures that file is only included once
 "This file was already included" println
 else
 "including file" println
-module
-proc
-"included Procedure" println
-end *->* child =$
-module
-"included field" string field =:
-"included constant" string const_field =$
-end (module) child_module =$
-end (module) included =$
-
+true bool included =$
 end

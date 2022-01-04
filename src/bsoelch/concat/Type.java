@@ -11,8 +11,6 @@ public class Type {
     public static final Type BYTE = new Type("byte");
     //TODO (optional) type signatures for procedures
     public static final Type PROCEDURE = new Type("*->*");
-    public static final Type MODULE = new Type("(module)");
-
     public static final Type FILE = new Type("(file)");
 
     public static final Type GENERIC_LIST  = new Type("(list)");

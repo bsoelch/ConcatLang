@@ -1,0 +1,34 @@
+proc ## byte list -> int
+  int val =:
+  8 byte list new byte list rawData =:
+  0 int i =:
+  while i 8 < :
+    rawData val 0xff & byte cast :<< rawData =
+    val 8 >> val =
+    i 1 + i =
+  end
+  rawData
+end *->* __BYTES_intToBytes =$
+
+proc ## byte list -> int
+  byte list rawData =:
+  if rawData length 8 > :
+    "too much bytes from convert to int:" print rawData length print " maximum: 8" println
+    1 exit
+  end
+  0 int val =:
+  if rawData length 0 > :
+    0 int shift =:
+    0 int i =:
+    while i rawData length < :
+      val rawData i [] int cast shift << | val =
+      shift 8 + shift =
+      i 1 + i =
+    end
+    if && rawData length 8 < : rawData rawData length 1 - [] int cast 0x80 & 0 != end :
+      val -1 shift << | val =
+    end
+  end
+  val
+end *->* __BYTES_intFromBytes =$
+

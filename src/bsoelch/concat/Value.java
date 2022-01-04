@@ -55,7 +55,7 @@ public abstract class Value {
     public FileStream asStream() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to stream");
     }
-    public ByteList bytes(boolean bigEndian) throws ConcatRuntimeError {
+    public ByteList toByteList() throws ConcatRuntimeError {
         throw new TypeError("Converting "+type+" to raw-bytes is not supported");
     }
     public ByteList asByteList() throws ConcatRuntimeError {
@@ -118,19 +118,6 @@ public abstract class Value {
         return this;
     }
 
-    public Value hasVariable(String name) throws TypeError {
-        throw new TypeError("Variable access not supported for type "+type);
-    }
-    public Value getVariable(String name) throws ConcatRuntimeError {
-        throw new TypeError("Variable access not supported for type "+type);
-    }
-    public void setVariable(String name, Value newValue) throws ConcatRuntimeError {
-        throw new TypeError("Variable access not supported for type "+type);
-    }
-    public void importTo(Interpreter.ProgramState context,boolean allowMutable) throws ConcatRuntimeError {
-        throw new TypeError("Variable access not supported for type "+type);
-    }
-
     public boolean isString(){
         return Type.STRING().equals(type);
     }
@@ -188,31 +175,7 @@ public abstract class Value {
     public static Value ofInt(long intValue) {
         return new IntValue(intValue);
     }
-    /**converts a byte[] to an int, assumes little-endian byte-order*/
-    public static long intFromBytes(ByteList bytes,boolean bigEndian) throws ConcatRuntimeError {
-        if(bytes.length()>8){
-            throw new ConcatRuntimeError("too much bytes from convert to int:"+bytes.length()+" maximum: 8");
-        }
-        long val=0;
-        if(bytes.length()>0){
-            int shift=0;
-            if(bigEndian){
-                for(int i=bytes.length()-1;i>=0;i--){
-                    val|=(bytes.getByte(i)&0xffL)<<shift;
-                    shift+=8;
-                }
-            }else{
-                for(int i=0;i<bytes.length();i++){
-                    val|=(bytes.getByte(i)&0xffL)<<shift;
-                    shift+=8;
-                }
-            }
-            if(bytes.length()<8&&((bytes.getByte(bytes.length()-1)&0x80)!=0)){
-                val|=-1L<<shift;
-            }
-        }
-        return val;
-    }
+
     public static long parseInt(String source,int base) throws ConcatRuntimeError {
         if(base<2||base>62){
             throw new ConcatRuntimeError("base out of range:"+base+" base has to be between 2 and 62");
@@ -242,24 +205,6 @@ public abstract class Value {
         @Override
         public long id() {
             return intValue;
-        }
-
-        @Override
-        public ByteList bytes(boolean bigEndian){
-            byte[] bytes=new byte[8];
-            long tmp=intValue;
-            if(bigEndian){
-                for(int i=7;i>=0;i--){
-                    bytes[i]=(byte)(tmp&0xff);
-                    tmp>>>=8;
-                }
-            }else{
-                for(int i=0;i<8;i++){
-                    bytes[i]=(byte)(tmp&0xff);
-                    tmp>>>=8;
-                }
-            }
-            return new ByteListImpl(bytes.length,bytes);
         }
 
         @Override
@@ -383,23 +328,6 @@ public abstract class Value {
         @Override
         public double asDouble() {
             return floatValue;
-        }
-        @Override
-        public ByteList bytes(boolean bigEndian){
-            byte[] bytes=new byte[8];
-            long tmp=Double.doubleToRawLongBits(floatValue);
-            if(bigEndian){
-                for (int i = 7; i >=0; i--) {
-                    bytes[7] = (byte) (tmp & 0xff);
-                    tmp >>>= 8;
-                }
-            }else {
-                for (int i = 0; i < 8; i++) {
-                    bytes[i] = (byte) (tmp & 0xff);
-                    tmp >>>= 8;
-                }
-            }
-            return new ByteListImpl(bytes.length,bytes);
         }
 
         public Value negate(){
@@ -573,14 +501,14 @@ public abstract class Value {
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
-                return ofInt(byteValue);
+                return ofInt(byteValue&0xff);
             }else{
                 return super.castTo(type);
             }
         }
 
         @Override
-        public ByteList bytes(boolean bigEndian){
+        public ByteList toByteList(){
             byte[] data=new byte[16];
             data[0]=byteValue;
             return new ByteListImpl(1,data);
@@ -656,7 +584,7 @@ public abstract class Value {
         }
 
         @Override
-        public ByteList bytes(boolean bigEndian) throws ConcatRuntimeError {
+        public ByteList toByteList() throws ConcatRuntimeError {
             if(type.content()==Type.BYTE){
                 byte[] bytes=new byte[elements.size()];
                 for(int i=0;i<elements.size();i++){
@@ -664,7 +592,7 @@ public abstract class Value {
                 }
                 return new ByteListImpl(bytes.length,bytes);
             }
-            return super.bytes(bigEndian);
+            return super.toByteList();
         }
 
         @Override
@@ -860,7 +788,7 @@ public abstract class Value {
         }
 
         @Override
-        public ByteList bytes(boolean bigEndian) throws ConcatRuntimeError {
+        public ByteList toByteList() throws ConcatRuntimeError {
             if(type.content()==Type.BYTE){
                 if(type.content()==Type.BYTE){
                     List<Value> list = this.list.elements.subList(off, to);
@@ -871,7 +799,7 @@ public abstract class Value {
                     return new ByteListImpl(bytes.length,bytes);
                 }
             }
-            return super.bytes(bigEndian);
+            return super.toByteList();
         }
 
         @Override
@@ -1036,7 +964,7 @@ public abstract class Value {
         }
         public abstract int length();
         @Override
-        public ByteList bytes(boolean bigEndian){
+        public ByteList toByteList(){
             return this;
         }
         @Override
@@ -1081,7 +1009,7 @@ public abstract class Value {
         public abstract byte[] toByteArray();
         @Override
         public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
-            setSlice(off, to, value.bytes(false).toByteArray());
+            setSlice(off, to, value.toByteList().toByteArray());
         }
         public abstract void fill(byte val, long off, long count) throws ConcatRuntimeError;
         @Override
@@ -1096,8 +1024,21 @@ public abstract class Value {
         public abstract void pushAll(byte[] value, boolean start) throws ConcatRuntimeError;
         @Override
         public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
-            pushAll(value.bytes(false).toByteArray(), start);
+            pushAll(value.toByteList().toByteArray(), start);
         }
+        @Override
+        public String stringValue() {
+            byte[] bytes=toByteArray();
+            StringBuilder ret=new StringBuilder("[");
+            for(byte b: bytes){
+                if(ret.length()>1){
+                    ret.append(", ");
+                }
+                ret.append("0x").append(Integer.toHexString(b&0xff));
+            }
+            return ret.append("]").toString();
+        }
+
     }
     private static class ByteListImpl extends ByteList {
         private byte[] elements;
@@ -1128,7 +1069,7 @@ public abstract class Value {
         }
         @Override
         public byte[] toByteArray() {
-            return elements;
+            return Arrays.copyOf(elements,size);
         }
         @Override
         protected byte unsafeGetByte(int index) {
@@ -1249,11 +1190,6 @@ public abstract class Value {
         }
 
         @Override
-        public String stringValue() {
-            return Arrays.toString(elements);
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (!(o instanceof Value asValue)|| asValue.notList()) return false;
@@ -1287,7 +1223,7 @@ public abstract class Value {
             return new ByteListImpl(length(),toByteArray());
         }
         @Override
-        public ByteList bytes(boolean bigEndian){
+        public ByteList toByteList(){
             return this;
         }
         @Override
@@ -1401,11 +1337,6 @@ public abstract class Value {
             }else{
                 return super.castTo(type);
             }
-        }
-
-        @Override
-        public String stringValue() {
-            return Arrays.toString(toByteArray());
         }
 
         @Override
@@ -1748,97 +1679,6 @@ public abstract class Value {
         @Override
         public int hashCode() {
             return Objects.hash(pos);
-        }
-    }
-
-    public static Value newModule(HashMap<String, Interpreter.Variable> variables) {
-        return new ModuleValue(variables);
-    }
-    private static class ModuleValue extends Value{
-        final HashMap<String, Interpreter.Variable> variables;
-        private ModuleValue(HashMap<String, Interpreter.Variable> variables) {
-            super(Type.MODULE);
-            this.variables = variables;
-        }
-
-        @Override
-        public long id() {
-            return System.identityHashCode(variables);
-        }
-
-        @Override
-        boolean isEqualTo(Value v) {
-            return v == this;
-        }
-
-        @Override
-        public Value clone(boolean deep) {
-            throw new UnsupportedOperationException("cloning of "+type+" is currently not supported");
-        }
-
-        @Override
-        public Value hasVariable(String name){
-            return variables.containsKey(name)?TRUE:FALSE;
-        }
-        @Override
-        public Value getVariable(String name) throws ConcatRuntimeError {
-            Interpreter.Variable var = variables.get(name);
-            if (var == null) {
-                throw new ConcatRuntimeError("module "+this+" does not have a variable " + name);
-            }
-            return var.getValue();
-        }
-        @Override
-        public void setVariable(String name, Value newValue) throws ConcatRuntimeError {
-            Interpreter.Variable var = variables.get(name);
-            if (var == null) {
-                throw new ConcatRuntimeError("module "+this+" does not have a variable " + name);
-            }else if (var.isConst) {
-                throw new ConcatRuntimeError("Tried to modify constant variable " + name);
-            }
-            var.setValue(newValue);
-        }
-
-        @Override
-        public void importTo(Interpreter.ProgramState context,boolean allowMutable) throws ConcatRuntimeError {
-            for(Map.Entry<String, Interpreter.Variable> e:variables.entrySet()) {
-                if (allowMutable ||e.getValue().isConst) {
-                    Interpreter.Variable prev = context.getVariable(e.getKey());
-                    if (prev != null) {
-                        if (prev.isConst) {
-                            throw new ConcatRuntimeError("Tried to overwrite constant variable " + e.getKey());
-                        } else if (e.getValue().isConst) {
-                            throw new ConcatRuntimeError("Constant variable " + e.getKey() +
-                                    " cannot overwrite an existing variable");
-                        }
-                    }
-                    context.variables.put(e.getKey(), e.getValue());
-                }
-            }
-        }
-
-        @Override
-        public String stringValue() {
-            StringBuilder str=new StringBuilder("{");
-            for(Map.Entry<String, Interpreter.Variable> e:variables.entrySet()){
-                if(str.length()>1){
-                    str.append(", ");
-                }
-                str.append('.').append(e.getKey()).append("=").append(e.getValue().getValue().stringValue());
-            }
-            return str.append("}").toString();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ModuleValue that = (ModuleValue) o;
-            return Objects.equals(variables, that.variables);
-        }
-        @Override
-        public int hashCode() {
-            return Objects.hash(variables);
         }
     }
 
