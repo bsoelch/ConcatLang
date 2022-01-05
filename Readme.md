@@ -1,5 +1,5 @@
 # ConcatLang
-is s stack-based [Concatenative programming language](https://en.wikipedia.org/wiki/Concatenative_programming_language)
+is a stack-based [Concatenative programming language](https://en.wikipedia.org/wiki/Concatenative_programming_language)
 
 !!! this language is currently in early development !!!
 
@@ -414,86 +414,38 @@ a println  #_ print the value of a _#
 3.14 float a =: #_ redeclare a as float _#
 2.718281828 float e =$ #_ declare a constant with the name e_#
 ```
+
 #### Scopes
-- At a given point all variables of procedures 
-on the call-stack are accessible
-- Variables declared in procedures will be invalidated 
-once that procedure returns.
-- Variable accessibility is determined at call-time 
-not at declaration time
-- Variables in modules/procedures may shadow global variables
-- constants cannot overwrite/shadow existing variables
-- constants cannot be shadowed by local variables
+!!! TODO !!!
 
-Examples:
-```Rust
-proc 
-1 int local1 =:
-proc2 ()
-end *->* proc1 =$
+[//]: # (TODO Scopes)
 
-proc 
-1 int local2 =:
-2 local1 =
-proc3 ()
-end *->* proc2 =$
+### Multi-File Projects
+The keyword `#include` allows including 
+other files into the source code.
+The included file is determined by the token preceding `#include`
+- if the preceding token is an identifier, 
+the library file with that name is included, 
+- if it is a string, the file at the given path 
+will be included.
 
-proc 
-local1 local2 + println
-end *->* proc3 =$
-
-proc1 ()
-```
-works fine and prints `3`
-
-But
-```Rust
-proc 
-1 int local1 =:
-proc
-local1
-end
-end *->* proc1 =$
-proc1 () ()
-```
-crashes since `local1` is not accessible when calling 
-the returned procedure
-
-
-### Modules
-Modules allow storing variables/constants in a separate scope
-A module starts with the `module` keyword 
-and ends with the matching `end`.
-At all variables declared 
-within a module block are stored in the module,
-with is pushed onto the stack when the `end`-statement 
-is reached.
-The variable type for modules is `(module)`
+Each file is included exactly once, 
+the global code of an included file is executed 
+at the position of the first include of that file.
 
 Example:
-```
-module 1 int a =: 2 int b =$ end (module) test =:
-```
 
-#### Variable access
-- reading variables
-  - syntax: `<module> <varname> .`
-  - pushes the variable `<varName>` onto the stack,
-- writing variables
-  - syntax: `<module> <newValue> <varname> . =`
-  - writes a `<newValue>` to the variable `<varName>`
-and pushes the updated module
+If the file `/path/to/a/file.concat` contains the code
+```C
+"included file" println
+```
+then 
+```C
+stack #include
+"/path/to/a/file.concat" #include
+"/path/to/a/file.concat" #include
+```
+includes the stack-macros from `lib/stack.concat`
+and the prints `included file` (once)
 
-Example:
-```
-module 1 int a =: 2 int b =$ end (module) test =:
-test a . println    
-test 42 a . = println
-```
-prints
-```
-1
-{.a=42,.b=2}
-```
-writes to the constant variable b would crash the program
 
