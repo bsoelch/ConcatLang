@@ -19,7 +19,7 @@ public class Interpreter {
         DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,HAS_VAR,//addLater option to free variables
         IF,START,ELIF,ELSE,DO,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
-        PROCEDURE,RETURN, PROCEDURE_START,
+        PROCEDURE,RETURN, SKIP_PROC,
         MODULE_READ_VAR, MODULE_WRITE_VAR, MODULE_HAS_VAR,
         PRINT,PRINTLN,
         JEQ,JNE,JMP,//jump commands only for internal representation
@@ -125,15 +125,26 @@ public class Interpreter {
             return tokenType.toString()+": "+value;
         }
     }
-    static class JumpToken extends Token{
+    static class AbsoluteJump extends Token{
         final TokenPosition target;
-        JumpToken(TokenType tokenType, FilePosition pos, TokenPosition target) {
+        AbsoluteJump(TokenType tokenType, FilePosition pos, TokenPosition target) {
             super(tokenType, pos);
             this.target = target;
         }
         @Override
         public String toString() {
             return tokenType.toString()+": "+(tokenType== TokenType.INCLUDE?target.file:target);
+        }
+    }
+    static class RelativeJump extends Token{
+        final int delta;
+        RelativeJump(TokenType tokenType, FilePosition pos, int delta) {
+            super(tokenType, pos);
+            this.delta = delta;
+        }
+        @Override
+        public String toString() {
+            return tokenType.toString()+": "+(delta>0?"+":"")+delta;
         }
     }
 
@@ -425,7 +436,7 @@ public class Interpreter {
                             File file=new File(name);
                             if(file.exists()){
                                 parse(file,program);
-                                tokens.add(new JumpToken(TokenType.INCLUDE,pos,
+                                tokens.add(new AbsoluteJump(TokenType.INCLUDE,pos,
                                         new TokenPosition(file.getAbsolutePath(),0)));
                             }else{
                                 throw new SyntaxError("File "+name+" does not exist",pos);
@@ -436,7 +447,7 @@ public class Interpreter {
                             File file=new File(path);
                             if(file.exists()){
                                 parse(file,program);
-                                tokens.add(new JumpToken(TokenType.INCLUDE,pos,
+                                tokens.add(new AbsoluteJump(TokenType.INCLUDE,pos,
                                         new TokenPosition(file.getAbsolutePath(),0)));
                             }else{
                                 throw new SyntaxError(prevId+" is not part of the standard library",pos);
@@ -637,12 +648,12 @@ public class Interpreter {
                     Token t = new Token(TokenType.ELIF, pos);
                     openBlocks.put(tokens.size(),t);
                     if(label.getValue().tokenType==TokenType.ELIF){//jump before elif to chain jumps
-                        tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,
-                                new TokenPosition(fileName,tokens.size())));
+                        tokens.set(label.getKey(),new RelativeJump(TokenType.JMP,label.getValue().pos,
+                                tokens.size()-label.getKey()));
                     }
                     tokens.add(t);
-                    tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
-                            new TokenPosition(fileName,tokens.size())));
+                    tokens.set(start.getKey(),new RelativeJump(TokenType.JNE,start.getValue().pos,
+                            tokens.size()-start.getKey()));
                 }else{
                     throw new SyntaxError("elif has to be preceded with if or elif followed by a :",pos);
                 }
@@ -655,12 +666,12 @@ public class Interpreter {
                     openBlocks.put(tokens.size(),t);
                     if(label.getValue().tokenType==TokenType.ELIF){
                         //jump before else to chain jumps
-                        tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,
-                                new TokenPosition(fileName,tokens.size())));
+                        tokens.set(label.getKey(),new RelativeJump(TokenType.JMP,label.getValue().pos,
+                               tokens.size()-label.getKey()));
                     }
                     tokens.add(t);
-                    tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
-                            new TokenPosition(fileName,tokens.size())));
+                    tokens.set(start.getKey(),new RelativeJump(TokenType.JNE,start.getValue().pos,
+                            tokens.size()-start.getKey()));
                 }else{
                     throw new SyntaxError("else has to be preceded with if or elif followed by a :",pos);
                 }
@@ -675,32 +686,32 @@ public class Interpreter {
                     switch (label.getValue().tokenType){
                         case IF,ELIF -> {//(el)if ... : ... end
                             tokens.add(t);
-                            tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
-                                    new TokenPosition(fileName,tokens.size())));
+                            tokens.set(start.getKey(),new RelativeJump(TokenType.JNE,start.getValue().pos,
+                                    tokens.size()-start.getKey()));
                             if(label.getValue().tokenType==TokenType.ELIF){
-                                tokens.set(label.getKey(),new JumpToken(TokenType.JMP,label.getValue().pos,
-                                        new TokenPosition(fileName,tokens.size())));
+                                tokens.set(label.getKey(),new RelativeJump(TokenType.JMP,label.getValue().pos,
+                                        tokens.size()-label.getKey()));
                             }
                         }
                         case SHORT_AND_HEADER -> {
                             tokens.add(t);
-                            tokens.set(start.getKey(),new JumpToken(TokenType.SHORT_AND_JMP,start.getValue().pos,
-                                    new TokenPosition(fileName,tokens.size())));
+                            tokens.set(start.getKey(),new RelativeJump(TokenType.SHORT_AND_JMP,start.getValue().pos,
+                                    tokens.size()-start.getKey()));
                         }
                         case SHORT_OR_HEADER -> {
                             tokens.add(t);
-                            tokens.set(start.getKey(),new JumpToken(TokenType.SHORT_OR_JMP,start.getValue().pos,
-                                    new TokenPosition(fileName,tokens.size())));
+                            tokens.set(start.getKey(),new RelativeJump(TokenType.SHORT_OR_JMP,start.getValue().pos,
+                                    tokens.size()-start.getKey()));
                         }
                         case WHILE -> {//while ... : ... end
-                            tokens.add(new JumpToken(TokenType.JMP,t.pos,new TokenPosition(fileName,label.getKey())));
-                            tokens.set(start.getKey(),new JumpToken(TokenType.JNE,start.getValue().pos,
-                                    new TokenPosition(fileName,tokens.size())));
+                            tokens.add(new RelativeJump(TokenType.JMP,t.pos,label.getKey()-tokens.size()));
+                            tokens.set(start.getKey(),new RelativeJump(TokenType.JNE,start.getValue().pos,
+                                    tokens.size()-start.getKey()));
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,
                                 DROP,STACK_GET,STACK_SLICE_GET,STACK_SET,STACK_SLICE_SET,
                                 VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
-                                RETURN, PROCEDURE_START,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
+                                RETURN, SKIP_PROC,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
                                 PRINT,PRINTLN, MODULE_READ_VAR, MODULE_WRITE_VAR,INCLUDE,
                                 HAS_VAR, MODULE_HAS_VAR,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
@@ -712,16 +723,16 @@ public class Interpreter {
                         throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
                                 " 'do ... while'  or 'else'",pos);
                     }
-                    tokens.add(new JumpToken(TokenType.JEQ,t.pos,new TokenPosition(fileName,label.getKey())));
+                    tokens.add(new RelativeJump(TokenType.JEQ,t.pos,label.getKey()-tokens.size()));
                 }else if(start.getValue().tokenType==TokenType.ELSE){// ... else ... end
                     tokens.add(t);
-                    tokens.set(start.getKey(),new JumpToken(TokenType.JMP,start.getValue().pos,
-                            new TokenPosition(fileName,tokens.size())));
+                    tokens.set(start.getKey(),new RelativeJump(TokenType.JMP,start.getValue().pos,
+                            tokens.size()-start.getKey()));
                 }else if(start.getValue().tokenType==TokenType.PROCEDURE){// proc ... : ... end
                     tokens.add(new Token(TokenType.RETURN,pos));
                     tokens.add(t);
-                    tokens.set(start.getKey(),new JumpToken(TokenType.PROCEDURE_START,start.getValue().pos,
-                            new TokenPosition(fileName,tokens.size())));
+                    tokens.set(start.getKey(),new RelativeJump(TokenType.SKIP_PROC,start.getValue().pos,
+                            tokens.size()-start.getKey()));
                     tokens.add(new ValueToken(Value.ofProcedureId(new TokenPosition(fileName,start.getKey()+1)),pos));
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
@@ -1252,18 +1263,14 @@ public class Interpreter {
                         if (c.asBool()) {
                             stack.pop();// remove and evaluate branch
                         }else{
-                            tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
-                            file=((JumpToken) next).target.file;
-                            ip=((JumpToken) next).target.ip;
+                            ip+=((RelativeJump) next).delta;
                             incIp = false;
                         }
                     }
                     case SHORT_OR_JMP -> {
                         Value c = stack.peek();
                         if (c.asBool()) {//  remove and evaluate branch
-                            tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
-                            file=((JumpToken) next).target.file;
-                            ip=((JumpToken) next).target.ip;
+                            ip+=((RelativeJump) next).delta;
                             incIp = false;
                         }else{
                             stack.pop();// remove token
@@ -1284,34 +1291,28 @@ public class Interpreter {
                     }
                     case MODULE_READ_VAR,MODULE_WRITE_VAR,MODULE_HAS_VAR ->
                         throw new UnsupportedOperationException("modules are currently not supported");
-                    case PROCEDURE_START,JMP -> {
-                        tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
-                        file=((JumpToken) next).target.file;
-                        ip=((JumpToken) next).target.ip;
+                    case JMP,SKIP_PROC -> {
+                        ip+=((RelativeJump) next).delta;
                         incIp = false;
                     }
                     case INCLUDE -> {
                         callStack.push(new TokenPosition(file, ip));
-                        tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
-                        file=((JumpToken) next).target.file;
-                        ip=((JumpToken) next).target.ip;
+                        tokens= updateTokens(file,((AbsoluteJump) next).target, program, tokens);
+                        file=((AbsoluteJump) next).target.file;
+                        ip=((AbsoluteJump) next).target.ip;
                         incIp = false;
                     }
                     case JEQ -> {
                         Value c = stack.pop();
                         if (c.asBool()) {
-                            tokens= updateTokens(file,((JumpToken) next).target, program, tokens);
-                            file=((JumpToken) next).target.file;
-                            ip=((JumpToken) next).target.ip;
+                            ip+=((RelativeJump) next).delta;
                             incIp = false;
                         }
                     }
                     case JNE -> {
                         Value c = stack.pop();
                         if (!c.asBool()) {
-                            tokens= updateTokens(file,((JumpToken) next).target,program,tokens);
-                            file=((JumpToken) next).target.file;
-                            ip=((JumpToken) next).target.ip;
+                            ip+=((RelativeJump) next).delta;
                             incIp = false;
                         }
                     }
