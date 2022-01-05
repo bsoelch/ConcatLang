@@ -1,5 +1,4 @@
 optional #include
-if __hashCode ? ! :
 proc ## var -> int
   var value =:
   value typeof type valType =:
@@ -113,8 +112,6 @@ end *->* __HASH_remove =$
 
 ## addLater? HashMap.listEntries
 ## addLater? HashMap.toString
-
-end
 
 hashCode       #define __hashCode ()    #end
 HashMap        #define __HASH_Map       #end

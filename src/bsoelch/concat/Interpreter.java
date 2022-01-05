@@ -16,14 +16,13 @@ public class Interpreter {
     enum TokenType {
         VALUE,OPERATOR,
         DROP,STACK_GET,STACK_SET, STACK_SLICE_GET,STACK_SLICE_SET,
-        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,HAS_VAR,//addLater option to free variables
+        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,HAS_VAR,//addLater option to free values/variables
         IF,START,ELIF,ELSE,DO,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
         PROCEDURE,RETURN, SKIP_PROC,
         MODULE_READ_VAR, MODULE_WRITE_VAR, MODULE_HAS_VAR,
         PRINT,PRINTLN,
         JEQ,JNE,JMP,//jump commands only for internal representation
-        INCLUDE,
         EXIT
     }
 
@@ -53,13 +52,6 @@ public class Interpreter {
             }else{
                 return path+":"+line + ":" + posInLine;
             }
-        }
-    }
-
-    record TokenPosition(String file, int ip) {
-        @Override
-        public String toString() {
-            return ip+" in "+file;
         }
     }
 
@@ -123,17 +115,6 @@ public class Interpreter {
         @Override
         public String toString() {
             return tokenType.toString()+": "+value;
-        }
-    }
-    static class AbsoluteJump extends Token{
-        final TokenPosition target;
-        AbsoluteJump(TokenType tokenType, FilePosition pos, TokenPosition target) {
-            super(tokenType, pos);
-            this.target = target;
-        }
-        @Override
-        public String toString() {
-            return tokenType.toString()+": "+(tokenType== TokenType.INCLUDE?target.file:target);
         }
     }
     static class RelativeJump extends Token{
@@ -226,12 +207,12 @@ public class Interpreter {
         }
     }
 
-    record Program(String mainFile,HashMap<String,ArrayList<Token>> fileTokens,HashMap<String,Macro> macros){
+    record Program(ArrayList<Token> tokens, HashSet<String> files, HashMap<String,Macro> macros){
         @Override
         public String toString() {
             return "Program{" +
-                    "mainFile='" + mainFile + '\'' +
-                    ", fileTokens=" + fileTokens +
+                    "tokens=" + tokens +
+                    ", files='" + files + '\'' +
                     '}';
         }
     }
@@ -239,12 +220,13 @@ public class Interpreter {
     public Program parse(File file,Program program) throws IOException, SyntaxError {
         String fileName=file.getAbsolutePath();
         if(program==null){
-            program=new Program(fileName,new HashMap<>(),new HashMap<>());
-        }else if(program.fileTokens.containsKey(fileName)){
+            program=new Program(new ArrayList<>(),new HashSet<>(),new HashMap<>());
+        }else if(program.files.contains(file.getAbsolutePath())){
             return program;
+        }else{//ensure that each file is included only once
+            program.files.add(file.getAbsolutePath());
         }
         ParserReader reader=new ParserReader(fileName);
-        ArrayList<Token> tokenBuffer=new ArrayList<>();
         TreeMap<Integer,Token> openBlocks=new TreeMap<>();
         Macro[] currentMacroPtr=new Macro[1];
         int c;
@@ -254,7 +236,7 @@ public class Interpreter {
             switch(state){
                 case ROOT:
                     if(Character.isWhitespace(c)){
-                        finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,reader.currentPos(),program,fileName);
+                        finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
                         reader.nextToken();
                     }else{
                         switch (c) {
@@ -270,13 +252,13 @@ public class Interpreter {
                                 c = reader.forceNextChar();
                                 if (c == '#') {
                                     state = WordState.LINE_COMMENT;
-                                    finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,
-                                            reader.currentPos(),program,fileName);
+                                    finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,
+                                            reader.currentPos(),program);
                                     reader.nextToken();
                                 } else if (c == '_') {
                                     state = WordState.COMMENT;
-                                    finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,
-                                            reader.currentPos(),program,fileName);
+                                    finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,
+                                            reader.currentPos(),program);
                                     reader.nextToken();
                                 } else {
                                     reader.buffer.append('#').append((char) c);
@@ -288,8 +270,8 @@ public class Interpreter {
                     break;
                 case STRING:
                     if(c==reader.buffer.charAt(0)){
-                        finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,
-                                reader.currentPos(),program,fileName);
+                        finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,
+                                reader.currentPos(),program);
                         reader.nextToken();
                         state=WordState.ROOT;
                     }else{
@@ -335,7 +317,7 @@ public class Interpreter {
         }
         switch (state){
             case ROOT->{
-                finishWord(reader.buffer,tokenBuffer,openBlocks,currentMacroPtr,reader.currentPos(),program,fileName);
+                finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
                 reader.nextToken();
             }
             case LINE_COMMENT ->{} //do nothing
@@ -344,12 +326,11 @@ public class Interpreter {
         }
         //pass "##" to finishWord to expand macros at end of file,
         // "##" will normally be eliminated before it reaches this method and therefore does not lead to any problems
-        finishWord("##",tokenBuffer,openBlocks,currentMacroPtr,reader.currentPos(),program,fileName);
+        finishWord("##",program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
         if(openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(),
                     openBlocks.lastEntry().getValue().pos);
         }
-        program.fileTokens.put(fileName,tokenBuffer);
         return program;
     }
 
@@ -388,8 +369,8 @@ public class Interpreter {
     // when a procedure refers to a constant that cannot be resolved at compile time the
     // resulting procedure pointer contains the value of that constant at the time of declaration
 
-    private void finishWord(CharSequence buffer,ArrayList<Token> tokens,TreeMap<Integer,Token> openBlocks,
-                            Macro[] currentMacroPtr,FilePosition pos,Program program,String fileName) throws SyntaxError, IOException {
+    private void finishWord(CharSequence buffer, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks,
+                            Macro[] currentMacroPtr, FilePosition pos, Program program) throws SyntaxError, IOException {
         if (buffer.length() > 0) {
             String str=buffer.toString();
             if(currentMacroPtr[0]!=null){//handle macros
@@ -436,8 +417,6 @@ public class Interpreter {
                             File file=new File(name);
                             if(file.exists()){
                                 parse(file,program);
-                                tokens.add(new AbsoluteJump(TokenType.INCLUDE,pos,
-                                        new TokenPosition(file.getAbsolutePath(),0)));
                             }else{
                                 throw new SyntaxError("File "+name+" does not exist",pos);
                             }
@@ -447,8 +426,6 @@ public class Interpreter {
                             File file=new File(path);
                             if(file.exists()){
                                 parse(file,program);
-                                tokens.add(new AbsoluteJump(TokenType.INCLUDE,pos,
-                                        new TokenPosition(file.getAbsolutePath(),0)));
                             }else{
                                 throw new SyntaxError(prevId+" is not part of the standard library",pos);
                             }
@@ -530,7 +507,7 @@ public class Interpreter {
                     tokens.remove(tokens.size()-1);//remove prev
                     Macro m=program.macros.get(((VariableToken)prev).name);
                     for(StringWithPos s:m.content){//expand macro
-                        finishWord(s.str,tokens,openBlocks,currentMacroPtr,new FilePosition(s.start,pos),program,fileName);
+                        finishWord(s.str,tokens,openBlocks,currentMacroPtr,new FilePosition(s.start,pos),program);
                     }
                 }
             }
@@ -563,7 +540,7 @@ public class Interpreter {
                         double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
                         tokens.add(new ValueToken(Value.ofFloat(d), pos));
                     }else {
-                        addWord(str,tokens,openBlocks,program.macros,pos, fileName);
+                        addWord(str,tokens,openBlocks,program.macros,pos);
                     }
                 }
             }catch(SyntaxError e){
@@ -579,7 +556,7 @@ public class Interpreter {
     }
 
     private void addWord(String str, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks, HashMap<String, Macro> macros,
-                         FilePosition pos, String fileName) throws SyntaxError {
+                         FilePosition pos) throws SyntaxError {
         switch (str) {
             case "##"    -> {} //## string can only be passed to the method on end of file
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
@@ -712,7 +689,7 @@ public class Interpreter {
                                 DROP,STACK_GET,STACK_SLICE_GET,STACK_SET,STACK_SLICE_SET,
                                 VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, SKIP_PROC,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
-                                PRINT,PRINTLN, MODULE_READ_VAR, MODULE_WRITE_VAR,INCLUDE,
+                                PRINT,PRINTLN, MODULE_READ_VAR, MODULE_WRITE_VAR,
                                 HAS_VAR, MODULE_HAS_VAR,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
@@ -733,7 +710,7 @@ public class Interpreter {
                     tokens.add(t);
                     tokens.set(start.getKey(),new RelativeJump(TokenType.SKIP_PROC,start.getValue().pos,
                             tokens.size()-start.getKey()));
-                    tokens.add(new ValueToken(Value.ofProcedureId(new TokenPosition(fileName,start.getKey()+1)),pos));
+                    tokens.add(new ValueToken(Value.ofProcedureId(start.getKey()+1),pos));
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
                             " 'do ... while'  or 'else' got:"+start.getValue(),pos);
@@ -884,21 +861,12 @@ public class Interpreter {
         }
     }
 
-    private ArrayList<Token> updateTokens(String oldFile, TokenPosition newPos, Program prog, ArrayList<Token> tokens) {
-        if(oldFile.equals(newPos.file)){
-            return tokens;
-        }else{
-            return prog.fileTokens.get(newPos.file);
-        }
-    }
-
     public RandomAccessStack<Value> run(Program program){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
         ProgramState state=new ProgramState(null);
-        String file=program.mainFile;
         int ip=0;
-        ArrayDeque<TokenPosition> callStack=new ArrayDeque<>();
-        ArrayList<Token> tokens=program.fileTokens.get(program.mainFile);
+        ArrayDeque<Integer> callStack=new ArrayDeque<>();
+        ArrayList<Token> tokens=program.tokens;
         while(ip<tokens.size()){
             Token next=tokens.get(ip);
             boolean incIp=true;
@@ -1144,11 +1112,8 @@ public class Interpreter {
                             case CALL -> {
                                 Value procedure = stack.pop();
                                 state = new ProgramState(state);
-                                callStack.push(new TokenPosition(file, ip));
-                                TokenPosition newPos=procedure.asProcedure();
-                                tokens=updateTokens(file,newPos,program,tokens);
-                                file=newPos.file;
-                                ip=newPos.ip;
+                                callStack.push(ip);
+                                ip=procedure.procedurePos();
                                 incIp = false;
                             }
                             case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
@@ -1279,13 +1244,11 @@ public class Interpreter {
                     case MACRO_EXPAND,START, ELSE, PROCEDURE -> throw new RuntimeException("Tokens of type " + next.tokenType +
                             " should be eliminated at compile time");
                     case RETURN -> {
-                        TokenPosition ret=callStack.poll();
+                        Integer ret=callStack.poll();
                         if (ret == null) {
                             throw new ConcatRuntimeError("call-stack underflow");
                         }
-                        tokens=updateTokens(file,ret,program,tokens);
-                        file=ret.file;
-                        ip=ret.ip;
+                        ip=ret;
                         state = state.getParent();
                         assert state!=null;
                     }
@@ -1293,13 +1256,6 @@ public class Interpreter {
                         throw new UnsupportedOperationException("modules are currently not supported");
                     case JMP,SKIP_PROC -> {
                         ip+=((RelativeJump) next).delta;
-                        incIp = false;
-                    }
-                    case INCLUDE -> {
-                        callStack.push(new TokenPosition(file, ip));
-                        tokens= updateTokens(file,((AbsoluteJump) next).target, program, tokens);
-                        file=((AbsoluteJump) next).target.file;
-                        ip=((AbsoluteJump) next).target.ip;
                         incIp = false;
                     }
                     case JEQ -> {
@@ -1327,9 +1283,8 @@ public class Interpreter {
                 Token token = tokens.get(ip);
                 System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
                 while(callStack.size()>0){
-                    TokenPosition prev=callStack.poll();
-                    tokens=updateTokens(file,prev,program,tokens);
-                    token=tokens.get(prev.ip);
+                    int prev=callStack.poll();
+                    token=tokens.get(prev);
                     //addLater more readable names for tokens
                     System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
                     assert state!=null;
@@ -1339,12 +1294,6 @@ public class Interpreter {
             }
             if(incIp){
                 ip++;
-            }//no else
-            if(ip>=tokens.size()&&!callStack.isEmpty()){
-                TokenPosition ret=callStack.poll();
-                tokens=updateTokens(file,ret,program,tokens);
-                file=ret.file;
-                ip=ret.ip+1;//increment ip after returning from file
             }
         }
         return stack;

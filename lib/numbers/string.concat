@@ -1,9 +1,6 @@
 stack #include
 chars #include
 numbers/limits #include
-
-if intToString ? ! :
-
 proc ## value:int base:int big:bool -> char
     bool big =:
     int base =:
@@ -277,5 +274,3 @@ proc ## str:string base:int -> float
 end *->* stringToFloat =$
 
 proc 10 stringToFloat () end *->* parseFloat =$
-
-end

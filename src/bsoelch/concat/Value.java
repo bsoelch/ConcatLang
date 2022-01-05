@@ -67,7 +67,7 @@ public abstract class Value {
         return equals(v);
     }
 
-    public Interpreter.TokenPosition asProcedure() throws TypeError {
+    public int procedurePos() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to procedure");
     }
     public Value negate() throws TypeError {
@@ -1644,12 +1644,12 @@ public abstract class Value {
         }
     }
 
-    public static Value ofProcedureId(Interpreter.TokenPosition pos) {
-        return new ProcedureValue(pos);
+    public static Value ofProcedureId(int startAddress) {
+        return new ProcedureValue(startAddress);
     }
     private static class ProcedureValue extends Value{
-        final Interpreter.TokenPosition pos;
-        private ProcedureValue(Interpreter.TokenPosition pos) {
+        final int pos;
+        private ProcedureValue(int pos) {
             super(Type.PROCEDURE);
             this.pos = pos;
         }
@@ -1660,7 +1660,7 @@ public abstract class Value {
         }
 
         @Override
-        public Interpreter.TokenPosition asProcedure() {
+        public int procedurePos() {
             return pos;
         }
 
@@ -1674,7 +1674,7 @@ public abstract class Value {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ProcedureValue that = (ProcedureValue) o;
-            return pos.equals(that.pos);
+            return pos==that.pos;
         }
         @Override
         public int hashCode() {

@@ -1,30 +1,28 @@
-if optional ? ! :
-  bool var 2 tuple type optional =$
+bool var 2 tuple type optional =$
 
-  false false optional new optional optional_empty =$
+false false optional new optional optional_empty =$
 
-  proc ## value -> optional
-    var value =:
-    true value optional new
-  end *->* optional_of =$
+proc ## value -> optional
+  var value =:
+  true value optional new
+end *->* optional_of =$
 
-  proc ## optional -> optional bool
-    optional val =:
-    val
-    val 0 []
-  end *->* optional_hasValue =$
+proc ## optional -> optional bool
+  optional val =:
+  val
+  val 0 []
+end *->* optional_hasValue =$
 
-  proc ## optional -> value
-    optional val =:
-    if val 0 [] :
-      val 1 []
-    else
-      "No value in optional" println
-      1 exit
-    end
-  end *->* optional_getValue =$
+proc ## optional -> value
+  optional val =:
+  if val 0 [] :
+    val 1 []
+  else
+    "No value in optional" println
+    1 exit
+  end
+end *->* optional_getValue =$
 
-  wrap   #define optional_of       () #end
-  unwrap #define optional_getValue () #end
-  ??     #define optional_hasValue () #end
-end
+wrap   #define optional_of       () #end
+unwrap #define optional_getValue () #end
+??     #define optional_hasValue () #end

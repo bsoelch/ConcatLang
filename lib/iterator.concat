@@ -1,4 +1,3 @@
-if iterator ? ! :
 optional #include
 
 (list) int 2 tuple type iterator =$
@@ -35,7 +34,6 @@ proc ## <?> itr => <?> itr optional
   end
 end *->* iteratorPrev =$
 ## addLater allow iterators to modify the underlying list
-end ## end of ifDef
 
 ^.. #define iterateStart () #end
 ..^ #define iterateEnd   () #end
