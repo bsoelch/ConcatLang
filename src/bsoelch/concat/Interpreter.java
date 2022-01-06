@@ -164,6 +164,7 @@ public class Interpreter {
         private int line =1;
         private int posInLine =1;
         private FilePosition currentPos;
+        private FilePosition nextPos;
 
         private ParserReader(String path) throws SyntaxError {
             this.path=path;
@@ -203,8 +204,9 @@ public class Interpreter {
             return currentPos;
         }
         void nextToken() {
+            currentPos=nextPos;
             buffer.setLength(0);
-            currentPos = new FilePosition(path, line, posInLine);
+            nextPos=new FilePosition(path, line, posInLine);
         }
     }
 
