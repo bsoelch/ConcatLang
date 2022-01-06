@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 
 public class Interpreter {
     public static final String DEFAULT_FILE_EXTENSION = "concat";
+    public static final String END_OF_FILE = "##";
 
     enum WordState{
         ROOT,STRING,COMMENT,LINE_COMMENT
@@ -478,7 +479,7 @@ public class Interpreter {
         }
         //pass "##" to finishWord to expand macros at end of file,
         // "##" will normally be eliminated before it reaches this method and therefore does not lead to any problems
-        finishWord("##",program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+        finishWord(END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
         if(openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(),
                     openBlocks.lastEntry().getValue().pos);
@@ -654,6 +655,12 @@ public class Interpreter {
                         return;
                     }
                 }
+                if(tokens.size()>=2){//update identifier tokens only if 2 elements below top (to ensure . operator works correctly)
+                    Token t=tokens.get(tokens.size()-2);
+                    if(t instanceof IdentifierToken&&((IdentifierToken)t).varId==null){
+                        updateIdentifier((IdentifierToken)t, tokens, program, pos);
+                    }
+                }
                 if(prev!=null){
                     if(prev.tokenType==TokenType.MACRO_EXPAND) {
                         tokens.remove(tokens.size() - 1);//remove prev
@@ -661,21 +668,8 @@ public class Interpreter {
                         for (StringWithPos s : m.content) {//expand macro
                             finishWord(s.str, tokens, openBlocks, currentMacroPtr, new FilePosition(s.start, pos), program);
                         }
-                    }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).varId==null){
-                        //update variables
-                        switch (prev.tokenType){
-                            case DECLARE,CONST_DECLARE ->
-                                ((IdentifierToken) prev).varId=program.contextPtr[0].declareVariable(
-                                        ((IdentifierToken) prev).name,prev.tokenType==TokenType.CONST_DECLARE,pos);
-                            case IDENTIFIER,VAR_WRITE ->
-                                    ((IdentifierToken) prev).varId = program.contextPtr[0].getId(
-                                            ((IdentifierToken) prev).name, pos,true);
-                            case HAS_VAR ->
-                                    tokens.set(tokens.size()-1,new ValueToken(
-                                            program.contextPtr[0].unsafeGetId(
-                                                    ((IdentifierToken) prev).name)!=null?Value.TRUE:Value.FALSE,prev.pos));
-                            default -> throw new RuntimeException("unexpected type of IdentifierToken:"+prev.tokenType);
-                        }
+                    }else if(str.equals(END_OF_FILE)&&prev instanceof IdentifierToken&&((IdentifierToken) prev).varId==null){
+                        updateIdentifier((IdentifierToken)prev, tokens, program, pos);
                     }
                 }
             }
@@ -723,10 +717,27 @@ public class Interpreter {
         }
     }
 
+    private void updateIdentifier(IdentifierToken identifier, ArrayList<Token> tokens, Program program, FilePosition pos) throws SyntaxError {
+        //update variables
+        switch (identifier.tokenType){
+            case DECLARE,CONST_DECLARE ->
+                    identifier.varId= program.contextPtr[0].declareVariable(
+                            identifier.name, identifier.tokenType==TokenType.CONST_DECLARE, pos);
+            case IDENTIFIER,VAR_WRITE ->
+                    identifier.varId = program.contextPtr[0].getId(
+                            identifier.name, pos,true);
+            case HAS_VAR ->
+                    tokens.set(tokens.size()-1,new ValueToken(
+                            program.contextPtr[0].unsafeGetId(
+                                    identifier.name)!=null?Value.TRUE:Value.FALSE, identifier.pos));
+            default -> throw new RuntimeException("unexpected type of IdentifierToken:"+ identifier.tokenType);
+        }
+    }
+
     private void addWord(String str, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks, HashMap<String, Macro> macros,
                          FilePosition pos,VariableContext[] contextPtr) throws SyntaxError {
         switch (str) {
-            case "##"    -> {} //## string can only be passed to the method on end of file
+            case END_OF_FILE -> {} //## string can only be passed to the method on end of file
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
             case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
 
