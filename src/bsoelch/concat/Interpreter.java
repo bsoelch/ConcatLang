@@ -737,9 +737,16 @@ public class Interpreter {
             case DECLARE,CONST_DECLARE ->
                     identifier.varId= program.contextPtr[0].declareVariable(
                             identifier.name, identifier.tokenType==TokenType.CONST_DECLARE, pos);
-            case IDENTIFIER,VAR_WRITE ->
+            case IDENTIFIER ->
                     identifier.varId = program.contextPtr[0].getId(
                             identifier.name, pos,true);
+            case VAR_WRITE -> {
+                identifier.varId = program.contextPtr[0].getId(
+                        identifier.name, pos, true);
+                if (identifier.varId.isConstant) {
+                    throw new SyntaxError("cannot modify constant variable " + identifier.name, pos);
+                }
+            }
             case HAS_VAR ->
                     tokens.set(tokens.size()-1,new ValueToken(
                             program.contextPtr[0].unsafeGetId(
