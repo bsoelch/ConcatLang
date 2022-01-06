@@ -385,11 +385,16 @@ public class Interpreter {
         int c;
         reader.nextToken();
         WordState state=WordState.ROOT;
+        String current,next=null;
         while((c=reader.nextChar())>=0){
             switch(state){
                 case ROOT:
                     if(Character.isWhitespace(c)){
-                        finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                        current=next;
+                        next=reader.buffer.toString();
+                        if(current!=null){
+                            finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                        }
                         reader.nextToken();
                     }else{
                         switch (c) {
@@ -405,13 +410,19 @@ public class Interpreter {
                                 c = reader.forceNextChar();
                                 if (c == '#') {
                                     state = WordState.LINE_COMMENT;
-                                    finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,
-                                            reader.currentPos(),program);
+                                    current=next;
+                                    next=reader.buffer.toString();
+                                    if(current!=null){
+                                        finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                                    }
                                     reader.nextToken();
                                 } else if (c == '_') {
                                     state = WordState.COMMENT;
-                                    finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,
-                                            reader.currentPos(),program);
+                                    current=next;
+                                    next=reader.buffer.toString();
+                                    if(current!=null){
+                                        finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                                    }
                                     reader.nextToken();
                                 } else {
                                     reader.buffer.append('#').append((char) c);
@@ -423,8 +434,11 @@ public class Interpreter {
                     break;
                 case STRING:
                     if(c==reader.buffer.charAt(0)){
-                        finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,
-                                reader.currentPos(),program);
+                        current=next;
+                        next=reader.buffer.toString();
+                        if(current!=null){
+                            finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                        }
                         reader.nextToken();
                         state=WordState.ROOT;
                     }else{
@@ -470,16 +484,21 @@ public class Interpreter {
         }
         switch (state){
             case ROOT->{
-                finishWord(reader.buffer,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                current=next;
+                next=reader.buffer.toString();
+                if(current!=null){
+                    finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                }
                 reader.nextToken();
             }
             case LINE_COMMENT ->{} //do nothing
             case STRING ->throw new SyntaxError("unfinished string", reader.currentPos());
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
-        //pass "##" to finishWord to expand macros at end of file,
-        // "##" will normally be eliminated before it reaches this method and therefore does not lead to any problems
-        finishWord(END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+        //finish parsing of all elements
+        finishWord(next,END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+        finishWord(END_OF_FILE,END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+
         if(openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(),
                     openBlocks.lastEntry().getValue().pos);
@@ -522,10 +541,9 @@ public class Interpreter {
     // when a procedure refers to a constant that cannot be resolved at compile time the
     // resulting procedure pointer contains the value of that constant at the time of declaration
 
-    private void finishWord(CharSequence buffer, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks,
+    private void finishWord(String str,String next, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks,
                             Macro[] currentMacroPtr, FilePosition pos, Program program) throws SyntaxError, IOException {
-        if (buffer.length() > 0) {
-            String str=buffer.toString();
+        if (str.length() > 0) {
             if(currentMacroPtr[0]!=null){//handle macros
                 if(str.equals("#end")){
                     program.macros.put(currentMacroPtr[0].name,currentMacroPtr[0]);
@@ -655,20 +673,16 @@ public class Interpreter {
                         return;
                     }
                 }
-                if(tokens.size()>=2){//update identifier tokens only if 2 elements below top (to ensure . operator works correctly)
-                    Token t=tokens.get(tokens.size()-2);
-                    if(t instanceof IdentifierToken&&((IdentifierToken)t).varId==null){
-                        updateIdentifier((IdentifierToken)t, tokens, program, pos);
-                    }
-                }
                 if(prev!=null){
                     if(prev.tokenType==TokenType.MACRO_EXPAND) {
                         tokens.remove(tokens.size() - 1);//remove prev
                         Macro m = program.macros.get(((IdentifierToken) prev).name);
-                        for (StringWithPos s : m.content) {//expand macro
-                            finishWord(s.str, tokens, openBlocks, currentMacroPtr, new FilePosition(s.start, pos), program);
+                        for(int i=0;i<m.content.size();i++){
+                            StringWithPos s=m.content.get(i);
+                            finishWord(s.str,i+1<m.content.size()?m.content.get(i+1).str:next
+                                    ,tokens, openBlocks, currentMacroPtr, new FilePosition(s.start, pos), program);
                         }
-                    }else if(str.equals(END_OF_FILE)&&prev instanceof IdentifierToken&&((IdentifierToken) prev).varId==null){
+                    }else if((!(next.equals(".")))&&prev instanceof IdentifierToken&&((IdentifierToken) prev).varId==null){
                         updateIdentifier((IdentifierToken)prev, tokens, program, pos);
                     }
                 }
