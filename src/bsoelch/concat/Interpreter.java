@@ -19,8 +19,7 @@ public class Interpreter {
         DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,HAS_VAR,//addLater option to free values/variables
         IF,START,ELIF,ELSE,DO,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
-        PROCEDURE,RETURN, SKIP_PROC,
-        MODULE_READ_VAR, MODULE_WRITE_VAR, MODULE_HAS_VAR,
+        PROCEDURE,RETURN, SKIP_PROCEDURE,
         PRINT,PRINTLN,
         JEQ,JNE,JMP,//jump commands only for internal representation
         EXIT
@@ -81,9 +80,10 @@ public class Interpreter {
             return tokenType.toString();
         }
     }
-    static class VariableToken extends Token {
+    static class IdentifierToken extends Token {
         final String name;
-        VariableToken(TokenType type, String name, FilePosition pos) throws SyntaxError {
+        VariableId varId;
+        IdentifierToken(TokenType type, String name, FilePosition pos) throws SyntaxError {
             super(type, pos);
             this.name = name;
             if(name.isEmpty()){
@@ -207,7 +207,158 @@ public class Interpreter {
         }
     }
 
-    record Program(ArrayList<Token> tokens, HashSet<String> files, HashMap<String,Macro> macros){
+    private static class VariableId{
+        final boolean predeclared;
+        private VariableContext context;
+        private int id;
+        final boolean isConstant;
+        private FilePosition declaredAt;
+        VariableId(VariableContext context,int id,boolean isConstant,FilePosition declaredAt){
+            this.predeclared=false;
+            this.context=context;
+            this.id=id;
+            this.isConstant=isConstant;
+            this.declaredAt=declaredAt;
+        }
+        VariableId(){
+            predeclared=true;
+            isConstant=true;
+        }
+        void declare(VariableContext context,int id,boolean isConstant,FilePosition declaredAt) throws SyntaxError{
+            if(!isConstant){
+                throw new SyntaxError("predeclared variables have to be constants",declaredAt);
+            }
+            this.context=context;
+            this.id=id;
+            this.declaredAt=declaredAt;
+        }
+
+        @Override
+        public String toString() {
+            return "@"+context+"."+id;
+        }
+    }
+
+    private static abstract class VariableContext{
+        final HashMap<String,VariableId> variables=new HashMap<>();
+        final HashMap<String,VariableId> predeclared=new HashMap<>();
+        abstract VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError;
+        abstract VariableId getId(String name,FilePosition pos,boolean topLevel) throws SyntaxError;
+        abstract VariableId unsafeGetId(String name);
+        abstract VariableContext getParent();
+    }
+    private static class RootContext extends VariableContext{
+        //addLater handling of modules
+        RootContext(){}
+        @Override
+        public VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError {
+            VariableId prev=predeclared.remove(name);
+            if(prev!=null){//initialize predeclared variable
+                prev.declare(this,variables.size(), isConstant, pos);
+                variables.put(name,prev);
+                return prev;
+            }
+            prev=variables.get(name);
+            if(prev!=null){
+                if(prev.isConstant){
+                    throw new SyntaxError("cannot overwrite constant variable "+name,pos);
+                }else if(isConstant){
+                    throw new SyntaxError("constant cannot overwrite variable "+name,pos);
+                }
+            }
+            VariableId id = new VariableId(this, variables.size(), isConstant, pos);
+            variables.put(name, id);
+            return id;
+        }
+        @Override
+        public VariableId getId(String name,FilePosition pos,boolean topLevel){
+            VariableId id=variables.get(name);
+            if(id==null){
+                id=predeclared.get(name);
+                if(topLevel&&id==null){
+                    id=new VariableId();
+                    predeclared.put(name,id);
+                }
+            }
+            return id;
+        }
+        @Override
+        public VariableId unsafeGetId(String name) {
+            return variables.get(name);
+        }
+
+        @Override
+        public VariableContext getParent(){
+            throw new UnsupportedOperationException("Root context does not have a parent");
+        }
+    }
+    private static class ProcedureContext extends VariableContext{
+        final VariableContext parent;
+        ProcedureContext(VariableContext parent){
+            assert parent!=null;
+            this.parent=parent;
+        }
+        @Override
+        public VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError {
+            VariableId prev=predeclared.remove(name);
+            if(prev!=null){//initialize predeclared variable
+                prev.declare(this,variables.size(), isConstant, pos);
+                variables.put(name,prev);
+                return prev;
+            }
+            prev=variables.get(name);
+            if(prev!=null){
+                if(prev.isConstant){
+                    throw new SyntaxError("cannot overwrite constant variable "+name,pos);
+                }else if(isConstant){
+                    throw new SyntaxError("constant cannot overwrite variable "+name,pos);
+                }
+            }
+            VariableId id = new VariableId(this, variables.size(), isConstant, pos);
+            variables.put(name, id);
+            VariableId shadowed=parent.unsafeGetId(name);
+            if(shadowed!=null){
+                System.err.println("Warning: variable "+name+" at declared at "+pos+
+                        "\n     shadows existing "+ (shadowed.isConstant?"constant":"variable")+" declared at "
+                        +shadowed.declaredAt);
+            }
+            return id;
+        }
+
+        @Override
+        public VariableId unsafeGetId(String name) {
+            VariableId id=variables.get(name);
+            return id == null ?parent.unsafeGetId(name):id;
+        }
+        @Override
+        public VariableId getId(String name,FilePosition pos,boolean topLevel) throws SyntaxError {
+            VariableId id=variables.get(name);
+            if(id == null){
+                id=parent.getId(name,pos,false);
+                if(id!=null&&!id.isConstant){
+                    throw new SyntaxError("external variable "+name+" is not constant",pos);
+                }
+            }//no else
+            if(id==null){
+                id=predeclared.get(name);
+                if(topLevel&&id==null){
+                    id=new VariableId();
+                    predeclared.put(name,id);
+                }
+            }
+            return id;
+        }
+
+        @Override
+        public VariableContext getParent() {
+            //FIXME !!! merge predeclared variables with the same name
+            parent.predeclared.putAll(predeclared);
+            predeclared.clear();
+            return parent;
+        }
+    }
+
+    record Program(ArrayList<Token> tokens, HashSet<String> files, HashMap<String,Macro> macros,VariableContext[] contextPtr){
         @Override
         public String toString() {
             return "Program{" +
@@ -220,7 +371,8 @@ public class Interpreter {
     public Program parse(File file,Program program) throws IOException, SyntaxError {
         String fileName=file.getAbsolutePath();
         if(program==null){
-            program=new Program(new ArrayList<>(),new HashSet<>(),new HashMap<>());
+            program=new Program(new ArrayList<>(),new HashSet<>(),new HashMap<>(),new VariableContext[1]);
+            program.contextPtr[0]=new RootContext();
         }else if(program.files.contains(file.getAbsolutePath())){
             return program;
         }else{//ensure that each file is included only once
@@ -387,7 +539,7 @@ public class Interpreter {
             {//preprocessor
                 Token prev=tokens.size()>0?tokens.get(tokens.size()-1):null;
                 String prevId=(prev!=null&&prev.tokenType==TokenType.IDENTIFIER)?
-                        ((VariableToken)prev).name:null;
+                        ((IdentifierToken)prev).name:null;
                 switch (str){
                     case "#define"->{
                         if(prevId!=null){
@@ -401,7 +553,7 @@ public class Interpreter {
                     case "#undef"->{
                         if(prev!=null&&prev.tokenType==TokenType.MACRO_EXPAND){
                             tokens.remove(tokens.size()-1);
-                            if(program.macros.remove(((VariableToken)prev).name)==null){
+                            if(program.macros.remove(((IdentifierToken)prev).name)==null){
                                 throw new RuntimeException("macro "+prev+" does not exists");
                             }
                         }else{
@@ -447,11 +599,9 @@ public class Interpreter {
                         }else if(prev!=null&&prev.tokenType==TokenType.STACK_SLICE_GET){
                             //<val> <off> <to> :[:] =
                             tokens.set(tokens.size()-1,new Token(TokenType.STACK_SLICE_SET,prev.pos));
-                        }else if(prev instanceof VariableToken){
+                        }else if(prev instanceof IdentifierToken){
                             if(prev.tokenType == TokenType.IDENTIFIER){
-                                prev=new VariableToken(TokenType.VAR_WRITE,((VariableToken) prev).name,prev.pos);
-                            }else if(prev.tokenType == TokenType.MODULE_READ_VAR){
-                                prev=new VariableToken(TokenType.MODULE_WRITE_VAR,((VariableToken) prev).name,prev.pos);
+                                prev=new IdentifierToken(TokenType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
                             }else{
                                 throw new SyntaxError("invalid token for '=' modifier: "+prev,pos);
                             }
@@ -462,8 +612,11 @@ public class Interpreter {
                         return;
                     }
                     case "."->{
-                        if(prevId!=null){
-                            prev=new VariableToken(TokenType.MODULE_READ_VAR,prevId,prev.pos);
+                        Token prePrev=tokens.size()>=2?tokens.get(tokens.size()-2):null;
+                        if(prevId!=null&&prePrev!=null&&prePrev.tokenType==TokenType.IDENTIFIER){
+                            tokens.remove(tokens.size()-1);
+                            prev=new IdentifierToken(TokenType.IDENTIFIER,((IdentifierToken)prePrev).name+
+                                    "'"+prevId,prev.pos);//use ' as separator for modules, as it cannot be part of identifiers
                         }else{
                             throw new SyntaxError("invalid token for '.' modifier: "+prev,pos);
                         }
@@ -471,13 +624,11 @@ public class Interpreter {
                         return;
                     }
                     case "?"->{
-                        if(!(prev instanceof VariableToken)){
+                        if(!(prev instanceof IdentifierToken)){
                             throw new SyntaxError("invalid token for '?' modifier: "+prev,pos);
                         }
                         if(prevId!=null){
-                            prev=new VariableToken(TokenType.HAS_VAR,((VariableToken) prev).name,prev.pos);
-                        }else if(prev.tokenType == TokenType.MODULE_READ_VAR){
-                            prev=new VariableToken(TokenType.MODULE_HAS_VAR,((VariableToken) prev).name,prev.pos);
+                            prev=new IdentifierToken(TokenType.HAS_VAR,((IdentifierToken) prev).name,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '?' modifier: "+prev,pos);
                         }
@@ -486,7 +637,7 @@ public class Interpreter {
                     }
                     case "=:"->{
                         if(prevId!=null){
-                            prev=new VariableToken(TokenType.DECLARE,prevId,prev.pos);
+                            prev=new IdentifierToken(TokenType.DECLARE,prevId,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '=:' modifier "+prev,pos);
                         }
@@ -495,7 +646,7 @@ public class Interpreter {
                     }
                     case "=$"->{
                         if(prevId!=null){
-                            prev=new VariableToken(TokenType.CONST_DECLARE,prevId,prev.pos);
+                            prev=new IdentifierToken(TokenType.CONST_DECLARE,prevId,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '=$' modifier: "+prev,pos);
                         }
@@ -503,11 +654,28 @@ public class Interpreter {
                         return;
                     }
                 }
-                if(prev!=null&&prev.tokenType==TokenType.MACRO_EXPAND){
-                    tokens.remove(tokens.size()-1);//remove prev
-                    Macro m=program.macros.get(((VariableToken)prev).name);
-                    for(StringWithPos s:m.content){//expand macro
-                        finishWord(s.str,tokens,openBlocks,currentMacroPtr,new FilePosition(s.start,pos),program);
+                if(prev!=null){
+                    if(prev.tokenType==TokenType.MACRO_EXPAND) {
+                        tokens.remove(tokens.size() - 1);//remove prev
+                        Macro m = program.macros.get(((IdentifierToken) prev).name);
+                        for (StringWithPos s : m.content) {//expand macro
+                            finishWord(s.str, tokens, openBlocks, currentMacroPtr, new FilePosition(s.start, pos), program);
+                        }
+                    }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).varId==null){
+                        //update variables
+                        switch (prev.tokenType){
+                            case DECLARE,CONST_DECLARE ->
+                                ((IdentifierToken) prev).varId=program.contextPtr[0].declareVariable(
+                                        ((IdentifierToken) prev).name,prev.tokenType==TokenType.CONST_DECLARE,pos);
+                            case IDENTIFIER,VAR_WRITE ->
+                                    ((IdentifierToken) prev).varId = program.contextPtr[0].getId(
+                                            ((IdentifierToken) prev).name, pos,true);
+                            case HAS_VAR ->
+                                    tokens.set(tokens.size()-1,new ValueToken(
+                                            program.contextPtr[0].unsafeGetId(
+                                                    ((IdentifierToken) prev).name)!=null?Value.TRUE:Value.FALSE,prev.pos));
+                            default -> throw new RuntimeException("unexpected type of IdentifierToken:"+prev.tokenType);
+                        }
                     }
                 }
             }
@@ -540,7 +708,7 @@ public class Interpreter {
                         double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
                         tokens.add(new ValueToken(Value.ofFloat(d), pos));
                     }else {
-                        addWord(str,tokens,openBlocks,program.macros,pos);
+                        addWord(str,tokens,openBlocks,program.macros,pos,program.contextPtr);
                     }
                 }
             }catch(SyntaxError e){
@@ -556,7 +724,7 @@ public class Interpreter {
     }
 
     private void addWord(String str, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks, HashMap<String, Macro> macros,
-                         FilePosition pos) throws SyntaxError {
+                         FilePosition pos,VariableContext[] contextPtr) throws SyntaxError {
         switch (str) {
             case "##"    -> {} //## string can only be passed to the method on end of file
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
@@ -688,9 +856,8 @@ public class Interpreter {
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,
                                 DROP,STACK_GET,STACK_SLICE_GET,STACK_SET,STACK_SLICE_SET,
                                 VAR_WRITE,START,END,ELSE,DO,PROCEDURE,
-                                RETURN, SKIP_PROC,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
-                                PRINT,PRINTLN, MODULE_READ_VAR, MODULE_WRITE_VAR,
-                                HAS_VAR, MODULE_HAS_VAR,EXIT
+                                RETURN, SKIP_PROCEDURE,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
+                                PRINT,PRINTLN, HAS_VAR,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
                     }
@@ -708,9 +875,11 @@ public class Interpreter {
                 }else if(start.getValue().tokenType==TokenType.PROCEDURE){// proc ... : ... end
                     tokens.add(new Token(TokenType.RETURN,pos));
                     tokens.add(t);
-                    tokens.set(start.getKey(),new RelativeJump(TokenType.SKIP_PROC,start.getValue().pos,
+                    tokens.set(start.getKey(),new RelativeJump(TokenType.SKIP_PROCEDURE,start.getValue().pos,
                             tokens.size()-start.getKey()));
                     tokens.add(new ValueToken(Value.ofProcedureId(start.getKey()+1),pos));
+                    //TODO link context with procedure
+                    contextPtr[0]=contextPtr[0].getParent();
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
                             " 'do ... while'  or 'else' got:"+start.getValue(),pos);
@@ -730,6 +899,7 @@ public class Interpreter {
                 Token t = new Token(TokenType.PROCEDURE, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
+                contextPtr[0]=new ProcedureContext(contextPtr[0]);
             }
             case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
             case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
@@ -796,7 +966,7 @@ public class Interpreter {
             case "write"    -> tokens.add(new OperatorToken(OperatorType.WRITE,    pos));
             case "truncate" -> tokens.add(new OperatorToken(OperatorType.TRUNCATE, pos));
 
-            default -> tokens.add(new VariableToken(macros.containsKey(str)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,str, pos));
+            default -> tokens.add(new IdentifierToken(macros.containsKey(str)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,str, pos));
         }
     }
 
@@ -1200,26 +1370,26 @@ public class Interpreter {
                     case DECLARE, CONST_DECLARE -> {
                         Value type = stack.pop();
                         Value value = stack.pop();
-                        state.declareVariable(((VariableToken) next).name, type.asType(),
+                        state.declareVariable(((IdentifierToken) next).name, type.asType(),
                                 next.tokenType == TokenType.CONST_DECLARE, value);
                     }
                     case IDENTIFIER -> {
-                        Variable var = state.getVariable(((VariableToken) next).name);
+                        Variable var = state.getVariable(((IdentifierToken) next).name);
                         if (var == null) {
-                            throw new ConcatRuntimeError("Variable " + ((VariableToken) next).name + " does not exist ");
+                            throw new ConcatRuntimeError("Variable " + ((IdentifierToken) next).name + " does not exist ");
                         }
                         stack.push(var.getValue());
                     }
                     case VAR_WRITE -> {
-                        Variable var = state.getVariable(((VariableToken) next).name);
+                        Variable var = state.getVariable(((IdentifierToken) next).name);
                         if (var == null) {
-                            throw new ConcatRuntimeError("Variable " + ((VariableToken) next).name + " does not exist");
+                            throw new ConcatRuntimeError("Variable " + ((IdentifierToken) next).name + " does not exist");
                         } else if (var.isConst) {
-                            throw new ConcatRuntimeError("Tried to overwrite const variable " + ((VariableToken) next).name);
+                            throw new ConcatRuntimeError("Tried to overwrite const variable " + ((IdentifierToken) next).name);
                         }
                         var.setValue(stack.pop());
                     }
-                    case HAS_VAR -> stack.push(state.hasVariable(((VariableToken) next).name));
+                    case HAS_VAR -> stack.push(state.hasVariable(((IdentifierToken) next).name));
                     case IF, ELIF,SHORT_AND_HEADER,SHORT_OR_HEADER,DO, WHILE, END -> {
                         //labels are no-ops
                     }
@@ -1252,9 +1422,7 @@ public class Interpreter {
                         state = state.getParent();
                         assert state!=null;
                     }
-                    case MODULE_READ_VAR,MODULE_WRITE_VAR,MODULE_HAS_VAR ->
-                        throw new UnsupportedOperationException("modules are currently not supported");
-                    case JMP,SKIP_PROC -> {
+                    case JMP, SKIP_PROCEDURE -> {
                         ip+=((RelativeJump) next).delta;
                         incIp = false;
                     }
