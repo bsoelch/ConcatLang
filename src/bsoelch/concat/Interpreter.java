@@ -21,7 +21,7 @@ public class Interpreter {
     enum TokenType {
         VALUE,OPERATOR,
         DROP,STACK_GET,STACK_SET, STACK_SLICE_GET,STACK_SLICE_SET,
-        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,HAS_VAR,//addLater option to free values/variables
+        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,//addLater option to free values/variables
         VARIABLE,
         IF,START,ELIF,ELSE,DO,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
@@ -691,18 +691,6 @@ public class Interpreter {
                         tokens.set(tokens.size()-1,prev);
                         return;
                     }
-                    case "?"->{
-                        if(!(prev instanceof IdentifierToken)){
-                            throw new SyntaxError("invalid token for '?' modifier: "+prev,pos);
-                        }
-                        if(prevId!=null){
-                            prev=new IdentifierToken(TokenType.HAS_VAR,((IdentifierToken) prev).name,prev.pos);
-                        }else{
-                            throw new SyntaxError("invalid token for '?' modifier: "+prev,pos);
-                        }
-                        tokens.set(tokens.size()-1,prev);
-                        return;
-                    }
                     case "=:"->{
                         if(prevId!=null){
                             prev=new IdentifierToken(TokenType.DECLARE,prevId,prev.pos);
@@ -739,6 +727,18 @@ public class Interpreter {
                         //update variables
                         switch (identifier.tokenType){
                             case DECLARE,CONST_DECLARE -> {
+                                if(openBlocks.size()>0&&
+                                        openBlocks.lastEntry().getValue().tokenType!=TokenType.PROCEDURE){
+                                    if(identifier.tokenType==TokenType.CONST_DECLARE) {
+                                        //ensure that constants are always defined exactly
+                                        throw new SyntaxError("constants cannot be declared in if- or while blocks", identifier.pos);
+                                    }
+                                    //TODO handling of variables in if- and while-blocks
+                                    // - variables that have to be declared in all branches (including else) of an if-else-statement
+                                    //   keep existing after end
+                                    // - variables declared in if-end &&,|| or while statements
+                                    //   cannot be accessed outside the statement
+                                }
                                 VariableId id=program.contextPtr[0].declareVariable(
                                         identifier.name, identifier.tokenType == TokenType.CONST_DECLARE, pos);
                                 AccessType accessType =
@@ -776,10 +776,6 @@ public class Interpreter {
                                             AccessType.WRITE,context));
                                 }
                             }
-                            case HAS_VAR ->
-                                    tokens.set(tokens.size()-1,new ValueToken(
-                                            program.contextPtr[0].unsafeGetId(
-                                                    identifier.name)!=null?Value.TRUE:Value.FALSE, identifier.pos));
                             default -> throw new RuntimeException("unexpected type of IdentifierToken:"+ identifier.tokenType);
                         }
                     }
@@ -963,7 +959,7 @@ public class Interpreter {
                                 DROP,STACK_GET,STACK_SLICE_GET,STACK_SET,STACK_SLICE_SET,
                                 VAR_WRITE,VARIABLE,START,END,ELSE,DO,PROCEDURE,
                                 RETURN, SKIP_PROCEDURE,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
-                                PRINT,PRINTLN, HAS_VAR,EXIT
+                                PRINT,PRINTLN,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
                     }
@@ -978,7 +974,7 @@ public class Interpreter {
                     tokens.add(t);
                     tokens.set(start.getKey(),new RelativeJump(TokenType.JMP,start.getValue().pos,
                             tokens.size()-start.getKey()));
-                }else if(start.getValue().tokenType==TokenType.PROCEDURE){// proc ... : ... end
+                }else if(start.getValue().tokenType==TokenType.PROCEDURE){// proc  ... end
                     tokens.add(new Token(TokenType.RETURN,pos));
                     tokens.add(t);
                     tokens.set(start.getKey(),new RelativeJump(TokenType.SKIP_PROCEDURE,start.getValue().pos,
@@ -1508,7 +1504,7 @@ public class Interpreter {
                             stack.pop();// remove token
                         }
                     }
-                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,HAS_VAR,MACRO_EXPAND,START, ELSE, PROCEDURE ->
+                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,MACRO_EXPAND,START, ELSE, PROCEDURE ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case RETURN -> {

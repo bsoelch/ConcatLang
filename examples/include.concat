@@ -1,6 +1,1 @@
-if included ? : ## ensures that file is only included once
-"This file was already included" println
-else
 "including file" println
-true bool included =$
-end
