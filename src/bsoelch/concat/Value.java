@@ -1599,6 +1599,11 @@ public abstract class Value {
         }
 
         @Override
+        public int length() throws TypeError {
+            return elements.length;
+        }
+
+        @Override
         public Value get(long index) throws ConcatRuntimeError {
             if(index<0||index>=elements.length){
                 throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.length);

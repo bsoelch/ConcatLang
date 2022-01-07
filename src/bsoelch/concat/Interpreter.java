@@ -733,7 +733,7 @@ public class Interpreter {
                                         //ensure that constants are always defined exactly
                                         throw new SyntaxError("constants cannot be declared in if- or while blocks", identifier.pos);
                                     }
-                                    //TODO handling of variables in if- and while-blocks
+                                    //FIXME handling of variables in if- and while-blocks
                                     // - variables that have to be declared in all branches (including else) of an if-else-statement
                                     //   keep existing after end
                                     // - variables declared in if-end &&,|| or while statements

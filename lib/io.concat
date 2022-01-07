@@ -1,0 +1,95 @@
+numbers/string #include
+
+proc ## var -> string
+  var value =:
+  if value typeof string == :
+    value return
+  elif value typeof (tuple) <= :
+    "(" string res =:
+    0 int i =:
+    while i value length < :
+      if i 0 > :
+        res ", " :+ res =
+      end
+      res value i [] __IO_stringValue () :+ res =
+      i 1 + i =
+    end
+    res ")" :+ return
+  elif value typeof (list) <= :
+    "[" string res =:
+    0 int i =:
+    while i value length < :
+      if i 0 > :
+        res ", " :+ res =
+      end
+      res value i [] __IO_stringValue () :+ res =
+      i 1 + i =
+    end
+    res "]" :+ return
+  elif value typeof type == :
+    if value string == :
+      "string" return
+    elif value (tuple) <= :
+      if value (tuple) == :
+        "(tuple)" return
+      else
+        "" string res =:
+        0 int i =:
+        while i value length < :
+          if i 0 > :
+            res " " :+ res =
+          end
+          res value i [] __IO_stringValue () :+ res =
+          i 1 + i =
+        end
+        res " " :+ i false 10 false intToString () :+ " tuple" :+ return
+      end
+    elif value (list) <= :
+      if value (list) == :
+        "(list)" return
+      else
+        value content __IO_stringValue () " list" :+ return
+      end
+    elif value *->* <= :
+      "*->*" return
+    elif value (file) == :
+      "(file)" return
+    elif value type == :
+      "type" return
+    elif value bool == :
+      "bool" return
+    elif value byte == :
+      "byte" return
+    elif value int == :
+      "int" return
+    elif value float == :
+      "float" return
+    elif value char == :
+      "char" return
+    elif value var == :
+      "var" return
+    else
+      "unreachable" print
+      1 exit
+    end
+  elif value typeof bool == :
+    if value : "true" else "false" end return
+  elif value typeof byte == :
+    "0x" value int cast 16 true false intToString () +: return
+  elif value typeof int == :
+    value false 10 false intToString () return
+  elif value typeof float == :
+    value 0 10 false false floatToString () return
+  elif value typeof char == :
+    "" value :<< return
+  elif value typeof *->* <= :
+    ## procedure
+    "*->*@" value true refId 16 true intToString () +: return
+  elif value typeof (file) == :
+    ## procedure
+    "(file)@" value true refId 16 true intToString () +: return
+  else
+    "unreachable" print
+    1 exit
+  end
+end *->* __IO_stringValue =$ ## use stringValue as base for print replacement
