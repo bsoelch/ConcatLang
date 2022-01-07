@@ -18,7 +18,7 @@ proc ## value:int base:int big:bool -> char
     end
 end *->* __NUMBER_getDigit =$
 
-proc ## unsigned:bool value:int base:int big:bool
+proc ## value:int unsigned:bool base:int big:bool
   bool big =:
   int base =:
   bool unsigned =:
@@ -87,9 +87,10 @@ proc ## value:float precision:int base:int big:bool sci:bool
   64 int list new int list buff =:
   0 int n =:
   while p eps > :
-    buff value p / int cast :<< buff =
+    value p / floor int cast int d =:
+    buff d :<< buff =
     n 1 + n =
-    value p % value =
+    value d p * - value =
     p base / p =
     e 1 + e =
   end
