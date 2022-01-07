@@ -1644,14 +1644,16 @@ public abstract class Value {
         }
     }
 
-    public static Value ofProcedureId(int startAddress) {
-        return new ProcedureValue(startAddress);
+    public static Value createProcedure(int startAddress, Interpreter.VariableContext variableContext) {
+        return new ProcedureValue(startAddress,variableContext);
     }
-    private static class ProcedureValue extends Value{
+    static class ProcedureValue extends Value{
         final int pos;
-        private ProcedureValue(int pos) {
+        final Interpreter.VariableContext context;
+        private ProcedureValue(int pos, Interpreter.VariableContext context) {
             super(Type.PROCEDURE);
             this.pos = pos;
+            this.context=context;
         }
 
         @Override
