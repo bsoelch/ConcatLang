@@ -738,9 +738,10 @@ public class Interpreter {
                                                 identifier.pos);
                                     }
                                     //FIXME handling of variables in if- and while-blocks
-                                    // - variables that have to be declared in all branches (including else) of an if-else-statement
+                                    // - variables that have to be declared in all branches (including else)
+                                    //   of an if-else-statement, or the condition part of conditional-statement
                                     //   keep existing after end
-                                    // - variables declared in if-end &&,|| or while statements
+                                    // - other variables declared in if &&,|| or while statements
                                     //   cannot be accessed outside the statement
                                 }
                                 VariableId id=program.contextPtr[0].declareVariable(
