@@ -1649,15 +1649,18 @@ public abstract class Value {
         }
     }
 
-    public static Value createProcedure(int startAddress, Interpreter.VariableContext variableContext) {
-        return new ProcedureValue(startAddress,variableContext);
+    public static Value createProcedure(int startAddress, ArrayList<Interpreter.Token> tokens,
+                                        Interpreter.VariableContext variableContext) {
+        return new Procedure(startAddress,tokens,variableContext);
     }
-    static class ProcedureValue extends Value{
+    static class Procedure extends Value implements Interpreter.CodeSection {
         final int pos;
         final Interpreter.VariableContext context;
-        private ProcedureValue(int pos, Interpreter.VariableContext context) {
+        final ArrayList<Interpreter.Token> tokens;
+        private Procedure(int pos, ArrayList<Interpreter.Token> tokens, Interpreter.VariableContext context) {
             super(Type.PROCEDURE);
             this.pos = pos;
+            this.tokens=tokens;
             this.context=context;
         }
 
@@ -1680,12 +1683,22 @@ public abstract class Value {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ProcedureValue that = (ProcedureValue) o;
+            Procedure that = (Procedure) o;
             return pos==that.pos;
         }
         @Override
         public int hashCode() {
             return Objects.hash(pos);
+        }
+
+        @Override
+        public ArrayList<Interpreter.Token> tokens() {
+            return tokens;
+        }
+
+        @Override
+        public Interpreter.VariableContext context() {
+            return context;
         }
     }
 

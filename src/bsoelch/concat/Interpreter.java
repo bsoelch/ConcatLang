@@ -266,52 +266,35 @@ public class Interpreter {
         int id;
         final boolean isConstant;
         final FilePosition declaredAt;
-        VariableId(VariableContext context,int id,boolean predeclared,boolean isConstant,FilePosition declaredAt){
+        FilePosition initializedAt;
+        VariableId(VariableContext context,int id,boolean predeclared,boolean isConstant,
+                   FilePosition declaredAt,FilePosition initializedAt){
             this.predeclared=predeclared;
             this.context=context;
             this.id=id;
             this.isConstant=isConstant;
             this.declaredAt=declaredAt;
+            this.initializedAt=initializedAt;
         }
         @Override
         public String toString() {
             return "@"+context+"."+id;
         }
     }
-    private interface OnVarDeclaration{
-        void onDeclaration(VariableId id) throws SyntaxError;
-    }
     private static class PredeclaredVariable extends VariableId{
-        final ArrayList<OnVarDeclaration> usages=new ArrayList<>();
         PredeclaredVariable(VariableContext context,FilePosition declaredAt) {
-            super(context, -1, true,true, declaredAt);
+            super(context, -1, true,true, declaredAt,null);
         }
-        void addUsage(OnVarDeclaration onInit){
-            usages.add(onInit);
-        }
-        VariableId initialize(VariableContext context,int id,boolean isConstant,FilePosition declaredAt) throws SyntaxError{
-            if(!isConstant){
-                throw new SyntaxError("predeclared variables have to be constants",declaredAt);
-            }
-            VariableId ret=new VariableId(context, id, true,true, declaredAt);
-            for(OnVarDeclaration c:usages){
-                c.onDeclaration(ret);
-            }
-            return ret;
+        void initialize(int id,FilePosition initializedAt){
+            this.id=id;
+            this.initializedAt=initializedAt;
         }
     }
 
     static abstract class VariableContext{
         final HashMap<String,VariableId> variables=new HashMap<>();
-        final HashMap<String,PredeclaredVariable> predeclared=new HashMap<>();
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError {
-            VariableId prev=predeclared.remove(name);
-            if(prev!=null){//initialize predeclared variable
-                prev=((PredeclaredVariable)prev).initialize(this,variables.size(), isConstant, pos);
-                variables.put(name,prev);
-                return prev;
-            }
-            prev=variables.get(name);
+            VariableId prev=variables.get(name);
             if(prev!=null){
                 if(prev.isConstant){
                     throw new SyntaxError("cannot overwrite constant variable "+name,pos);
@@ -320,27 +303,38 @@ public class Interpreter {
                 }
                 return prev;
             }
-            VariableId id = new VariableId(this, variables.size(), false,isConstant, pos);
+            VariableId id = new VariableId(this, variables.size(), false,isConstant, pos,pos);
             variables.put(name, id);
             return id;
         }
-        abstract VariableId getId(String name,FilePosition pos,boolean topLevel) throws SyntaxError;
+        abstract VariableId getId(String name,FilePosition pos) throws SyntaxError;
         abstract VariableId unsafeGetId(String name);
         abstract VariableContext getParent();
     }
     private static class RootContext extends VariableContext{
         RootContext(){}
+        final HashMap<String,PredeclaredVariable> predeclared=new HashMap<>();
         @Override
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError {
+            PredeclaredVariable predeclared = this.predeclared.remove(name);
+            if(predeclared!=null){//initialize predeclared variable
+                if(!isConstant){
+                    throw new SyntaxError("predeclared variables have to be constants",predeclared.declaredAt);
+                }
+                predeclared.initialize(variables.size(),  pos);
+                variables.put(name,predeclared);
+                return predeclared;
+            }
             //addLater handling of modules
             return super.declareVariable(name, isConstant, pos);
         }
+
         @Override
-        VariableId getId(String name,FilePosition pos,boolean topLevel){
+        VariableId getId(String name,FilePosition pos){
             VariableId id=variables.get(name);
             if(id==null){
                 id=predeclared.get(name);
-                if(topLevel&&id==null){
+                if(id==null){
                     id=new PredeclaredVariable(this,pos);
                     predeclared.put(name,(PredeclaredVariable)id);
                 }
@@ -349,7 +343,11 @@ public class Interpreter {
         }
         @Override
         VariableId unsafeGetId(String name) {
-            return variables.get(name);
+            VariableId id=variables.get(name);
+            if(id==null){
+                id=predeclared.get(name);
+            }
+            return id;
         }
 
         @Override
@@ -368,6 +366,11 @@ public class Interpreter {
             VariableId id=super.declareVariable(name, isConstant, pos);
             VariableId shadowed=parent.unsafeGetId(name);
             if(shadowed!=null){//check for shadowing
+                if(shadowed.initializedAt==null){
+                    throw new SyntaxError("unexpected initialization of predeclared constant "+name+
+                            ", predeclared constants have to be initialized at global level " +
+                            "\n  ("+name+" was declared at "+shadowed.declaredAt+")",pos);
+                }
                 System.err.println("Warning: variable "+name+" at declared at "+pos+
                         "\n     shadows existing "+ (shadowed.isConstant?"constant":"variable")+" declared at "
                         +shadowed.declaredAt);
@@ -381,19 +384,12 @@ public class Interpreter {
             return id == null ?parent.unsafeGetId(name):id;
         }
         @Override
-        VariableId getId(String name,FilePosition pos,boolean topLevel) throws SyntaxError {
+        VariableId getId(String name,FilePosition pos) throws SyntaxError {
             VariableId id=variables.get(name);
             if(id == null){
-                id=parent.getId(name,pos,false);
+                id=parent.getId(name,pos);
                 if(id!=null&&!id.isConstant){
                     throw new SyntaxError("external variable "+name+" is not constant",pos);
-                }
-            }//no else
-            if(id==null){
-                id=predeclared.get(name);
-                if(topLevel&&id==null){
-                    id=new PredeclaredVariable(this,pos);
-                    predeclared.put(name,(PredeclaredVariable)id);
                 }
             }
             return id;
@@ -401,26 +397,26 @@ public class Interpreter {
 
         @Override
         VariableContext getParent() {
-            for(Map.Entry<String, PredeclaredVariable> e:predeclared.entrySet()){
-                PredeclaredVariable prev=parent.predeclared.get(e.getKey());
-                if(prev!=null){
-                    prev.usages.addAll(e.getValue().usages);
-                }else{
-                    parent.predeclared.put(e.getKey(), e.getValue());
-                }
-            }
-            predeclared.clear();
             return parent;
         }
     }
 
-    record Program(ArrayList<Token> tokens, HashSet<String> files, HashMap<String,Macro> macros,VariableContext[] contextPtr){
+    interface CodeSection{
+        ArrayList<Token> tokens();
+        VariableContext context();
+    }
+    record Program(ArrayList<Token> tokens, HashSet<String> files, HashMap<String,Macro> macros,
+                   VariableContext[] contextPtr) implements CodeSection{
         @Override
         public String toString() {
             return "Program{" +
                     "tokens=" + tokens +
                     ", files='" + files + '\'' +
                     '}';
+        }
+        @Override
+        public VariableContext context() {
+            return contextPtr[0];
         }
     }
 
@@ -557,6 +553,13 @@ public class Interpreter {
         if(openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(),
                     openBlocks.lastEntry().getValue().pos);
+        }
+        if(((RootContext)program.contextPtr[0]).predeclared.size()>0){
+            System.err.println("Syntax Error: File "+fileName+" contains uninitialized predeclared variables");
+            for(Map.Entry<String, PredeclaredVariable> p:((RootContext)program.contextPtr[0]).predeclared.entrySet()){
+                System.err.println("  "+p.getKey()+" was declared at "+p.getValue().declaredAt);
+            }
+            System.exit(1);
         }
         return program;
     }
@@ -731,7 +734,8 @@ public class Interpreter {
                                         openBlocks.lastEntry().getValue().tokenType!=TokenType.PROCEDURE){
                                     if(identifier.tokenType==TokenType.CONST_DECLARE) {
                                         //ensure that constants are always defined exactly
-                                        throw new SyntaxError("constants cannot be declared in if- or while blocks", identifier.pos);
+                                        throw new SyntaxError("constants cannot be declared in if- or while blocks",
+                                                identifier.pos);
                                     }
                                     //FIXME handling of variables in if- and while-blocks
                                     // - variables that have to be declared in all branches (including else) of an if-else-statement
@@ -740,37 +744,24 @@ public class Interpreter {
                                     //   cannot be accessed outside the statement
                                 }
                                 VariableId id=program.contextPtr[0].declareVariable(
-                                        identifier.name, identifier.tokenType == TokenType.CONST_DECLARE, pos);
+                                        identifier.name, identifier.tokenType == TokenType.CONST_DECLARE,
+                                        identifier.pos);
                                 AccessType accessType =
-                                        identifier.tokenType == TokenType.CONST_DECLARE ? AccessType.CONST_DECLARE : AccessType.DECLARE;
-                                if(id instanceof PredeclaredVariable){
-                                    ((PredeclaredVariable)id).addUsage(var->
-                                            tokens.set(index,new VariableToken(identifier.pos,identifier.name,var,
-                                            accessType,context)));
-                                }else{
-                                    tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                            accessType,context));
-                                }
+                                        identifier.tokenType ==
+                                                TokenType.CONST_DECLARE ? AccessType.CONST_DECLARE : AccessType.DECLARE;
+                                tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
+                                        accessType,context));
                             }
                             case IDENTIFIER -> {
-                                VariableId id=program.contextPtr[0].getId(
-                                        identifier.name, pos, true);
-                                if(id instanceof PredeclaredVariable){
-                                    ((PredeclaredVariable)id).addUsage(var->
-                                            tokens.set(index,new VariableToken(identifier.pos,identifier.name,var,
-                                            AccessType.READ,context)));
-                                }else{
-                                    tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                            AccessType.READ,context));
-                                }
+                                VariableId id=program.contextPtr[0].getId(identifier.name, identifier.pos);
+                                tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
+                                        AccessType.READ,context));
                             }
                             case VAR_WRITE -> {
-                                VariableId id=program.contextPtr[0].getId(
-                                        identifier.name, pos, true);
+                                VariableId id=program.contextPtr[0].getId(identifier.name, identifier.pos);
                                 if(id instanceof PredeclaredVariable){
-                                    ((PredeclaredVariable) id).addUsage(var->
-                                            tokens.set(index,new VariableToken(identifier.pos,identifier.name,var,
-                                            AccessType.WRITE,context)));
+                                    tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
+                                            AccessType.READ,context));
                                 }else{
                                     tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
                                             AccessType.WRITE,context));
@@ -975,11 +966,10 @@ public class Interpreter {
                     tokens.set(start.getKey(),new RelativeJump(TokenType.JMP,start.getValue().pos,
                             tokens.size()-start.getKey()));
                 }else if(start.getValue().tokenType==TokenType.PROCEDURE){// proc  ... end
-                    tokens.add(new Token(TokenType.RETURN,pos));
-                    tokens.add(t);
-                    tokens.set(start.getKey(),new RelativeJump(TokenType.SKIP_PROCEDURE,start.getValue().pos,
-                            tokens.size()-start.getKey()));
-                    tokens.add(new ValueToken(Value.createProcedure(start.getKey()+1,contextPtr[0]),pos));
+                    List<Token> subList = tokens.subList(start.getKey(), tokens.size());
+                    ArrayList<Token> content=new ArrayList<>(subList.subList(1,subList.size()));
+                    subList.clear();
+                    tokens.add(new ValueToken(Value.createProcedure(start.getKey()+1,content,contextPtr[0]),pos));
                     contextPtr[0]=contextPtr[0].getParent();
                 }else{
                     throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
@@ -1091,14 +1081,21 @@ public class Interpreter {
         }
     }
 
-    record CallStackFrame(int returnAddress,Variable[] localVariables){}
+    enum ExitType{
+        NORMAL,FORCED,ERROR
+    }
 
     public RandomAccessStack<Value> run(Program program){
-        Variable[] globalVariables=new Variable[program.contextPtr[0].variables.size()];
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
+        recursiveRun(stack,program,null);
+        return stack;
+    }
+
+    private ExitType recursiveRun(RandomAccessStack<Value> stack,
+                                                  CodeSection program,Variable[] globalVariables){
+        Variable[] variables=new Variable[program.context().variables.size()];
         int ip=0;
-        ArrayDeque<CallStackFrame> callStack=new ArrayDeque<>();
-        ArrayList<Token> tokens=program.tokens;
+        ArrayList<Token> tokens=program.tokens();
         while(ip<tokens.size()){
             Token next=tokens.get(ip);
             boolean incIp=true;
@@ -1342,10 +1339,14 @@ public class Interpreter {
                                 }
                             }
                             case CALL -> {
-                                Value.ProcedureValue procedure =(Value.ProcedureValue)stack.pop();
-                                callStack.push(new CallStackFrame(ip,new Variable[procedure.context.variables.size()]));
-                                ip=procedure.procedurePos();
-                                incIp = false;
+                                Value.Procedure procedure =(Value.Procedure)stack.pop();
+                                ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables);
+                                if(e!=ExitType.NORMAL){
+                                    if(e==ExitType.ERROR) {
+                                        System.err.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                                    }
+                                    return e;
+                                }
                             }
                             case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
                             case FLOAT_AS_INT -> stack.push(Value.ofInt(Double.doubleToRawLongBits(stack.pop().asDouble())));
@@ -1434,10 +1435,10 @@ public class Interpreter {
                             case READ -> {
                                 switch (asVar.variableType){
                                     case GLOBAL ->
-                                            stack.push(globalVariables[asVar.id.id].value);
+                                            stack.push((globalVariables==null?variables:globalVariables)[asVar.id.id].value);
                                     case LOCAL -> {
-                                        if (callStack.peek() != null) {
-                                            stack.push(callStack.peek().localVariables[asVar.id.id].value);
+                                        if (globalVariables != null) {
+                                            stack.push(variables[asVar.id.id].value);
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
@@ -1450,10 +1451,10 @@ public class Interpreter {
                                 Value newValue=stack.pop();
                                 switch (asVar.variableType){
                                     case GLOBAL ->
-                                            globalVariables[asVar.id.id].setValue(newValue);
+                                            (globalVariables==null?variables:globalVariables)[asVar.id.id].setValue(newValue);
                                     case LOCAL ->{
-                                        if (callStack.peek() != null) {
-                                            callStack.peek().localVariables[asVar.id.id].setValue(newValue);
+                                        if (globalVariables != null) {
+                                            variables[asVar.id.id].setValue(newValue);
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
@@ -1468,11 +1469,11 @@ public class Interpreter {
                                 boolean isConst=asVar.accessType==AccessType.CONST_DECLARE;
                                 switch (asVar.variableType){
                                     case GLOBAL ->
-                                            globalVariables[asVar.id.id]=new Variable(type, isConst, initValue);
-                                    case LOCAL ->{
-                                        if (callStack.peek() != null) {
-                                            callStack.peek().localVariables[asVar.id.id] =
+                                            (globalVariables==null?variables:globalVariables)[asVar.id.id] =
                                                     new Variable(type, isConst, initValue);
+                                    case LOCAL ->{
+                                        if (globalVariables != null) {
+                                            variables[asVar.id.id] = new Variable(type, isConst, initValue);
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
@@ -1508,11 +1509,7 @@ public class Interpreter {
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case RETURN -> {
-                        CallStackFrame ret=callStack.poll();
-                        if (ret == null) {
-                            throw new ConcatRuntimeError("call-stack underflow");
-                        }
-                        ip=ret.returnAddress;
+                        return ExitType.NORMAL;
                     }
                     case JMP, SKIP_PROCEDURE -> {
                         ip+=((RelativeJump) next).delta;
@@ -1535,26 +1532,20 @@ public class Interpreter {
                     case EXIT -> {
                         long exitCode=stack.pop().asLong();
                         System.out.println("exited with exit code:"+exitCode);
-                        return stack;
+                        return ExitType.FORCED;
                     }
                 }
-            }catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow  e){
+            }catch(ConcatRuntimeError|RandomAccessStack.StackUnderflow  e){
                 System.err.println(e.getMessage());
                 Token token = tokens.get(ip);
                 System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
-                while(callStack.size()>0){
-                    int prev=callStack.poll().returnAddress;
-                    token=tokens.get(prev);
-                    //addLater more readable names for tokens
-                    System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
-                }
                 break;
             }
             if(incIp){
                 ip++;
             }
         }
-        return stack;
+        return ExitType.NORMAL;
     }
 
     private long slshift(long x, long y) {
