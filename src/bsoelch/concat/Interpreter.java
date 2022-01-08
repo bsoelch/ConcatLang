@@ -23,7 +23,7 @@ public class Interpreter {
         DROP,STACK_GET,STACK_SET, STACK_SLICE_GET,STACK_SLICE_SET,
         DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,//addLater option to free values/variables
         VARIABLE,
-        IF,START,ELIF,ELSE,DO,WHILE,END,
+        IF, FORK,ELIF,ELSE,WHILE,END,
         SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
         PROCEDURE,RETURN, SKIP_PROCEDURE,
         PRINT,PRINTLN,//addLater move print to concat
@@ -875,7 +875,7 @@ public class Interpreter {
                 tokens.add(t);
             }
             case ":" -> {
-                Token s = new Token(TokenType.START, pos);
+                Token s = new Token(TokenType.FORK, pos);
                 openBlocks.put(tokens.size(),s);
                 tokens.add(s);
             }
@@ -919,7 +919,7 @@ public class Interpreter {
                 Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
                 if(start==null){
                     throw new SyntaxError("unexpected end statement",pos);
-                }else if(start.getValue().tokenType==TokenType.START){
+                }else if(start.getValue().tokenType==TokenType.FORK){
                     Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
                     switch (label.getValue().tokenType){
                         case IF,ELIF -> {//(el)if ... : ... end
@@ -948,19 +948,12 @@ public class Interpreter {
                         }
                         case VALUE,OPERATOR,DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,
                                 DROP,STACK_GET,STACK_SLICE_GET,STACK_SET,STACK_SLICE_SET,
-                                VAR_WRITE,VARIABLE,START,END,ELSE,DO,PROCEDURE,
+                                VAR_WRITE,VARIABLE, FORK,END,ELSE,PROCEDURE,
                                 RETURN, SKIP_PROCEDURE,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
                                 PRINT,PRINTLN,EXIT
                                 -> throw new SyntaxError("Invalid block syntax \""+
                                 label.getValue().tokenType+"\"...':'",label.getValue().pos);
                     }
-                }else if(start.getValue().tokenType==TokenType.WHILE){// do ... while ... end
-                    Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
-                    if(label.getValue().tokenType!=TokenType.DO){
-                        throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
-                                " 'do ... while'  or 'else'",pos);
-                    }
-                    tokens.add(new RelativeJump(TokenType.JEQ,t.pos,label.getKey()-tokens.size()));
                 }else if(start.getValue().tokenType==TokenType.ELSE){// ... else ... end
                     tokens.add(t);
                     tokens.set(start.getKey(),new RelativeJump(TokenType.JMP,start.getValue().pos,
@@ -972,17 +965,12 @@ public class Interpreter {
                     tokens.add(new ValueToken(Value.createProcedure(start.getKey()+1,content,contextPtr[0]),pos));
                     contextPtr[0]=contextPtr[0].getParent();
                 }else{
-                    throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while/proc ... :'  " +
-                            " 'do ... while'  or 'else' got:"+start.getValue(),pos);
+                    throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while ... :'  " +
+                            " 'proc' or 'else' got:"+start.getValue(),pos);
                 }
             }
             case "while" -> {
                 Token t = new Token(TokenType.WHILE, pos);
-                openBlocks.put(tokens.size(),t);
-                tokens.add(t);
-            }
-            case "do" -> {
-                Token t = new Token(TokenType.DO, pos);
                 openBlocks.put(tokens.size(),t);
                 tokens.add(t);
             }
@@ -1484,7 +1472,7 @@ public class Interpreter {
                             }
                         }
                     }
-                    case IF, ELIF,SHORT_AND_HEADER,SHORT_OR_HEADER,DO, WHILE, END -> {
+                    case IF, ELIF,SHORT_AND_HEADER,SHORT_OR_HEADER, WHILE, END -> {
                         //labels are no-ops
                     }
                     case SHORT_AND_JMP -> {
@@ -1505,7 +1493,7 @@ public class Interpreter {
                             stack.pop();// remove token
                         }
                     }
-                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,MACRO_EXPAND,START, ELSE, PROCEDURE ->
+                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,MACRO_EXPAND, FORK, ELSE, PROCEDURE ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case RETURN -> {
