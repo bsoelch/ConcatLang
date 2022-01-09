@@ -19,7 +19,6 @@ public class Type {
     /**blank type that could contain any value*/
     public static final Type ANY = new Type("var") {};
 
-    //TODO introduce primitiveList types for primitive lists (with entries smaller than one pointer)
     public static Type STRING() {
         return ListType.STRING;
     }

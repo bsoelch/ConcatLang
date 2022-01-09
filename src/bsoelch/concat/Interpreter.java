@@ -23,11 +23,10 @@ public class Interpreter {
         DROP,STACK_GET,STACK_SET, STACK_SLICE_GET,STACK_SLICE_SET,
         DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,//addLater option to free values/variables
         VARIABLE,
-        IF, FORK,ELIF,ELSE,WHILE,END,
-        SHORT_AND_HEADER, SHORT_OR_HEADER,SHORT_AND_JMP, SHORT_OR_JMP,
-        PROCEDURE,RETURN, SKIP_PROCEDURE,
+        PLACEHOLDER,//placeholder token for jumps
+        RETURN, SKIP_PROCEDURE,
         PRINT,PRINTLN,//addLater move print to concat
-        JEQ,JNE,JMP,//jump commands only for internal representation
+        SHORT_AND_JMP, SHORT_OR_JMP,JEQ,JNE,JMP,//jump commands only for internal representation
         EXIT
     }
 
@@ -180,6 +179,101 @@ public class Interpreter {
         }
     }
 
+    enum BlockType{
+        PROCEDURE,IF,WHILE,SHORT_AND,SHORT_OR
+    }
+    static abstract class CodeBlock{
+        final int start;
+        final BlockType type;
+        final FilePosition startPos;
+        CodeBlock(int start, BlockType type, FilePosition startPos) {
+            this.start = start;
+            this.type = type;
+            this.startPos = startPos;
+        }
+    }
+    static class ProcedureBlock extends CodeBlock{
+        ProcedureBlock(int startToken,FilePosition pos) {
+            super(startToken, BlockType.PROCEDURE,pos);
+        }
+    }
+    private record IfBranch(int fork,int end){}
+    static class IfBlock extends CodeBlock{
+        ArrayList<IfBranch> branches=new ArrayList<>();
+        int forkPos=-1;
+        int elsePos=-1;
+        IfBlock(int startToken,FilePosition pos) {
+            super(startToken, BlockType.IF,pos);
+        }
+        void end(FilePosition pos) throws SyntaxError {
+            if(forkPos==-1&&elsePos==-1){
+                throw new SyntaxError("unexpected 'end' in if-statement 'end' can only appear after ':' or 'else'",pos);
+            }
+        }
+        void fork(int tokenPos,FilePosition pos) throws SyntaxError {
+            if(elsePos!=-1||forkPos!=-1){
+                throw new SyntaxError("unexpected ':' in if-statement ':' can only appear after 'if' or 'elif'",pos);
+            }
+            forkPos=tokenPos;
+        }
+        void newBranch(int tokenPos,FilePosition pos) throws SyntaxError{
+            if(forkPos==-1||elsePos!=-1){
+                throw new SyntaxError("unexpected 'if' or 'elif' in if-statement 'if'/'elif'" +
+                        " can only appear after ':'",pos);
+            }
+            branches.add(new IfBranch(forkPos,tokenPos));
+            forkPos=-1;
+        }
+        void elseBranch(int tokenPos,FilePosition pos) throws SyntaxError {
+            if(elsePos!=-1){
+                throw new SyntaxError("duplicate 'else' in if-statement 'else' can appear at most once",pos);
+            }else if(forkPos==-1){
+                throw new SyntaxError("unexpected 'else' in if-statement 'else' can only appear after ':'",pos);
+            }
+            branches.add(new IfBranch(forkPos,tokenPos));
+            forkPos=-1;
+            elsePos=tokenPos;
+        }
+    }
+    static class ShortCircuitBlock extends CodeBlock{
+        int forkPos=-1;
+        ShortCircuitBlock(int startToken,FilePosition pos,boolean isAnd) {
+            super(startToken, isAnd?BlockType.SHORT_AND:BlockType.SHORT_OR,pos);
+        }
+        void end(FilePosition pos) throws SyntaxError {
+            if(forkPos==-1){
+                throw new SyntaxError("unexpected 'end' in short-circuit-statement " +
+                        "'end' can only appear after ':'",pos);
+            }
+        }
+        void fork(int tokenPos,FilePosition pos) throws SyntaxError{
+            if(forkPos!=-1){
+                throw new SyntaxError("duplicate ':' in short-circuit-statement ':' " +
+                        "can only appear after '&&' or '||'",pos);
+            }
+            forkPos=tokenPos;
+        }
+    }
+    static class WhileBlock extends CodeBlock{
+        int forkPos=-1;
+        WhileBlock(int startToken,FilePosition pos) {
+            super(startToken, BlockType.WHILE,pos);
+        }
+        void end(FilePosition pos) throws SyntaxError {
+            if(forkPos==-1){
+                throw new SyntaxError("unexpected 'end' in while-statement " +
+                        "'end' can only appear after ':'",pos);
+            }
+        }
+        void fork(int tokenPos,FilePosition pos) throws SyntaxError {
+            if(forkPos!=-1){
+                throw new SyntaxError("duplicate ':' in while-statement ':' " +
+                        "can only appear after 'while'",pos);
+            }
+            forkPos=tokenPos;
+        }
+    }
+
     private Interpreter() {}
 
     static String libPath;
@@ -296,6 +390,8 @@ public class Interpreter {
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError {
             VariableId prev=variables.get(name);
             if(prev!=null){
+                // TODO always throw an error when branch-handling is implemented
+                // throw new SyntaxError("variable "+name+" already exists",pos);
                 if(prev.isConstant){
                     throw new SyntaxError("cannot overwrite constant variable "+name,pos);
                 }else if(isConstant){
@@ -431,7 +527,7 @@ public class Interpreter {
             program.files.add(file.getAbsolutePath());
         }
         ParserReader reader=new ParserReader(fileName);
-        TreeMap<Integer,Token> openBlocks=new TreeMap<>();
+        ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
         Macro[] currentMacroPtr=new Macro[1];
         int c;
         reader.nextToken();
@@ -551,8 +647,7 @@ public class Interpreter {
         finishWord(END_OF_FILE,END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
 
         if(openBlocks.size()>0){
-            throw new SyntaxError("unclosed block: "+openBlocks.lastEntry().getValue(),
-                    openBlocks.lastEntry().getValue().pos);
+            throw new SyntaxError("unclosed block: "+openBlocks.getLast(),openBlocks.getLast().startPos);
         }
         if(((RootContext)program.contextPtr[0]).predeclared.size()>0){
             System.err.println("Syntax Error: File "+fileName+" contains uninitialized predeclared variables");
@@ -593,7 +688,7 @@ public class Interpreter {
     // - imports: <name> (<name> '.')+ #import imports a complete module or a constants into the current scope
     // - when parsing a variable name the order is: current module > latest import > ... > first import > global
 
-    private void finishWord(String str,String next, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks,
+    private void finishWord(String str,String next, ArrayList<Token> tokens, ArrayDeque<CodeBlock> openBlocks,
                             Macro[] currentMacroPtr, FilePosition pos, Program program) throws SyntaxError, IOException {
         if (str.length() > 0) {
             if(currentMacroPtr[0]!=null){//handle macros
@@ -731,7 +826,7 @@ public class Interpreter {
                         switch (identifier.tokenType){
                             case DECLARE,CONST_DECLARE -> {
                                 if(openBlocks.size()>0&&
-                                        openBlocks.lastEntry().getValue().tokenType!=TokenType.PROCEDURE){
+                                        openBlocks.getLast().type!=BlockType.PROCEDURE){
                                     if(identifier.tokenType==TokenType.CONST_DECLARE) {
                                         //ensure that constants are always defined exactly
                                         throw new SyntaxError("constants cannot be declared in if- or while blocks",
@@ -817,7 +912,7 @@ public class Interpreter {
         }
     }
 
-    private void addWord(String str, ArrayList<Token> tokens, TreeMap<Integer, Token> openBlocks, HashMap<String, Macro> macros,
+    private void addWord(String str, ArrayList<Token> tokens, ArrayDeque<CodeBlock> openBlocks, HashMap<String, Macro> macros,
                          FilePosition pos,VariableContext[] contextPtr) throws SyntaxError {
         switch (str) {
             case END_OF_FILE -> {} //## string can only be passed to the method on end of file
@@ -860,126 +955,101 @@ public class Interpreter {
             case "intAsFloat"   -> tokens.add(new OperatorToken(OperatorType.INT_AS_FLOAT, pos));
             case "floatAsInt"   -> tokens.add(new OperatorToken(OperatorType.FLOAT_AS_INT, pos));
 
-            case "if" -> {
-                Token t = new Token(TokenType.IF, pos);
-                openBlocks.put(tokens.size(),t);
-                tokens.add(t);
+            case "proc","procedure" -> {
+                openBlocks.add(new ProcedureBlock(tokens.size(),pos));
+                contextPtr[0]=new ProcedureContext(contextPtr[0]);
             }
-            case "&&" -> {
-                Token t = new Token(TokenType.SHORT_AND_HEADER, pos);
-                openBlocks.put(tokens.size(),t);
-                tokens.add(t);
-            }
-            case "||" -> {
-                Token t = new Token(TokenType.SHORT_OR_HEADER, pos);
-                openBlocks.put(tokens.size(),t);
-                tokens.add(t);
-            }
-            case ":" -> {
-                Token s = new Token(TokenType.FORK, pos);
-                openBlocks.put(tokens.size(),s);
-                tokens.add(s);
-            }
+            case "while" -> openBlocks.add(new WhileBlock(tokens.size(),pos));
+            case "&&" -> openBlocks.addLast(new ShortCircuitBlock(tokens.size(),pos,true));
+            case "||" -> openBlocks.addLast(new ShortCircuitBlock(tokens.size(),pos,false));
+            case "if" -> openBlocks.addLast(new IfBlock(tokens.size(),pos));
             case "elif" -> {
-                Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
-                Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
-                if(label!=null&&(label.getValue().tokenType==TokenType.IF||label.getValue().tokenType==TokenType.ELIF)){
-                    Token t = new Token(TokenType.ELIF, pos);
-                    openBlocks.put(tokens.size(),t);
-                    if(label.getValue().tokenType==TokenType.ELIF){//jump before elif to chain jumps
-                        tokens.set(label.getKey(),new RelativeJump(TokenType.JMP,label.getValue().pos,
-                                tokens.size()-label.getKey()));
-                    }
-                    tokens.add(t);
-                    tokens.set(start.getKey(),new RelativeJump(TokenType.JNE,start.getValue().pos,
-                            tokens.size()-start.getKey()));
-                }else{
-                    throw new SyntaxError("elif has to be preceded with if or elif followed by a :",pos);
+                CodeBlock block = openBlocks.peekLast();
+                if(!(block instanceof IfBlock ifBlock)){
+                    throw new SyntaxError("elif can only be used in if-blocks",pos);
                 }
+                ifBlock.newBranch(tokens.size(),pos);
+                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
             }
             case "else" -> {
-                Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
-                Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
-                if(label!=null&&(label.getValue().tokenType==TokenType.IF||label.getValue().tokenType==TokenType.ELIF)){
-                    Token t = new Token(TokenType.ELSE, pos);
-                    openBlocks.put(tokens.size(),t);
-                    if(label.getValue().tokenType==TokenType.ELIF){
-                        //jump before else to chain jumps
-                        tokens.set(label.getKey(),new RelativeJump(TokenType.JMP,label.getValue().pos,
-                               tokens.size()-label.getKey()));
-                    }
-                    tokens.add(t);
-                    tokens.set(start.getKey(),new RelativeJump(TokenType.JNE,start.getValue().pos,
-                            tokens.size()-start.getKey()));
-                }else{
-                    throw new SyntaxError("else has to be preceded with if or elif followed by a :",pos);
+                CodeBlock block = openBlocks.peekLast();
+                if(!(block instanceof IfBlock ifBlock)){
+                    throw new SyntaxError("elif can only be used in if-blocks",pos);
                 }
+                ifBlock.elseBranch(tokens.size(),pos);
+                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+            }
+            case ":" -> {
+                CodeBlock block=openBlocks.peekLast();
+                if(block==null){
+                    throw new SyntaxError(": can only be used in if-, while-, &&- and  ||- blocks",pos);
+                }else{
+                    switch (block.type){
+                        case IF -> ((IfBlock)block).fork(tokens.size(),pos);
+                        case SHORT_AND,SHORT_OR -> ((ShortCircuitBlock)block).fork(tokens.size(),pos);
+                        case WHILE -> ((WhileBlock)block).fork(tokens.size(),pos);
+                        default ->
+                                throw new SyntaxError(": can only be used in if-, while-, &&- and  ||- blocks",pos);
+                    }
+                }
+                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
             }
             case "end" ->{
-                Token t = new Token(TokenType.END, pos);
-                Map.Entry<Integer, Token> start=openBlocks.pollLastEntry();
-                if(start==null){
+                CodeBlock block=openBlocks.pollLast();
+                if(block==null){
                     throw new SyntaxError("unexpected end statement",pos);
-                }else if(start.getValue().tokenType==TokenType.FORK){
-                    Map.Entry<Integer, Token> label=openBlocks.pollLastEntry();
-                    switch (label.getValue().tokenType){
-                        case IF,ELIF -> {//(el)if ... : ... end
-                            tokens.add(t);
-                            tokens.set(start.getKey(),new RelativeJump(TokenType.JNE,start.getValue().pos,
-                                    tokens.size()-start.getKey()));
-                            if(label.getValue().tokenType==TokenType.ELIF){
-                                tokens.set(label.getKey(),new RelativeJump(TokenType.JMP,label.getValue().pos,
-                                        tokens.size()-label.getKey()));
+                }else {
+                    Token tmp;
+                    switch (block.type) {
+                        case PROCEDURE -> {
+                            List<Token> subList = tokens.subList(block.start, tokens.size());
+                            ArrayList<Token> content=new ArrayList<>(subList);
+                            subList.clear();
+                            tokens.add(new ValueToken(Value.createProcedure(block.start,content,contextPtr[0]),pos));
+                            contextPtr[0]=contextPtr[0].getParent();
+                        }
+                        case IF -> {
+                            ((IfBlock)block).end(pos);
+                            for(IfBranch branch:((IfBlock) block).branches){
+                                tmp=tokens.get(branch.fork);
+                                assert tmp.tokenType==TokenType.PLACEHOLDER;
+                                tokens.set(branch.fork,new RelativeJump(TokenType.JNE,tmp.pos,branch.end-branch.fork+1));
+                                tmp=tokens.get(branch.end);
+                                assert tmp.tokenType==TokenType.PLACEHOLDER;
+                                tokens.set(branch.end,new RelativeJump(TokenType.JMP,tmp.pos,tokens.size()-branch.end));
+                            }
+                            if(((IfBlock) block).forkPos!=-1){
+                                tmp=tokens.get(((IfBlock) block).forkPos);
+                                assert tmp.tokenType==TokenType.PLACEHOLDER;
+                                tokens.set(((IfBlock) block).forkPos,new RelativeJump(TokenType.JNE,tmp.pos,
+                                        tokens.size()-((IfBlock) block).forkPos));
                             }
                         }
-                        case SHORT_AND_HEADER -> {
-                            tokens.add(t);
-                            tokens.set(start.getKey(),new RelativeJump(TokenType.SHORT_AND_JMP,start.getValue().pos,
-                                    tokens.size()-start.getKey()));
+                        case WHILE -> {
+                            ((WhileBlock)block).end(pos);
+                            tmp=tokens.get(((WhileBlock) block).forkPos);
+                            assert tmp.tokenType==TokenType.PLACEHOLDER;
+                            tokens.add(new RelativeJump(TokenType.JMP,pos, block.start - tokens.size()));
+                            //addLater use JEQ for whiles with empty body
+                            tokens.set(((WhileBlock) block).forkPos,new RelativeJump(TokenType.JNE,tmp.pos,
+                                    tokens.size()-((WhileBlock) block).forkPos));
                         }
-                        case SHORT_OR_HEADER -> {
-                            tokens.add(t);
-                            tokens.set(start.getKey(),new RelativeJump(TokenType.SHORT_OR_JMP,start.getValue().pos,
-                                    tokens.size()-start.getKey()));
+                        case SHORT_AND -> {
+                            ((ShortCircuitBlock)block).end(pos);
+                            tmp=tokens.get(((ShortCircuitBlock) block).forkPos);
+                            assert tmp.tokenType==TokenType.PLACEHOLDER;
+                            tokens.set(((ShortCircuitBlock) block).forkPos,new RelativeJump(TokenType.SHORT_AND_JMP,tmp.pos,
+                                    tokens.size()-((ShortCircuitBlock) block).forkPos));
                         }
-                        case WHILE -> {//while ... : ... end
-                            tokens.add(new RelativeJump(TokenType.JMP,t.pos,label.getKey()-tokens.size()));
-                            tokens.set(start.getKey(),new RelativeJump(TokenType.JNE,start.getValue().pos,
-                                    tokens.size()-start.getKey()));
+                        case SHORT_OR -> {
+                            ((ShortCircuitBlock)block).end(pos);
+                            tmp=tokens.get(((ShortCircuitBlock) block).forkPos);
+                            assert tmp.tokenType==TokenType.PLACEHOLDER;
+                            tokens.set(((ShortCircuitBlock) block).forkPos,new RelativeJump(TokenType.SHORT_OR_JMP,tmp.pos,
+                                    tokens.size()-((ShortCircuitBlock) block).forkPos));
                         }
-                        case VALUE,OPERATOR,DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,
-                                DROP,STACK_GET,STACK_SLICE_GET,STACK_SET,STACK_SLICE_SET,
-                                VAR_WRITE,VARIABLE, FORK,END,ELSE,PROCEDURE,
-                                RETURN, SKIP_PROCEDURE,JEQ,JNE,JMP,SHORT_AND_JMP,SHORT_OR_JMP,
-                                PRINT,PRINTLN,EXIT
-                                -> throw new SyntaxError("Invalid block syntax \""+
-                                label.getValue().tokenType+"\"...':'",label.getValue().pos);
                     }
-                }else if(start.getValue().tokenType==TokenType.ELSE){// ... else ... end
-                    tokens.add(t);
-                    tokens.set(start.getKey(),new RelativeJump(TokenType.JMP,start.getValue().pos,
-                            tokens.size()-start.getKey()));
-                }else if(start.getValue().tokenType==TokenType.PROCEDURE){// proc  ... end
-                    List<Token> subList = tokens.subList(start.getKey(), tokens.size());
-                    ArrayList<Token> content=new ArrayList<>(subList.subList(1,subList.size()));
-                    subList.clear();
-                    tokens.add(new ValueToken(Value.createProcedure(start.getKey()+1,content,contextPtr[0]),pos));
-                    contextPtr[0]=contextPtr[0].getParent();
-                }else{
-                    throw new SyntaxError("'end' can only terminate blocks starting with 'if/elif/while ... :'  " +
-                            " 'proc' or 'else' got:"+start.getValue(),pos);
                 }
-            }
-            case "while" -> {
-                Token t = new Token(TokenType.WHILE, pos);
-                openBlocks.put(tokens.size(),t);
-                tokens.add(t);
-            }
-            case "proc","procedure" -> {
-                Token t = new Token(TokenType.PROCEDURE, pos);
-                openBlocks.put(tokens.size(),t);
-                tokens.add(t);
-                contextPtr[0]=new ProcedureContext(contextPtr[0]);
             }
             case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
             case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
@@ -1473,9 +1543,6 @@ public class Interpreter {
                             }
                         }
                     }
-                    case IF, ELIF,SHORT_AND_HEADER,SHORT_OR_HEADER, WHILE, END -> {
-                        //labels are no-ops
-                    }
                     case SHORT_AND_JMP -> {
                         Value c = stack.peek();
                         if (c.asBool()) {
@@ -1494,7 +1561,7 @@ public class Interpreter {
                             stack.pop();// remove token
                         }
                     }
-                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,MACRO_EXPAND, FORK, ELSE, PROCEDURE ->
+                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,MACRO_EXPAND, PLACEHOLDER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case RETURN -> {

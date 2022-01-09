@@ -361,7 +361,7 @@ proc ## args:... format:string
   end
   maxFormat 1 + count =
   count var list new var list args =:
-  0 int i =:
+  0 i =
   while i count < :
     args >>: args = ## get var-arg arguments from stack
     i 1 + i =
