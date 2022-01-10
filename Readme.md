@@ -12,7 +12,8 @@ Hello World:
 ```
 
 Recursive Fibonacci Numbers:
-```Python
+```Julia
+stack #include ## for usage of dup and swap
 proc
  if dup 1 > :
    dup 1 - fib () swap 2 - fib () +
