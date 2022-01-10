@@ -160,7 +160,7 @@ lists #include
 
 1 2 3 4 5 int 5 {} dup __LISTS_reverse () println
 
-1 2 3 4 rot3
+1 2 3 4 rot3 int 4 {} println
 
 io #include
 "test" __IO_stringValue () println
