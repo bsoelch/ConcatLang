@@ -19,9 +19,9 @@ int off =:
 (list) input =:
 if off to < :
   off to + 2 / int c =:
-  input off   c  __LISTS_mergesort_helper ()
+  input off c __LISTS_mergesort_helper ()
   c 1 + c =
-  input c to __LISTS_mergesort_helper ()
+  input c  to __LISTS_mergesort_helper ()
   ## 0 ... c-1 and c...to-1 are sorted
   c int i =:
   while && off c < : c to <= end :

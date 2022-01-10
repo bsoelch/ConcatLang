@@ -182,14 +182,13 @@ proc ## source:string base:int -> int
     1 exit
   end
   0 ## res
+  false bool sgn =:
   if source 0 [] '-' == :
-    true bool sgn =:
+    true sgn =
     1 ## i = 1
   elif source 0 [] '+' == :
-    false bool sgn =:
     1 ## i = 1
   else
-    false bool sgn =:
     0 ## i = 0
   end
   int_MAX base / int max =:
@@ -231,14 +230,13 @@ proc ## str:string base:int -> float
     1 exit
   end
   0 ## val
+  false bool sgn =:
   if str 0 [] '-' == :
-    true bool sgn =:
+    true sgn =
     1 ## i = 1
   elif str 0 [] '+' == :
-    false bool sgn =:
     1 ## i = 1
   else
-    false bool sgn =:
     0 ## i = 0
   end
   0  int c =:

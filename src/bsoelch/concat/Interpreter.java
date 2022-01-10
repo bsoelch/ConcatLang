@@ -24,6 +24,7 @@ public class Interpreter {
         DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,//addLater option to free values/variables
         VARIABLE,
         PLACEHOLDER,//placeholder token for jumps
+        CONTEXT_OPEN,CONTEXT_CLOSE,
         RETURN, SKIP_PROCEDURE,
         PRINT,PRINTLN,//addLater move print to concat
         SHORT_AND_JMP, SHORT_OR_JMP,JEQ,JNE,JMP,//jump commands only for internal representation
@@ -139,6 +140,14 @@ public class Interpreter {
             return tokenType.toString()+": "+(delta>0?"+":"")+delta;
         }
     }
+    static class ContextOpen extends Token{
+        final VariableContext context;
+        ContextOpen(VariableContext context,FilePosition pos) {
+            super(TokenType.CONTEXT_OPEN,pos);
+            this.context = context;
+        }
+    }
+
     static class VariableToken extends Token{
         final VariableType variableType;
         final AccessType accessType;
@@ -148,15 +157,14 @@ public class Interpreter {
             super(TokenType.VARIABLE, pos);
             this.variableName=name;
             this.id=id;
-            if(id.context instanceof RootContext){
+            this.accessType=access;
+            ProcedureContext procedureId=id.context.procedure();
+            if(procedureId==null){
                 variableType=VariableType.GLOBAL;
-            }else if(id.context==currentContext){
+            }else if(procedureId==currentContext.procedure()){
                 variableType=VariableType.LOCAL;
             }else{
                 variableType=VariableType.CURRIED;
-            }
-            this.accessType=access;
-            if(variableType==VariableType.CURRIED){
                 switch (accessType){
                     case READ -> {}
                     case WRITE ->
@@ -165,7 +173,8 @@ public class Interpreter {
                             throw new RuntimeException("cannot declare to curried variables "+name);
                     default -> throw new RuntimeException("unreachable");
                 }
-            }else if(access==AccessType.WRITE){
+            }
+            if(access==AccessType.WRITE){
                 if(id.predeclared){
                     throw new SyntaxError("cannot write to predeclared variable "+name,pos);
                 }else if(id.isConstant){
@@ -207,39 +216,43 @@ public class Interpreter {
         }
     }
     private record IfBranch(int fork,int end){}
-    //FIXME handling of variables in if- and while-blocks
-    // - variables that have to be declared in all branches (including else)
-    //   of an if-else-statement, or the condition part of conditional-statement
-    //   keep existing after end
-    // - other variables declared in if &&,|| or while statements
-    //   cannot be accessed outside the statement
     static class IfBlock extends CodeBlock{
         ArrayList<IfBranch> branches=new ArrayList<>();
         int forkPos=-1;
         int elsePos=-1;
+        VariableContext ifContext;
+        VariableContext elseContext;
         IfBlock(int startToken,FilePosition pos, VariableContext parentContext) {
             super(startToken, BlockType.IF,pos, parentContext);
+            elseContext=parentContext;
         }
         void end(FilePosition pos) throws SyntaxError {
             if(forkPos==-1&&elsePos==-1){
                 throw new SyntaxError("unexpected 'end' in if-statement 'end' can only appear after ':' or 'else'",pos);
             }
         }
-        void fork(int tokenPos,FilePosition pos) throws SyntaxError {
+        VariableContext fork(int tokenPos,FilePosition pos) throws SyntaxError {
             if(elsePos!=-1||forkPos!=-1){
                 throw new SyntaxError("unexpected ':' in if-statement ':' can only appear after 'if' or 'elif'",pos);
             }
             forkPos=tokenPos;
+            ifContext=new BlockContext(elseContext);
+            return ifContext;
         }
-        void newBranch(int tokenPos,FilePosition pos) throws SyntaxError{
+        VariableContext newBranch(int tokenPos,FilePosition pos) throws SyntaxError{
             if(forkPos==-1||elsePos!=-1){
                 throw new SyntaxError("unexpected 'if' or 'elif' in if-statement 'if'/'elif'" +
                         " can only appear after ':'",pos);
             }
             branches.add(new IfBranch(forkPos,tokenPos));
             forkPos=-1;
+            if(elseContext==parentContext){
+                elseContext=new BlockContext(parentContext);
+                return elseContext;
+            }
+            return null;
         }
-        void elseBranch(int tokenPos,FilePosition pos) throws SyntaxError {
+        VariableContext elseBranch(int tokenPos,FilePosition pos) throws SyntaxError {
             if(elsePos!=-1){
                 throw new SyntaxError("duplicate 'else' in if-statement 'else' can appear at most once",pos);
             }else if(forkPos==-1){
@@ -248,18 +261,24 @@ public class Interpreter {
             branches.add(new IfBranch(forkPos,tokenPos));
             forkPos=-1;
             elsePos=tokenPos;
+            if(elseContext==parentContext){
+                elseContext=new BlockContext(parentContext);
+                return elseContext;
+            }
+            return null;
         }
 
         @Override
         VariableContext context() {
-            //TODO implement IfBlock.context
-            return parentContext;
+            return forkPos==-1?elseContext:ifContext;
         }
     }
     static class ShortCircuitBlock extends CodeBlock{
         int forkPos=-1;
+        VariableContext context;
         ShortCircuitBlock(int startToken,FilePosition pos,boolean isAnd, VariableContext parentContext) {
             super(startToken, isAnd?BlockType.SHORT_AND:BlockType.SHORT_OR,pos, parentContext);
+            context=parentContext;
         }
         void end(FilePosition pos) throws SyntaxError {
             if(forkPos==-1){
@@ -267,24 +286,27 @@ public class Interpreter {
                         "'end' can only appear after ':'",pos);
             }
         }
-        void fork(int tokenPos,FilePosition pos) throws SyntaxError{
+        VariableContext fork(int tokenPos,FilePosition pos) throws SyntaxError{
             if(forkPos!=-1){
                 throw new SyntaxError("duplicate ':' in short-circuit-statement ':' " +
                         "can only appear after '&&' or '||'",pos);
             }
             forkPos=tokenPos;
+            context=new BlockContext(context);
+            return context;
         }
 
         @Override
         VariableContext context() {
-            //TODO implement ShortCircuitBlock.context
-            return parentContext;
+            return context;
         }
     }
     static class WhileBlock extends CodeBlock{
         int forkPos=-1;
+        VariableContext context;
         WhileBlock(int startToken,FilePosition pos, VariableContext parentContext) {
             super(startToken, BlockType.WHILE,pos, parentContext);
+            context=parentContext;
         }
         void end(FilePosition pos) throws SyntaxError {
             if(forkPos==-1){
@@ -292,18 +314,19 @@ public class Interpreter {
                         "'end' can only appear after ':'",pos);
             }
         }
-        void fork(int tokenPos,FilePosition pos) throws SyntaxError {
+        VariableContext fork(int tokenPos,FilePosition pos) throws SyntaxError {
             if(forkPos!=-1){
                 throw new SyntaxError("duplicate ':' in while-statement ':' " +
                         "can only appear after 'while'",pos);
             }
             forkPos=tokenPos;
+            context=new BlockContext(context);
+            return context;
         }
 
         @Override
         VariableContext context() {
-            //TODO implement WhileBlock.context
-            return parentContext;
+            return context;
         }
     }
 
@@ -390,15 +413,17 @@ public class Interpreter {
     private static class VariableId{
         final boolean predeclared;
         final VariableContext context;
+        final int level;
         int id;
         final boolean isConstant;
         final FilePosition declaredAt;
         FilePosition initializedAt;
-        VariableId(VariableContext context,int id,boolean predeclared,boolean isConstant,
+        VariableId(VariableContext context,int level,int id,boolean predeclared,boolean isConstant,
                    FilePosition declaredAt,FilePosition initializedAt){
             this.predeclared=predeclared;
             this.context=context;
             this.id=id;
+            this.level=level;
             this.isConstant=isConstant;
             this.declaredAt=declaredAt;
             this.initializedAt=initializedAt;
@@ -410,7 +435,7 @@ public class Interpreter {
     }
     private static class PredeclaredVariable extends VariableId{
         PredeclaredVariable(VariableContext context,FilePosition declaredAt) {
-            super(context, -1, true,true, declaredAt,null);
+            super(context, 0,-1, true,true, declaredAt,null);
         }
         void initialize(int id,FilePosition initializedAt){
             this.id=id;
@@ -423,21 +448,18 @@ public class Interpreter {
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError {
             VariableId prev=variables.get(name);
             if(prev!=null){
-                // TODO always throw an error when branch-handling is implemented
-                // throw new SyntaxError("variable "+name+" already exists",pos);
-                if(prev.isConstant){
-                    throw new SyntaxError("cannot overwrite constant variable "+name,pos);
-                }else if(isConstant){
-                    throw new SyntaxError("constant cannot overwrite variable "+name,pos);
-                }
-                return prev;
+                throw new SyntaxError("variable "+name+" already exists",pos);
             }
-            VariableId id = new VariableId(this, variables.size(), false,isConstant, pos,pos);
+            VariableId id = new VariableId(this,level(), variables.size(), false,isConstant, pos,pos);
             variables.put(name, id);
             return id;
         }
         abstract VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError;
         abstract VariableId unsafeGetId(String name);
+        /**returns the enclosing procedure or null if this variable is not enclosed in a procedure*/
+        abstract ProcedureContext procedure();
+        /**number of blocks (excluding procedures) this variable is contained in*/
+        abstract int level();
     }
     private static class RootContext extends VariableContext{
         RootContext(){}
@@ -463,7 +485,7 @@ public class Interpreter {
             if(id==null){
                 id=predeclared.get(name);
                 if(id==null){
-                    if(callee instanceof ProcedureContext){
+                    if(callee.procedure()!=null){
                         id=new PredeclaredVariable(this,pos);
                         predeclared.put(name,(PredeclaredVariable)id);
                     }else{
@@ -481,35 +503,72 @@ public class Interpreter {
             }
             return id;
         }
+
+        @Override
+        ProcedureContext procedure() {
+            return null;
+        }
+
+        @Override
+        int level() {
+            return 0;
+        }
     }
-    private static class ProcedureContext extends VariableContext{
+    private static class BlockContext extends VariableContext {
         final VariableContext parent;
-        ProcedureContext(VariableContext parent){
+
+        public BlockContext(VariableContext parent) {
+            this.parent = parent;
             assert parent!=null;
-            this.parent=parent;
         }
         @Override
-        VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError {
-            VariableId id=super.declareVariable(name, isConstant, pos);
-            VariableId shadowed=parent.unsafeGetId(name);
-            if(shadowed!=null){//check for shadowing
-                if(shadowed.initializedAt==null){
-                    throw new SyntaxError("unexpected initialization of predeclared constant "+name+
+        VariableId declareVariable(String name, boolean isConstant, FilePosition pos) throws SyntaxError {
+            VariableId id = super.declareVariable(name, isConstant, pos);
+            VariableId shadowed = parent.unsafeGetId(name);
+            if (shadowed != null) {//check for shadowing
+                if (shadowed.initializedAt == null) {
+                    throw new SyntaxError("unexpected initialization of predeclared constant " + name +
                             ", predeclared constants have to be initialized at global level " +
-                            "\n  ("+name+" was declared at "+shadowed.declaredAt+")",pos);
+                            "\n  (" + name + " was declared at " + shadowed.declaredAt + ")", pos);
                 }
-                System.err.println("Warning: variable "+name+" at declared at "+pos+
-                        "\n     shadows existing "+ (shadowed.isConstant?"constant":"variable")+" declared at "
-                        +shadowed.declaredAt);
+                System.err.println("Warning: variable " + name + " at declared at " + pos +
+                        "\n     shadows existing " + (shadowed.isConstant ? "constant" : "variable") + " declared at "
+                        + shadowed.declaredAt);
             }
             return id;
         }
 
         @Override
         VariableId unsafeGetId(String name) {
-            VariableId id=variables.get(name);
-            return id == null ?parent.unsafeGetId(name):id;
+            VariableId id = variables.get(name);
+            return id == null ? parent.unsafeGetId(name) : id;
         }
+        @Override
+        VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError {
+            VariableId id=variables.get(name);
+            if(id == null){
+                id=parent.getId(name,pos,callee);
+            }
+            return id;
+        }
+
+        @Override
+        ProcedureContext procedure() {
+            return parent.procedure();
+        }
+
+        @Override
+        int level() {
+            return parent.level()+1;
+        }
+    }
+
+    private static class ProcedureContext extends BlockContext {
+        ProcedureContext(VariableContext parent){
+            super(parent);
+            assert parent!=null;
+        }
+
         @Override
         VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError {
             VariableId id=variables.get(name);
@@ -520,6 +579,15 @@ public class Interpreter {
                 }
             }
             return id;
+        }
+        @Override
+        ProcedureContext procedure() {
+            return this;
+        }
+
+        @Override
+        int level() {
+            return 0;
         }
     }
 
@@ -983,31 +1051,42 @@ public class Interpreter {
                 if(!(block instanceof IfBlock ifBlock)){
                     throw new SyntaxError("elif can only be used in if-blocks",pos);
                 }
-                ifBlock.newBranch(tokens.size(),pos);
+                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                VariableContext context=ifBlock.newBranch(tokens.size(),pos);
                 tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                if(context!=null){
+                    tokens.add(new ContextOpen(context,pos));
+                }
             }
             case "else" -> {
                 CodeBlock block = openBlocks.peekLast();
                 if(!(block instanceof IfBlock ifBlock)){
                     throw new SyntaxError("elif can only be used in if-blocks",pos);
                 }
-                ifBlock.elseBranch(tokens.size(),pos);
+                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                VariableContext context=ifBlock.elseBranch(tokens.size(),pos);
                 tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                if(context!=null){
+                    tokens.add(new ContextOpen(context,pos));
+                }
             }
             case ":" -> {
                 CodeBlock block=openBlocks.peekLast();
                 if(block==null){
                     throw new SyntaxError(": can only be used in if-, while-, &&- and  ||- blocks",pos);
                 }else{
+                    int forkPos=tokens.size();
+                    tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                    VariableContext newContext;
                     switch (block.type){
-                        case IF -> ((IfBlock)block).fork(tokens.size(),pos);
-                        case SHORT_AND,SHORT_OR -> ((ShortCircuitBlock)block).fork(tokens.size(),pos);
-                        case WHILE -> ((WhileBlock)block).fork(tokens.size(),pos);
+                        case IF -> newContext=((IfBlock)block).fork(forkPos,pos);
+                        case SHORT_AND,SHORT_OR -> newContext=((ShortCircuitBlock)block).fork(forkPos,pos);
+                        case WHILE -> newContext=((WhileBlock)block).fork(forkPos,pos);
                         default ->
                                 throw new SyntaxError(": can only be used in if-, while-, &&- and  ||- blocks",pos);
                     }
+                    tokens.add(new ContextOpen(newContext,pos));
                 }
-                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
             }
             case "end" ->{
                 CodeBlock block=openBlocks.pollLast();
@@ -1024,6 +1103,14 @@ public class Interpreter {
                         }
                         case IF -> {
                             ((IfBlock)block).end(pos);
+                            if(((IfBlock) block).forkPos!=-1){
+                                tmp=tokens.get(((IfBlock) block).forkPos);
+                                assert tmp.tokenType==TokenType.PLACEHOLDER;
+                                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                                tokens.set(((IfBlock) block).forkPos,new RelativeJump(TokenType.JNE,tmp.pos,
+                                        (tokens.size())-((IfBlock) block).forkPos));
+                                //when there is no else then the last branch has to jump onto the close operation
+                            }
                             for(IfBranch branch:((IfBlock) block).branches){
                                 tmp=tokens.get(branch.fork);
                                 assert tmp.tokenType==TokenType.PLACEHOLDER;
@@ -1032,15 +1119,18 @@ public class Interpreter {
                                 assert tmp.tokenType==TokenType.PLACEHOLDER;
                                 tokens.set(branch.end,new RelativeJump(TokenType.JMP,tmp.pos,tokens.size()-branch.end));
                             }
-                            if(((IfBlock) block).forkPos!=-1){
-                                tmp=tokens.get(((IfBlock) block).forkPos);
-                                assert tmp.tokenType==TokenType.PLACEHOLDER;
-                                tokens.set(((IfBlock) block).forkPos,new RelativeJump(TokenType.JNE,tmp.pos,
-                                        tokens.size()-((IfBlock) block).forkPos));
+                            if(((IfBlock) block).branches.size()>0){
+                                //add close context for elseContext (root context for all branches after the first if)
+                                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                                //update jump on (first) if-branch to skip the close
+                                IfBranch branch=((IfBlock) block).branches.get(0);
+                                tmp=tokens.get(branch.end);
+                                tokens.set(branch.end,new RelativeJump(TokenType.JMP,tmp.pos,tokens.size()-branch.end));
                             }
                         }
                         case WHILE -> {
                             ((WhileBlock)block).end(pos);
+                            tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                             tmp=tokens.get(((WhileBlock) block).forkPos);
                             assert tmp.tokenType==TokenType.PLACEHOLDER;
                             if(((WhileBlock) block).forkPos==tokens.size()-1){
@@ -1055,6 +1145,7 @@ public class Interpreter {
                         }
                         case SHORT_AND -> {
                             ((ShortCircuitBlock)block).end(pos);
+                            tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                             tmp=tokens.get(((ShortCircuitBlock) block).forkPos);
                             assert tmp.tokenType==TokenType.PLACEHOLDER;
                             tokens.set(((ShortCircuitBlock) block).forkPos,new RelativeJump(TokenType.SHORT_AND_JMP,tmp.pos,
@@ -1062,6 +1153,7 @@ public class Interpreter {
                         }
                         case SHORT_OR -> {
                             ((ShortCircuitBlock)block).end(pos);
+                            tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                             tmp=tokens.get(((ShortCircuitBlock) block).forkPos);
                             assert tmp.tokenType==TokenType.PLACEHOLDER;
                             tokens.set(((ShortCircuitBlock) block).forkPos,new RelativeJump(TokenType.SHORT_OR_JMP,tmp.pos,
@@ -1170,8 +1262,9 @@ public class Interpreter {
     }
 
     private ExitType recursiveRun(RandomAccessStack<Value> stack,
-                                                  CodeSection program,Variable[] globalVariables){
-        Variable[] variables=new Variable[program.context().variables.size()];
+                                                  CodeSection program,ArrayList<Variable[]> globalVariables){
+        ArrayList<Variable[]> variables=new ArrayList<>();
+        variables.add(new Variable[program.context().variables.size()]);
         int ip=0;
         ArrayList<Token> tokens=program.tokens();
         while(ip<tokens.size()){
@@ -1284,12 +1377,12 @@ public class Interpreter {
                             case SLSHIFT -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? x >> -y : slshift(x, y)));
+                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? x >> -y : signedLeftShift(x, y)));
                             }
                             case SRSHIFT -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? slshift(x, -y) : x >> y));
+                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? signedLeftShift(x, -y) : x >> y));
                             }
                             case LIST_OF -> {
                                 Type contentType = stack.pop().asType();
@@ -1513,10 +1606,11 @@ public class Interpreter {
                             case READ -> {
                                 switch (asVar.variableType){
                                     case GLOBAL ->
-                                            stack.push((globalVariables==null?variables:globalVariables)[asVar.id.id].value);
+                                            stack.push((globalVariables==null?variables:globalVariables)
+                                                    .get(asVar.id.level)[asVar.id.id].value);
                                     case LOCAL -> {
                                         if (globalVariables != null) {
-                                            stack.push(variables[asVar.id.id].value);
+                                            stack.push(variables.get(asVar.id.level)[asVar.id.id].value);
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
@@ -1529,10 +1623,11 @@ public class Interpreter {
                                 Value newValue=stack.pop();
                                 switch (asVar.variableType){
                                     case GLOBAL ->
-                                            (globalVariables==null?variables:globalVariables)[asVar.id.id].setValue(newValue);
+                                            (globalVariables==null?variables:globalVariables).get(asVar.id.level)
+                                                    [asVar.id.id].setValue(newValue);
                                     case LOCAL ->{
                                         if (globalVariables != null) {
-                                            variables[asVar.id.id].setValue(newValue);
+                                            variables.get(asVar.id.level)[asVar.id.id].setValue(newValue);
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
@@ -1547,11 +1642,12 @@ public class Interpreter {
                                 boolean isConst=asVar.accessType==AccessType.CONST_DECLARE;
                                 switch (asVar.variableType){
                                     case GLOBAL ->
-                                            (globalVariables==null?variables:globalVariables)[asVar.id.id] =
-                                                    new Variable(type, isConst, initValue);
+                                            (globalVariables==null?variables:globalVariables).get(asVar.id.level)
+                                                    [asVar.id.id] = new Variable(type, isConst, initValue);
                                     case LOCAL ->{
                                         if (globalVariables != null) {
-                                            variables[asVar.id.id] = new Variable(type, isConst, initValue);
+                                            variables.get(asVar.id.level)[asVar.id.id]
+                                                    = new Variable(type, isConst, initValue);
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
@@ -1583,6 +1679,14 @@ public class Interpreter {
                     case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,MACRO_EXPAND, PLACEHOLDER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
+                    case CONTEXT_OPEN ->
+                            variables.add(new Variable[((ContextOpen)next).context.variables.size()]);
+                    case CONTEXT_CLOSE -> {
+                        if(variables.size()<=1){
+                            throw new RuntimeException("unexpected CONTEXT_CLOSE operation");
+                        }
+                        variables.remove(variables.size()-1);
+                    }
                     case RETURN -> {
                         return ExitType.NORMAL;
                     }
@@ -1614,7 +1718,11 @@ public class Interpreter {
                 System.err.println(e.getMessage());
                 Token token = tokens.get(ip);
                 System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
-                break;
+                return ExitType.ERROR;
+            }catch(Throwable  t){//show expression in source code that crashed the interpreter
+                Token token = tokens.get(ip);
+                System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
+                throw t;
             }
             if(incIp){
                 ip++;
@@ -1623,7 +1731,7 @@ public class Interpreter {
         return ExitType.NORMAL;
     }
 
-    private long slshift(long x, long y) {
+    private long signedLeftShift(long x, long y) {
         return x&0x8000000000000000L|x<<y;
     }
 

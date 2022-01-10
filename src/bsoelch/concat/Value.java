@@ -67,9 +67,6 @@ public abstract class Value {
         return equals(v);
     }
 
-    public int procedurePos() throws TypeError {
-        throw new TypeError("Cannot convert "+type+" to procedure");
-    }
     public Value negate() throws TypeError {
         throw new TypeError("Cannot negate values of type "+type);
     }
@@ -1667,11 +1664,6 @@ public abstract class Value {
         @Override
         public long id() {
             return System.identityHashCode(pos);
-        }
-
-        @Override
-        public int procedurePos() {
-            return pos;
         }
 
         @Override
