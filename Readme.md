@@ -27,6 +27,7 @@ end *->* fib =$
 #_ print 10th Fibonacci Number: _#
 10 fib () println
 ```
+!!! `#include` is not part of the comment !!!
 
 ## Syntax
 The code is a sequence of instructions 

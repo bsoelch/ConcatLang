@@ -1647,14 +1647,14 @@ public abstract class Value {
     }
 
     public static Value createProcedure(int startAddress, ArrayList<Interpreter.Token> tokens,
-                                        Interpreter.VariableContext variableContext) {
+                                        Interpreter.ProcedureContext variableContext) {
         return new Procedure(startAddress,tokens,variableContext);
     }
     static class Procedure extends Value implements Interpreter.CodeSection {
         final int pos;
-        final Interpreter.VariableContext context;
+        final Interpreter.ProcedureContext context;
         final ArrayList<Interpreter.Token> tokens;
-        private Procedure(int pos, ArrayList<Interpreter.Token> tokens, Interpreter.VariableContext context) {
+        private Procedure(int pos, ArrayList<Interpreter.Token> tokens, Interpreter.ProcedureContext context) {
             super(Type.PROCEDURE);
             this.pos = pos;
             this.tokens=tokens;
@@ -1669,6 +1669,10 @@ public abstract class Value {
         @Override
         public String stringValue() {
             return "@("+pos+")";
+        }
+
+        CurriedProcedure withCurried(Value[] curried){
+            return new CurriedProcedure(this,curried);
         }
 
         @Override
@@ -1691,6 +1695,46 @@ public abstract class Value {
         @Override
         public Interpreter.VariableContext context() {
             return context;
+        }
+    }
+    static class CurriedProcedure extends Value implements Interpreter.CodeSection{
+        final Procedure parent;
+        final Value[] curried;
+        public CurriedProcedure(Procedure parent, Value[] curried) {
+            super(parent.type);
+            this.parent=parent;
+            this.curried=curried;
+        }
+        @Override
+        public long id() {
+            return parent.id();
+        }
+
+        @Override
+        public String stringValue() {
+            return parent.stringValue()+Arrays.toString(curried);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            CurriedProcedure that = (CurriedProcedure) o;
+            return parent==that.parent&& Arrays.equals(curried, that.curried);
+        }
+        @Override
+        public int hashCode() {
+            return parent.hashCode()+31*Arrays.hashCode(curried);
+        }
+
+        @Override
+        public ArrayList<Interpreter.Token> tokens() {
+            return parent.tokens;
+        }
+
+        @Override
+        public Interpreter.VariableContext context() {
+            return parent.context;
         }
     }
 

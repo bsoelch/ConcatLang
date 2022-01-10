@@ -19,7 +19,7 @@ public class Interpreter {
     // - char => codepoint  + library methods for codepoint handling
 
     enum TokenType {
-        VALUE,OPERATOR,
+        VALUE,CURRIED_PROCEDURE,OPERATOR,
         DROP,STACK_GET,STACK_SET, STACK_SLICE_GET,STACK_SLICE_SET,
         DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,//addLater option to free values/variables
         VARIABLE,
@@ -124,6 +124,10 @@ public class Interpreter {
             super(TokenType.VALUE, pos);
             this.value=value;
         }
+        ValueToken(TokenType type,Value value, FilePosition pos) {
+            super(type, pos);
+            this.value=value;
+        }
         @Override
         public String toString() {
             return tokenType.toString()+": "+value;
@@ -162,17 +166,22 @@ public class Interpreter {
             if(procedureId==null){
                 variableType=VariableType.GLOBAL;
             }else if(procedureId==currentContext.procedure()){
-                variableType=VariableType.LOCAL;
-            }else{
-                variableType=VariableType.CURRIED;
-                switch (accessType){
-                    case READ -> {}
-                    case WRITE ->
-                            throw new SyntaxError("cannot write to curried variable "+name,pos);
-                    case DECLARE,CONST_DECLARE ->
-                            throw new RuntimeException("cannot declare to curried variables "+name);
-                    default -> throw new RuntimeException("unreachable");
+                if(id instanceof CurriedVariable){
+                    variableType=VariableType.CURRIED;
+                    switch (accessType){
+                        case READ -> {}
+                        case WRITE ->
+                                throw new SyntaxError("cannot write to curried variable "+name,pos);
+                        case DECLARE,CONST_DECLARE ->
+                                throw new RuntimeException("cannot declare to curried variables "+name);
+                        default -> throw new RuntimeException("unreachable");
+                    }
+                }else{
+                    variableType=VariableType.LOCAL;
                 }
+            }else{
+                throw new RuntimeException("all variables (incluiding curried ones) should be global, " +
+                        "or part of the current context");
             }
             if(access==AccessType.WRITE){
                 if(id.predeclared){
@@ -211,7 +220,7 @@ public class Interpreter {
             context=new ProcedureContext(parentContext);
         }
         @Override
-        VariableContext context() {
+        ProcedureContext context() {
             return context;
         }
     }
@@ -430,7 +439,18 @@ public class Interpreter {
         }
         @Override
         public String toString() {
-            return "@"+context+"."+id;
+            return "@"+context+"."+level+"-"+id;
+        }
+    }
+    private static class CurriedVariable extends VariableId{
+        final VariableId source;
+        CurriedVariable(VariableId source,VariableContext context, int id, FilePosition declaredAt) {
+            super(context,0, id, false, true, declaredAt, declaredAt);
+            this.source = source;
+        }
+        @Override
+        public String toString() {
+            return "@"+context+".curried"+id;
         }
     }
     private static class PredeclaredVariable extends VariableId{
@@ -450,10 +470,14 @@ public class Interpreter {
             if(prev!=null){
                 throw new SyntaxError("variable "+name+" already exists",pos);
             }
-            VariableId id = new VariableId(this,level(), variables.size(), false,isConstant, pos,pos);
+            VariableId id = new VariableId(this,level(), nextId(), false,isConstant, pos,pos);
             variables.put(name, id);
             return id;
         }
+        int nextId() {
+            return variables.size();
+        }
+
         abstract VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError;
         abstract VariableId unsafeGetId(String name);
         /**returns the enclosing procedure or null if this variable is not enclosed in a procedure*/
@@ -563,10 +587,16 @@ public class Interpreter {
         }
     }
 
-    private static class ProcedureContext extends BlockContext {
+    static class ProcedureContext extends BlockContext {
+        ArrayList<CurriedVariable> curried=new ArrayList<>();
         ProcedureContext(VariableContext parent){
             super(parent);
             assert parent!=null;
+        }
+
+        @Override
+        int nextId() {
+            return super.nextId()-curried.size();
         }
 
         @Override
@@ -574,8 +604,14 @@ public class Interpreter {
             VariableId id=variables.get(name);
             if(id == null){
                 id=parent.getId(name,pos,callee);
-                if(id!=null&&!id.isConstant){
-                    throw new SyntaxError("external variable "+name+" is not constant",pos);
+                if(id!=null){
+                    if(!id.isConstant){
+                        throw new SyntaxError("external variable "+name+" is not constant",pos);
+                    }else if(id.context.procedure()!=null){
+                        id=new CurriedVariable(id,this, curried.size(), pos);
+                        curried.add((CurriedVariable)id);//curry variable
+                        variables.put(name,id);//add curried variable to variable list
+                    }
                 }
             }
             return id;
@@ -1099,7 +1135,13 @@ public class Interpreter {
                             List<Token> subList = tokens.subList(block.start, tokens.size());
                             ArrayList<Token> content=new ArrayList<>(subList);
                             subList.clear();
-                            tokens.add(new ValueToken(Value.createProcedure(block.start,content, block.context()),pos));
+                            ProcedureContext context = ((ProcedureBlock) block).context();
+                            if(context.curried.isEmpty()){
+                                tokens.add(new ValueToken(Value.createProcedure(block.start,content, context),pos));
+                            }else{
+                                tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,
+                                        Value.createProcedure(block.start,content, context),pos));
+                            }
                         }
                         case IF -> {
                             ((IfBlock)block).end(pos);
@@ -1257,12 +1299,12 @@ public class Interpreter {
 
     public RandomAccessStack<Value> run(Program program){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
-        recursiveRun(stack,program,null);
+        recursiveRun(stack,program,null,null);
         return stack;
     }
 
     private ExitType recursiveRun(RandomAccessStack<Value> stack,
-                                                  CodeSection program,ArrayList<Variable[]> globalVariables){
+                                                  CodeSection program,ArrayList<Variable[]> globalVariables,Value[] curried){
         ArrayList<Variable[]> variables=new ArrayList<>();
         variables.add(new Variable[program.context().variables.size()]);
         int ip=0;
@@ -1273,6 +1315,24 @@ public class Interpreter {
             try {
                 switch (next.tokenType) {
                     case VALUE -> stack.push(((ValueToken) next).value.clone(true));
+                    case CURRIED_PROCEDURE -> {
+                        if(globalVariables==null){
+                            throw new RuntimeException("curried procedures should only exist inside of procedures");
+                        }
+                        Value.Procedure proc=(Value.Procedure)((ValueToken) next).value;
+                        Value[] curried2=new Value[proc.context.curried.size()];
+                        for(int i=0;i<proc.context.curried.size();i++){
+                            VariableId id=proc.context.curried.get(i).source;
+                            if(id instanceof CurriedVariable){
+                                curried2[i]=curried[id.id];
+                            }else if(id.context.procedure()!=null){
+                                curried2[i]=variables.get(id.level)[id.id].value;
+                            }else{
+                                throw new RuntimeException("global variables should only be curried");
+                            }
+                        }
+                        stack.push(proc.withCurried(curried2));
+                    }
                     case OPERATOR -> {
                         switch (((OperatorToken) next).opType) {
                             case REF_ID -> stack.push(Value.ofInt(stack.pop().id()));
@@ -1510,13 +1570,27 @@ public class Interpreter {
                                 }
                             }
                             case CALL -> {
-                                Value.Procedure procedure =(Value.Procedure)stack.pop();
-                                ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables);
-                                if(e!=ExitType.NORMAL){
-                                    if(e==ExitType.ERROR) {
-                                        System.err.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                                Value called = stack.pop();
+                                if(called instanceof Value.Procedure procedure){
+                                    assert ((Value.Procedure) called).context.curried.isEmpty();
+                                    ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,null);
+                                    if(e!=ExitType.NORMAL){
+                                        if(e==ExitType.ERROR) {
+                                            System.err.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                                        }
+                                        return e;
                                     }
-                                    return e;
+                                }else if(called instanceof Value.CurriedProcedure procedure){
+                                    ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
+                                            procedure.curried);
+                                    if(e!=ExitType.NORMAL){
+                                        if(e==ExitType.ERROR) {
+                                            System.err.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                                        }
+                                        return e;
+                                    }
+                                }else{
+                                    throw new ConcatRuntimeError("cannot call objects of type "+called.type);
                                 }
                             }
                             case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
@@ -1616,7 +1690,7 @@ public class Interpreter {
                                         }
                                     }
                                     case CURRIED ->
-                                            throw new ConcatRuntimeError("curried variables are currently unimplemented");
+                                            stack.push(curried[asVar.id.id]);
                                 }
                             }
                             case WRITE -> {
