@@ -169,17 +169,17 @@ io #include
 1.3 7 'c' float int char 3 tuple new dup typeof __IO_stringValue () print __IO_stringValue () println
 
 proc
-"currying" string a =$
-proc
-" is" string b =$
-proc
-" now" string c =$
-proc
-" supported" string d =$
-proc
-a b :+ c :+ d :+ println
-end
-end
-end
-end
+  "currying" string a =$
+  proc
+    " is"    string b =$
+    proc
+      " now" string c =$
+      proc
+        " supported!" string d =$
+        proc
+          a b :+ c :+ d :+ println
+        end
+      end
+    end
+  end
 end () () () () ()
