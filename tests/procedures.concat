@@ -1,0 +1,61 @@
+stack #include
+proc
+  dup float a =$ float x =:
+  while x x * a - 1E-16 > :
+   a x / x + 2 / x =
+  end
+  x
+end *->* sqrt =$
+
+proc
+ if dup 1 > :
+  dup 1 - fib () swap 2 - fib () +
+ elif 1 == :
+  1
+ else
+  0
+ end
+end *->* fib =$
+
+2.0 sqrt () println
+3 sqrt () println
+
+0 while dup 15 < :
+ dup fib () println
+ 1 +
+end drop
+
+proc 0 != end *->* intToBool =$
+
+3 intToBool () println
+0 intToBool () println
+
+2 3 proc + 2.0 / end () println
+
+proc
+  "currying" string a =$
+  proc
+    " is"    string b =$
+    proc
+      " now" string c =$
+      proc
+        " supported!" string d =$
+        proc
+          a b :+ c :+ d :+ println
+        end
+      end
+    end
+  end
+end () () () () ()
+
+proc
+ int a =$
+ proc
+   int b =:
+   a b -
+ end
+end *->* curriedMinus =$
+
+1 curriedMinus () *->* oneMinus =:
+2 3 curriedMinus () () println
+4 oneMinus () println

@@ -1,0 +1,28 @@
+stack #include
+
+"Hello" ' ' "World" >>: :+ println
+
+"Hello World!" 7 9 [:] println
+
+"Hello World?" dup '!' 11 [] = println
+"Hello World!" dup "Programmer" 6 11 [:] = println
+"Hello World!" dup "" 5 11 [:] = println
+
+"Test" dup "A" :+ clone "B" :+ println println println
+"Test" string 1 {} clone! clone 0 [] "C" :+ :<< println println
+
+10 int list new dup println
+1000 ensureCap println
+1 2 3 int float int 3 tuple new dup println
+clone dup  42 1 [] = println
+dup   dup 2.0 0 [] = println
+2 [] println
+
+lists #include
+1 2 3 4 5 int 5 {} dup __LISTS_mergesort () println
+5 4 3 2 1 int 5 {} dup __LISTS_mergesort () println
+
+1 2 3 4 5 int 5 {} dup __LISTS_reverse () println
+
+1 2 3 4 rot3 int 4 {} println
+

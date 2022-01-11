@@ -1,0 +1,32 @@
+branches:
+if-end
+if(true)-else-end
+if(false)-else-end
+if(true)-elif-end
+if(false)-elif(true)-end
+if(true)-elif-else-end
+if(false)-elif(true)-else-end
+if(false)-elif(false)-else-end
+A B true
+A B false
+A false
+A false
+A true
+A true
+A B true
+A B false
+do-while
+__________________________
+scopes:
+true
+3
+25
+16
+9
+4
+1
+5
+do-while-scope
+
+Stack:
+[]

@@ -7,7 +7,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 public class Interpreter {
-    public static final String DEFAULT_FILE_EXTENSION = "concat";
+    public static final String DEFAULT_FILE_EXTENSION = ".concat";
     public static final String END_OF_FILE = "##";
 
     enum WordState{
@@ -180,7 +180,7 @@ public class Interpreter {
                     variableType=VariableType.LOCAL;
                 }
             }else{
-                throw new RuntimeException("all variables (incluiding curried ones) should be global, " +
+                throw new RuntimeException("all variables (including curried ones) should be global, " +
                         "or part of the current context");
             }
             if(access==AccessType.WRITE){
@@ -341,7 +341,7 @@ public class Interpreter {
 
     private Interpreter() {}
 
-    static String libPath;
+    static String libPath=System.getProperty("user.dir")+File.separator+"lib/";
 
     static final String DEC_DIGIT = "[0-9]";
     static final String BIN_DIGIT = "[01]";
@@ -465,7 +465,7 @@ public class Interpreter {
 
     static abstract class VariableContext{
         final HashMap<String,VariableId> variables=new HashMap<>();
-        VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError {
+        VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
             VariableId prev=variables.get(name);
             if(prev!=null){
                 throw new SyntaxError("variable "+name+" already exists",pos);
@@ -489,7 +489,7 @@ public class Interpreter {
         RootContext(){}
         final HashMap<String,PredeclaredVariable> predeclared=new HashMap<>();
         @Override
-        VariableId declareVariable(String name,boolean isConstant,FilePosition pos) throws SyntaxError {
+        VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
             PredeclaredVariable predeclared = this.predeclared.remove(name);
             if(predeclared!=null){//initialize predeclared variable
                 if(!isConstant){
@@ -500,7 +500,7 @@ public class Interpreter {
                 return predeclared;
             }
             //addLater handling of modules
-            return super.declareVariable(name, isConstant, pos);
+            return super.declareVariable(name, isConstant, pos,ioContext);
         }
 
         @Override
@@ -546,8 +546,8 @@ public class Interpreter {
             assert parent!=null;
         }
         @Override
-        VariableId declareVariable(String name, boolean isConstant, FilePosition pos) throws SyntaxError {
-            VariableId id = super.declareVariable(name, isConstant, pos);
+        VariableId declareVariable(String name, boolean isConstant, FilePosition pos,IOContext ioContext) throws SyntaxError {
+            VariableId id = super.declareVariable(name, isConstant, pos,ioContext);
             VariableId shadowed = parent.unsafeGetId(name);
             if (shadowed != null) {//check for shadowing
                 if (shadowed.initializedAt == null) {
@@ -555,7 +555,7 @@ public class Interpreter {
                             ", predeclared constants have to be initialized at global level " +
                             "\n  (" + name + " was declared at " + shadowed.declaredAt + ")", pos);
                 }
-                System.err.println("Warning: variable " + name + " at declared at " + pos +
+                ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
                         "\n     shadows existing " + (shadowed.isConstant ? "constant" : "variable") + " declared at "
                         + shadowed.declaredAt);
             }
@@ -646,7 +646,7 @@ public class Interpreter {
         }
     }
 
-    public Program parse(File file,Program program) throws IOException, SyntaxError {
+    public Program parse(File file, Program program, IOContext ioContext) throws IOException, SyntaxError {
         String fileName=file.getAbsolutePath();
         if(program==null){
             program=new Program(new ArrayList<>(),new HashSet<>(),new HashMap<>(),new RootContext());
@@ -669,7 +669,8 @@ public class Interpreter {
                         current=next;
                         next=reader.buffer.toString();
                         if(current!=null){
-                            finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                            finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
+                                    program,ioContext);
                         }
                         reader.nextToken();
                     }else{
@@ -689,7 +690,8 @@ public class Interpreter {
                                     current=next;
                                     next=reader.buffer.toString();
                                     if(current!=null){
-                                        finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                                        finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
+                                                program,ioContext);
                                     }
                                     reader.nextToken();
                                 } else if (c == '_') {
@@ -697,7 +699,8 @@ public class Interpreter {
                                     current=next;
                                     next=reader.buffer.toString();
                                     if(current!=null){
-                                        finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                                        finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
+                                                program,ioContext);
                                     }
                                     reader.nextToken();
                                 } else {
@@ -713,7 +716,8 @@ public class Interpreter {
                         current=next;
                         next=reader.buffer.toString();
                         if(current!=null){
-                            finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                            finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
+                                    program,ioContext);
                         }
                         reader.nextToken();
                         state=WordState.ROOT;
@@ -763,7 +767,7 @@ public class Interpreter {
                 current=next;
                 next=reader.buffer.toString();
                 if(current!=null){
-                    finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+                    finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program,ioContext);
                 }
                 reader.nextToken();
             }
@@ -772,18 +776,19 @@ public class Interpreter {
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
         //finish parsing of all elements
-        finishWord(next,END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
-        finishWord(END_OF_FILE,END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program);
+        finishWord(next,END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program,ioContext);
+        finishWord(END_OF_FILE,END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program,ioContext);
 
         if(openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+openBlocks.getLast(),openBlocks.getLast().startPos);
         }
         if((program.rootContext).predeclared.size()>0){
-            System.err.println("Syntax Error: File "+fileName+" contains uninitialized variables");
+            StringBuilder message=new StringBuilder("Syntax Error: File "+fileName+" contains uninitialized variables");
             for(Map.Entry<String, PredeclaredVariable> p:(program.rootContext).predeclared.entrySet()){
-                System.err.println("- "+p.getKey()+" (declared at "+p.getValue().declaredAt+")");
+                message.append("\n- ").append(p.getKey())
+                        .append(" (declared at ").append(p.getValue().declaredAt).append(")");
             }
-            System.exit(1);
+            throw new SyntaxError(message.toString(),reader.currentPos);
         }
         return program;
     }
@@ -818,7 +823,7 @@ public class Interpreter {
     // - when parsing a variable name the order is: current module > latest import > ... > first import > global
 
     private void finishWord(String str,String next, ArrayList<Token> tokens, ArrayDeque<CodeBlock> openBlocks,
-                            Macro[] currentMacroPtr, FilePosition pos, Program program) throws SyntaxError, IOException {
+                            Macro[] currentMacroPtr, FilePosition pos, Program program,IOContext ioContext) throws SyntaxError, IOException {
         if (str.length() > 0) {
             if(currentMacroPtr[0]!=null){//handle macros
                 if(str.equals("#end")){
@@ -863,16 +868,16 @@ public class Interpreter {
                             String name=((ValueToken) prev).value.stringValue();
                             File file=new File(name);
                             if(file.exists()){
-                                parse(file,program);
+                                parse(file,program,ioContext);
                             }else{
                                 throw new SyntaxError("File "+name+" does not exist",pos);
                             }
                         }else if(prevId != null){
                             tokens.remove(tokens.size()-1);
-                            String path=libPath+File.separator+ prevId + "." + DEFAULT_FILE_EXTENSION;
+                            String path=libPath+File.separator+ prevId +DEFAULT_FILE_EXTENSION;
                             File file=new File(path);
                             if(file.exists()){
-                                parse(file,program);
+                                parse(file,program,ioContext);
                             }else{
                                 throw new SyntaxError(prevId+" is not part of the standard library",pos);
                             }
@@ -944,10 +949,10 @@ public class Interpreter {
                         for(int i=0;i<m.content.size();i++){
                             StringWithPos s=m.content.get(i);
                             finishWord(s.str,i+1<m.content.size()?m.content.get(i+1).str:"##"
-                                    ,tokens, openBlocks, currentMacroPtr, new FilePosition(s.start, pos), program);
+                                    ,tokens, openBlocks, currentMacroPtr, new FilePosition(s.start, pos), program,ioContext);
                         }
                         //update identifiers at end of macro
-                        finishWord("##",next,tokens, openBlocks, currentMacroPtr, pos, program);
+                        finishWord("##",next,tokens, openBlocks, currentMacroPtr, pos, program,ioContext);
                     }else if((!(next.equals(".")))&& prev instanceof IdentifierToken identifier){
                         int index=tokens.size()-1;
                         VariableContext context=getContext(openBlocks.peekLast(),program.rootContext);
@@ -956,7 +961,7 @@ public class Interpreter {
                             case DECLARE,CONST_DECLARE -> {
                                 VariableId id=context.declareVariable(
                                         identifier.name, identifier.tokenType == TokenType.CONST_DECLARE,
-                                        identifier.pos);
+                                        identifier.pos,ioContext);
                                 AccessType accessType =
                                         identifier.tokenType ==
                                                 TokenType.CONST_DECLARE ? AccessType.CONST_DECLARE : AccessType.DECLARE;
@@ -1297,14 +1302,18 @@ public class Interpreter {
         NORMAL,FORCED,ERROR
     }
 
-    public RandomAccessStack<Value> run(Program program){
+    /**Context for running the program*/
+    record IOContext(PrintStream stdOut, PrintStream stdErr){}
+    static final IOContext defaultContext=new IOContext(System.out,System.err);
+
+    public RandomAccessStack<Value> run(Program program, IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
-        recursiveRun(stack,program,null,null);
+        recursiveRun(stack,program,null,null,context);
         return stack;
     }
 
-    private ExitType recursiveRun(RandomAccessStack<Value> stack,
-                                                  CodeSection program,ArrayList<Variable[]> globalVariables,Value[] curried){
+    private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,
+                                  ArrayList<Variable[]> globalVariables, Value[] curried, IOContext context){
         ArrayList<Variable[]> variables=new ArrayList<>();
         variables.add(new Variable[program.context().variables.size()]);
         int ip=0;
@@ -1573,19 +1582,20 @@ public class Interpreter {
                                 Value called = stack.pop();
                                 if(called instanceof Value.Procedure procedure){
                                     assert ((Value.Procedure) called).context.curried.isEmpty();
-                                    ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,null);
+                                    ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
+                                            null,context);
                                     if(e!=ExitType.NORMAL){
                                         if(e==ExitType.ERROR) {
-                                            System.err.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                                            context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
                                         }
                                         return e;
                                     }
                                 }else if(called instanceof Value.CurriedProcedure procedure){
                                     ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                            procedure.curried);
+                                            procedure.curried,context);
                                     if(e!=ExitType.NORMAL){
                                         if(e==ExitType.ERROR) {
-                                            System.err.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                                            context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
                                         }
                                         return e;
                                     }
@@ -1642,8 +1652,8 @@ public class Interpreter {
                             }
                         }
                     }
-                    case PRINT -> System.out.print(stack.pop().stringValue());
-                    case PRINTLN -> System.out.println(stack.pop().stringValue());
+                    case PRINT -> context.stdOut.print(stack.pop().stringValue());
+                    case PRINTLN -> context.stdOut.println(stack.pop().stringValue());
                     case DROP -> stack.pop();
                     case STACK_GET -> {
                         long index = stack.pop().asLong();
@@ -1784,18 +1794,18 @@ public class Interpreter {
                     }
                     case EXIT -> {
                         long exitCode=stack.pop().asLong();
-                        System.out.println("exited with exit code:"+exitCode);
+                        context.stdErr.println("exited with exit code:"+exitCode);
                         return ExitType.FORCED;
                     }
                 }
             }catch(ConcatRuntimeError|RandomAccessStack.StackUnderflow  e){
-                System.err.println(e.getMessage());
+                context.stdErr.println(e.getMessage());
                 Token token = tokens.get(ip);
-                System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
+                context.stdErr.printf("  while executing %-20s\n   at %s\n",token,token.pos);
                 return ExitType.ERROR;
             }catch(Throwable  t){//show expression in source code that crashed the interpreter
                 Token token = tokens.get(ip);
-                System.err.printf("  while executing %-20s\n   at %s\n",token,token.pos);
+                context.stdErr.printf("  while executing %-20s\n   at %s\n",token,token.pos);
                 throw t;
             }
             if(incIp){
@@ -1825,6 +1835,26 @@ public class Interpreter {
         }
     }
 
+    static void compileAndRun(String path, IOContext context) throws IOException {
+        Interpreter ip = new Interpreter();
+        Program program;
+        try {
+            program = ip.parse(new File(path),null,context);
+        }catch (SyntaxError e){
+            SyntaxError s = e;
+            context.stdErr.println(s.getMessage());
+            context.stdErr.println("  at "+ s.pos);
+            while(s.getCause() instanceof SyntaxError){
+                s =(SyntaxError) s.getCause();
+                context.stdErr.println("  at "+ s.pos);
+            }
+            return;
+        }
+        RandomAccessStack<Value> stack = ip.run(program,context);
+        context.stdOut.println("\nStack:");
+        context.stdOut.println(stack);
+    }
+
     public static void main(String[] args) throws IOException {
         if(args.length==0){
             System.out.println("usage: <pathToFile> (-lib <libPath>)");
@@ -1837,31 +1867,13 @@ public class Interpreter {
                 return;
             }
             libPath=args[2];
-        }else{
-            libPath=System.getProperty("user.dir")+File.separator+"lib/";
         }
         File libDir=new File(libPath);
         if(!(libDir.exists()||libDir.mkdirs())){
             System.out.println(libPath+"  is no valid library path");
             return;
         }
-        Interpreter ip = new Interpreter();
-        Program program;
-        try {
-            program = ip.parse(new File(path),null);
-        }catch (SyntaxError e){
-            SyntaxError s = e;
-            System.err.println(s.getMessage());
-            System.err.println("  at "+ s.pos);
-            while(s.getCause() instanceof SyntaxError){
-                s =(SyntaxError) s.getCause();
-                System.err.println("  at "+ s.pos);
-            }
-            System.exit(1);
-            return;
-        }
-        RandomAccessStack<Value> stack = ip.run(program);
-        System.out.println("\nStack:");
-        System.out.println(stack);
+        compileAndRun(path,defaultContext);
     }
+
 }

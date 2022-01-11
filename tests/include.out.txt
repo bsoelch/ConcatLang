@@ -1,0 +1,6 @@
+including file
+including cyclicInclude2
+including cyclicInclude
+
+Stack:
+[]

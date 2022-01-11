@@ -1,0 +1,8 @@
+Warning: variable a declared at /benjamin/Java-Workspace/ConcatLang/./tests/controllFlow.concat:73:14
+     shadows existing variable declared at /benjamin/Java-Workspace/ConcatLang/./tests/controllFlow.concat:72:14
+Warning: variable a declared at /benjamin/Java-Workspace/ConcatLang/./tests/controllFlow.concat:77:12
+     shadows existing variable declared at /benjamin/Java-Workspace/ConcatLang/./tests/controllFlow.concat:72:14
+Warning: variable j declared at /benjamin/Java-Workspace/ConcatLang/./tests/controllFlow.concat:86:13
+     shadows existing variable declared at /benjamin/Java-Workspace/ConcatLang/./tests/controllFlow.concat:84:7
+Warning: variable doWhile declared at /benjamin/Java-Workspace/ConcatLang/./tests/controllFlow.concat:93:7
+     shadows existing variable declared at /benjamin/Java-Workspace/ConcatLang/./tests/controllFlow.concat:91:31

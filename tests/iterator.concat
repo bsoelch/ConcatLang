@@ -1,0 +1,30 @@
+stack #include
+iterator #include
+proc #_ list ? -> list ? _#
+  ## store type and length of the list
+  dup typeof content type arg.type   =:
+  dup length         int  arg.length =:
+  ## Iterate though the elements in reverse order
+  ..^ while <^ ?? : unwrap swap end drop drop
+  ## reassemble the list
+  arg.type arg.length {}
+end *->* reverse =$
+
+"Hello World" reverse () println
+
+proc #_ list ? -> ?  _#
+  0 var tmp =: ## Initialize sum to 0
+  ## Iterate though all elements of the list
+  ^.. while ^> ?? : unwrap
+    tmp swap + tmp =
+  end drop drop
+  tmp ## load the total sum onto the stack
+end *->* sum =$
+
+1 2 3 4 5 6 7 8 9 int 9 {} sum () println
+1.5 2.5 3.5 4.5 float 4 {} sum () println
+
+"Hello" iterateStart ()
+while iteratorNext () optional_hasValue () :
+ optional_getValue () println
+end drop drop ## iterator and optional

@@ -1,0 +1,29 @@
+stack #include
+hashMap #include
+1 2 3 int 3 {} dup refId println hashCode println
+1 2 3 int 3 {} dup refId println hashCode println
+
+int int 4 newHashMap HashMap map =:
+"put:" println
+map 0 0 HashMap.put () println
+map 1 1 HashMap.put () println
+map 2 2 HashMap.put () println
+map 3 3 HashMap.put () println
+map 4 4 HashMap.put () println
+map 5 5 HashMap.put () println
+map 6 6 HashMap.put () println
+map 7 7 HashMap.put () println
+map 0 8 HashMap.put () println
+map 3 9 HashMap.put () println
+"get:" println
+map 0 HashMap.get () println
+map 2 HashMap.get () println
+map 4 HashMap.get () println
+map 8 HashMap.get () println
+"remove:" println
+map 1 HashMap.remove () println
+map 3 HashMap.remove () println
+map 5 HashMap.remove () println
+map 9 HashMap.remove () println
+"map:" println
+map println

@@ -1,0 +1,2 @@
+"./tests/helpers/cyclicInclude2.concat" #include
+"including cyclicInclude" println

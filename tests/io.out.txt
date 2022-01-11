@@ -1,0 +1,4 @@
+copied 64 bytes
+
+Stack:
+[]

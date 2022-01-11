@@ -24,7 +24,9 @@ public class FileStream {
         byte[] tmp=new byte[(int)count];
         try {
             count=file.read(tmp);
-            buff.setSlice(off,Math.min(count,buff.length()),tmp);
+            if (count >= 0) {
+                buff.setSlice(off,Math.min(count,buff.length()),tmp);
+            }
             return count;
         } catch (IOException e) {
             //TODO better handling of return codes
