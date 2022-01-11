@@ -1,7 +1,7 @@
 stack #include
 hashMap #include
-1 2 3 int 3 {} dup refId println hashCode println
-1 2 3 int 3 {} dup refId println hashCode println
+1 2 3 int 3 {} hashCode println
+1 2 3 int 3 {} hashCode println
 
 int int 4 newHashMap HashMap map =:
 "put:" println

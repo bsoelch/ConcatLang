@@ -1,4 +1,4 @@
-
+stack #include
 "./tests/testIO.txt" "rw" open (file) file =:
 10 byte list new byte list IO_Buff =:
 file IO_Buff 0 64 read int n =:

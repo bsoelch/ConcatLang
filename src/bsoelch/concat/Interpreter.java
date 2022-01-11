@@ -20,7 +20,7 @@ public class Interpreter {
 
     enum TokenType {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
-        DROP,STACK_GET,STACK_SET, STACK_SLICE_GET,STACK_SLICE_SET,
+        DROP,DUP,
         DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,//addLater option to free values/variables
         VARIABLE,
         PLACEHOLDER,//placeholder token for jumps
@@ -131,6 +131,14 @@ public class Interpreter {
         @Override
         public String toString() {
             return tokenType.toString()+": "+value;
+        }
+    }
+    static class StackModifierToken extends Token{
+        final long off,count;
+        StackModifierToken(boolean isDup,long off,long count,FilePosition pos) {
+            super(isDup?TokenType.DUP:TokenType.DROP,pos);
+            this.off = off;
+            this.count = count;
         }
     }
     static class RelativeJump extends Token{
@@ -893,12 +901,6 @@ public class Interpreter {
                         }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_SLICE){
                             //<array> <val> <off> <to> [:] =
                             tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_SLICE,prev.pos));
-                        }else if(prev!=null&&prev.tokenType==TokenType.STACK_GET){
-                            //<val> <index> :[] =
-                            tokens.set(tokens.size()-1,new Token(TokenType.STACK_SET,prev.pos));
-                        }else if(prev!=null&&prev.tokenType==TokenType.STACK_SLICE_GET){
-                            //<val> <off> <to> :[:] =
-                            tokens.set(tokens.size()-1,new Token(TokenType.STACK_SLICE_SET,prev.pos));
                         }else if(prev instanceof IdentifierToken){
                             if(prev.tokenType == TokenType.IDENTIFIER){
                                 prev=new IdentifierToken(TokenType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
@@ -1062,11 +1064,32 @@ public class Interpreter {
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
 
-            case "drop" -> tokens.add(new Token(TokenType.DROP,            pos));
-            //<index> :[]
-            case ":[]"  -> tokens.add(new Token(TokenType.STACK_GET,       pos));
-            //<off> <to> :[]
-            case ":[:]" -> tokens.add(new Token(TokenType.STACK_SLICE_GET, pos));
+            /*<off> <count> $dup*/
+            /*<off> <count> $drop*/
+            case "$drop","$dup"  ->{
+                if(tokens.size()<2){
+                    throw new SyntaxError("not enough arguments for "+str,pos);
+                }
+                Token count=tokens.remove(tokens.size()-1);
+                Token off=tokens.remove(tokens.size()-1);
+                if(count instanceof ValueToken &&off instanceof ValueToken){
+                    try {
+                        long c=((ValueToken) count).value.asLong();
+                        if(c<0){
+                            throw new SyntaxError(str+": count has to be greater than of equal to 0",pos);
+                        }
+                        long o=((ValueToken) off).value.asLong();
+                        if(o<0){
+                            throw new SyntaxError(str+":offset has to be greater than of equal to 0",pos);
+                        }
+                        tokens.add(new StackModifierToken(str.equals("$dup"),o,c,pos));
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }else{
+                    throw new SyntaxError("the arguments of "+str+" have to be compile time constants",pos);
+                }
+            }
 
             case "refId"  -> tokens.add(new OperatorToken(OperatorType.REF_ID,     pos));
 
@@ -1246,14 +1269,15 @@ public class Interpreter {
             case "floor" -> tokens.add(new OperatorToken(OperatorType.FLOOR, pos));
             case "ceil"  -> tokens.add(new OperatorToken(OperatorType.CEIL, pos));
 
-            case ">>:" -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     pos));
-            case ":<<" -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
-            case "+:"  -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, pos));
-            case ":+"  -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_LAST,  pos));
+            case ">>:"   -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     pos));
+            case ":<<"   -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
+            case "+:"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, pos));
+            case ":+"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_LAST,  pos));
+            case "clear" -> tokens.add(new OperatorToken(OperatorType.CLEAR,          pos));
             //<array> <index> []
-            case "[]"   -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,  pos));
+            case "[]"    -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,      pos));
             //<array> <off> <to> [:]
-            case "[:]"  -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,  pos));
+            case "[:]"   -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,      pos));
 
             //<e0> ... <eN> <N> {}
             case "{}"     -> tokens.add(new OperatorToken(OperatorType.NEW_LIST, pos));
@@ -1490,6 +1514,8 @@ public class Interpreter {
                                 Value val = stack.pop();
                                 stack.push(Value.ofInt(val.length()));
                             }
+                            case CLEAR ->
+                                    stack.pop().clear();
                             case ENSURE_CAP -> {
                                 long newCap=stack.pop().asLong();
                                 stack.peek().ensureCap(newCap);
@@ -1654,36 +1680,10 @@ public class Interpreter {
                     }
                     case PRINT -> context.stdOut.print(stack.pop().stringValue());
                     case PRINTLN -> context.stdOut.println(stack.pop().stringValue());
-                    case DROP -> stack.pop();
-                    case STACK_GET -> {
-                        long index = stack.pop().asLong();
-                        if(index<0||index>=stack.size()){
-                            throw new ConcatRuntimeError("index out of bounds:"+index+" size:"+stack.size());
-                        }
-                        stack.push(stack.get((int)index+1));
-                    }
-                    case STACK_SET -> {
-                        long index = stack.pop().asLong();
-                        Value val=stack.pop();
-                        if(index<0||index>=stack.size()){
-                            throw new ConcatRuntimeError("index out of bounds:"+index+" size:"+stack.size());
-                        }
-                        stack.set((int)index+1,val);
-                    }
-                    case STACK_SLICE_GET -> {
-                        long upper  = stack.pop().asLong();
-                        long lower  = stack.pop().asLong();
-                        stack.push(Value.newStackSlice(stack,lower,upper));
-                    }
-                    case STACK_SLICE_SET -> {
-                        long upper  = stack.pop().asLong();
-                        long lower  = stack.pop().asLong();
-                        Value val=stack.pop();
-                        if(lower<0||upper>stack.size()||lower>upper){
-                            throw new ConcatRuntimeError("invalid stack-slice: "+lower+":"+upper+" length:"+stack.size());
-                        }
-                        stack.setSlice((int)upper,(int)lower,val.getElements());
-                    }
+                    case DROP ->
+                            stack.dropAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
+                    case DUP ->
+                        stack.dupAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
                     case VARIABLE -> {
                         VariableToken asVar=(VariableToken) next;
                         switch (asVar.accessType){

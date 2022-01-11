@@ -207,7 +207,7 @@ proc ## args:... format:string
         0     int  b     =:
         false bool b_ptr =:
         0 i =
-        tmp "" 0 tmp length [:] = ## clear tmp
+        tmp clear
         tmp _formatString length ensureCap
         ## ([0-9]+$)?  index
         while && i _formatString length < : && '0' _formatString i [] <= : '9' _formatString i [] >= end end :
@@ -216,7 +216,7 @@ proc ## args:... format:string
         end tmp =
         if && i _formatString length < : _formatString i [] '$' == end :
           tmp parseInt index =
-          tmp "" 0 tmp length [:] = ## clear tmp
+          tmp clear
         end
         ## ([-+ 0]+)? flags
         ## '-'  The result will be left-justified.
@@ -228,7 +228,7 @@ proc ## args:... format:string
           flags __PRINTF_FLAG_PAD_0 | flags =
           i1 1 + i1 =
         end
-        tmp "" 0 i1 [:] =
+        tmp 0 i1 [:] clear
         if tmp length 0 == :
           true while && #_ loop condition on stack _#: i _formatString length < end :
             _formatString i [] tmpC =
@@ -260,7 +260,7 @@ proc ## args:... format:string
         ## ([0-9]+)? width
         if tmp length 0 > :
           tmp parseInt () w =
-          tmp "" 0 tmp length [:] = ## clear tmp
+          tmp clear ## clear tmp
         elif && i _formatString length < : _formatString i [] '*' == end : ## *(<index>).
           i 1 + i =
           true w_ptr =
@@ -272,7 +272,7 @@ proc ## args:... format:string
           end tmp =
           if tmp length 0 > :
             tmp parseInt () w =
-            tmp "" 0 tmp length [:] = ## clear tmp
+            tmp clear ## clear tmp
           end
         end
         ## (.[0-9]+)? precision
@@ -297,7 +297,7 @@ proc ## args:... format:string
           end tmp =
           if || p_ptr ! : tmp length 0 > end :
             tmp parseInt () p =
-            tmp "" 0 tmp length [:] = ## clear tmp
+            tmp clear ## clear tmp
           end
         end
         ## '('[0-9]+')' base
@@ -325,7 +325,7 @@ proc ## args:... format:string
           if && i _formatString length < : _formatString i [] ')' == end :
             if || b_ptr ! : tmp length 0 > end :
               tmp parseInt () b =
-              tmp "" 0 tmp length [:] = ## clear tmp
+              tmp clear ## clear tmp
             end
             i 1 + i =
           else
