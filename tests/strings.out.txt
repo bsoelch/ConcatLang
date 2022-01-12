@@ -3,7 +3,9 @@ Hello World
 240(￰)
 128187(💻)
 7
+codepoint list[3]:a°💻
 3
+byte list[7]:a°💻
 
 Stack:
 []

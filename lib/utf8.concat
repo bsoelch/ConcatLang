@@ -1,11 +1,47 @@
-## TODO add methods for converting string (assumed to be utf8) <-> codepoint list
+stack #include
+
+proc ## string codepoint -> string
+  int cast int cp =:
+  string      str =:
+  if cp 0x80 < :  ## ascii - character
+    str cp byte cast :<< return
+  elif cp 0x800 < :  ## 2-byte blocks
+    str cp 6 >>          0xc0 | byte cast :<<
+        cp        0x3f & 0x80 | byte cast :<< return
+  elif cp 0x10000 < :  ## 3-byte blocks
+    str cp 12 >>         0xe0 | byte cast :<<
+        cp  6 >>  0x3f & 0x80 | byte cast :<<
+        cp        0x3f & 0x80 | byte cast :<< return
+  elif cp 0x10ffff < : ## 4-byte blocks
+    str cp 18 >>         0xf0 | byte cast :<<
+        cp 12 >>  0x3f & 0x80 | byte cast :<<
+        cp  6 >>  0x3f & 0x80 | byte cast :<<
+        cp        0x3f & 0x80 | byte cast :<< return
+  else
+    "Codepoint out of range: " print cp println
+  end
+end *->* string<<codepoint =$
+#_ addLater other append methods:
+     codepoint>>string
+     string:+ustring
+     string+:ustring
+     ustring+:string
+     ustring:+string
+_#
 
 proc ## codepoint -> string
-  1 exit ##TODO codepointToString
+  "" swap string<<codepoint () return
 end *->* codepointToString =$
 
 proc ## codepoint list -> string
-  1 exit ##TODO codepointsToString
+  ustring source =:
+  source length string new string res =:
+  0 int i =:
+  while i source length < :
+    res source i [] string<<codepoint () res =
+    i 1 + i =
+  end
+  res return
 end *->* codepointsToString =$
 
 #_
@@ -17,14 +53,51 @@ _#
 proc ## string index:int -> string end:int codepoint bool
   int    index =:
   string value =:
-  if index value length >= :
-    value index 0 codepoint cast false return
+  while && index value length < : value index [] int cast 0xc0 & 0x80 == end :
+    index 1 + index = ## skip parts of unfinished codepoint
   end
-  1 exit ##TODO nextCodepoint
+  while index value length < :
+    value index [] int char =:
+    if char 0x80 & 0 == : ## ascii - character
+      value  index 1 +  char codepoint cast  true return
+    else ## multi - char codepoint
+      0 while char 0x80 & 0 != :
+        char 1 << char =
+        1 +
+      end
+      int count =:
+      char 0xff & count >> int res =:
+      if index count + value length > :
+        value value length  0 codepoint cast  false return
+      end
+      count 1 - count =
+      while
+        index 1 + index =
+        count 1 - count =
+        value index [] char =
+        if char 0xc0 & 0x80 == :
+          res 6 <<  char 0x3f &  | res =
+        else
+          index count + index =
+           0 count =
+          -1 res =
+        end
+        count 0 >
+      : end
+      if && res 0 >= : res 0x10ffff <= end :
+        value index  res codepoint cast  true return
+      end
+    end
+  end
+  value index  0 codepoint cast  false return
 end *->* nextCodepoint =$
 
-proc ## string -> codepoint list
-  1 exit ##TODO codepoints
+proc ## string -> ustring
+  string source =:
+  source length ustring new ustring res =:
+  source 0
+  while nextCodepoint () :
+    res swap :<< res =
+  end 0 3 $drop ## drop remaining data
+  res return
 end *->* codepoints =$
-
-

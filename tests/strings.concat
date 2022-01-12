@@ -3,5 +3,8 @@ stack #include
 u"Hello World" println
  "💻" 0 [] dup int cast print "(" print #_char-value_# print ")" println
 u"💻" 0 [] dup int cast print "(" print #_char-value_# print ")" println
+utf8 #include
  "a°💻" length println
+ "a°💻" codepoints ()         dup typeof print "[" print dup length print "]:" print println
 u"a°💻" length println
+u"a°💻" codepointsToString () dup typeof print "[" print dup length print "]:" print println
