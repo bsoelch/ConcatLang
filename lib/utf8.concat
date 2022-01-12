@@ -21,13 +21,54 @@ proc ## string codepoint -> string
     "Codepoint out of range: " print cp println
   end
 end *->* string<<codepoint =$
-#_ addLater other append methods:
-     codepoint>>string
-     string:+ustring
-     string+:ustring
-     ustring+:string
-     ustring:+string
-_#
+
+proc ##codepoint string -> string
+  string    str =:
+  codepoint cp =: ##addLater? more effective algorithm
+  str 0 0 [:] cp string<<codepoint () drop
+  str return
+end *->* codepoint>>string =$
+
+proc ## string ustring -> string
+  ustring append =:
+  string  value  =:
+  value value length append length + ensureCap drop
+  0 int i =:
+  while i append length < :
+    value append i [] string<<codepoint () value =
+    i 1 + i =
+  end
+  value return
+end *->* string:+ustring =$
+
+proc ## ustring string -> string
+  string  value  =:
+  ustring append =:
+  value value length append length + ensureCap drop
+  append length 1 - int i =:
+  while i 0 >= :
+    append i [] value codepoint>>string () value =
+    i 1 - i =
+  end
+  value return
+end *->* ustring+:string =$
+
+proc ## ustring string -> ustring
+  string  append  =:
+  ustring value   =:
+  value value length append length + ensureCap drop
+  append 0
+  while nextCodepoint () :
+    value swap :<< value =
+  end 0 3 $drop ## drop remaining data
+  value return
+end *->* ustring:+string =$
+proc ## string ustring -> ustring
+  ustring value   =:
+  string  append  =: ##addLater? more effective algorithm
+  value 0 0 [:] append ustring:+string () drop
+  value return
+end *->* string+:ustring =$
 
 proc ## codepoint -> string
   "" swap string<<codepoint () return
@@ -35,13 +76,7 @@ end *->* codepointToString =$
 
 proc ## codepoint list -> string
   ustring source =:
-  source length string new string res =:
-  0 int i =:
-  while i source length < :
-    res source i [] string<<codepoint () res =
-    i 1 + i =
-  end
-  res return
+  "" source string:+ustring () return
 end *->* codepointsToString =$
 
 #_
@@ -94,10 +129,5 @@ end *->* nextCodepoint =$
 
 proc ## string -> ustring
   string source =:
-  source length ustring new ustring res =:
-  source 0
-  while nextCodepoint () :
-    res swap :<< res =
-  end 0 3 $drop ## drop remaining data
-  res return
+  u"" source ustring:+string () return
 end *->* codepoints =$

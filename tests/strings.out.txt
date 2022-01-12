@@ -6,6 +6,10 @@ Hello World
 codepoint list[3]:a°💻
 3
 byte list[7]:a°💻
+byte list[7]:a°💻
+byte list[7]:a°💻
+codepoint list[3]:a°💻
+codepoint list[3]:a°💻
 
 Stack:
 []

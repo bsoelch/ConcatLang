@@ -8,3 +8,8 @@ utf8 #include
  "a°💻" codepoints ()         dup typeof print "[" print dup length print "]:" print println
 u"a°💻" length println
 u"a°💻" codepointsToString () dup typeof print "[" print dup length print "]:" print println
+
+"a°" u"💻" string:+ustring () dup typeof print "[" print dup length print "]:" print println
+u"a°" "💻" ustring+:string () dup typeof print "[" print dup length print "]:" print println
+"a°" u"💻" string+:ustring () dup typeof print "[" print dup length print "]:" print println
+u"a°" "💻" ustring:+string () dup typeof print "[" print dup length print "]:" print println
