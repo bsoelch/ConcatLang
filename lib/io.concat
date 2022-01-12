@@ -1,11 +1,13 @@
 stack #include
 numbers/string #include
+utf8 #include
 
 proc ## var -> string
   var value =:
   if value typeof string == :
     value return
-  ## addLater handle U-string
+  elif value typeof ustring == :
+    value codepointsToString () return
   elif value typeof (tuple) <= :
     "(" string res =:
     0 int i =:
@@ -13,7 +15,7 @@ proc ## var -> string
       if i 0 > :
         res ", " :+ res =
       end
-      res value i [] __PRINTF_stringValue () :+ res =
+      res value i [] __IO_stringValue () :+ res =
       i 1 + i =
     end
     res ")" :+ return
@@ -24,7 +26,7 @@ proc ## var -> string
       if i 0 > :
         res ", " :+ res =
       end
-      res value i [] __PRINTF_stringValue () :+ res =
+      res value i [] __IO_stringValue () :+ res =
       i 1 + i =
     end
     res "]" :+ return
@@ -43,7 +45,7 @@ proc ## var -> string
           if i 0 > :
             res " " :+ res =
           end
-          res value i [] __PRINTF_stringValue () :+ res =
+          res value i [] __IO_stringValue () :+ res =
           i 1 + i =
         end
         res " " :+ i false 10 false intToString () :+ " tuple" :+ return
@@ -52,7 +54,7 @@ proc ## var -> string
       if value (list) == :
         "(list)" return
       else
-        value content __PRINTF_stringValue () " list" :+ return
+        value content __IO_stringValue () " list" :+ return
       end
     elif value *->* <= :
       "*->*" return
@@ -85,8 +87,7 @@ proc ## var -> string
   elif value typeof float == :
     value 0 10 false false floatToString () return
   elif value typeof codepoint == :
-  ## addLater print corresponding character
-    "U+" value int cast true 16 true intToString () +: return
+    value codepointToString () return
   elif value typeof *->* <= :
     ## procedure
     "*->*@" value refId true 16 true intToString () +: return
@@ -97,12 +98,12 @@ proc ## var -> string
     "unreachable" print
     1 exit
   end
-end *->* __PRINTF_stringValue =$ ## use stringValue as base for print replacement
+end *->* __IO_stringValue =$ ## use stringValue as base for print replacement
 
 proc ## byte list -> string
   byte value =:
   "0x" value int cast true 16 false intToString () :+ return
-end *->* __PRINTF_byteToString =$
+end *->* __IO_byteToString =$
 
 proc ## byte list -> string
   byte list bytes =:
@@ -117,141 +118,141 @@ proc ## byte list -> string
     i 1 + i =
   end
   res "]" :+ return
-end *->* __PRINTF_byteListToString =$
+end *->* __IO_byteListToString =$
 
-1 int __PRINTF_FLAG_PAD_0 =$
-2 int __PRINTF_FLAG_ALIGN_LEFT =$
-4 int __PRINTF_FLAG_SGN =$
-8 int __PRINTF_FLAG_SGN_SPACE =$
+1 int __IO_FLAG_PAD_0 =$
+2 int __IO_FLAG_ALIGN_LEFT =$
+4 int __IO_FLAG_SGN =$
+8 int __IO_FLAG_SGN_SPACE =$
 
 ## isValue:bool value:string$
-bool string 2 tuple   type __PRINTF_FormatString =$
-__PRINTF.isValue #define 0 [] #end
-__PRINTF.value   #define 1 [] #end
+bool string 2 tuple   type __IO_FormatString =$
+__IO.isValue #define 0 [] #end
+__IO.value   #define 1 [] #end
 ##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:byte (char)
-bool int int int bool int bool int bool byte 10 tuple   type __PRINTF_FormatValue =$
-__PRINTF.index   #define 1 [] #end
-__PRINTF.flags   #define 2 [] #end
-__PRINTF.w       #define 3 [] #end
-__PRINTF.w_ptr   #define 4 [] #end
-__PRINTF.p       #define 5 [] #end
-__PRINTF.p_ptr   #define 6 [] #end
-__PRINTF.b       #define 7 [] #end
-__PRINTF.b_ptr   #define 8 [] #end
-__PRINTF.format  #define 9 [] #end
+bool int int int bool int bool int bool byte 10 tuple   type __IO_FormatValue =$
+__IO.index   #define 1 [] #end
+__IO.flags   #define 2 [] #end
+__IO.w       #define 3 [] #end
+__IO.w_ptr   #define 4 [] #end
+__IO.p       #define 5 [] #end
+__IO.p_ptr   #define 6 [] #end
+__IO.b       #define 7 [] #end
+__IO.b_ptr   #define 8 [] #end
+__IO.format  #define 9 [] #end
 
-proc ## __PRINTF_FormatValue , var list -> string
+proc ## __IO_FormatValue , var list -> string
   (list) values =:
-  __PRINTF_FormatValue format =:
-  format __PRINTF.flags __PRINTF_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
-  if format __PRINTF.w_ptr : values format __PRINTF.w [] int cast else format __PRINTF.w end int width =:
+  __IO_FormatValue format =:
+  format __IO.flags __IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
+  if format __IO.w_ptr : values format __IO.w [] int cast else format __IO.w end int width =:
   if width 0 < : ##negative precision => alignment on left side
     alignLeft ! alignLeft =
     width -_ width =
   end
-  if format __PRINTF.p_ptr  : values format __PRINTF.p  [] int cast else format __PRINTF.p  end int precision =:
+  if format __IO.p_ptr  : values format __IO.p  [] int cast else format __IO.p  end int precision =:
   if precision 0 < : ## 0 -> default
       "printf: precision has to be at greater that or equal to 0" println
       1 exit
   end
-  if format __PRINTF.b_ptr  : values format __PRINTF.b  [] int cast else format __PRINTF.b  end int base =:
+  if format __IO.b_ptr  : values format __IO.b  [] int cast else format __IO.b  end int base =:
   if base 0 == :
     10 base =
   end
   '\0' byte plusSgn =:
-  if format __PRINTF.flags __PRINTF_FLAG_SGN & 0 != :
+  if format __IO.flags __IO_FLAG_SGN & 0 != :
     '+' plusSgn =
-  elif format __PRINTF.flags __PRINTF_FLAG_SGN_SPACE & 0 != :
+  elif format __IO.flags __IO_FLAG_SGN_SPACE & 0 != :
     ' ' plusSgn =
   end
-  if format __PRINTF.format  'b' == :
-    if values format __PRINTF.index [] cast bool : "true" else "false" end
-  elif format __PRINTF.format  'B' == :
-    if values format __PRINTF.index [] cast bool : "TRUE" else "FALSE" end
-  elif format __PRINTF.format  'i' == :
-    values format __PRINTF.index [] false base false intToString ()
+  if format __IO.format  'b' == :
+    if values format __IO.index [] cast bool : "true" else "false" end
+  elif format __IO.format  'B' == :
+    if values format __IO.index [] cast bool : "TRUE" else "FALSE" end
+  elif format __IO.format  'i' == :
+    values format __IO.index [] false base false intToString ()
     if plusSgn '\0' != :
-      if values format __PRINTF.index [] 0 >= :
+      if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif format __PRINTF.format  'I' == :
-    values format __PRINTF.index [] false base true intToString ()
+  elif format __IO.format  'I' == :
+    values format __IO.index [] false base true intToString ()
     if plusSgn '\0' != :
-      if values format __PRINTF.index [] 0 >= :
+      if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif format __PRINTF.format  'u' == :
-    values format __PRINTF.index [] true  base false intToString ()
+  elif format __IO.format  'u' == :
+    values format __IO.index [] true  base false intToString ()
     if plusSgn '\0' != :
         plusSgn swap >>:
     end
-  elif format __PRINTF.format  'U' == :
-    values format __PRINTF.index [] true  base true intToString ()
+  elif format __IO.format  'U' == :
+    values format __IO.index [] true  base true intToString ()
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
-  elif format __PRINTF.format  'd' == :
-    values format __PRINTF.index [] false 10 false intToString ()
+  elif format __IO.format  'd' == :
+    values format __IO.index [] false 10 false intToString ()
     if plusSgn '\0' != :
-      if values format __PRINTF.index [] 0 >= :
+      if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif format __PRINTF.format  'x' == :
-    values format __PRINTF.index [] true  16 false intToString ()
+  elif format __IO.format  'x' == :
+    values format __IO.index [] true  16 false intToString ()
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
-  elif format __PRINTF.format  'X' == :
-    values format __PRINTF.index [] true  16 true intToString ()
+  elif format __IO.format  'X' == :
+    values format __IO.index [] true  16 true intToString ()
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
-  elif format __PRINTF.format  'e' == :
-    values format __PRINTF.index [] precision base false true  floatToString ()
+  elif format __IO.format  'e' == :
+    values format __IO.index [] precision base false true  floatToString ()
     if plusSgn '\0' != :
-      if values format __PRINTF.index [] 0 >= :
+      if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif format __PRINTF.format  'E' == :
-    values format __PRINTF.index [] precision base true  true  floatToString ()
+  elif format __IO.format  'E' == :
+    values format __IO.index [] precision base true  true  floatToString ()
     if plusSgn '\0' != :
-      if values format __PRINTF.index [] 0 >= :
+      if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif format __PRINTF.format  'f' == :
-    values format __PRINTF.index [] precision base false false floatToString ()
+  elif format __IO.format  'f' == :
+    values format __IO.index [] precision base false false floatToString ()
     if plusSgn '\0' != :
-      if values format __PRINTF.index [] 0 >= :
+      if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif format __PRINTF.format  'F' == :
-    values format __PRINTF.index [] precision base true  false floatToString ()
+  elif format __IO.format  'F' == :
+    values format __IO.index [] precision base true  false floatToString ()
     if plusSgn '\0' != :
-      if values format __PRINTF.index [] 0 >= :
+      if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
-  elif format __PRINTF.format  'c' == :
-    values format __PRINTF.index [] byte 1 {}
-  elif format __PRINTF.format  's' == :
-    values format __PRINTF.index [] __PRINTF_stringValue ()
-  elif format __PRINTF.format  'S' == :
-    values format __PRINTF.index [] __PRINTF_stringValue ()
-  elif format __PRINTF.format  '%' == :
+  elif format __IO.format  'c' == :
+    values format __IO.index [] byte 1 {}
+  elif format __IO.format  's' == :
+    values format __IO.index [] __IO_stringValue ()
+  elif format __IO.format  'S' == :
+    values format __IO.index [] __IO_stringValue ()
+  elif format __IO.format  '%' == :
     "%"
   else
-    format __PRINTF.format  " is no valid format specifier" >>: println
+    format __IO.format  " is no valid format specifier" >>: println
     1 exit
   end string res =:
   if res length width < :
     width res length - int count =:
-    if format __PRINTF.flags __PRINTF_FLAG_PAD_0 & 0 != : '0' else ' ' end byte padChar =:
+    if format __IO.flags __IO_FLAG_PAD_0 & 0 != : '0' else ' ' end byte padChar =:
     count string new string padding =:
     padding 0 count padChar fill
     if alignLeft :
@@ -261,7 +262,7 @@ proc ## __PRINTF_FormatValue , var list -> string
     end
   end
   res
-end *->* __PRINTF_printValue =$
+end *->* __IO_printValue =$
 
 proc ## bool -> byte (char)
   byte c =:
@@ -293,10 +294,10 @@ proc ## args:... format:string
       i 1 + i =
     end
     if i format length >= :
-      parts   false format i0 format length [:] __PRINTF_FormatString new   :<< parts =
+      parts   false format i0 format length [:] __IO_FormatString new   :<< parts =
       n i0 =
     else
-      parts   false format i0 i [:] __PRINTF_FormatString new   :<< parts =
+      parts   false format i0 i [:] __IO_FormatString new   :<< parts =
       i 1 + dup i0 = i =
       while && i0 format length < : format i0 [] isFormatChar () ! end :
         i0 1 + i0 =
@@ -314,7 +315,7 @@ proc ## args:... format:string
            "% format '%' does not allow any additional parameters" println
            1 exit
         end
-        parts   false "%" __PRINTF_FormatString new   :<< parts =
+        parts   false "%" __IO_FormatString new   :<< parts =
       else
         count int  index =:
         count 1 +  count =
@@ -344,7 +345,7 @@ proc ## args:... format:string
         ## '0'  The result will be zero-padded
         0 int i1 =:
         while && i1 tmp length < : tmp i1 [] '0' == end :
-          flags __PRINTF_FLAG_PAD_0 | flags =
+          flags __IO_FLAG_PAD_0 | flags =
           i1 1 + i1 =
         end
         tmp 0 i1 [:] clear
@@ -352,19 +353,19 @@ proc ## args:... format:string
           true while && #_ loop condition on stack _#: i _formatString length < end :
             _formatString i [] tmpC =
             if tmpC '-' == :
-              flags __PRINTF_FLAG_ALIGN_LEFT | flags =
+              flags __IO_FLAG_ALIGN_LEFT | flags =
               i 1 + i =
               true ## continue loop
             elif tmpC '+' == :
-              flags __PRINTF_FLAG_SGN | flags =
+              flags __IO_FLAG_SGN | flags =
               i 1 + i =
               true ## continue loop
             elif tmpC ' ' == :
-              flags __PRINTF_FLAG_SGN_SPACE | flags =
+              flags __IO_FLAG_SGN_SPACE | flags =
               i 1 + i =
               true ## continue loop
             elif tmpC '0' == :
-              flags __PRINTF_FLAG_PAD_0 | flags =
+              flags __IO_FLAG_PAD_0 | flags =
               i 1 + i =
               true ## continue loop
             else
@@ -456,7 +457,7 @@ proc ## args:... format:string
           "printf: invalid Format String:" print _formatString print _formatChar println
           1 exit
         end
-        parts   true index flags w w_ptr p p_ptr b b_ptr _formatChar __PRINTF_FormatValue new   :<< parts =
+        parts   true index flags w w_ptr p p_ptr b b_ptr _formatChar __IO_FormatValue new   :<< parts =
         if maxFormat index < :
           index maxFormat =
         end
@@ -488,10 +489,10 @@ proc ## args:... format:string
   0 i =
   while i parts length < :
     tmp
-    if parts i [] __PRINTF.isValue :  ## Value format
-      parts i [] args __PRINTF_printValue ()
+    if parts i [] __IO.isValue :  ## Value format
+      parts i [] args __IO_printValue ()
     else ## string format
-      parts i [] __PRINTF.value
+      parts i [] __IO.value
     end
     :+ tmp =
     i 1 + i =

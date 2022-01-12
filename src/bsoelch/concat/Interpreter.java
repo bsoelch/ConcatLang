@@ -15,6 +15,7 @@ public class Interpreter {
     }
 
     //addLater? distinguish between byte list/string and byte/char
+    //addLater switch/match statement
     enum TokenType {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
         DROP,DUP,

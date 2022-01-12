@@ -209,7 +209,7 @@ proc 10 stringToInt () end *->* parseInt =$
 proc ## c:byte (char) base:int -> bool
   int base =:
   byte c =:
-  if || c 'e' == : c 'E' == end : ## addLater switch/match statement
+  if || c 'e' == : c 'E' == end :
     base 'E' 'A' - 10 + 1 + <
   elif || c 'p' == : c 'P' == end :
     base 'P' 'A' - 10 + 1 + <

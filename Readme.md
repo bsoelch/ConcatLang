@@ -69,7 +69,7 @@ leaves the following values on the stack:
 ### IO
 - `print` removes and prints the top value on the stack
 - `println` like `print` but adds a new-line add the end
-- `printf` (can be included with `printf #include`)
+- `printf` (can be included with `io #include`)
   removes the top value and uses it as a
   format-string for printing, consuming one element
   for each element used in the format string

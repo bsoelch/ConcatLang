@@ -1,4 +1,4 @@
-int_MAX #define  0x7fffffffffffffff #end  ## addLater? make constants native
+int_MAX #define  0x7fffffffffffffff #end
 int_MIN #define -0x8000000000000000 #end
 
 #_ addLater float_MIN, float_MAX _#
