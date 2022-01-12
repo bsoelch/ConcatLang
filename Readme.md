@@ -7,13 +7,15 @@ is a stack-based [Concatenative programming language](https://en.wikipedia.org/w
 
 Hello World:
 
-```Python
-"Hello World" println
+```C
+stringIO #include
+"Hello World\n" puts
 ```
 
 Recursive Fibonacci Numbers:
 ```Julia
 stack #include ## for usage of dup and swap
+valueIO #include ## for println
 proc
  if dup 1 > :
    dup 1 - fib () swap 2 - fib () +
@@ -27,7 +29,7 @@ end *->* fib =$
 #_ print 10th Fibonacci Number: _#
 10 fib () println
 ```
-!!! `#include` is not part of the comment !!!
+!!! `#include` is not part of the comments !!!
 
 ## Syntax
 The code is a sequence of instructions 
@@ -47,9 +49,11 @@ on the stack, the natively supported value types are
 - booleans
 - integers (binary, decimal or hexadecimal)
 - floats (binary, decimal or hexadecimal)
-- chars
+- codepoints
 - types
-- strings (char list)
+- bytes
+- strings (byte list)
+- unicode-strings (codepoints list)
 
 Examples: 
 ```C++
@@ -61,15 +65,20 @@ int type
 "Hello World"
 ```
 leaves the following values on the stack:
-`char list:"Hello World"` `type:type`
+`string:"Hello World"` `type:type`
 `type:int` `char:A` `float:0.0625`
 `float:1E10` `int:-2` `int:1`
 `bool:false` `bool:true` 
 
 ### IO
+
+[//]: # (TODO *puts)
+
+general print functions 
+(can be included with `valueIO #include`)
 - `print` removes and prints the top value on the stack
 - `println` like `print` but adds a new-line add the end
-- `printf` (can be included with `io #include`)
+- `printf`
   removes the top value and uses it as a
   format-string for printing, consuming one element
   for each element used in the format string
@@ -271,9 +280,13 @@ Hello!
 ### Stack Manipulation
 These Operations directly manipulate the stack without
 interacting with the specific values
+[//]: # (TODO $dup $drop)
 - `dup`  duplicates the top element on the stack
+  (can be included with `stack #include`)
 - `drop` removes the top element from the stack
+  (can be included with `stack #include`)
 - `swap` swaps the top 2 element on the stack
+  (can be included with `stack #include`)
 - `clone` pushes a shallow copy of the 
   top element on the stack (without removing the object)
 - `clone!` pushes a deep copy of the
@@ -326,9 +339,7 @@ elif 2 == :
  "two"
 else 
  "may"
-end 
-
-println
+end string count =:
 ```
 
 #### while-loops
