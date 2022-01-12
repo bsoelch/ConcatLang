@@ -1,4 +1,5 @@
 stack #include
+valueIO #include
 hashMap #include
 1 2 3 int 3 {} hashCode println
 1 2 3 int 3 {} hashCode println

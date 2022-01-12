@@ -1,4 +1,5 @@
 stack #include
+stringIO #include
 numbers/string #include
 utf8 #include
 
@@ -15,7 +16,7 @@ proc ## var -> string
       if i 0 > :
         res ", " :+ res =
       end
-      res value i [] __IO_stringValue () :+ res =
+      res value i [] stringValue () :+ res =
       i 1 + i =
     end
     res ")" :+ return
@@ -26,7 +27,7 @@ proc ## var -> string
       if i 0 > :
         res ", " :+ res =
       end
-      res value i [] __IO_stringValue () :+ res =
+      res value i [] stringValue () :+ res =
       i 1 + i =
     end
     res "]" :+ return
@@ -45,7 +46,7 @@ proc ## var -> string
           if i 0 > :
             res " " :+ res =
           end
-          res value i [] __IO_stringValue () :+ res =
+          res value i [] stringValue () :+ res =
           i 1 + i =
         end
         res " " :+ i false 10 false intToString () :+ " tuple" :+ return
@@ -54,7 +55,7 @@ proc ## var -> string
       if value (list) == :
         "(list)" return
       else
-        value content __IO_stringValue () " list" :+ return
+        value content stringValue () " list" :+ return
       end
     elif value *->* <= :
       "*->*" return
@@ -75,13 +76,17 @@ proc ## var -> string
     elif value var == :
       "var" return
     else
-      "unreachable" print
+      "unreachable\n" eputs
       1 exit
     end
   elif value typeof bool == :
     if value : "true" else "false" end return
   elif value typeof byte == :
-    value byte 1 {}  return
+    if value 0x80 byte cast < :
+      value byte 1 {}  return ## print valid ascii-characters as character
+    else
+      value byteToString () return ## print all other bytes as thier byte-code
+    end
   elif value typeof int == :
     value false 10 false intToString () return
   elif value typeof float == :
@@ -95,15 +100,15 @@ proc ## var -> string
     ## procedure
     "(file)@" value refId true 16 true intToString () +: return
   else
-    "unreachable" print
+    "unreachable\n" eputs
     1 exit
   end
-end *->* __IO_stringValue =$ ## use stringValue as base for print replacement
+end *->* stringValue =$ ## use stringValue as base for print replacement
 
 proc ## byte list -> string
   byte value =:
   "0x" value int cast true 16 false intToString () :+ return
-end *->* __IO_byteToString =$
+end *->* byteToString =$
 
 proc ## byte list -> string
   byte list bytes =:
@@ -118,7 +123,11 @@ proc ## byte list -> string
     i 1 + i =
   end
   res "]" :+ return
-end *->* __IO_byteListToString =$
+end *->* byteListToString =$
+
+print   #define stringValue ()           puts #end
+println #define stringValue () puts "\n" puts #end ## TODO get rid of additional puts call !!! result of stringValue is not mutable
+## addLater fprint
 
 1 int __IO_FLAG_PAD_0 =$
 2 int __IO_FLAG_ALIGN_LEFT =$
@@ -152,7 +161,7 @@ proc ## __IO_FormatValue , var list -> string
   end
   if format __IO.p_ptr  : values format __IO.p  [] int cast else format __IO.p  end int precision =:
   if precision 0 < : ## 0 -> default
-      "printf: precision has to be at greater that or equal to 0" println
+      "printf: precision has to be at greater that or equal to 0\n" eputs
       1 exit
   end
   if format __IO.b_ptr  : values format __IO.b  [] int cast else format __IO.b  end int base =:
@@ -241,13 +250,13 @@ proc ## __IO_FormatValue , var list -> string
   elif format __IO.format  'c' == :
     values format __IO.index [] byte 1 {}
   elif format __IO.format  's' == :
-    values format __IO.index [] __IO_stringValue ()
+    values format __IO.index [] stringValue ()
   elif format __IO.format  'S' == :
-    values format __IO.index [] __IO_stringValue ()
+    values format __IO.index [] stringValue ()
   elif format __IO.format  '%' == :
     "%"
   else
-    format __IO.format  " is no valid format specifier" >>: println
+    format __IO.format  " is no valid format specifier\n" >>: eputs
     1 exit
   end string res =:
   if res length width < :
@@ -303,7 +312,7 @@ proc ## args:... format:string
         i0 1 + i0 =
       end
       if i0 format length >= :
-        "printf: unfinished or invalid format String: " print format i format length [:] println
+        "printf: unfinished or invalid format String: "  format i format length [:] stringValue ()  :+ '\n' :<< eputs
         1 exit
       end
       format i0 [] byte _formatChar =:
@@ -311,8 +320,8 @@ proc ## args:... format:string
       i0 1 + i0 =
       if _formatChar '%' == :
         if _formatString length 0 > :
-          "printf: invalid Format String:" print _formatString print
-           "% format '%' does not allow any additional parameters" println
+          "printf: invalid Format String: \"" _formatString :+
+           "\" format '%' does not allow any additional parameters\n" :+ eputs
            1 exit
         end
         parts   false "%" __IO_FormatString new   :<< parts =
@@ -400,8 +409,8 @@ proc ## args:... format:string
           if   _formatChar 'f' == : elif _formatChar 'F' == :
           elif _formatChar 'e' == : elif _formatChar 'E' == :
           else
-            "printf: invalid Format String:" print _formatString print _formatChar print
-                             " precision-parameter only allowed for formats f, F, e, E, s and S" println
+            "printf: invalid Format String: \"" _formatString :+ _formatChar :<<
+                             "\" precision-parameter only allowed for formats f, F, e, E, s and S\n" :+ eputs
             1 exit
           end
           i 1 + i =
@@ -427,8 +436,8 @@ proc ## args:... format:string
           elif _formatChar 'f' == : elif _formatChar 'F' == :
           elif _formatChar 'e' == : elif _formatChar 'E' == :
           else
-            "printf: invalid Format String:" print _formatString print _formatChar print
-                             " base-parameter only allowed for formats i,u,f,e and s" println
+            "printf: invalid Format String: \"" _formatString :+ _formatChar :<<
+                             "\" base-parameter only allowed for formats i,u,f,e and s\n" :+ eputs
             1 exit
           end
           i 1 + i =
@@ -449,12 +458,12 @@ proc ## args:... format:string
             end
             i 1 + i =
           else
-            "printf: invalid Format String:" print _formatString print _formatChar println
+            "printf: invalid Format String: \"" _formatString :+ _formatChar :<< "\"\n" :+ eputs
             1 exit
           end
         end
         if || i _formatString length < : tmp length 0 > end :
-          "printf: invalid Format String:" print _formatString print _formatChar println
+          "printf: invalid Format String: \"" _formatString :+ _formatChar :<< "\"\n" :+ eputs
           1 exit
         end
         parts   true index flags w w_ptr p p_ptr b b_ptr _formatChar __IO_FormatValue new   :<< parts =
@@ -500,4 +509,5 @@ proc ## args:... format:string
   tmp
 end *->* formatString =$
 
-printf #define formatString () print #end
+printf #define formatString () puts #end
+## addLater fprintf

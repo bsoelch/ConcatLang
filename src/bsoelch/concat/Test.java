@@ -20,7 +20,7 @@ public class Test {
                     String reducedPath = path.substring(0, path.length() - Interpreter.DEFAULT_FILE_EXTENSION.length());
                     out=new PrintStream(new FileOutputStream(reducedPath +".out.txt"));
                     err=new PrintStream(new FileOutputStream(reducedPath +".err.txt"));
-                    context=new Interpreter.IOContext(out,err);
+                    context=new Interpreter.IOContext(System.in,out,err);
                     Interpreter.compileAndRun(path,context);
                 }
             }

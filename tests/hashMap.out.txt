@@ -1,28 +1,28 @@
 1026
 1026
 put:
-(bool:false,bool:false)
-(bool:false,bool:false)
-(bool:false,bool:false)
-(bool:false,bool:false)
-(bool:false,bool:false)
-(bool:false,bool:false)
-(bool:false,bool:false)
-(bool:false,bool:false)
-(bool:true,int:0)
-(bool:true,int:3)
+(false, false)
+(false, false)
+(false, false)
+(false, false)
+(false, false)
+(false, false)
+(false, false)
+(false, false)
+(true, 0)
+(true, 3)
 get:
-(bool:true,int:8)
-(bool:true,int:2)
-(bool:true,int:4)
-(bool:false,bool:false)
+(true, 8)
+(true, 2)
+(true, 4)
+(false, false)
 remove:
-(bool:true,int:1)
-(bool:true,int:9)
-(bool:true,int:5)
-(bool:false,bool:false)
+(true, 1)
+(true, 9)
+(true, 5)
+(false, false)
 map:
-(type:int,type:int,var var (tuple) 3 tuple list:[var var (tuple) 3 tuple:(int:0,int:8,var var (tuple) 3 tuple:(int:4,int:4,var var (tuple) 3 tuple:(bool:false,bool:false,0 tuple:()))), var var (tuple) 3 tuple:(bool:false,bool:false,0 tuple:()), var var (tuple) 3 tuple:(int:2,int:2,var var (tuple) 3 tuple:(int:6,int:6,var var (tuple) 3 tuple:(bool:false,bool:false,0 tuple:()))), var var (tuple) 3 tuple:(int:7,int:7,var var (tuple) 3 tuple:(bool:false,bool:false,0 tuple:()))])
+(int, int, [(0, 8, (4, 4, (false, false, ()))), (false, false, ()), (2, 2, (6, 6, (false, false, ()))), (7, 7, (false, false, ()))])
 
 Stack:
 []

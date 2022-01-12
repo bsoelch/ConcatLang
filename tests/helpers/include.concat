@@ -1,1 +1,2 @@
-"including file" println
+stringIO #include
+"including file\n" puts

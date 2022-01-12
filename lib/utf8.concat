@@ -1,4 +1,6 @@
 stack #include
+stringIO #include
+numbers/string #include
 
 proc ## string codepoint -> string
   int cast int cp =:
@@ -18,7 +20,8 @@ proc ## string codepoint -> string
         cp  6 >>  0x3f & 0x80 | byte cast :<<
         cp        0x3f & 0x80 | byte cast :<< return
   else
-    "Codepoint out of range: " print cp println
+    ## don't exit on invalid codepoints, only display waring message
+    "Codepoint out of range: " cp int cast true 16 false intToString () :+ '\n' :<< eputs
   end
 end *->* string<<codepoint =$
 

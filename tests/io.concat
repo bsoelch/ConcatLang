@@ -1,11 +1,12 @@
-stack #include
+stack   #include
+valueIO #include
 "./tests/testIO.txt" "rw" open (file) file =:
 10 byte list new byte list IO_Buff =:
 file IO_Buff 0 64 read int n =:
 if n 0 > :
   file IO_Buff 0 n write
   if #_return value of write_# :
-    "copied " print n print " bytes" println
+    "copied " puts n print " bytes\n" puts
   end
   file truncate drop
   file close drop

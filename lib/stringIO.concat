@@ -1,0 +1,12 @@
+stack #include
+## basic procedures/marcos for printing strings
+
+proc  ## string (file)  -> bool
+  (file) file =:
+  string str =:
+  file str 0 str length write
+end *->* __IO_fputs =$
+fputs #define        __IO_fputs ()      #end
+## specialized procedures for writing to stdout and stderr addLater? buffering of Output
+ puts #define stdout __IO_fputs () drop #end
+eputs #define stderr __IO_fputs () drop #end

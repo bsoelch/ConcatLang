@@ -1677,7 +1677,7 @@ public abstract class Value {
             int c=a.stringValue().compareTo(b.stringValue());
             return cmpToValue(c, opType);
         }else if(a instanceof ByteValue &&b instanceof ByteValue){
-            return cmpToValue(Integer.compare(((ByteValue) a).byteValue,((ByteValue) b).byteValue), opType);
+            return cmpToValue(Integer.compare(((ByteValue) a).byteValue&0xff,((ByteValue) b).byteValue&0xff), opType);
         }else if(a instanceof CodepointValue &&b instanceof CodepointValue){
             return cmpToValue(Integer.compare(((CodepointValue) a).codePoint,((CodepointValue) b).codePoint), opType);
         }else if(a instanceof NumberValue&&b instanceof NumberValue){

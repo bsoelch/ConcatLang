@@ -1,4 +1,5 @@
 stack #include
+valueIO #include
  "Hello World" println
 u"Hello World" println
  "💻" 0 [] dup int cast print "(" print #_char-value_# print ")" println

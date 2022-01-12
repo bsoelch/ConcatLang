@@ -1,4 +1,5 @@
 stack #include
+valueIO #include
 
 "Hello" ' ' "World" >>: :+ println
 

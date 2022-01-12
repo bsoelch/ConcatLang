@@ -1,4 +1,6 @@
 stack #include
+valueIO #include
+
 proc
   dup float a =$ float x =:
   while x x * a - 1E-16 > :

@@ -1,2 +1,3 @@
+stringIO #include
 "./tests/helpers/cyclicInclude2.concat" #include
-"including cyclicInclude" println
+"including cyclicInclude\n" puts

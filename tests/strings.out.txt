@@ -1,15 +1,15 @@
 Hello World
 Hello World
-240(￰)
+240(0xf0)
 128187(💻)
 7
-codepoint list[3]:a°💻
+ustring[3]:a°💻
 3
-byte list[7]:a°💻
-byte list[7]:a°💻
-byte list[7]:a°💻
-codepoint list[3]:a°💻
-codepoint list[3]:a°💻
+string[7]:a°💻
+string[7]:a°💻
+string[7]:a°💻
+ustring[3]:a°💻
+ustring[3]:a°💻
 
 Stack:
 []

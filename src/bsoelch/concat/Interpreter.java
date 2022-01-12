@@ -1,6 +1,7 @@
 package bsoelch.concat;
 
 import bsoelch.concat.streams.FileStream;
+import bsoelch.concat.streams.RandomAccessFileStream;
 
 import java.io.*;
 import java.util.*;
@@ -10,21 +11,38 @@ public class Interpreter {
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
     public static final String END_OF_FILE = "##";
 
-    enum WordState{
-        ROOT,STRING,UNICODE_STRING,COMMENT,LINE_COMMENT
+    /**Context for running the program*/
+    static class IOContext{
+        final InputStream stdIn;
+        final PrintStream stdOut;
+        final PrintStream stdErr;
+
+        final Value stdInValue;
+        final Value stdOutValue;
+        final Value stdErrValue;
+        IOContext(InputStream stdIn, PrintStream stdOut, PrintStream stdErr){
+            this.stdIn  = stdIn;
+            this.stdOut = stdOut;
+            this.stdErr = stdErr;
+            stdInValue = Value.ofFile(FileStream.of(stdIn ,false));
+            stdOutValue = Value.ofFile(FileStream.of(stdOut,false));
+            stdErrValue = Value.ofFile(FileStream.of(stdErr,false));
+        }
     }
+    static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
     //addLater? distinguish between byte list/string and byte/char
     //addLater switch/match statement
     enum TokenType {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
+        STD_IN,STD_OUT,STD_ERR,
         DROP,DUP,
         DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,//addLater option to free values/variables
         VARIABLE,
         PLACEHOLDER,//placeholder token for jumps
         CONTEXT_OPEN,CONTEXT_CLOSE,
         RETURN, SKIP_PROCEDURE,
-        PRINT,PRINTLN,//addLater move print to concat
+        DEBUG_PRINT,
         SHORT_AND_JMP, SHORT_OR_JMP,JEQ,JNE,JMP,//jump commands only for internal representation
         EXIT
     }
@@ -368,6 +386,10 @@ public class Interpreter {
             DEC_FLOAT_MAGNITUDE+"([Ee][+-]?"+DEC_DIGIT+"+)?)");
     static final Pattern floatHex=Pattern.compile(HEX_FLOAT_MAGNITUDE+"([PpXx#][+-]?"+HEX_DIGIT+"+)?");
     static final Pattern floatBin=Pattern.compile(BIN_FLOAT_MAGNITUDE+"([EePpXx#][+-]?"+BIN_DIGIT+"+)?");
+
+    enum WordState{
+        ROOT,STRING,UNICODE_STRING,COMMENT,LINE_COMMENT
+    }
 
     static class ParserReader{
         final Reader input;
@@ -890,7 +912,7 @@ public class Interpreter {
                                 throw new SyntaxError(prevId+" is not part of the standard library",pos);
                             }
                         }else{
-                            throw new UnsupportedOperationException("include path has to be a string literal or identifier");
+                            throw new SyntaxError("include path has to be a string literal or identifier",pos);
                         }
                         return;
                     }
@@ -1116,8 +1138,7 @@ public class Interpreter {
             case "clone"  -> tokens.add(new OperatorToken(OperatorType.CLONE,      pos));
             case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, pos));
 
-            case "print"      -> tokens.add(new Token(TokenType.PRINT,   pos));
-            case "println"    -> tokens.add(new Token(TokenType.PRINTLN, pos));
+            case "debugPrint"    -> tokens.add(new Token(TokenType.DEBUG_PRINT, pos));
 
             case "intAsFloat"   -> tokens.add(new OperatorToken(OperatorType.INT_AS_FLOAT, pos));
             case "floatAsInt"   -> tokens.add(new OperatorToken(OperatorType.FLOAT_AS_INT, pos));
@@ -1318,6 +1339,10 @@ public class Interpreter {
             case "write"    -> tokens.add(new OperatorToken(OperatorType.WRITE,    pos));
             case "truncate" -> tokens.add(new OperatorToken(OperatorType.TRUNCATE, pos));
 
+            case "stdin"  -> tokens.add(new Token(TokenType.STD_IN,  pos));
+            case "stdout" -> tokens.add(new Token(TokenType.STD_OUT, pos));
+            case "stderr" -> tokens.add(new Token(TokenType.STD_ERR, pos));
+
             default -> tokens.add(new IdentifierToken(macros.containsKey(str)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,str, pos));
         }
     }
@@ -1346,9 +1371,6 @@ public class Interpreter {
         NORMAL,FORCED,ERROR
     }
 
-    /**Context for running the program*/
-    record IOContext(PrintStream stdOut, PrintStream stdErr){}
-    static final IOContext defaultContext=new IOContext(System.out,System.err);
 
     public RandomAccessStack<Value> run(Program program, IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
@@ -1654,7 +1676,7 @@ public class Interpreter {
                             case OPEN -> {
                                 String options = stack.pop().stringValue();
                                 String path    = stack.pop().stringValue();
-                                stack.push(Value.ofFile(new FileStream(path,options)));
+                                stack.push(Value.ofFile(new RandomAccessFileStream(path,options)));
                             }
                             case CLOSE -> {
                                 FileStream stream = stack.pop().asStream();
@@ -1698,8 +1720,13 @@ public class Interpreter {
                             }
                         }
                     }
-                    case PRINT -> context.stdOut.print(stack.pop().stringValue());
-                    case PRINTLN -> context.stdOut.println(stack.pop().stringValue());
+                    case DEBUG_PRINT -> context.stdOut.println(stack.pop().stringValue());
+                    case STD_IN ->
+                        stack.push(context.stdInValue);
+                    case STD_OUT ->
+                        stack.push(context.stdOutValue);
+                    case STD_ERR ->
+                        stack.push(context.stdErrValue);
                     case DROP ->
                             stack.dropAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
                     case DUP ->

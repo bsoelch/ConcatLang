@@ -1,29 +1,30 @@
-"branches:" println
+valueIO #include
+"branches:\n" puts
 if true :
-  "if-end" println
+  "if-end\n" puts
 end
 if false :
   1 exit
 end
 if true :
-  "if(true)-else-end" println
+  "if(true)-else-end\n" puts
 else
   1 exit
 end
 if false :
   1 exit
 else
-  "if(false)-else-end" println
+  "if(false)-else-end\n" puts
 end
 if true :
-  "if(true)-elif-end" println
+  "if(true)-elif-end\n" puts
 elif true :
   1 exit
 end
 if false :
   1 exit
 elif true :
-  "if(false)-elif(true)-end" println
+  "if(false)-elif(true)-end\n" puts
 end
 if false :
   1 exit
@@ -31,7 +32,7 @@ elif false :
   1 exit
 end
 if true :
-  "if(true)-elif-else-end" println
+  "if(true)-elif-else-end\n" puts
 elif false :
   1 exit
 else
@@ -40,7 +41,7 @@ end
 if false :
   1 exit
 elif true :
-  "if(false)-elif(true)-else-end" println
+  "if(false)-elif(true)-else-end\n" puts
 else
   1 exit
 end
@@ -49,26 +50,26 @@ if false :
 elif false :
   1 exit
 else
-  "if(false)-elif(false)-else-end" println
+  "if(false)-elif(false)-else-end\n" puts
 end
 
-&& "A " print true  : "B " print true   end println
-&& "A " print true  : "B " print false  end println
-&& "A " print false : "B " print true   end println
-&& "A " print false : "B " print false  end println
-|| "A " print true  : "B " print true   end println
-|| "A " print true  : "B " print false  end println
-|| "A " print false : "B " print true   end println
-|| "A " print false : "B " print false  end println
+&& "A " puts true  : "B " puts true   end println
+&& "A " puts true  : "B " puts false  end println
+&& "A " puts false : "B " puts true   end println
+&& "A " puts false : "B " puts false  end println
+|| "A " puts true  : "B " puts true   end println
+|| "A " puts true  : "B " puts false  end println
+|| "A " puts false : "B " puts true   end println
+|| "A " puts false : "B " puts false  end println
 
 while false :
   1 exit
 end
-"do-while"
-while println false : end
+"do-while\n"
+while puts false : end
 
-"__________________________" println
-"scopes:" println
+"__________________________\n" puts
+"scopes:\n" puts
 if true bool a =: true :
   false bool a =:
 end

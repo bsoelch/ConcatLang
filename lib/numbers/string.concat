@@ -1,12 +1,17 @@
 stack #include
 chars #include
 numbers/limits #include
+stringIO #include
+
 proc ## value:int base:int big:bool -> byte (char)
     bool big =:
     int base =:
     int value =:
     if || value 0 < : value base >= end :
-        "Digit out of range: " print value print " base: " print base println
+        ## even though intToString calls this function
+        ## this error check should not be activated when intToString is called normally
+        "Digit out of range: " value false 10 false intToString () :+ " base: "
+        :+ base false 10 false  intToString () '\n' :<< eputs
         1 exit
     end
     if value 10 < :
@@ -24,7 +29,9 @@ proc ## value:int unsigned:bool base:int big:bool
   bool unsigned =:
   int value =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " print base print ", base has to be between 2 and 62" println
+    ## even though printing recursively calls this function
+    ## this error check should not be activated when intToString is called normally
+    "Base out of range: " base false 10 false intToString () :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   if value 0 == :
@@ -61,7 +68,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
   int   precision =:
   float value =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " print base print ", base has to be between 2 and 62" println
+    "Base out of range: " base false 10 false intToString () :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   if value float_isFinite () ! :
@@ -166,11 +173,12 @@ proc ## digit:byte (char) base:int -> value:int
   elif && digit 'a' >= : digit 'Z' <= end :
     digit 'a' charDiff if base 37 < : 10 else 36 end +
   else
-    "invalid digit for base " print base print " number: '" print digit print "'" println
-    1 exit
+    "invalid digit for base " base false 10 false intToString () :+ " number: '" :<< digit "'\n" :+ eputs
+    1 exit ## addLater? return error-code instead of exit
   end
   if dup base >= :
-    "invalid digit for base " print base print " number '" print digit print "'" println
+    "invalid digit for base " base false 10 false intToString () :+ " number: '" :<< digit "'\n" :+ eputs
+    1 exit
   end
 end *->* __NUMBER_valueOfDigit =$
 
@@ -178,7 +186,7 @@ proc ## source:string base:int -> int
   int base =:
   string source =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " print base print ", base has to be between 2 and 62" println
+    "Base out of range: " base false 10 false intToString () :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   0 ## res
@@ -195,7 +203,7 @@ proc ## source:string base:int -> int
   while dup source length < :
     swap
     if dup max > :
-      "invalid string-format for int \"" print source print "\" (overflow)" println
+      "invalid string-format for int \"" source :+ "\" (overflow)\n" :+ eputs
       1 exit
     end
     base * over source swap [] base __NUMBER_valueOfDigit () +
@@ -226,7 +234,7 @@ proc ## str:string base:int -> float
   int base =:
   string str =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " print base print ", base has to be between 2 and 62" println
+    "Base out of range: " base false 10 false intToString () :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   0 ## val
@@ -246,7 +254,7 @@ proc ## str:string base:int -> float
   while dup str length < :
     if dup str swap [] '.' == : ## str[i] == '.'
       if d 0 != :
-        "invalid string-format for float \"" print str print "\"" println
+        "invalid string-format for float \"" str :+ "\"\n" eputs
         1 exit
       end
       1 d =
