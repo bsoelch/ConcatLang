@@ -2,6 +2,7 @@ package bsoelch.concat;
 
 import bsoelch.concat.streams.FileStream;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -79,7 +80,7 @@ public abstract class Value {
     public int length() throws TypeError {
         throw new TypeError(type+" does not have a length");
     }
-    public void clear() throws TypeError {
+    public void clear() throws ConcatRuntimeError {
         throw new TypeError(type+" does not support clear");
     }
     /**returns true if this Value is NOT a list (elements() throws a Type error)*/
@@ -119,7 +120,7 @@ public abstract class Value {
     }
 
     public boolean isString(){
-        return Type.STRING().equals(type);
+        return Type.UNICODE_STRING().equals(type);
     }
     public abstract String stringValue();
 
@@ -129,10 +130,8 @@ public abstract class Value {
     }
 
     public Value castTo(Type type) throws ConcatRuntimeError {
-        if(type==Type.ANY||this.type.equals(type)){
+        if(this.type.isSubtype(type)){
             return this;
-        }else if(type.equals(Type.STRING())){
-            return ofString(stringValue());
         }else{
             throw new TypeError("cannot cast from "+this.type+" to "+type);
         }
@@ -224,7 +223,7 @@ public abstract class Value {
                 }
                 return Value.ofByte((byte)intValue);
 
-            }else if(type==Type.CHAR){
+            }else if(type==Type.CODEPOINT){
                 if(intValue<0||intValue>Character.MAX_CODE_POINT){
                     throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to char");
                 }
@@ -432,12 +431,12 @@ public abstract class Value {
     }
 
     public static Value ofChar(int codePoint) {
-        return new CharValue(codePoint);
+        return new CodepointValue(codePoint);
     }
-    private static class CharValue extends Value{
+    private static class CodepointValue extends Value{
         final int codePoint;
-        private CharValue(int codePoint) {
-            super(Type.CHAR);
+        private CodepointValue(int codePoint) {
+            super(Type.CODEPOINT);
             this.codePoint = codePoint;
         }
 
@@ -468,7 +467,7 @@ public abstract class Value {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            CharValue aChar = (CharValue) o;
+            CodepointValue aChar = (CodepointValue) o;
             return codePoint == aChar.codePoint;
         }
 
@@ -516,7 +515,7 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            return String.format("0x%02x", byteValue);
+            return ""+(char)byteValue;
         }
 
         @Override
@@ -532,12 +531,25 @@ public abstract class Value {
         }
     }
 
-    public static Value ofString(String stringValue) {
-        return new ListValue(Type.STRING(),stringValue.codePoints().mapToObj(Value::ofChar)
-                .collect(Collectors.toCollection(ArrayList::new)));
+    public static Value ofString(String stringValue,boolean unicodeMode) {
+        if(unicodeMode){
+            return new ListValue(Type.UNICODE_STRING(),stringValue.codePoints().mapToObj(Value::ofChar)
+                    .collect(Collectors.toCollection(ArrayList::new)));
+        }else{
+            byte[] bytes = stringValue.getBytes(StandardCharsets.UTF_8);
+            return new ByteListImpl(bytes.length,bytes);
+        }
     }
     public static Value createList(Type type, ArrayList<Value> elements) throws ConcatRuntimeError {
-        return new ListValue(type,elements);
+        if(type==Type.BYTES()){
+            byte[] bytes=new byte[elements.size()];
+            for(int i=0;i<elements.size();i++){
+                bytes[i]=elements.get(i).asByte();
+            }
+            return new ByteListImpl(bytes.length,bytes);
+        }else{
+            return new ListValue(type,elements);
+        }
     }
     public static Value createList(Type type, long initCap) throws ConcatRuntimeError {
         if(initCap<0){
@@ -728,10 +740,10 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            if(Type.CHAR.equals(type.content())){
+            if(Type.CODEPOINT.equals(type.content())){
                 StringBuilder str=new StringBuilder();
                 for(Value v:elements){
-                    str.append(Character.toChars(((CharValue)v).getChar()));
+                    str.append(Character.toChars(((CodepointValue)v).getChar()));
                 }
                 return str.toString();
             }else{
@@ -813,7 +825,10 @@ public abstract class Value {
         }
 
         @Override
-        public void clear(){
+        public void clear() throws ConcatRuntimeError {
+            if(to > list.elements.size()){
+                throw new ConcatRuntimeError("Index out of bounds:"+to+" length:"+length());
+            }
             list.elements.subList(off,to).clear();
         }
 
@@ -935,10 +950,10 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            if(Type.CHAR.equals(type.content())){
+            if(Type.CODEPOINT.equals(type.content())){
                 StringBuilder str=new StringBuilder();
                 for(Value v: getElements()){
-                    str.append(Character.toChars(((CharValue)v).getChar()));
+                    str.append(Character.toChars(((CodepointValue)v).getChar()));
                 }
                 return str.toString();
             }else{
@@ -1039,16 +1054,8 @@ public abstract class Value {
         @Override
         public String stringValue() {
             byte[] bytes=toByteArray();
-            StringBuilder ret=new StringBuilder("[");
-            for(byte b: bytes){
-                if(ret.length()>1){
-                    ret.append(", ");
-                }
-                ret.append("0x").append(Integer.toHexString(b&0xff));
-            }
-            return ret.append("]").toString();
+            return new String(bytes,StandardCharsets.UTF_8);
         }
-
     }
     private static class ByteListImpl extends ByteList {
         private byte[] elements;
@@ -1246,7 +1253,16 @@ public abstract class Value {
         public int length() {
             return to-off;
         }
-        //TODO support clear in ByteList
+
+        @Override
+        public void clear() throws ConcatRuntimeError {
+            if(to>list.size){
+                throw new ConcatRuntimeError("index out of bounds:"+to+" length:"+length());
+            }
+            System.arraycopy(list.elements,to,list.elements,off,list.size-to);
+            list.size-=to-off;
+            to=off;
+        }
 
         @Override
         boolean notList() {
@@ -1660,8 +1676,10 @@ public abstract class Value {
         }else if(a.isString()&&b.isString()){
             int c=a.stringValue().compareTo(b.stringValue());
             return cmpToValue(c, opType);
-        }else if(a instanceof CharValue &&b instanceof CharValue){
-            return cmpToValue(Integer.compare(((CharValue) a).codePoint,((CharValue) b).codePoint), opType);
+        }else if(a instanceof ByteValue &&b instanceof ByteValue){
+            return cmpToValue(Integer.compare(((ByteValue) a).byteValue,((ByteValue) b).byteValue), opType);
+        }else if(a instanceof CodepointValue &&b instanceof CodepointValue){
+            return cmpToValue(Integer.compare(((CodepointValue) a).codePoint,((CodepointValue) b).codePoint), opType);
         }else if(a instanceof NumberValue&&b instanceof NumberValue){
             return mathOp(a,b,(x,y)->cmpToValue(x.compareTo(y),opType),(x,y)->cmpToValue(x.compareTo(y),opType));
         }else if(a instanceof TypeValue&&b instanceof TypeValue&&(opType==OperatorType.GE||opType==OperatorType.LE)){

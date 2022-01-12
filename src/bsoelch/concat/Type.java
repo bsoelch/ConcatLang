@@ -4,7 +4,7 @@ import java.util.Objects;
 
 public class Type {
     public static final Type INT = new Type("int");
-    public static final Type CHAR = new Type("char");
+    public static final Type CODEPOINT = new Type("codepoint");
     public static final Type FLOAT = new Type("float");
     public static final Type TYPE = new Type("type");
     public static final Type BOOL = new Type("bool");
@@ -19,8 +19,8 @@ public class Type {
     /**blank type that could contain any value*/
     public static final Type ANY = new Type("var") {};
 
-    public static Type STRING() {
-        return ListType.STRING;
+    public static Type UNICODE_STRING() {
+        return ListType.UNICODE_STRING;
     }
     public static Type BYTES() {
         return ListType.BYTES;
@@ -47,8 +47,8 @@ public class Type {
         throw new UnsupportedOperationException();
     }
         public static Type listOf(Type contentType) {
-        if (contentType == CHAR) {
-            return ListType.STRING;
+        if (contentType == CODEPOINT) {
+            return ListType.UNICODE_STRING;
         } else if (contentType == BYTE) {
             return ListType.BYTES;
         } else {
@@ -56,7 +56,7 @@ public class Type {
         }
     }
     private static class ListType extends Type {
-        static final Type STRING = new ListType(Type.CHAR);
+        static final Type UNICODE_STRING = new ListType(Type.CODEPOINT);
         static final Type BYTES  = new ListType(Type.BYTE);
 
         final Type contentType;

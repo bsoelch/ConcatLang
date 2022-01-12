@@ -1,5 +1,124 @@
 stack #include
 numbers/string #include
+
+proc ## var -> string
+  var value =:
+  if value typeof string == :
+    value return
+  ## addLater handle U-string
+  elif value typeof (tuple) <= :
+    "(" string res =:
+    0 int i =:
+    while i value length < :
+      if i 0 > :
+        res ", " :+ res =
+      end
+      res value i [] __PRINTF_stringValue () :+ res =
+      i 1 + i =
+    end
+    res ")" :+ return
+  elif value typeof (list) <= :
+    "[" string res =:
+    0 int i =:
+    while i value length < :
+      if i 0 > :
+        res ", " :+ res =
+      end
+      res value i [] __PRINTF_stringValue () :+ res =
+      i 1 + i =
+    end
+    res "]" :+ return
+  elif value typeof type == :
+    if value string == :
+      "string" return
+    elif value ustring == :
+      "ustring" return
+    elif value (tuple) <= :
+      if value (tuple) == :
+        "(tuple)" return
+      else
+        "" string res =:
+        0 int i =:
+        while i value length < :
+          if i 0 > :
+            res " " :+ res =
+          end
+          res value i [] __PRINTF_stringValue () :+ res =
+          i 1 + i =
+        end
+        res " " :+ i false 10 false intToString () :+ " tuple" :+ return
+      end
+    elif value (list) <= :
+      if value (list) == :
+        "(list)" return
+      else
+        value content __PRINTF_stringValue () " list" :+ return
+      end
+    elif value *->* <= :
+      "*->*" return
+    elif value (file) == :
+      "(file)" return
+    elif value type == :
+      "type" return
+    elif value bool == :
+      "bool" return
+    elif value byte == :
+      "byte" return
+    elif value int == :
+      "int" return
+    elif value float == :
+      "float" return
+    elif value codepoint == :
+      "codepoint" return
+    elif value var == :
+      "var" return
+    else
+      "unreachable" print
+      1 exit
+    end
+  elif value typeof bool == :
+    if value : "true" else "false" end return
+  elif value typeof byte == :
+    value byte 1 {}  return
+  elif value typeof int == :
+    value false 10 false intToString () return
+  elif value typeof float == :
+    value 0 10 false false floatToString () return
+  elif value typeof codepoint == :
+  ## addLater print corresponding character
+    "U+" value int cast true 16 true intToString () +: return
+  elif value typeof *->* <= :
+    ## procedure
+    "*->*@" value refId true 16 true intToString () +: return
+  elif value typeof (file) == :
+    ## procedure
+    "(file)@" value refId true 16 true intToString () +: return
+  else
+    "unreachable" print
+    1 exit
+  end
+end *->* __PRINTF_stringValue =$ ## use stringValue as base for print replacement
+
+proc ## byte list -> string
+  byte value =:
+  "0x" value int cast true 16 false intToString () :+ return
+end *->* __PRINTF_byteToString =$
+
+proc ## byte list -> string
+  byte list bytes =:
+  bytes length 6 * string new string res =:
+  res "[" :+ res =
+  0 int i =:
+  while i bytes length < :
+    if i 0 > :
+      res ", " :+ res =
+    end
+    res "0x" bytes i [] int cast true 16 false intToString () :+ :+ res =
+    i 1 + i =
+  end
+  res "]" :+ return
+end *->* __PRINTF_byteListToString =$
+
 1 int __PRINTF_FLAG_PAD_0 =$
 2 int __PRINTF_FLAG_ALIGN_LEFT =$
 4 int __PRINTF_FLAG_SGN =$
@@ -9,8 +128,8 @@ numbers/string #include
 bool string 2 tuple   type __PRINTF_FormatString =$
 __PRINTF.isValue #define 0 [] #end
 __PRINTF.value   #define 1 [] #end
-##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:char
-bool int int int bool int bool int bool char 10 tuple   type __PRINTF_FormatValue =$
+##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:byte (char)
+bool int int int bool int bool int bool byte 10 tuple   type __PRINTF_FormatValue =$
 __PRINTF.index   #define 1 [] #end
 __PRINTF.flags   #define 2 [] #end
 __PRINTF.w       #define 3 [] #end
@@ -39,7 +158,7 @@ proc ## __PRINTF_FormatValue , var list -> string
   if base 0 == :
     10 base =
   end
-  '\0' char plusSgn =:
+  '\0' byte plusSgn =:
   if format __PRINTF.flags __PRINTF_FLAG_SGN & 0 != :
     '+' plusSgn =
   elif format __PRINTF.flags __PRINTF_FLAG_SGN_SPACE & 0 != :
@@ -119,11 +238,11 @@ proc ## __PRINTF_FormatValue , var list -> string
       end
     end
   elif format __PRINTF.format  'c' == :
-    values format __PRINTF.index [] char 1 {}
+    values format __PRINTF.index [] byte 1 {}
   elif format __PRINTF.format  's' == :
-    values format __PRINTF.index [] string cast
+    values format __PRINTF.index [] __PRINTF_stringValue ()
   elif format __PRINTF.format  'S' == :
-    values format __PRINTF.index [] string cast
+    values format __PRINTF.index [] __PRINTF_stringValue ()
   elif format __PRINTF.format  '%' == :
     "%"
   else
@@ -132,8 +251,8 @@ proc ## __PRINTF_FormatValue , var list -> string
   end string res =:
   if res length width < :
     width res length - int count =:
-    if format __PRINTF.flags __PRINTF_FLAG_PAD_0 & 0 != : '0' else ' ' end char padChar =:
-    count char list new char list padding =:
+    if format __PRINTF.flags __PRINTF_FLAG_PAD_0 & 0 != : '0' else ' ' end byte padChar =:
+    count string new string padding =:
     padding 0 count padChar fill
     if alignLeft :
       res padding :+ res =
@@ -144,8 +263,8 @@ proc ## __PRINTF_FormatValue , var list -> string
   res
 end *->* __PRINTF_printValue =$
 
-proc ## bool -> char
-  char c =:
+proc ## bool -> byte (char)
+  byte c =:
   "bBiIuUdxXfFeEcsS%" string formats =: ## addLater? formatted printing of lists
   0 int i =:
   while i formats length < :
@@ -166,7 +285,7 @@ proc ## args:... format:string
   format length int n  =:
    0 int count =:
   -1 int maxFormat =:
-  0 char tmpC =:
+  0 byte tmpC =:
   0 string new string tmp =:
   while i0 n < :
     i0 i =
@@ -186,7 +305,7 @@ proc ## args:... format:string
         "printf: unfinished or invalid format String: " print format i format length [:] println
         1 exit
       end
-      format i0 [] char _formatChar =:
+      format i0 [] byte _formatChar =:
       format i i0 [:] string _formatString =:
       i0 1 + i0 =
       if _formatChar '%' == :

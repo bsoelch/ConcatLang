@@ -1,7 +1,7 @@
 stack #include
 chars #include
 numbers/limits #include
-proc ## value:int base:int big:bool -> char
+proc ## value:int base:int big:bool -> byte (char)
     bool big =:
     int base =:
     int value =:
@@ -156,9 +156,9 @@ proc ## value:float precision:int base:int big:bool sci:bool
   end
 end *->* floatToString =$
 
-proc ## digit:char base:int -> value:int
+proc ## digit:byte (char) base:int -> value:int
   int  base =:
-  char digit =:
+  byte digit =:
   if && digit '0' >= : digit '9' <= end :
     digit '0' charDiff
   elif && digit 'A' >= : digit 'Z' <= end :
@@ -206,9 +206,9 @@ end *->* stringToInt =$
 
 proc 10 stringToInt () end *->* parseInt =$
 
-proc ## c:char base:int -> bool
+proc ## c:byte (char) base:int -> bool
   int base =:
-  char c =:
+  byte c =:
   if || c 'e' == : c 'E' == end : ## addLater switch/match statement
     base 'E' 'A' - 10 + 1 + <
   elif || c 'p' == : c 'P' == end :

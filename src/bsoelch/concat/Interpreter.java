@@ -11,13 +11,10 @@ public class Interpreter {
     public static final String END_OF_FILE = "##";
 
     enum WordState{
-        ROOT,STRING,COMMENT,LINE_COMMENT
+        ROOT,STRING,UNICODE_STRING,COMMENT,LINE_COMMENT
     }
 
-    //TODO? rework string to be more closely relate to its bytes
-    // - string => byte list  (UTF8 encoded bytes)
-    // - char => codepoint  + library methods for codepoint handling
-
+    //addLater? distinguish between byte list/string and byte/char
     enum TokenType {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
         DROP,DUP,
@@ -685,7 +682,9 @@ public class Interpreter {
                         switch (c) {
                             case '"', '\'' -> {
                                 state = WordState.STRING;
-                                if(reader.buffer.length()>0) {
+                                if(reader.buffer.toString().equals("u")){
+                                    state = WordState.UNICODE_STRING;
+                                }else if(reader.buffer.length()>0) {
                                     throw new SyntaxError("Illegal string prefix:\"" + reader.buffer + "\"",
                                             reader.currentPos());
                                 }
@@ -719,8 +718,8 @@ public class Interpreter {
                         }
                     }
                     break;
-                case STRING:
-                    if(c==reader.buffer.charAt(0)){
+                case STRING,UNICODE_STRING:
+                    if(c==reader.buffer.charAt(state==WordState.STRING?0:1)){
                         current=next;
                         next=reader.buffer.toString();
                         if(current!=null){
@@ -780,7 +779,7 @@ public class Interpreter {
                 reader.nextToken();
             }
             case LINE_COMMENT ->{} //do nothing
-            case STRING ->throw new SyntaxError("unfinished string", reader.currentPos());
+            case STRING,UNICODE_STRING ->throw new SyntaxError("unfinished string", reader.currentPos());
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
         //finish parsing of all elements
@@ -990,18 +989,37 @@ public class Interpreter {
                     }
                 }
             }
-            if(str.charAt(0)=='\''){//char literal
+            if(str.charAt(0)=='\''){//unicode char literal
                 str=str.substring(1);
                 if(str.codePoints().count()==1){
                     int codePoint = str.codePointAt(0);
-                    tokens.add(new ValueToken(Value.ofChar(codePoint), pos));
+                    if(codePoint<0x7f){
+                        tokens.add(new ValueToken(Value.ofByte((byte)codePoint), pos));
+                    }else{
+                        throw new SyntaxError("codePoint "+codePoint+
+                                "does not fit in one byte " +
+                                "(if you want to use unicode-characters prefix the char-literal with u)", pos);
+                    }
                 }else{
                     throw new SyntaxError("A char-literal must contain exactly one character", pos);
                 }
                 return;
+            }else if(str.startsWith("u'")){//unicode char literal
+                str=str.substring(2);
+                if(str.codePoints().count()==1){
+                    int codePoint = str.codePointAt(0);
+                    tokens.add(new ValueToken(Value.ofChar(codePoint), pos));
+                }else{
+                    throw new SyntaxError("A char-literal must contain exactly one codepoint", pos);
+                }
+                return;
             }else if(str.charAt(0)=='"'){
                 str=str.substring(1);
-                tokens.add(new ValueToken(Value.ofString(str),  pos));
+                tokens.add(new ValueToken(Value.ofString(str,false),  pos));
+                return;
+            }else if(str.startsWith("u\"")){
+                str=str.substring(2);
+                tokens.add(new ValueToken(Value.ofString(str,true),  pos));
                 return;
             }
             try{
@@ -1045,21 +1063,22 @@ public class Interpreter {
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
             case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
 
-            case "bool"     -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),          pos));
-            case "byte"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),          pos));
-            case "int"      -> tokens.add(new ValueToken(Value.ofType(Type.INT),           pos));
-            case "char"     -> tokens.add(new ValueToken(Value.ofType(Type.CHAR),          pos));
-            case "float"    -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),         pos));
-            case "string"   -> tokens.add(new ValueToken(Value.ofType(Type.STRING()),      pos));
-            case "type"     -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),          pos));
-            case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF,          pos));
-            case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT,          pos));
-            case "*->*"     -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),     pos));
-            case "var"      -> tokens.add(new ValueToken(Value.ofType(Type.ANY),           pos));
-            case "tuple"    -> tokens.add(new OperatorToken(OperatorType.TUPLE,            pos));
-            case "(list)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),  pos));
-            case "(tuple)"  -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE), pos));
-            case "(file)"   -> tokens.add(new ValueToken(Value.ofType(Type.FILE),          pos));
+            case "bool"      -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),             pos));
+            case "byte"      -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),             pos));
+            case "int"       -> tokens.add(new ValueToken(Value.ofType(Type.INT),              pos));
+            case "codepoint" -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),        pos));
+            case "float"     -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),            pos));
+            case "string"    -> tokens.add(new ValueToken(Value.ofType(Type.BYTES()),          pos));
+            case "ustring"   -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()), pos));
+            case "type"      -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),             pos));
+            case "*->*"      -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),        pos));
+            case "var"       -> tokens.add(new ValueToken(Value.ofType(Type.ANY),              pos));
+            case "(list)"    -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),     pos));
+            case "(tuple)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE),    pos));
+            case "(file)"    -> tokens.add(new ValueToken(Value.ofType(Type.FILE),             pos));
+            case "list"      -> tokens.add(new OperatorToken(OperatorType.LIST_OF,             pos));
+            case "content"   -> tokens.add(new OperatorToken(OperatorType.CONTENT,             pos));
+            case "tuple"     -> tokens.add(new OperatorToken(OperatorType.TUPLE,               pos));
 
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));

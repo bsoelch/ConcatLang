@@ -1,0 +1,7 @@
+stack #include
+ "Hello World" println
+u"Hello World" println
+ "💻" 0 [] dup int cast print "(" print #_char-value_# print ")" println
+u"💻" 0 [] dup int cast print "(" print #_char-value_# print ")" println
+ "a°💻" length println
+u"a°💻" length println

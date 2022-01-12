@@ -1,0 +1,30 @@
+## TODO add methods for converting string (assumed to be utf8) <-> codepoint list
+
+proc ## codepoint -> string
+  1 exit ##TODO codepointToString
+end *->* codepointToString =$
+
+proc ## codepoint list -> string
+  1 exit ##TODO codepointsToString
+end *->* codepointsToString =$
+
+#_
+gets the first full codepoint in the given string that starts at or after index,
+returns true/false depending of if there was a next codepoint
+the value of the read codepoint (of 0 if the end of the string was reached)
+followed by the index after the next codepoint and the string
+_#
+proc ## string index:int -> string end:int codepoint bool
+  int    index =:
+  string value =:
+  if index value length >= :
+    value index 0 codepoint cast false return
+  end
+  1 exit ##TODO nextCodepoint
+end *->* nextCodepoint =$
+
+proc ## string -> codepoint list
+  1 exit ##TODO codepoints
+end *->* codepoints =$
+
+

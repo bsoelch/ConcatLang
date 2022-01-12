@@ -6,8 +6,8 @@ Hello!
 TestAB
 TestA
 TestA
-[char list:TestC, char list:TestC]
-[char list:Test]
+[byte list:TestC, byte list:TestC]
+[byte list:Test]
 []
 []
 (int:1,float:2.0,int:3)
