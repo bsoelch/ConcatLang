@@ -114,7 +114,7 @@ public class Interpreter {
     }
     static class IdentifierToken extends Token {
         final String name;
-        IdentifierToken(TokenType type, String name, FilePosition pos) throws SyntaxError {
+        IdentifierToken(TokenType type, String name,FilePosition pos) throws SyntaxError {
             super(type, pos);
             this.name = name;
             if(name.isEmpty()){
@@ -523,15 +523,17 @@ public class Interpreter {
         /**number of blocks (excluding procedures) this variable is contained in*/
         abstract int level();
     }
-    //TODO names of macros declared in modules should follow the same rules as variables declared in that module
+
     private static class RootContext extends VariableContext{
         RootContext(){}
-        final ArrayList<String> globalImports=new ArrayList<>();
-        final ArrayList<ModuleBlock> openModules=new ArrayList<>();
-
         final HashMap<String,PredeclaredVariable> predeclared=new HashMap<>();
 
-        final HashMap<String,VariableId> declaredInCurrentFile=new HashMap<>();
+        final ArrayList<String> globalImports=new ArrayList<>();
+        final ArrayList<ModuleBlock> openModules=new ArrayList<>();
+        final HashMap<String,VariableId> declaredInFileVars =new HashMap<>();
+
+        final HashMap<String,Macro> macros=new HashMap<>();
+        final HashMap<String,Macro> declaredInFileMarcos =new HashMap<>();
 
         void startModule(String moduleName,FilePosition declaredAt){
             openModules.add(new ModuleBlock(moduleName.split(MODULE_SEPARATOR),new ArrayList<>(),declaredAt));
@@ -548,11 +550,12 @@ public class Interpreter {
             if(openModules.isEmpty()){
                 throw new SyntaxError("Unexpected End of module",pos);
             }
-            openModules.remove(openModules.size()-1);
+            openModules.remove(openModules.size() - 1);
         }
         void endFile(IOContext context){
             globalImports.clear();
-            declaredInCurrentFile.clear();
+            declaredInFileVars.clear();
+            declaredInFileMarcos.clear();
             if(openModules.size()>0) {
                 context.stdErr.println("unclosed modules at end of File:");
                 while(openModules.size()>0){
@@ -560,7 +563,6 @@ public class Interpreter {
                 }
             }
         }
-
         private String inCurrentModule(String name){
             if(openModules.size()>0){
                 StringBuilder path=new StringBuilder();
@@ -573,33 +575,7 @@ public class Interpreter {
             }
             return name;
         }
-        @Override
-        VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
-            String name0=name;
-            name=inCurrentModule(name);
-            PredeclaredVariable predeclared = this.predeclared.remove(name);
-            if(predeclared!=null){//initialize predeclared variable
-                if(!isConstant){
-                    throw new SyntaxError("predeclared variables have to be constants",predeclared.declaredAt);
-                }
-                predeclared.initialize(variables.size(),  pos);
-                variables.put(name,predeclared);
-                return predeclared;
-            }
-            //addLater handling of modules
-            VariableId id= super.declareVariable(name, isConstant, pos,ioContext);
-            VariableId prev = declaredInCurrentFile.get(name0);
-            if(prev!=null){
-                ioContext.stdErr.println("Warning: variable " + name0 + " declared at " + pos +
-                        "\n     shadows existing " + (prev.isConstant ? "constant" : "variable") + " declared at "
-                        + prev.declaredAt);
-            }
-            declaredInCurrentFile.put(name,id);
-            return id;
-        }
-
-        @Override
-        VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError {
+        private ArrayDeque<String> currentPaths() {
             ArrayDeque<String> paths = new ArrayDeque<>(globalImports);
             StringBuilder path=new StringBuilder();
             for(ModuleBlock m:openModules){
@@ -611,6 +587,89 @@ public class Interpreter {
                 paths.addAll(m.imports);
                 paths.add(top);//push imports below top path
             }
+            return paths;
+        }
+
+        void declareMacro(Macro macro,IOContext ioContext) throws SyntaxError{
+            String name=inCurrentModule(macro.name);
+            if(variables.containsKey(name)){
+                throw new SyntaxError("cannot declare macro "+macro.name+
+                        ", the identifier is already used by a variable (declared at "+variables.get(name).declaredAt+")",
+                        macro.pos);
+            }else if(macros.put(name,macro)!=null){
+                throw new SyntaxError("macro "+macro.name+" does already exists",macro.pos);
+            }
+            VariableId shadowedVar = declaredInFileVars.get(macro.name);
+            if(shadowedVar!=null){
+                ioContext.stdErr.println("Warning: macro " + macro.name + " declared at " + macro.pos +
+                        "\n     shadows existing " + (shadowedVar.isConstant ? "constant" : "variable") + " declared at "
+                        + shadowedVar.declaredAt);
+            }
+            Macro shadowedMacro = declaredInFileMarcos.get(macro.name);
+            if(shadowedMacro!=null){
+                ioContext.stdErr.println("Warning: macro " + macro.name + " declared at " + macro.pos +
+                        "\n     shadows existing macro declared at "+ shadowedMacro.pos);
+            }
+            declaredInFileMarcos.put(macro.name,macro);
+        }
+        Macro getMacro(String name, FilePosition pos) throws SyntaxError {
+            Macro m;
+            ArrayDeque<String> paths = currentPaths();
+            while(paths.size()>0){//go through all modules
+                m=macros.get(paths.removeLast()+name);
+                if(m!=null){
+                    return m;
+                }
+            }
+            m= macros.get(name);
+            if(m==null){
+                throw new SyntaxError("macro "+name+" does not exists",pos);
+            }
+            return m;
+        }
+        boolean hasMacro(String name){
+            ArrayDeque<String> paths = currentPaths();
+            while(paths.size()>0){//go through all modules
+                if(macros.containsKey(paths.removeLast()+name)){
+                    return true;
+                }
+            }
+            return macros.containsKey(name);
+        }
+        void removeMacro(String name, FilePosition pos) throws SyntaxError {
+            if(macros.remove(inCurrentModule(name))==null){
+                throw new SyntaxError("macro "+name+" does not exists in the current module",pos);
+            }
+        }
+
+        @Override
+        VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
+            String name0=name;
+            name=inCurrentModule(name);
+            PredeclaredVariable predeclared = this.predeclared.remove(name);
+            if(predeclared!=null){//initialize predeclared variable
+                if(!isConstant){
+                    throw new SyntaxError("predeclared variables have to be constants",predeclared.declaredAt);
+                }
+                predeclared.initialize(variables.size(),  pos);
+                variables.put(name,predeclared);
+                declaredInFileVars.put(name0,predeclared);
+                return predeclared;
+            }
+            VariableId id = super.declareVariable(name, isConstant, pos,ioContext);
+            VariableId shadowed = declaredInFileVars.get(name0);
+            if(shadowed!=null){
+                ioContext.stdErr.println("Warning: variable " + name0 + " declared at " + pos +
+                        "\n     shadows existing " + (shadowed.isConstant ? "constant" : "variable") + " declared at "
+                        + shadowed.declaredAt);
+            }
+            declaredInFileVars.put(name0,id);
+            return id;
+        }
+
+        @Override
+        VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError {
+            ArrayDeque<String> paths = currentPaths();
             VariableId id;
             while(paths.size()>0){//go through all modules
                 id=variables.get(paths.removeLast()+name);
@@ -626,6 +685,7 @@ public class Interpreter {
                     if(callee.procedure()!=null){
                         id=new PredeclaredVariable(this,pos);
                         predeclared.put(localName,(PredeclaredVariable)id);
+                        declaredInFileVars.put(name,id);
                     }else{
                         throw new SyntaxError("Variable "+name+" does not exist",pos);
                     }
@@ -633,12 +693,17 @@ public class Interpreter {
             }
             return id;
         }
+
         @Override
         VariableId unsafeGetId(String name) {
-            //TODO handle modules
+            String name0=name;
+            name=inCurrentModule(name);
             VariableId id=variables.get(name);
             if(id==null){
                 id=predeclared.get(name);
+            }//no else
+            if(id==null){
+                id= declaredInFileVars.get(name0);
             }
             return id;
         }
@@ -746,8 +811,7 @@ public class Interpreter {
         ArrayList<Token> tokens();
         VariableContext context();
     }
-    record Program(ArrayList<Token> tokens, HashSet<String> files, HashMap<String,Macro> macros,
-                   RootContext rootContext) implements CodeSection{
+    record Program(ArrayList<Token> tokens, HashSet<String> files,RootContext rootContext) implements CodeSection{
         @Override
         public String toString() {
             return "Program{" +
@@ -764,7 +828,7 @@ public class Interpreter {
     public Program parse(File file, Program program, IOContext ioContext) throws IOException, SyntaxError {
         String fileName=file.getAbsolutePath();
         if(program==null){
-            program=new Program(new ArrayList<>(),new HashSet<>(),new HashMap<>(),new RootContext());
+            program=new Program(new ArrayList<>(),new HashSet<>(),new RootContext());
         }else if(program.files.contains(file.getAbsolutePath())){
             return program;
         }else{//ensure that each file is included only once
@@ -945,7 +1009,7 @@ public class Interpreter {
         if (str.length() > 0) {
             if(currentMacroPtr[0]!=null){//handle macros
                 if(str.equals("#end")){
-                    program.macros.put(currentMacroPtr[0].name,currentMacroPtr[0]);
+                    program.rootContext.declareMacro(currentMacroPtr[0],ioContext);
                     currentMacroPtr[0]=null;
                 }else if(str.startsWith("#")){
                     throw new SyntaxError(str+" is not allowed in macros",pos);
@@ -960,31 +1024,36 @@ public class Interpreter {
                         ((IdentifierToken)prev).name:null;
                 switch (str){
                     case "#define"->{
+                        if(openBlocks.size()>0){
+                            throw new SyntaxError("macros can only be defined at root-level",pos);
+                        }
                         if(prevId!=null){
                             tokens.remove(tokens.size()-1);
                             currentMacroPtr[0]=new Macro(pos,prevId,new ArrayList<>());
                         }else{
-                            throw new SyntaxError("invalid token preceding #define "+prev+" expected identifier",pos);
+                            throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
                         }
                         return;
                     }
                     case "#undef"->{
+                        if(openBlocks.size()>0){
+                            throw new SyntaxError("macros can only be undefined at root-level",pos);
+                        }
                         if(prev!=null&&prev.tokenType==TokenType.MACRO_EXPAND){
                             tokens.remove(tokens.size()-1);
-                            if(program.macros.remove(((IdentifierToken)prev).name)==null){
-                                throw new RuntimeException("macro "+prev+" does not exists");
-                            }
+                            assert prev instanceof IdentifierToken;
+                            program.rootContext.removeMacro(((IdentifierToken)prev).name,pos);
                         }else{
-                            throw new SyntaxError("invalid token preceding #undef "+prev+" expected macro-name",pos);
+                            throw new SyntaxError("invalid token preceding #undef: "+prev+" expected macro-name",pos);
                         }
                         return;
                     }
                     case "#module"-> {
+                        if(openBlocks.size()>0){
+                            throw new SyntaxError("modules can only be declared at root-level",pos);
+                        }
                         if(prevId != null){
                             tokens.remove(tokens.size()-1);
-                            if(openBlocks.size()>0){
-                                throw new SyntaxError("modules can only be declared at root-level",pos);
-                            }
                             program.rootContext.startModule(prevId,pos);
                         }else{
                             throw new SyntaxError("module name has to be an identifier",pos);
@@ -995,11 +1064,16 @@ public class Interpreter {
                         if(openBlocks.size()>0){
                             throw new SyntaxError("modules can only be closed at root-level",pos);
                         }else{
+                            //finish all words
+                            finishWord("##","##",tokens,openBlocks,currentMacroPtr,pos,program,ioContext);
                             program.rootContext.endModule(pos);
                         }
                         return;
                     }
                     case "#import"-> {
+                        if(openBlocks.size()>0){
+                            throw new SyntaxError("imports are can only allowed at root-level",pos);
+                        }
                         if(prevId != null){
                             tokens.remove(tokens.size()-1);
                             program.rootContext.addImport(prevId);
@@ -1009,6 +1083,9 @@ public class Interpreter {
                         return;
                     }
                     case "#include" -> {
+                        if(openBlocks.size()>0){
+                            throw new SyntaxError("includes are can only allowed at root-level",pos);
+                        }
                         if(prev instanceof ValueToken){
                             tokens.remove(tokens.size()-1);
                             String name=((ValueToken) prev).value.stringValue();
@@ -1033,7 +1110,9 @@ public class Interpreter {
                         return;
                     }
                     case "="->{
-                        if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_INDEX){
+                        if(prev==null){
+                            throw new SyntaxError("not enough tokens tokens for '=' modifier",pos);
+                        }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_INDEX){
                             //<array> <val> <index> [] =
                             tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_INDEX,prev.pos));
                         }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_SLICE){
@@ -1043,40 +1122,51 @@ public class Interpreter {
                             if(prev.tokenType == TokenType.IDENTIFIER){
                                 prev=new IdentifierToken(TokenType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
                             }else{
-                                throw new SyntaxError("invalid token for '=' modifier: "+prev,pos);
+                                throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
                             }
                             tokens.set(tokens.size()-1,prev);
                         }else{
-                            throw new SyntaxError("invalid token for '=' modifier: "+prev,pos);
+                            throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
                         }
                         return;
                     }
                     case "."->{
-                        Token prePrev=tokens.size()>=2?tokens.get(tokens.size()-2):null;
-                        if(prevId!=null&&prePrev!=null&&prePrev.tokenType==TokenType.IDENTIFIER){
+                        if(prev==null||tokens.size()<2){
+                            throw new SyntaxError("not enough tokens tokens for '.' modifier",pos);
+                        }else if(prevId!=null||prev.tokenType==TokenType.MACRO_EXPAND){
+                            Token prePrev=tokens.get(tokens.size()-2);
+                            if(prePrev.tokenType!=TokenType.IDENTIFIER&&prePrev.tokenType!=TokenType.MACRO_EXPAND){
+                                throw new SyntaxError("invalid token for '.' modifier: "+prePrev,prePrev.pos);
+                            }
+                            String newName=((IdentifierToken)prePrev).name+ MODULE_SEPARATOR +((IdentifierToken)prev).name;
                             tokens.remove(tokens.size()-1);
-                            prev=new IdentifierToken(TokenType.IDENTIFIER,((IdentifierToken)prePrev).name+
-                                    MODULE_SEPARATOR +prevId,prev.pos);
+                            prev=new IdentifierToken(
+                                    program.rootContext.hasMacro(newName)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,
+                                    newName,pos);
                         }else{
-                            throw new SyntaxError("invalid token for '.' modifier: "+prev,pos);
+                            throw new SyntaxError("invalid token for '.' modifier: "+prev,prev.pos);
                         }
                         tokens.set(tokens.size()-1,prev);
                         return;
                     }
                     case "=:"->{
-                        if(prevId!=null){
+                        if(prev==null){
+                            throw new SyntaxError("not enough tokens tokens for '=:' modifier",pos);
+                        }else if(prevId!=null){
                             prev=new IdentifierToken(TokenType.DECLARE,prevId,prev.pos);
                         }else{
-                            throw new SyntaxError("invalid token for '=:' modifier "+prev,pos);
+                            throw new SyntaxError("invalid token for '=:' modifier "+prev,prev.pos);
                         }
                         tokens.set(tokens.size()-1,prev);
                         return;
                     }
                     case "=$"->{
-                        if(prevId!=null){
+                        if(prev==null){
+                            throw new SyntaxError("not enough tokens tokens for '=$' modifier",pos);
+                        }else if(prevId!=null){
                             prev=new IdentifierToken(TokenType.CONST_DECLARE,prevId,prev.pos);
                         }else{
-                            throw new SyntaxError("invalid token for '=$' modifier: "+prev,pos);
+                            throw new SyntaxError("invalid token for '=$' modifier: "+prev,prev.pos);
                         }
                         tokens.set(tokens.size()-1,prev);
                         return;
@@ -1085,7 +1175,8 @@ public class Interpreter {
                 if(prev!=null){
                     if(prev.tokenType==TokenType.MACRO_EXPAND) {
                         tokens.remove(tokens.size() - 1);//remove prev
-                        Macro m = program.macros.get(((IdentifierToken) prev).name);
+                        assert prev instanceof IdentifierToken;
+                        Macro m = program.rootContext.getMacro(((IdentifierToken) prev).name,prev.pos);
                         for(int i=0;i<m.content.size();i++){
                             StringWithPos s=m.content.get(i);
                             finishWord(s.str,i+1<m.content.size()?m.content.get(i+1).str:"##"
@@ -1176,7 +1267,7 @@ public class Interpreter {
                         double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
                         tokens.add(new ValueToken(Value.ofFloat(d), pos));
                     }else {
-                        addWord(str,tokens,openBlocks,program.macros,pos,program.rootContext);
+                        addWord(str,tokens,openBlocks,pos,program.rootContext);
                     }
                 }
             }catch(SyntaxError e){
@@ -1195,8 +1286,8 @@ public class Interpreter {
         return currentBlock!=null?currentBlock.context():root;
     }
 
-    private void addWord(String str, ArrayList<Token> tokens, ArrayDeque<CodeBlock> openBlocks, HashMap<String, Macro> macros,
-                         FilePosition pos,VariableContext rootContext) throws SyntaxError {
+    private void addWord(String str, ArrayList<Token> tokens, ArrayDeque<CodeBlock> openBlocks,
+                         FilePosition pos,RootContext rootContext) throws SyntaxError {
         switch (str) {
             case END_OF_FILE -> {} //## string can only be passed to the method on end of file
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
@@ -1459,7 +1550,8 @@ public class Interpreter {
             case "stdout" -> tokens.add(new Token(TokenType.STD_OUT, pos));
             case "stderr" -> tokens.add(new Token(TokenType.STD_ERR, pos));
 
-            default -> tokens.add(new IdentifierToken(macros.containsKey(str)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,str, pos));
+            default -> tokens.add(new IdentifierToken(rootContext.hasMacro(str)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,
+                    str, pos));
         }
     }
 
