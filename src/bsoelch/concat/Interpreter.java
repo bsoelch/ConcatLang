@@ -41,7 +41,7 @@ public class Interpreter {
         VARIABLE,
         PLACEHOLDER,//placeholder token for jumps
         CONTEXT_OPEN,CONTEXT_CLOSE,
-        RETURN, SKIP_PROCEDURE,
+        RETURN,
         DEBUG_PRINT,
         SHORT_AND_JMP, SHORT_OR_JMP,JEQ,JNE,JMP,//jump commands only for internal representation
         EXIT
@@ -1821,7 +1821,7 @@ public class Interpreter {
                     case RETURN -> {
                         return ExitType.NORMAL;
                     }
-                    case JMP, SKIP_PROCEDURE -> {
+                    case JMP -> {
                         ip+=((RelativeJump) next).delta;
                         incIp = false;
                     }
