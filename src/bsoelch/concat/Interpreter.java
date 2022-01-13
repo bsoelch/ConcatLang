@@ -9,7 +9,10 @@ import java.util.regex.Pattern;
 
 public class Interpreter {
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
+    //use ## for end of file since it cannot appear in normal tokens
     public static final String END_OF_FILE = "##";
+    //use ' as separator for modules, as it cannot be part of identifiers
+    public static final String MODULE_SEPARATOR = "'";
 
     /**Context for running the program*/
     static class IOContext{
@@ -491,6 +494,13 @@ public class Interpreter {
         }
     }
 
+    record ModuleBlock(String[] path,ArrayList<String> imports,FilePosition declaredAt){
+        @Override
+        public String toString() {
+            return Arrays.toString(path) +" declaredAt " + declaredAt;
+        }
+    }
+
     static abstract class VariableContext{
         final HashMap<String,VariableId> variables=new HashMap<>();
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
@@ -513,11 +523,60 @@ public class Interpreter {
         /**number of blocks (excluding procedures) this variable is contained in*/
         abstract int level();
     }
+    //TODO names of macros declared in modules should follow the same rules as variables declared in that module
     private static class RootContext extends VariableContext{
         RootContext(){}
+        final ArrayList<String> globalImports=new ArrayList<>();
+        final ArrayList<ModuleBlock> openModules=new ArrayList<>();
+
         final HashMap<String,PredeclaredVariable> predeclared=new HashMap<>();
+
+        final HashMap<String,VariableId> declaredInCurrentFile=new HashMap<>();
+
+        void startModule(String moduleName,FilePosition declaredAt){
+            openModules.add(new ModuleBlock(moduleName.split(MODULE_SEPARATOR),new ArrayList<>(),declaredAt));
+        }
+        void addImport(String path){
+            path+="'";
+            if(openModules.size()>0){
+                openModules.get(openModules.size()-1).imports.add(path);
+            }else{
+                globalImports.add(path);
+            }
+        }
+        void endModule(FilePosition pos) throws SyntaxError {
+            if(openModules.isEmpty()){
+                throw new SyntaxError("Unexpected End of module",pos);
+            }
+            openModules.remove(openModules.size()-1);
+        }
+        void endFile(IOContext context){
+            globalImports.clear();
+            declaredInCurrentFile.clear();
+            if(openModules.size()>0) {
+                context.stdErr.println("unclosed modules at end of File:");
+                while(openModules.size()>0){
+                    context.stdErr.println(" - "+openModules.remove(openModules.size()-1));
+                }
+            }
+        }
+
+        private String inCurrentModule(String name){
+            if(openModules.size()>0){
+                StringBuilder path=new StringBuilder();
+                for(ModuleBlock b:openModules){
+                    for(String s:b.path){
+                        path.append(s).append(MODULE_SEPARATOR);
+                    }
+                }
+                return path.append(name).toString();
+            }
+            return name;
+        }
         @Override
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
+            String name0=name;
+            name=inCurrentModule(name);
             PredeclaredVariable predeclared = this.predeclared.remove(name);
             if(predeclared!=null){//initialize predeclared variable
                 if(!isConstant){
@@ -528,18 +587,45 @@ public class Interpreter {
                 return predeclared;
             }
             //addLater handling of modules
-            return super.declareVariable(name, isConstant, pos,ioContext);
+            VariableId id= super.declareVariable(name, isConstant, pos,ioContext);
+            VariableId prev = declaredInCurrentFile.get(name0);
+            if(prev!=null){
+                ioContext.stdErr.println("Warning: variable " + name0 + " declared at " + pos +
+                        "\n     shadows existing " + (prev.isConstant ? "constant" : "variable") + " declared at "
+                        + prev.declaredAt);
+            }
+            declaredInCurrentFile.put(name,id);
+            return id;
         }
 
         @Override
         VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError {
-            VariableId id=variables.get(name);
+            ArrayDeque<String> paths = new ArrayDeque<>(globalImports);
+            StringBuilder path=new StringBuilder();
+            for(ModuleBlock m:openModules){
+                for(String s:m.path){
+                    path.append(s).append(MODULE_SEPARATOR);
+                    paths.add(path.toString());
+                }
+                String top=paths.removeLast();
+                paths.addAll(m.imports);
+                paths.add(top);//push imports below top path
+            }
+            VariableId id;
+            while(paths.size()>0){//go through all modules
+                id=variables.get(paths.removeLast()+name);
+                if(id!=null){
+                    return id;
+                }
+            }
+            id=variables.get(name);
             if(id==null){
-                id=predeclared.get(name);
+                String localName=inCurrentModule(name);
+                id=predeclared.get(localName);
                 if(id==null){
                     if(callee.procedure()!=null){
                         id=new PredeclaredVariable(this,pos);
-                        predeclared.put(name,(PredeclaredVariable)id);
+                        predeclared.put(localName,(PredeclaredVariable)id);
                     }else{
                         throw new SyntaxError("Variable "+name+" does not exist",pos);
                     }
@@ -549,6 +635,7 @@ public class Interpreter {
         }
         @Override
         VariableId unsafeGetId(String name) {
+            //TODO handle modules
             VariableId id=variables.get(name);
             if(id==null){
                 id=predeclared.get(name);
@@ -820,6 +907,7 @@ public class Interpreter {
             }
             throw new SyntaxError(message.toString(),reader.currentPos);
         }
+        program.rootContext.endFile(ioContext);
         return program;
     }
 
@@ -891,7 +979,35 @@ public class Interpreter {
                         }
                         return;
                     }
-                    case "#end"-> throw new SyntaxError("#end outside of macro",pos);
+                    case "#module"-> {
+                        if(prevId != null){
+                            tokens.remove(tokens.size()-1);
+                            if(openBlocks.size()>0){
+                                throw new SyntaxError("modules can only be declared at root-level",pos);
+                            }
+                            program.rootContext.startModule(prevId,pos);
+                        }else{
+                            throw new SyntaxError("module name has to be an identifier",pos);
+                        }
+                        return;
+                    }
+                    case "#end"-> {
+                        if(openBlocks.size()>0){
+                            throw new SyntaxError("modules can only be closed at root-level",pos);
+                        }else{
+                            program.rootContext.endModule(pos);
+                        }
+                        return;
+                    }
+                    case "#import"-> {
+                        if(prevId != null){
+                            tokens.remove(tokens.size()-1);
+                            program.rootContext.addImport(prevId);
+                        }else{
+                            throw new SyntaxError("module name has to be an identifier",pos);
+                        }
+                        return;
+                    }
                     case "#include" -> {
                         if(prev instanceof ValueToken){
                             tokens.remove(tokens.size()-1);
@@ -940,7 +1056,7 @@ public class Interpreter {
                         if(prevId!=null&&prePrev!=null&&prePrev.tokenType==TokenType.IDENTIFIER){
                             tokens.remove(tokens.size()-1);
                             prev=new IdentifierToken(TokenType.IDENTIFIER,((IdentifierToken)prePrev).name+
-                                    "'"+prevId,prev.pos);//use ' as separator for modules, as it cannot be part of identifiers
+                                    MODULE_SEPARATOR +prevId,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '.' modifier: "+prev,pos);
                         }
