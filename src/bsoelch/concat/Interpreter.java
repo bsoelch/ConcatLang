@@ -996,14 +996,6 @@ public class Interpreter {
         return true;
     }
 
-    //TODO reintroduce modules
-    // - now modules as "preprocessor" commands
-    // - syntax: <name> (<name> '.')+ #module ... #end
-    // - variables/constants/macros are saved in the scope of the current module
-    // - module element access though <name> (<name> '.')+
-    // - imports: <name> (<name> '.')+ #import imports a complete module or a constants into the current scope
-    // - when parsing a variable name the order is: current module > latest import > ... > first import > global
-
     private void finishWord(String str,String next, ArrayList<Token> tokens, ArrayDeque<CodeBlock> openBlocks,
                             Macro[] currentMacroPtr, FilePosition pos, Program program,IOContext ioContext) throws SyntaxError, IOException {
         if (str.length() > 0) {

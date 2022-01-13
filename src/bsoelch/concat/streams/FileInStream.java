@@ -27,9 +27,6 @@ public class FileInStream implements FileStream{
             }
             return count;
         } catch (IOException e) {
-            //TODO better handling of return codes
-            // - ensure that IOException and EOF can be distinguished
-            // - the return value should tell the actual number of bytes read
             return -2;
         }
     }

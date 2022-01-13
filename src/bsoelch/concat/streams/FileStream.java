@@ -14,6 +14,9 @@ public interface FileStream {
         return new FileOutStream(out,closeable);
     }
 
+    //TODO better handling of return codes
+    // - ensure that IOException and EOF can be distinguished
+    // - the return value should tell the actual number of bytes read
     long read(Value.ByteList buff, long off, long count) throws ConcatRuntimeError;
 
     boolean write(Value.ByteList buff, long off, long count) throws ConcatRuntimeError;
