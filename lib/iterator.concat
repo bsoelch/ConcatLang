@@ -1,3 +1,5 @@
+std #module
+
 optional #include
 
 (list) int 2 tuple type iterator =$
@@ -35,7 +37,9 @@ proc ## <?> itr => <?> itr optional
 end *->* iteratorPrev =$
 ## addLater allow iterators to modify the underlying list
 
-^.. #define iterateStart () #end
-..^ #define iterateEnd   () #end
-^>  #define iteratorNext () #end
-<^  #define iteratorPrev () #end
+^.. #define std iterateStart . () #end
+..^ #define std iterateEnd   . () #end
+^>  #define std iteratorNext . () #end
+<^  #define std iteratorPrev . () #end
+
+#end ## std

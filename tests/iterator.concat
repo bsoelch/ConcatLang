@@ -1,6 +1,7 @@
 stack #include
 iterator #include
 valueIO #include
+std #import
 proc #_ list ? -> list ? _#
   ## store type and length of the list
   dup typeof content type arg.type   =:

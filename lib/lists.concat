@@ -1,4 +1,4 @@
-
+lists #module
 ## TODO binary search
 
 proc ## (list) ->
@@ -60,3 +60,5 @@ proc ## (list) ->
 end *->* __LISTS_mergesort =$
 
 ## addLater sort with comparator (needs fixed signature procedures)
+
+#end ## lists

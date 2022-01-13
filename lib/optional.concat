@@ -1,4 +1,6 @@
+std #module
 stringIO #include
+
 bool var 2 tuple type optional =$
 
 false false optional new optional optional_empty =$
@@ -24,6 +26,8 @@ proc ## optional -> value
   end
 end *->* optional_getValue =$
 
-wrap   #define optional_of       () #end
-unwrap #define optional_getValue () #end
-??     #define optional_hasValue () #end
+wrap   #define std optional_of       . () #end
+unwrap #define std optional_getValue . () #end
+??     #define std optional_hasValue . () #end
+
+#end ## std

@@ -524,49 +524,57 @@ public class Interpreter {
         abstract int level();
     }
 
+    /**File specific part of module parsing*/
+    private static class FileContext{
+        final ArrayList<String> globalImports=new ArrayList<>();
+        final ArrayList<ModuleBlock> openModules=new ArrayList<>();
+        final HashMap<String,VariableId> declaredVars =new HashMap<>();
+        final HashMap<String,Macro> declaredMarcos =new HashMap<>();
+    }
     private static class RootContext extends VariableContext{
         RootContext(){}
         final HashMap<String,PredeclaredVariable> predeclared=new HashMap<>();
 
-        final ArrayList<String> globalImports=new ArrayList<>();
-        final ArrayList<ModuleBlock> openModules=new ArrayList<>();
-        final HashMap<String,VariableId> declaredInFileVars =new HashMap<>();
-
         final HashMap<String,Macro> macros=new HashMap<>();
-        final HashMap<String,Macro> declaredInFileMarcos =new HashMap<>();
 
+        ArrayDeque<FileContext> openFiles=new ArrayDeque<>();
+
+        private FileContext file(){
+            return openFiles.peekLast();
+        }
+        void startFile(){
+            openFiles.addLast(new FileContext());
+        }
         void startModule(String moduleName,FilePosition declaredAt){
-            openModules.add(new ModuleBlock(moduleName.split(MODULE_SEPARATOR),new ArrayList<>(),declaredAt));
+            file().openModules.add(new ModuleBlock(moduleName.split(MODULE_SEPARATOR),new ArrayList<>(),declaredAt));
         }
         void addImport(String path){
             path+="'";
-            if(openModules.size()>0){
-                openModules.get(openModules.size()-1).imports.add(path);
+            if(file().openModules.size()>0){
+                file().openModules.get(file().openModules.size()-1).imports.add(path);
             }else{
-                globalImports.add(path);
+                file().globalImports.add(path);
             }
         }
         void endModule(FilePosition pos) throws SyntaxError {
-            if(openModules.isEmpty()){
+            if(file().openModules.isEmpty()){
                 throw new SyntaxError("Unexpected End of module",pos);
             }
-            openModules.remove(openModules.size() - 1);
+            file().openModules.remove(file().openModules.size() - 1);
         }
         void endFile(IOContext context){
-            globalImports.clear();
-            declaredInFileVars.clear();
-            declaredInFileMarcos.clear();
-            if(openModules.size()>0) {
+            FileContext ctx=openFiles.removeLast();
+            if(ctx.openModules.size()>0) {
                 context.stdErr.println("unclosed modules at end of File:");
-                while(openModules.size()>0){
-                    context.stdErr.println(" - "+openModules.remove(openModules.size()-1));
+                while(ctx.openModules.size()>0){
+                    context.stdErr.println(" - "+ctx.openModules.remove(ctx.openModules.size()-1));
                 }
             }
         }
         private String inCurrentModule(String name){
-            if(openModules.size()>0){
+            if(file().openModules.size()>0){
                 StringBuilder path=new StringBuilder();
-                for(ModuleBlock b:openModules){
+                for(ModuleBlock b:file().openModules){
                     for(String s:b.path){
                         path.append(s).append(MODULE_SEPARATOR);
                     }
@@ -576,9 +584,9 @@ public class Interpreter {
             return name;
         }
         private ArrayDeque<String> currentPaths() {
-            ArrayDeque<String> paths = new ArrayDeque<>(globalImports);
+            ArrayDeque<String> paths = new ArrayDeque<>(file().globalImports);
             StringBuilder path=new StringBuilder();
-            for(ModuleBlock m:openModules){
+            for(ModuleBlock m:file().openModules){
                 for(String s:m.path){
                     path.append(s).append(MODULE_SEPARATOR);
                     paths.add(path.toString());
@@ -599,18 +607,18 @@ public class Interpreter {
             }else if(macros.put(name,macro)!=null){
                 throw new SyntaxError("macro "+macro.name+" does already exists",macro.pos);
             }
-            VariableId shadowedVar = declaredInFileVars.get(macro.name);
+            VariableId shadowedVar = file().declaredVars.get(macro.name);
             if(shadowedVar!=null){
                 ioContext.stdErr.println("Warning: macro " + macro.name + " declared at " + macro.pos +
                         "\n     shadows existing " + (shadowedVar.isConstant ? "constant" : "variable") + " declared at "
                         + shadowedVar.declaredAt);
             }
-            Macro shadowedMacro = declaredInFileMarcos.get(macro.name);
+            Macro shadowedMacro = file().declaredMarcos.get(macro.name);
             if(shadowedMacro!=null){
                 ioContext.stdErr.println("Warning: macro " + macro.name + " declared at " + macro.pos +
                         "\n     shadows existing macro declared at "+ shadowedMacro.pos);
             }
-            declaredInFileMarcos.put(macro.name,macro);
+            file().declaredMarcos.put(macro.name,macro);
         }
         Macro getMacro(String name, FilePosition pos) throws SyntaxError {
             Macro m;
@@ -653,17 +661,17 @@ public class Interpreter {
                 }
                 predeclared.initialize(variables.size(),  pos);
                 variables.put(name,predeclared);
-                declaredInFileVars.put(name0,predeclared);
+                file().declaredVars.put(name0,predeclared);
                 return predeclared;
             }
             VariableId id = super.declareVariable(name, isConstant, pos,ioContext);
-            VariableId shadowed = declaredInFileVars.get(name0);
+            VariableId shadowed = file().declaredVars.get(name0);
             if(shadowed!=null){
                 ioContext.stdErr.println("Warning: variable " + name0 + " declared at " + pos +
                         "\n     shadows existing " + (shadowed.isConstant ? "constant" : "variable") + " declared at "
                         + shadowed.declaredAt);
             }
-            declaredInFileVars.put(name0,id);
+            file().declaredVars.put(name0,id);
             return id;
         }
 
@@ -685,7 +693,7 @@ public class Interpreter {
                     if(callee.procedure()!=null){
                         id=new PredeclaredVariable(this,pos);
                         predeclared.put(localName,(PredeclaredVariable)id);
-                        declaredInFileVars.put(name,id);
+                        file().declaredVars.put(name,id);
                     }else{
                         throw new SyntaxError("Variable "+name+" does not exist",pos);
                     }
@@ -703,7 +711,7 @@ public class Interpreter {
                 id=predeclared.get(name);
             }//no else
             if(id==null){
-                id= declaredInFileVars.get(name0);
+                id= file().declaredVars.get(name0);
             }
             return id;
         }
@@ -834,6 +842,7 @@ public class Interpreter {
         }else{//ensure that each file is included only once
             program.files.add(file.getAbsolutePath());
         }
+        program.rootContext.startFile();
         ParserReader reader=new ParserReader(fileName);
         ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
         Macro[] currentMacroPtr=new Macro[1];

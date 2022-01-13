@@ -1,6 +1,8 @@
+std #module
+
 stack #include
 stringIO #include
-numbers/string #include
+numbers #include
 utf8 #include
 
 proc ## var -> string
@@ -85,7 +87,7 @@ proc ## var -> string
     if value 0x80 byte cast < :
       value byte 1 {}  return ## print valid ascii-characters as character
     else
-      value byteToString () return ## print all other bytes as thier byte-code
+      value byteToString () return ## print all other bytes as their byte-code
     end
   elif value typeof int == :
     value false 10 false intToString () return
@@ -125,8 +127,10 @@ proc ## byte list -> string
   res "]" :+ return
 end *->* byteListToString =$
 
-print   #define stringValue ()           puts #end
-println #define stringValue () puts "\n" puts #end ## TODO get rid of additional puts call !!! result of stringValue is not mutable
+print   #define std stringValue . ()           puts #end
+## !!! result of stringValue is not mutable
+println #define std stringValue . () puts "\n" puts #end ## TODO get rid of additional puts call
+
 ## addLater fprint
 
 1 int __IO_FLAG_PAD_0 =$
@@ -509,5 +513,7 @@ proc ## args:... format:string
   tmp
 end *->* formatString =$
 
-printf #define formatString () puts #end
+printf #define std formatString . () puts #end
 ## addLater fprintf
+
+#end ##std

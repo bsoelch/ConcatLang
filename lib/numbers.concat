@@ -1,7 +1,25 @@
+std #module
+
 stack #include
 chars #include
-numbers/limits #include
 stringIO #include
+
+int_MAX #define  0x7fffffffffffffff #end
+int_MIN #define -0x8000000000000000 #end
+
+#_ addLater float_MIN, float_MAX _#
+ 0 0.0 / float float_NaN =$
+ 1 0.0 / float float_Positive_Infinity =$
+-1 0.0 / float float_Negative_Infinity =$
+
+proc
+  float val =:
+  val val =!=
+end *->* float_isNaN =$
+proc
+  float val =:
+  if val float_Positive_Infinity < : val float_Negative_Infinity > else false end
+end *->* float_isFinite =$
 
 proc ## value:int base:int big:bool -> byte (char)
     bool big =:
@@ -21,7 +39,7 @@ proc ## value:int base:int big:bool -> byte (char)
     else
         value 36 - 'a' +char return
     end
-end *->* __NUMBER_getDigit =$
+end *->* __NUMBERS_getDigit =$
 
 proc ## value:int unsigned:bool base:int big:bool
   bool big =:
@@ -41,19 +59,19 @@ proc ## value:int unsigned:bool base:int big:bool
   "" ## result
   if value 0 < :
     if unsigned :
-      value base u% base big __NUMBER_getDigit () :<<
+      value base u% base big __NUMBERS_getDigit () :<<
       value base u/ value =
     else
       true neg =
       value -_ value =
       if value 0 < : ## int_MIN
-        value base u% base big __NUMBER_getDigit () :<<
+        value base u% base big __NUMBERS_getDigit () :<<
         value base u/ value =
       end
     end
   end
   while value 0 > :
-      value base % base big __NUMBER_getDigit () swap >>:
+      value base % base big __NUMBERS_getDigit () swap >>:
       value base / value =
   end
   if neg :
@@ -131,11 +149,11 @@ proc ## value:float precision:int base:int big:bool sci:bool
     while && n 1 - 0 > : buff n 1 - [] 0 == end :
       n 1 - n =
     end
-    buff 0 [] base big __NUMBER_getDigit () :<<
+    buff 0 [] base big __NUMBERS_getDigit () :<<
     if n 1 > :
       '.' :<<
       1 while dup n < :
-         swap over buff swap [] base big __NUMBER_getDigit () :<<
+         swap over buff swap [] base big __NUMBERS_getDigit () :<<
          swap 1 +
       end drop
     end
@@ -144,7 +162,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
     e_max false base big intToString () :+
   elif e_max 0 >= :
     0 while dup n < :
-      swap over buff swap [] base big __NUMBER_getDigit () :<<
+      swap over buff swap [] base big __NUMBERS_getDigit () :<<
       if && over e_max == : over n 1 - < end :
         '.' :<<
       end
@@ -157,7 +175,7 @@ proc ## value:float precision:int base:int big:bool sci:bool
       swap 1 -
     end drop
     0 while dup n < :
-      swap over buff swap [] base big __NUMBER_getDigit () :<<
+      swap over buff swap [] base big __NUMBERS_getDigit () :<<
       swap 1 +
     end drop
   end
@@ -180,7 +198,7 @@ proc ## digit:byte (char) base:int -> value:int
     "invalid digit for base " base false 10 false intToString () :+ " number: '" :<< digit "'\n" :+ eputs
     1 exit
   end
-end *->* __NUMBER_valueOfDigit =$
+end *->* __NUMBERS_valueOfDigit =$
 
 proc ## source:string base:int -> int
   int base =:
@@ -206,7 +224,7 @@ proc ## source:string base:int -> int
       "invalid string-format for int \"" source :+ "\" (overflow)\n" :+ eputs
       1 exit
     end
-    base * over source swap [] base __NUMBER_valueOfDigit () +
+    base * over source swap [] base __NUMBERS_valueOfDigit () +
     swap 1 +
   end drop
   if sgn : -_ end
@@ -264,10 +282,10 @@ proc ## str:string base:int -> float
     else
       swap
       if dup max < :
-        base * over str swap [] base __NUMBER_valueOfDigit () +
+        base * over str swap [] base __NUMBERS_valueOfDigit () +
         c d + c =
       else
-        over str swap [] base __NUMBER_valueOfDigit () drop ## check digit without storing value
+        over str swap [] base __NUMBERS_valueOfDigit () drop ## check digit without storing value
         c 1 d - + c =
       end
       swap
@@ -281,3 +299,5 @@ proc ## str:string base:int -> float
 end *->* stringToFloat =$
 
 proc 10 stringToFloat () end *->* parseFloat =$
+
+#end ## std

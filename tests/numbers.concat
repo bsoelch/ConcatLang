@@ -1,5 +1,6 @@
-numbers/string #include
+numbers #include
 valueIO #include
+std #import
 
 -123456 false 36 true intToString () println
 3.141592653589793238 0 16 false false floatToString () println

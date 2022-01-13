@@ -1,4 +1,8 @@
+std #module
+
 ## files are parsed only once => defines can be at top level
 +char      #define int cast + byte      cast #end
 +codepoint #define int cast + codepoint cast #end
 charDiff   #define swap int cast swap int cast - #end
+
+#end

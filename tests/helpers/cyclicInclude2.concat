@@ -1,3 +1,4 @@
 stringIO #include
+std #import
 "./tests/helpers/cyclicInclude.concat" #include
 "including cyclicInclude2\n" puts

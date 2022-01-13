@@ -1,5 +1,7 @@
 stack #include
 valueIO #include
+std #import
+
 1 dup print println
 1 1 drop println
 1 2 swap print println

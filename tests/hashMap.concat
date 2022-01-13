@@ -1,6 +1,9 @@
 stack #include
 valueIO #include
+std #import
 hashMap #include
+hashMap #import
+
 1 2 3 int 3 {} hashCode println
 1 2 3 int 3 {} hashCode println
 

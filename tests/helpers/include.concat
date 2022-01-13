@@ -1,2 +1,3 @@
 stringIO #include
+std #import
 "including file\n" puts

@@ -1,6 +1,8 @@
+std #module
+
 stack #include
 stringIO #include
-numbers/string #include
+numbers  #include
 
 proc ## string codepoint -> string
   int cast int cp =:
@@ -134,3 +136,5 @@ proc ## string -> ustring
   string source =:
   u"" source ustring:+string () return
 end *->* codepoints =$
+
+#end ##std
