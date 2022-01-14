@@ -2,48 +2,48 @@ stack #include
 valueIO #include
 core #import
 
-proc
+sqrt proc
   dup float a =$ float x =:
   while x x * a - 1E-16 > :
    a x / x + 2 / x =
   end
   x
-end *->* sqrt =$
+end
 
-proc
+fib proc
  if dup 1 > :
-  dup 1 - fib () swap 2 - fib () +
+  dup 1 - fib swap 2 - fib +
  elif 1 == :
   1
  else
   0
  end
-end *->* fib =$
+end
 
-2.0 sqrt () println
-3 sqrt () println
+2.0 sqrt println
+3 sqrt @() () println
 
 0 while dup 15 < :
- dup fib () println
+ dup fib println
  1 +
 end drop
 
-proc 0 != end *->* intToBool =$
+lambda 0 != end *->* intToBool =$
 
 3 intToBool () println
 0 intToBool () println
 
-2 3 proc + 2.0 / end () println
+2 3 lambda + 2.0 / end () println
 
-proc
+lambda
   "currying" string a =$
-  proc
+  lambda
     " is"    string b =$
-    proc
+    lambda
       " now" string c =$
-      proc
+      lambda
         " supported!" string d =$
-        proc
+        lambda
           a b :+ c :+ d :+ println
         end
       end
@@ -51,14 +51,14 @@ proc
   end
 end () () () () ()
 
-proc
+curriedMinus proc
  int a =$
- proc
+ lambda
    int b =:
    a b -
  end
-end *->* curriedMinus =$
+end
 
-1 curriedMinus () *->* oneMinus =:
-2 3 curriedMinus () () println
+1 curriedMinus *->* oneMinus =:
+2 3 curriedMinus () println
 4 oneMinus () println

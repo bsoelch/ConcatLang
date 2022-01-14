@@ -3,21 +3,21 @@ hashMap #module
 optional #include
 core #import
 
-proc ## var -> int
+hashCode proc ## var -> int
   var value =:
   value typeof type valType =:
   if || valType (list) <= : valType (tuple) <= end :
     0 int hash =:
     0 int i =:
     while i value length < :
-      hash 31 * value i [] __hashCode () + hash =
+      hash 31 * value i [] hashCode + hash =
       i 1 + i =
     end
     hash
   else
     value refId
   end
-end *->* __hashCode =$
+end
 
 var  var  (tuple)           3 tuple type _Entry =$
 _Entry.key   #define 0 []   #end
@@ -25,30 +25,30 @@ _Entry.val   #define 1 []   #end
 _Entry.val=  #define 1 [] = #end
 _Entry.next  #define 2 []   #end
 _Entry.next= #define 2 [] = #end
-type type _Entry list 3 tuple type _Map   =$
+type type _Entry list 3 tuple type HashMap   =$
 _Map.keyType #define 0 [] #end
 _Map.valType #define 1 [] #end
 _Map.data    #define 2 [] #end
 
 false false  0 tuple new  _Entry new _Entry _Empty =$
 
-proc ## keyType:type valType:type cap:int -> _Map
+newHashMap proc ## keyType:type valType:type cap:int -> HashMap
   int cap =:
   type keyType =:
   type valType =:
   cap _Entry list new _Entry list data =:
   data 0 cap _Empty fill
-  keyType valType data _Map new
-end *->* _newMap =$
+  keyType valType data HashMap new
+end
 
-proc ## map:_Map key:var value:var -> prevVal:optional<var>
+HashMap.put proc ## map:HashMap key:var value:var -> prevVal:optional<var>
   var value =:
   var key =:
-  _Map map =:
+  HashMap map =:
   ## cast elements to correct types
   value map _Map.valType cast value =
   key   map _Map.keyType cast key =
-  key __hashCode () int hash =:
+  key hashCode int hash =:
   hash map _Map.data length % int i =:
   if map _Map.data i [] _Empty === :
     map _Map.data  key value _Empty _Entry new  i [] =
@@ -72,12 +72,12 @@ proc ## map:_Map key:var value:var -> prevVal:optional<var>
       optional_empty return
     end
   end
-end *->* _put =$
+end
 
-proc ## map:_Map key:var -> value:optional<var>
+HashMap.get proc ## map:HashMap key:var -> value:optional<var>
   var key =:
-  _Map map =:
-  key __hashCode () int hash =:
+  HashMap map =:
+  key hashCode int hash =:
   hash map _Map.data length % int i =:
   map _Map.data i [] _Entry entry =:
   while entry _Empty =!= :
@@ -87,12 +87,12 @@ proc ## map:_Map key:var -> value:optional<var>
     entry _Entry.next entry =
   end
   optional_empty return
-end *->* _get =$
+end
 
-proc ## map:_Map key:var -> prevVal:optional<var>
+HashMap.remove proc ## map:HashMap key:var -> prevVal:optional<var>
   var key =:
-  _Map map =:
-  key __hashCode () int hash =:
+  HashMap map =:
+  key hashCode int hash =:
   hash map _Map.data length % int i =:
   if map _Map.data i [] _Empty === :
     optional_empty return
@@ -112,16 +112,9 @@ proc ## map:_Map key:var -> prevVal:optional<var>
     end
     optional_empty return
   end
-end *->* _remove =$
+end
 
 ## addLater? HashMap.listEntries
 ## addLater? HashMap.toString
-
-hashCode       #define hashMap __hashCode . () #end
-HashMap        #define hashMap _Map       .    #end
-newHashMap     #define hashMap _newMap    . () #end
-HashMap.put    #define hashMap _put       .    #end
-HashMap.get    #define hashMap _get       .    #end
-HashMap.remove #define hashMap _remove    .    #end
 
 #end ## hashMap

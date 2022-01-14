@@ -5,18 +5,18 @@ bool var 2 tuple type optional =$
 
 false false optional new optional optional_empty =$
 
-proc ## value -> optional
+wrap proc ## value -> optional
   var value =:
   true value optional new
-end *->* optional_of =$
+end
 
-proc ## optional -> optional bool
+?? proc ## optional -> optional bool
   optional val =:
   val
   val 0 []
-end *->* optional_hasValue =$
+end
 
-proc ## optional -> value
+unwrap proc ## optional -> value
   optional val =:
   if val 0 [] :
     val 1 []
@@ -24,10 +24,6 @@ proc ## optional -> value
     "No value in optional\n" eputs
     1 exit
   end
-end *->* optional_getValue =$
+end
 
-wrap   #define core optional_of       . () #end
-unwrap #define core optional_getValue . () #end
-??     #define core optional_hasValue . () #end
-
-#end ## std
+#end ## core

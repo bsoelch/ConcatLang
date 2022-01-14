@@ -5,12 +5,12 @@ stringIO #include
 numbers #include
 utf8 #include
 
-proc ## var -> string
+stringValue proc ## var -> string
   var value =:
   if value typeof string == :
     value return
   elif value typeof ustring == :
-    value codepointsToString () return
+    value codepointsToString return
   elif value typeof (tuple) <= :
     "(" string res =:
     0 int i =:
@@ -18,7 +18,7 @@ proc ## var -> string
       if i 0 > :
         res ", " :+ res =
       end
-      res value i [] stringValue () :+ res =
+      res value i [] stringValue :+ res =
       i 1 + i =
     end
     res ")" :+ return
@@ -29,7 +29,7 @@ proc ## var -> string
       if i 0 > :
         res ", " :+ res =
       end
-      res value i [] stringValue () :+ res =
+      res value i [] stringValue :+ res =
       i 1 + i =
     end
     res "]" :+ return
@@ -48,16 +48,16 @@ proc ## var -> string
           if i 0 > :
             res " " :+ res =
           end
-          res value i [] stringValue () :+ res =
+          res value i [] stringValue :+ res =
           i 1 + i =
         end
-        res " " :+ i false 10 false intToString () :+ " tuple" :+ return
+        res " " :+ i false 10 false intToString :+ " tuple" :+ return
       end
     elif value (list) <= :
       if value (list) == :
         "(list)" return
       else
-        value content stringValue () " list" :+ return
+        value content stringValue " list" :+ return
       end
     elif value *->* <= :
       "*->*" return
@@ -87,32 +87,32 @@ proc ## var -> string
     if value 0x80 byte cast < :
       value byte 1 {}  return ## print valid ascii-characters as character
     else
-      value byteToString () return ## print all other bytes as their byte-code
+      value byteToString return ## print all other bytes as their byte-code
     end
   elif value typeof int == :
-    value false 10 false intToString () return
+    value false 10 false intToString return
   elif value typeof float == :
-    value 0 10 false false floatToString () return
+    value 0 10 false false floatToString return
   elif value typeof codepoint == :
-    value codepointToString () return
+    value codepointToString return
   elif value typeof *->* <= :
     ## procedure
-    "*->*@" value refId true 16 true intToString () +: return
+    "*->*@" value refId true 16 true intToString +: return
   elif value typeof (file) == :
     ## procedure
-    "(file)@" value refId true 16 true intToString () +: return
+    "(file)@" value refId true 16 true intToString +: return
   else
     "unreachable\n" eputs
     1 exit
   end
-end *->* stringValue =$ ## use stringValue as base for print replacement
+end
 
-proc ## byte list -> string
+byteToString proc ## byte list -> string
   byte value =:
-  "0x" value int cast true 16 false intToString () :+ return
-end *->* byteToString =$
+  "0x" value int cast true 16 false intToString :+ return
+end
 
-proc ## byte list -> string
+byteListToString proc ## byte list -> string
   byte list bytes =:
   bytes length 6 * string new string res =:
   res "[" :+ res =
@@ -121,15 +121,15 @@ proc ## byte list -> string
     if i 0 > :
       res ", " :+ res =
     end
-    res "0x" bytes i [] int cast true 16 false intToString () :+ :+ res =
+    res bytes i [] byteToString :+ res =
     i 1 + i =
   end
   res "]" :+ return
-end *->* byteListToString =$
+end
 
-print   #define core stringValue . ()           puts #end
+print   #define core stringValue . puts #end
 ## !!! result of stringValue is not mutable
-println #define core stringValue . () puts "\n" puts #end ## TODO get rid of additional puts call
+println #define core stringValue . puts "\n" puts #end ## TODO get rid of additional puts call
 
 ## addLater fprint
 
@@ -154,7 +154,7 @@ __IO.b       #define 7 [] #end
 __IO.b_ptr   #define 8 [] #end
 __IO.format  #define 9 [] #end
 
-proc ## __IO_FormatValue , var list -> string
+__IO_printValue proc ## __IO_FormatValue , var list -> string
   (list) values =:
   __IO_FormatValue format =:
   format __IO.flags __IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
@@ -183,69 +183,69 @@ proc ## __IO_FormatValue , var list -> string
   elif format __IO.format  'B' == :
     if values format __IO.index [] cast bool : "TRUE" else "FALSE" end
   elif format __IO.format  'i' == :
-    values format __IO.index [] false base false intToString ()
+    values format __IO.index [] false base false intToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
   elif format __IO.format  'I' == :
-    values format __IO.index [] false base true intToString ()
+    values format __IO.index [] false base true intToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
   elif format __IO.format  'u' == :
-    values format __IO.index [] true  base false intToString ()
+    values format __IO.index [] true  base false intToString
     if plusSgn '\0' != :
         plusSgn swap >>:
     end
   elif format __IO.format  'U' == :
-    values format __IO.index [] true  base true intToString ()
+    values format __IO.index [] true  base true intToString
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
   elif format __IO.format  'd' == :
-    values format __IO.index [] false 10 false intToString ()
+    values format __IO.index [] false 10 false intToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
   elif format __IO.format  'x' == :
-    values format __IO.index [] true  16 false intToString ()
+    values format __IO.index [] true  16 false intToString
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
   elif format __IO.format  'X' == :
-    values format __IO.index [] true  16 true intToString ()
+    values format __IO.index [] true  16 true intToString
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
   elif format __IO.format  'e' == :
-    values format __IO.index [] precision base false true  floatToString ()
+    values format __IO.index [] precision base false true  floatToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
   elif format __IO.format  'E' == :
-    values format __IO.index [] precision base true  true  floatToString ()
+    values format __IO.index [] precision base true  true  floatToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
   elif format __IO.format  'f' == :
-    values format __IO.index [] precision base false false floatToString ()
+    values format __IO.index [] precision base false false floatToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
   elif format __IO.format  'F' == :
-    values format __IO.index [] precision base true  false floatToString ()
+    values format __IO.index [] precision base true  false floatToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
@@ -254,9 +254,9 @@ proc ## __IO_FormatValue , var list -> string
   elif format __IO.format  'c' == :
     values format __IO.index [] byte 1 {}
   elif format __IO.format  's' == :
-    values format __IO.index [] stringValue ()
+    values format __IO.index [] stringValue
   elif format __IO.format  'S' == :
-    values format __IO.index [] stringValue ()
+    values format __IO.index [] stringValue
   elif format __IO.format  '%' == :
     "%"
   else
@@ -275,9 +275,9 @@ proc ## __IO_FormatValue , var list -> string
     end
   end
   res
-end *->* __IO_printValue =$
+end
 
-proc ## bool -> byte (char)
+isFormatChar proc ## bool -> byte (char)
   byte c =:
   "bBiIuUdxXfFeEcsS%" string formats =: ## addLater? formatted printing of lists
   0 int i =:
@@ -288,9 +288,9 @@ proc ## bool -> byte (char)
     i 1 + i =
   end
   false
-end *->* isFormatChar =$
+end
 
-proc ## args:... format:string
+formatString proc ## args:... format:string
   string format =:
 
   format length 4 / var list new var list parts =:
@@ -312,11 +312,11 @@ proc ## args:... format:string
     else
       parts   false format i0 i [:] __IO_FormatString new   :<< parts =
       i 1 + dup i0 = i =
-      while && i0 format length < : format i0 [] isFormatChar () ! end :
+      while && i0 format length < : format i0 [] isFormatChar ! end :
         i0 1 + i0 =
       end
       if i0 format length >= :
-        "printf: unfinished or invalid format String: "  format i format length [:] stringValue ()  :+ '\n' :<< eputs
+        "printf: unfinished or invalid format String: "  format i format length [:] stringValue  :+ '\n' :<< eputs
         1 exit
       end
       format i0 [] byte _formatChar =:
@@ -392,7 +392,7 @@ proc ## args:... format:string
         end
         ## ([0-9]+)? width
         if tmp length 0 > :
-          tmp parseInt () w =
+          tmp parseInt w =
           tmp clear ## clear tmp
         elif && i _formatString length < : _formatString i [] '*' == end : ## *(<index>).
           i 1 + i =
@@ -404,7 +404,7 @@ proc ## args:... format:string
             i 1 + i =
           end tmp =
           if tmp length 0 > :
-            tmp parseInt () w =
+            tmp parseInt w =
             tmp clear ## clear tmp
           end
         end
@@ -429,7 +429,7 @@ proc ## args:... format:string
             i 1 + i =
           end tmp =
           if || p_ptr ! : tmp length 0 > end :
-            tmp parseInt () p =
+            tmp parseInt p =
             tmp clear ## clear tmp
           end
         end
@@ -457,7 +457,7 @@ proc ## args:... format:string
           end tmp =
           if && i _formatString length < : _formatString i [] ')' == end :
             if || b_ptr ! : tmp length 0 > end :
-              tmp parseInt () b =
+              tmp parseInt b =
               tmp clear ## clear tmp
             end
             i 1 + i =
@@ -503,7 +503,7 @@ proc ## args:... format:string
   while i parts length < :
     tmp
     if parts i [] __IO.isValue :  ## Value format
-      parts i [] args __IO_printValue ()
+      parts i [] args __IO_printValue
     else ## string format
       parts i [] __IO.value
     end
@@ -511,9 +511,9 @@ proc ## args:... format:string
     i 1 + i =
   end
   tmp
-end *->* formatString =$
+end
 
-printf #define core formatString . () puts #end
+printf #define core formatString . puts #end
 ## addLater fprintf
 
 #end ##std

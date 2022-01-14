@@ -16,18 +16,18 @@ Recursive Fibonacci Numbers:
 ```Julia
 stack #include ## for usage of dup and swap
 valueIO #include ## for println
-proc
+fib proc
  if dup 1 > :
-   dup 1 - fib () swap 2 - fib () +
+   dup 1 - fib swap 2 - fib +
  elif 1 == :
    1
  else
    0
  end
-end *->* fib =$
+end
 
 #_ print 10th Fibonacci Number: _#
-10 fib () println
+10 fib println
 ```
 !!! `#include` is not part of the comments !!!
 
@@ -248,7 +248,8 @@ and `<to>` excluded
   - syntax: `<list> <value> <off> <to> [:] =`
   - all the specified section of the list will be replaced 
 with the new value cast to the type of the list
-- `()` call a procedure
+- `@()` get a pointer to a procedure
+- `()` call a procedure pointer
 
 Examples:
 ```C++
@@ -258,7 +259,8 @@ int list list drop ## list of list of ints
 1 2 3 float 3 {} dup println
 1 [] println
 "Hello" ' ' "World" >>: ++ '!' :<< println
-4 fib () #_ call procedure fib with argument 4 _#
+4 fib () #_ call procedure at the procedure-pointer fib 
+with argument 4 _#
 "Hello World!" 7 9 [:] println
 "Hello World?" '!' 11 [] = println
 "Hello World!" "Programmer" 6 11 [:] = println
@@ -362,49 +364,73 @@ while  <condition> end
 Procedures are code blocks that can be called 
 from other points in the program. 
 Procedures are declared in blocks starting with
+the name of the procedure, followed by
 `proc` or `procedure` and ending with `end`. 
 
-If the program reaches the start 
-of a procedure it jumps to the matching `end`
-and pushes a pointer to the procedure on the stack.
-This pointer can be stored in variables 
-with the procedure-type `*->*`.
+Lambda procedures don't have a name and use `lambda` or `λ` 
+instead of proc, unlike normal procedures lambda-procedures
+push a procedure-pointer procedure onto the stack
 
-If the call-operator `()` is called on a procedure 
-pointer the body of that procedure is executed
-and the program returns to the operation after 
-the call
+If the name of a procedure appears in the code, 
+that procedure is called unless it is followed by 
+`@()` in which case a pointer to that procedure 
+will be pushed onto the stack.
+Names of procedures will be resolved as long as 
+the procedure is declared within the same file
+
+procedure pointers can be called with the call-operator `()`
 
 The return instruction allows retuning from a 
-procedure without reaching the end.
+procedure before without reaching the end.
 
 Examples:
 ```Rust
-## inline procedure
-1 2 proc + end () println 
-## declare a procedure variable 
-proc 0 != end *->* intToBool =$
-3 intToBool () println
-0 intToBool () println
-## procedures can have a variable number of arguements
-
-## drops the first [n] elements from the stack, 
-## with [n] beeing the top element on the stack
-proc 
-  int n =: ## store top element of the stack as n
-  while n 0 > :
-    drop
-    n 1 - n =
+## procedure for recursivly printing the fibonacci numbers
+fib proc
+ if dup 1 > :
+   dup 1 - fib swap 2 - fib +
+ elif 1 == :
+   1
+ else
+   0
+ end
+end
+## mutually recursive functions
+isEven proc
+  if dup 0 == :
+    true return
+  else
+    1 - isOdd return
   end
-end *->* dropN =$
-0 1 2 3 3 dropN () println ## drop 3 element 
+end
+isOdd proc
+  if dup 0 == :
+      false return
+  elif dup 0 < :
+     -_ isOdd return
+  else
+    1 - isEven return
+  end
+end
+
+42 fib println ## prints the 42nd fibonacci number
+10 isEven println
+-143 isEven println
+1 
+isEven @() isOdd @() *->* 2 {} 
+1 [] () println 
+
+lambda dup * end *->* square =:
+4 square () println
+
 ```
 prints:
 ```
-3
+267914296
 true
 false
-0
+true
+16
 ```
 
 ### Variables

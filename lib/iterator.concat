@@ -4,42 +4,37 @@ optional #include
 
 (list) int 2 tuple type iterator =$
 
-proc ## <?> list <index> -> <?> itr
+^.. proc ## <?> list <index> -> <?> itr
   (list) elements =:
   elements 0 iterator new
-end *->* iterateStart =$
+end
 
-proc ## <?> list <index> -> <?> itr
+..^ proc ## <?> list <index> -> <?> itr
   (list) elements =:
   elements elements length iterator new
-end *->* iterateEnd =$
+end
 
-proc ## <?> itr => <?> itr optional
+^> proc ## <?> itr => <?> itr optional
   iterator mItr =:
   mItr
   if mItr 1 [] mItr 0 [] length < :
-    mItr 0 [] mItr 1 [] [] optional_of () ## push element
+    mItr 0 [] mItr 1 [] [] wrap ## push element
     mItr  mItr 1 [] 1 +  1 [] = ## increment iterator
   else
     optional_empty
   end
-end *->* iteratorNext =$
+end
 
-proc ## <?> itr => <?> itr optional
+<^ proc ## <?> itr => <?> itr optional
   iterator mItr =:
   mItr
   if mItr 1 [] 0 > :
     mItr  mItr 1 [] 1 -  1 [] = ## decrement iterator
-    mItr 0 [] mItr 1 [] [] optional_of () ## push element
+    mItr 0 [] mItr 1 [] [] wrap ## push element
   else
     optional_empty
   end
-end *->* iteratorPrev =$
+end
 ## addLater allow iterators to modify the underlying list
 
-^.. #define core iterateStart . () #end
-..^ #define core iterateEnd   . () #end
-^>  #define core iteratorNext . () #end
-<^  #define core iteratorPrev . () #end
-
-#end ## std
+#end ## core

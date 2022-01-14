@@ -762,7 +762,7 @@ public class Interpreter {
                 PredeclaredProc predeclared=predeclaredProcs.get(localName);
                 if(predeclared==null){
                     if(callee.procedure()!=null){
-                        predeclaredProcs.put(localName,new PredeclaredProc(pos,new ArrayDeque<>()));
+                        predeclaredProcs.put(name,new PredeclaredProc(pos,new ArrayDeque<>()));
                         // file().declaredVars add label to macro
                     }else{
                         throw new SyntaxError("Variable "+name+" does not exist",pos);
@@ -1448,9 +1448,16 @@ public class Interpreter {
                 if(openBlocks.size()>0){
                     throw new SyntaxError("procedures can only be declared at root level",pos);
                 }
+                if(tokens.size()==0){
+                    throw new SyntaxError("missing procedure name before proc",pos);
+                }
                 Token prev=tokens.remove(tokens.size()-1);
-                if(prev.tokenType!=TokenType.IDENTIFIER){
-                    //TODO better message for proc redeclaration
+                if(prev.tokenType==TokenType.PROC_CALL){
+                    if(!rootContext.predeclaredProcs.containsKey(((IdentifierToken)prev).name)){
+                        throw new SyntaxError("token before proc has to be an identifier",pos);
+                        //TODO better message for proc redeclaration
+                    }
+                }else if(prev.tokenType!=TokenType.IDENTIFIER){
                     throw new SyntaxError("token before proc has to be an identifier",pos);
                 }
                 String name=((IdentifierToken)prev).name;
@@ -1526,7 +1533,7 @@ public class Interpreter {
                                     tokens.add(new ValueToken(Value.createProcedure(block.start, content, context), pos));
                                 }
                             } else {
-                                if(((ProcedureBlock) block).name==null){
+                                if(((ProcedureBlock) block).name!=null){
                                     throw new RuntimeException("named procedures cannot be curried");
                                 }
                                 tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,
@@ -2185,7 +2192,9 @@ public class Interpreter {
                 return ExitType.ERROR;
             }catch(Throwable  t){//show expression in source code that crashed the interpreter
                 Token token = tokens.get(ip);
-                context.stdErr.printf("  while executing %-20s\n   at %s\n",token,token.pos);
+                try {
+                    context.stdErr.printf("  while executing %-20s\n   at %s\n", token, token.pos);
+                }catch (Throwable ignored){}//ignore exceptions while printing
                 throw t;
             }
             if(incIp){
