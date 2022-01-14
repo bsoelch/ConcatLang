@@ -1,5 +1,5 @@
 valueIO #include
-std #import
+core #import
 
 "branches:\n" puts
 if true :

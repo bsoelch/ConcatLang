@@ -1,10 +1,10 @@
-std #module
+core #module
 
 stack #include
 stringIO #include
 numbers  #include
 
-proc ## string codepoint -> string
+string<<codepoint proc ## string codepoint -> string
   int cast int cp =:
   string      str =:
   if cp 0x80 < :  ## ascii - character
@@ -23,66 +23,66 @@ proc ## string codepoint -> string
         cp        0x3f & 0x80 | byte cast :<< return
   else
     ## don't exit on invalid codepoints, only display waring message
-    "Codepoint out of range: " cp int cast true 16 false intToString () :+ '\n' :<< eputs
+    "Codepoint out of range: " cp int cast true 16 false intToString :+ '\n' :<< eputs
   end
-end *->* string<<codepoint =$
+end
 
-proc ##codepoint string -> string
+codepoint>>string proc ##codepoint string -> string
   string    str =:
-  codepoint cp =: ##addLater? more effective algorithm
-  str 0 0 [:] cp string<<codepoint () drop
+  codepoint cp =: ##addLater? more efficient algorithm
+  str 0 0 [:] cp string<<codepoint drop
   str return
-end *->* codepoint>>string =$
+end
 
-proc ## string ustring -> string
+string:+ustring proc ## string ustring -> string
   ustring append =:
   string  value  =:
   value value length append length + ensureCap drop
   0 int i =:
   while i append length < :
-    value append i [] string<<codepoint () value =
+    value append i [] string<<codepoint value =
     i 1 + i =
   end
   value return
-end *->* string:+ustring =$
+end
 
-proc ## ustring string -> string
+ustring+:string proc ## ustring string -> string
   string  value  =:
   ustring append =:
   value value length append length + ensureCap drop
   append length 1 - int i =:
   while i 0 >= :
-    append i [] value codepoint>>string () value =
+    append i [] value codepoint>>string value =
     i 1 - i =
   end
   value return
-end *->* ustring+:string =$
+end
 
-proc ## ustring string -> ustring
+ustring:+string proc ## ustring string -> ustring
   string  append  =:
   ustring value   =:
   value value length append length + ensureCap drop
   append 0
-  while nextCodepoint () :
+  while nextCodepoint :
     value swap :<< value =
   end 0 3 $drop ## drop remaining data
   value return
-end *->* ustring:+string =$
-proc ## string ustring -> ustring
+end
+string+:ustring proc ## string ustring -> ustring
   ustring value   =:
-  string  append  =: ##addLater? more effective algorithm
-  value 0 0 [:] append ustring:+string () drop
+  string  append  =: ##addLater? more efficient algorithm
+  value 0 0 [:] append ustring:+string drop
   value return
-end *->* string+:ustring =$
+end
 
-proc ## codepoint -> string
-  "" swap string<<codepoint () return
-end *->* codepointToString =$
+codepointToString proc ## codepoint -> string
+  "" swap string<<codepoint return
+end
 
-proc ## codepoint list -> string
+codepointsToString proc ## codepoint list -> string
   ustring source =:
-  "" source string:+ustring () return
-end *->* codepointsToString =$
+  "" source string:+ustring return
+end
 
 #_
 gets the first full codepoint in the given string that starts at or after index,
@@ -90,7 +90,7 @@ returns true/false depending of if there was a next codepoint
 the value of the read codepoint (of 0 if the end of the string was reached)
 followed by the index after the next codepoint and the string
 _#
-proc ## string index:int -> string end:int codepoint bool
+nextCodepoint proc ## string index:int -> string end:int codepoint bool
   int    index =:
   string value =:
   while && index value length < : value index [] int cast 0xc0 & 0x80 == end :
@@ -130,11 +130,11 @@ proc ## string index:int -> string end:int codepoint bool
     end
   end
   value index  0 codepoint cast  false return
-end *->* nextCodepoint =$
+end
 
-proc ## string -> ustring
+codepoints proc ## string -> ustring
   string source =:
-  u"" source ustring:+string () return
-end *->* codepoints =$
+  u"" source ustring:+string return
+end
 
-#end ##std
+#end ##core

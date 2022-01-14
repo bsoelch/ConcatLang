@@ -1,7 +1,7 @@
-std #module
+core #module
 valueIO #include
 
-proc ## byte list -> int
+intToBytes proc ## byte list -> int
   int val =:
   8 byte list new byte list rawData =:
   0 int i =:
@@ -11,9 +11,9 @@ proc ## byte list -> int
     i 1 + i =
   end
   rawData
-end *->* intToBytes =$
+end
 
-proc ## byte list -> int
+intFromBytes proc ## byte list -> int
   byte list rawData =:
   if rawData length 8 > :
     "too much bytes from convert to int:" puts rawData length print " maximum: 8\n" puts
@@ -33,7 +33,7 @@ proc ## byte list -> int
     end
   end
   val
-end *->* intFromBytes =$
+end
 
-#end ##std
+#end ##core
 

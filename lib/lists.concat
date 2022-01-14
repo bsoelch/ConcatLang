@@ -1,7 +1,7 @@
 lists #module
 ## TODO binary search
 
-proc ## (list) ->
+reverse proc ## (list) ->
   (list) toReverse =:
   0 int i =:
   toReverse length 1 - int maxId =:
@@ -11,54 +11,53 @@ proc ## (list) ->
     toReverse tmp maxId i - [] =
     i 1 + i =
   end
-end *->* __LISTS_reverse =$
+end
 
-proc ## <list> <off> <to> <buffer>
-(list) buffer =:
-int to =:
-int off =:
-(list) input =:
-if off to < :
-  off to + 2 / int c =:
-  input off c buffer __LISTS_mergesort_helper ()
-  c 1 + c =
-  input c  to buffer __LISTS_mergesort_helper ()
-  ## 0 ... c-1 and c...to-1 are sorted
-  c int i =:
-  while && off c < : c to <= end :
-    while && off c < : input off [] input c [] <= end :
-      off 1 + off =
-    end
-    if off c < :
-      while && i to <= : input off [] input i [] > end :
-        i 1 + i =
+__LISTS_mergesort_helper proc ## <list> <off> <to> <buffer>
+  (list) buffer =:
+  int to =:
+  int off =:
+  (list) input =:
+  if off to < :
+    off to + 2 / int c =:
+    input off c buffer __LISTS_mergesort_helper
+    c 1 + c =
+    input c  to buffer __LISTS_mergesort_helper
+    ## 0 ... c-1 and c...to-1 are sorted
+    c int i =:
+    while && off c < : c to <= end :
+      while && off c < : input off [] input c [] <= end :
+        off 1 + off =
       end
-      i c - int delta =:
-      if delta c off - <= :
-        buffer clear
-        buffer input c i [:] :+ buffer = ## store data in buffer
-        input  input off c [:]  off delta + c delta + [:] = ## move remaining part of left half to the right
-        input  buffer  off  off delta + [:] = ## get the elements from buffer
-        buffer clear
-      else
-        buffer clear
-        buffer input off c [:] :+ buffer = ## store data in buffer
-        input  input c i [:]  off  off delta + [:] = ## move remaining part of left half to the right
-        input  buffer  off delta + i [:] = ## get the elements from buffer
-        buffer clear
+      if off c < :
+        while && i to <= : input off [] input i [] > end :
+          i 1 + i =
+        end
+        i c - int delta =:
+        if delta c off - <= :
+          buffer clear
+          buffer input c i [:] :+ buffer = ## store data in buffer
+          input  input off c [:]  off delta + c delta + [:] = ## move remaining part of left half to the right
+          input  buffer  off  off delta + [:] = ## get the elements from buffer
+          buffer clear
+        else
+          buffer clear
+          buffer input off c [:] :+ buffer = ## store data in buffer
+          input  input c i [:]  off  off delta + [:] = ## move remaining part of left half to the right
+          input  buffer  off delta + i [:] = ## get the elements from buffer
+          buffer clear
+        end
+        i c =
+        off 1 + off =
       end
-      i c =
-      off 1 + off =
     end
   end
 end
-end *->* __LISTS_mergesort_helper =$
 
-proc ## (list) ->
+mergesort proc ## (list) ->
   (list) input =:
-  #_list:_#input  #_off:_#0  #_to:_#input length 1 -  #_buffer:_#input length 2 / input typeof new __LISTS_mergesort_helper ()
-end *->* __LISTS_mergesort =$
-
+  #_list:_#input  #_off:_#0  #_to:_#input length 1 -  #_buffer:_#input length 2 / input typeof new __LISTS_mergesort_helper
+end
 ## addLater sort with comparator (needs fixed signature procedures)
 
 #end ## lists

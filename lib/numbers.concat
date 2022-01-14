@@ -1,4 +1,4 @@
-std #module
+core #module
 
 stack #include
 chars #include
@@ -12,24 +12,24 @@ int_MIN #define -0x8000000000000000 #end
  1 0.0 / float float_Positive_Infinity =$
 -1 0.0 / float float_Negative_Infinity =$
 
-proc
+float_isNaN proc
   float val =:
   val val =!=
-end *->* float_isNaN =$
-proc
+end
+float_isFinite proc
   float val =:
   if val float_Positive_Infinity < : val float_Negative_Infinity > else false end
-end *->* float_isFinite =$
+end
 
-proc ## value:int base:int big:bool -> byte (char)
+__NUMBERS_getDigit proc ## value:int base:int big:bool -> byte (char)
     bool big =:
     int base =:
     int value =:
     if || value 0 < : value base >= end :
         ## even though intToString calls this function
         ## this error check should not be activated when intToString is called normally
-        "Digit out of range: " value false 10 false intToString () :+ " base: "
-        :+ base false 10 false  intToString () '\n' :<< eputs
+        "Digit out of range: " value false 10 false intToString :+ " base: "
+        :+ base false 10 false  intToString '\n' :<< eputs
         1 exit
     end
     if value 10 < :
@@ -39,9 +39,9 @@ proc ## value:int base:int big:bool -> byte (char)
     else
         value 36 - 'a' +char return
     end
-end *->* __NUMBERS_getDigit =$
+end
 
-proc ## value:int unsigned:bool base:int big:bool
+intToString proc ## value:int unsigned:bool base:int big:bool
   bool big =:
   int base =:
   bool unsigned =:
@@ -49,7 +49,7 @@ proc ## value:int unsigned:bool base:int big:bool
   if || base 2 < : base 62 > end :
     ## even though printing recursively calls this function
     ## this error check should not be activated when intToString is called normally
-    "Base out of range: " base false 10 false intToString () :+ ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base false 10 false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   if value 0 == :
@@ -59,38 +59,38 @@ proc ## value:int unsigned:bool base:int big:bool
   "" ## result
   if value 0 < :
     if unsigned :
-      value base u% base big __NUMBERS_getDigit () :<<
+      value base u% base big __NUMBERS_getDigit :<<
       value base u/ value =
     else
       true neg =
       value -_ value =
       if value 0 < : ## int_MIN
-        value base u% base big __NUMBERS_getDigit () :<<
+        value base u% base big __NUMBERS_getDigit :<<
         value base u/ value =
       end
     end
   end
   while value 0 > :
-      value base % base big __NUMBERS_getDigit () swap >>:
+      value base % base big __NUMBERS_getDigit swap >>:
       value base / value =
   end
   if neg :
     "-" swap +:
   end
-end *->* intToString =$
+end
 
-proc ## value:float precision:int base:int big:bool sci:bool
+floatToString proc ## value:float precision:int base:int big:bool sci:bool
   bool  sci =:
   bool  big =:
   int   base =:
   int   precision =:
   float value =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " base false 10 false intToString () :+ ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base false 10 false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
-  if value float_isFinite () ! :
-    if value float_isNaN () :
+  if value float_isFinite ! :
+    if value float_isNaN :
       "[NaN]"
     elif value 0 > :
       "[Infinity]"
@@ -149,20 +149,20 @@ proc ## value:float precision:int base:int big:bool sci:bool
     while && n 1 - 0 > : buff n 1 - [] 0 == end :
       n 1 - n =
     end
-    buff 0 [] base big __NUMBERS_getDigit () :<<
+    buff 0 [] base big __NUMBERS_getDigit :<<
     if n 1 > :
       '.' :<<
       1 while dup n < :
-         swap over buff swap [] base big __NUMBERS_getDigit () :<<
+         swap over buff swap [] base big __NUMBERS_getDigit :<<
          swap 1 +
       end drop
     end
     if base 10 <= : 'E' elif base 30 <= : 'X' else '#' end :<<
     if e_max 0 >= : '+' :<< end
-    e_max false base big intToString () :+
+    e_max false base big intToString :+
   elif e_max 0 >= :
     0 while dup n < :
-      swap over buff swap [] base big __NUMBERS_getDigit () :<<
+      swap over buff swap [] base big __NUMBERS_getDigit :<<
       if && over e_max == : over n 1 - < end :
         '.' :<<
       end
@@ -175,13 +175,13 @@ proc ## value:float precision:int base:int big:bool sci:bool
       swap 1 -
     end drop
     0 while dup n < :
-      swap over buff swap [] base big __NUMBERS_getDigit () :<<
+      swap over buff swap [] base big __NUMBERS_getDigit :<<
       swap 1 +
     end drop
   end
-end *->* floatToString =$
+end
 
-proc ## digit:byte (char) base:int -> value:int
+__NUMBERS_valueOfDigit proc ## digit:byte (char) base:int -> value:int
   int  base =:
   byte digit =:
   if && digit '0' >= : digit '9' <= end :
@@ -191,20 +191,20 @@ proc ## digit:byte (char) base:int -> value:int
   elif && digit 'a' >= : digit 'Z' <= end :
     digit 'a' charDiff if base 37 < : 10 else 36 end +
   else
-    "invalid digit for base " base false 10 false intToString () :+ " number: '" :<< digit "'\n" :+ eputs
+    "invalid digit for base " base false 10 false intToString :+ " number: '" :<< digit "'\n" :+ eputs
     1 exit ## addLater? return error-code instead of exit
   end
   if dup base >= :
-    "invalid digit for base " base false 10 false intToString () :+ " number: '" :<< digit "'\n" :+ eputs
+    "invalid digit for base " base false 10 false intToString :+ " number: '" :<< digit "'\n" :+ eputs
     1 exit
   end
-end *->* __NUMBERS_valueOfDigit =$
+end
 
-proc ## source:string base:int -> int
+stringToInt proc ## source:string base:int -> int
   int base =:
   string source =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " base false 10 false intToString () :+ ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base false 10 false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   0 ## res
@@ -224,15 +224,15 @@ proc ## source:string base:int -> int
       "invalid string-format for int \"" source :+ "\" (overflow)\n" :+ eputs
       1 exit
     end
-    base * over source swap [] base __NUMBERS_valueOfDigit () +
+    base * over source swap [] base __NUMBERS_valueOfDigit +
     swap 1 +
   end drop
   if sgn : -_ end
-end *->* stringToInt =$
+end
 
-proc 10 stringToInt () end *->* parseInt =$
+parseInt #define 10 core stringToInt . #end
 
-proc ## c:byte (char) base:int -> bool
+_isExpChar proc ## c:byte (char) base:int -> bool
   int base =:
   byte c =:
   if || c 'e' == : c 'E' == end :
@@ -246,13 +246,13 @@ proc ## c:byte (char) base:int -> bool
   else
     false
   end
-end *->* isExpChar =$
+end
 
-proc ## str:string base:int -> float
+stringToFloat proc ## str:string base:int -> float
   int base =:
   string str =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " base false 10 false intToString () :+ ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base false 10 false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   0 ## val
@@ -276,16 +276,16 @@ proc ## str:string base:int -> float
         1 exit
       end
       1 d =
-    elif dup str swap [] base isExpChar () :
+    elif dup str swap [] base _isExpChar :
       dup 1 + e =
       str length + ## break Loop by setting index to value >= str.length
     else
       swap
       if dup max < :
-        base * over str swap [] base __NUMBERS_valueOfDigit () +
+        base * over str swap [] base __NUMBERS_valueOfDigit +
         c d + c =
       else
-        over str swap [] base __NUMBERS_valueOfDigit () drop ## check digit without storing value
+        over str swap [] base __NUMBERS_valueOfDigit drop ## check digit without storing value
         c 1 d - + c =
       end
       swap
@@ -293,11 +293,11 @@ proc ## str:string base:int -> float
     1 +
   end drop
   if e 0 > :
-    c str e str length [:] base stringToInt () - c =
+    c str e str length [:] base stringToInt - c =
   end
   if sgn : -_ end base c -_ float cast ** *
-end *->* stringToFloat =$
+end
 
-proc 10 stringToFloat () end *->* parseFloat =$
+parseFloat #define 10 core stringToFloat . #end
 
-#end ## std
+#end ## core

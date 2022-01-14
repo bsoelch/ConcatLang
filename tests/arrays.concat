@@ -1,6 +1,6 @@
 stack #include
 valueIO #include
-std #import
+core #import
 
 "Hello" ' ' "World" >>: :+ println
 
@@ -22,10 +22,10 @@ dup   dup 2.0 0 [] = println
 
 lists #include
 lists #import
-1 2 3 4 5 int 5 {} dup __LISTS_mergesort () println
-5 4 3 2 1 int 5 {} dup __LISTS_mergesort () println
+1 2 3 4 5 int 5 {} dup mergesort println
+5 4 3 2 1 int 5 {} dup mergesort println
 
-1 2 3 4 5 int 5 {} dup __LISTS_reverse () println
+1 2 3 4 5 int 5 {} dup reverse println
 
 1 2 3 4 rot3 int 4 {} println
 

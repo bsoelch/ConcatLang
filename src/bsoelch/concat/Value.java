@@ -1499,7 +1499,7 @@ public abstract class Value {
         }
     }
 
-    public static Value createProcedure(int startAddress, ArrayList<Interpreter.Token> tokens,
+    public static Procedure createProcedure(int startAddress, ArrayList<Interpreter.Token> tokens,
                                         Interpreter.ProcedureContext variableContext) {
         return new Procedure(startAddress,tokens,variableContext);
     }

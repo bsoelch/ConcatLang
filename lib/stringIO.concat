@@ -1,15 +1,15 @@
-std #module
+core #module
 stack #include
 ## basic procedures/marcos for printing strings
 
-proc  ## string (file)  -> bool
+fputs proc  ## string (file)  -> bool
   (file) file =:
   string str =:
   file str 0 str length write
-end *->* __IO_fputs =$
-fputs #define        std __IO_fputs . ()      #end
-## specialized procedures for writing to stdout and stderr addLater? buffering of Output
- puts #define stdout std __IO_fputs . () drop #end
-eputs #define stderr std __IO_fputs . () drop #end
+end
 
-#end ## std
+## specialized procedures for writing to stdout and stderr addLater? buffering of Output
+ puts #define stdout core fputs . drop #end
+eputs #define stderr core fputs . drop #end
+
+#end ## core
