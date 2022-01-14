@@ -40,10 +40,11 @@ public class Interpreter {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
         STD_IN,STD_OUT,STD_ERR,
         DROP,DUP,
-        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND,VAR_WRITE,//addLater option to free values/variables
+        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND, PROC_CALL, PROC_ID,VAR_WRITE,//addLater option to free values/variables
         VARIABLE,
         PLACEHOLDER,//placeholder token for jumps
         CONTEXT_OPEN,CONTEXT_CLOSE,
+        CALL_PROC, PUSH_PROC_PTR,CALL_PTR,
         RETURN,
         DEBUG_PRINT,
         SHORT_AND_JMP, SHORT_OR_JMP,JEQ,JNE,JMP,//jump commands only for internal representation
@@ -178,6 +179,33 @@ public class Interpreter {
             this.context = context;
         }
     }
+    static class ProcedureToken extends Token {
+        private Value.Procedure value;
+
+        ProcedureToken(boolean isPtr,Value.Procedure value, FilePosition pos) {
+            super(isPtr?TokenType.PUSH_PROC_PTR :TokenType.CALL_PROC, pos);
+            this.value=value;
+        }
+
+        void declareProcedure(Value.Procedure value){
+            if(this.value!=null){
+                throw new RuntimeException("procedure can only be initialized once");
+            }
+            this.value=value;
+        }
+
+        Value.Procedure getProcedure() throws ConcatRuntimeError {
+            if(value==null){
+                throw new ConcatRuntimeError("missing procedure");
+            }
+            return value;
+        }
+
+        @Override
+        public String toString() {
+            return tokenType.toString()+": "+value;
+        }
+    }
 
     static class VariableToken extends Token{
         final VariableType variableType;
@@ -241,9 +269,11 @@ public class Interpreter {
         abstract VariableContext context();
     }
     static class ProcedureBlock extends CodeBlock{
+        final String name;
         final ProcedureContext context;
-        ProcedureBlock(int startToken,FilePosition pos, VariableContext parentContext) {
+        ProcedureBlock(String name, int startToken, FilePosition pos, VariableContext parentContext) {
             super(startToken, BlockType.PROCEDURE,pos, parentContext);
+            this.name = name;
             context=new ProcedureContext(parentContext);
         }
         @Override
@@ -484,15 +514,6 @@ public class Interpreter {
             return "@"+context+".curried"+id;
         }
     }
-    private static class PredeclaredVariable extends VariableId{
-        PredeclaredVariable(VariableContext context,FilePosition declaredAt) {
-            super(context, 0,-1, true,true, declaredAt,null);
-        }
-        void initialize(int id,FilePosition initializedAt){
-            this.id=id;
-            this.initializedAt=initializedAt;
-        }
-    }
 
     record ModuleBlock(String[] path,ArrayList<String> imports,FilePosition declaredAt){
         @Override
@@ -500,7 +521,6 @@ public class Interpreter {
             return Arrays.toString(path) +" declaredAt " + declaredAt;
         }
     }
-
     static abstract class VariableContext{
         final HashMap<String,VariableId> variables=new HashMap<>();
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
@@ -531,11 +551,14 @@ public class Interpreter {
         final HashMap<String,VariableId> declaredVars =new HashMap<>();
         final HashMap<String,Macro> declaredMarcos =new HashMap<>();
     }
+    record PredeclaredProc(FilePosition pos,ArrayDeque<ProcedureToken> listeners){}
     private static class RootContext extends VariableContext{
         RootContext(){}
-        final HashMap<String,PredeclaredVariable> predeclared=new HashMap<>();
 
         final HashMap<String,Macro> macros=new HashMap<>();
+
+        final HashMap<String, Value.Procedure> procedures = new HashMap<>();
+        final HashMap<String,PredeclaredProc> predeclaredProcs = new HashMap<>();
 
         ArrayDeque<FileContext> openFiles=new ArrayDeque<>();
 
@@ -559,6 +582,13 @@ public class Interpreter {
         void endModule(FilePosition pos) throws SyntaxError {
             if(file().openModules.isEmpty()){
                 throw new SyntaxError("Unexpected End of module",pos);
+            }
+            if(predeclaredProcs.size()>0){
+                StringBuilder message=new StringBuilder("Syntax Error: missing procedures");
+                for(Map.Entry<String, PredeclaredProc> p:predeclaredProcs.entrySet()){
+                    message.append("\n- ").append(p.getKey()).append(" (called at ").append(p.getValue().pos).append(")");
+                }
+                throw new SyntaxError(message.toString(),pos);
             }
             file().openModules.remove(file().openModules.size() - 1);
         }
@@ -596,6 +626,52 @@ public class Interpreter {
                 paths.add(top);//push imports below top path
             }
             return paths;
+        }
+
+        void declareProcedure(String name, Value.Procedure proc) {
+            PredeclaredProc predeclared=predeclaredProcs.remove(name);
+            if(predeclared!=null){
+                for(ProcedureToken token:predeclared.listeners){
+                    token.declareProcedure(proc);
+                }
+            }
+            name=inCurrentModule(name);
+            procedures.put(name,proc);
+        }
+        boolean hasProcedure(String name){
+            if(predeclaredProcs.containsKey(name)){
+                return true;
+            }
+            ArrayDeque<String> paths = currentPaths();
+            while(paths.size()>0){//go through all modules
+                if(procedures.containsKey(paths.removeLast()+name)){
+                    return true;
+                }
+            }
+            return procedures.containsKey(name);
+        }
+        /**@return the procedure with the given name or null if there is no such procedure*/
+        Value.Procedure getProcedure(String name,FilePosition pos) throws SyntaxError {
+            Value.Procedure p;
+            ArrayDeque<String> paths = currentPaths();
+            while(paths.size()>0){//go through all modules
+                p=procedures.get(paths.removeLast()+name);
+                if(p!=null){
+                    return p;
+                }
+            }
+            p=procedures.get(name);
+            if(p==null&&!predeclaredProcs.containsKey(name)){
+                throw new SyntaxError("procedure "+name+" does not exists",pos);
+            }
+            return p;
+        }
+        public void addProcDeclareListener(String name, ProcedureToken token) {
+            PredeclaredProc predeclared=predeclaredProcs.get(name);
+            if(predeclared==null){
+                throw new RuntimeException(name+" is no predeclared procedure");
+            }
+            predeclared.listeners.add(token);
         }
 
         void declareMacro(Macro macro,IOContext ioContext) throws SyntaxError{
@@ -654,15 +730,10 @@ public class Interpreter {
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
             String name0=name;
             name=inCurrentModule(name);
-            PredeclaredVariable predeclared = this.predeclared.remove(name);
-            if(predeclared!=null){//initialize predeclared variable
-                if(!isConstant){
-                    throw new SyntaxError("predeclared variables have to be constants",predeclared.declaredAt);
-                }
-                predeclared.initialize(variables.size(),  pos);
-                variables.put(name,predeclared);
-                file().declaredVars.put(name0,predeclared);
-                return predeclared;
+            PredeclaredProc predeclaredProc = predeclaredProcs.get(name);
+            if(predeclaredProc!=null){//initialize predeclared variable
+                throw new SyntaxError("cannot declare variable "+name+
+                        ", it is already used for a predeclared procedure call (at "+predeclaredProc.pos+")",pos);
             }
             VariableId id = super.declareVariable(name, isConstant, pos,ioContext);
             VariableId shadowed = file().declaredVars.get(name0);
@@ -688,12 +759,11 @@ public class Interpreter {
             id=variables.get(name);
             if(id==null){
                 String localName=inCurrentModule(name);
-                id=predeclared.get(localName);
-                if(id==null){
+                PredeclaredProc predeclared=predeclaredProcs.get(localName);
+                if(predeclared==null){
                     if(callee.procedure()!=null){
-                        id=new PredeclaredVariable(this,pos);
-                        predeclared.put(localName,(PredeclaredVariable)id);
-                        file().declaredVars.put(name,id);
+                        predeclaredProcs.put(localName,new PredeclaredProc(pos,new ArrayDeque<>()));
+                        // file().declaredVars add label to macro
                     }else{
                         throw new SyntaxError("Variable "+name+" does not exist",pos);
                     }
@@ -707,9 +777,6 @@ public class Interpreter {
             String name0=name;
             name=inCurrentModule(name);
             VariableId id=variables.get(name);
-            if(id==null){
-                id=predeclared.get(name);
-            }//no else
             if(id==null){
                 id= file().declaredVars.get(name0);
             }
@@ -972,11 +1039,10 @@ public class Interpreter {
         if(openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+openBlocks.getLast(),openBlocks.getLast().startPos);
         }
-        if((program.rootContext).predeclared.size()>0){
-            StringBuilder message=new StringBuilder("Syntax Error: File "+fileName+" contains uninitialized variables");
-            for(Map.Entry<String, PredeclaredVariable> p:(program.rootContext).predeclared.entrySet()){
-                message.append("\n- ").append(p.getKey())
-                        .append(" (declared at ").append(p.getValue().declaredAt).append(")");
+        if((program.rootContext).predeclaredProcs.size()>0){
+            StringBuilder message=new StringBuilder("Syntax Error: File "+fileName+" contains missing procedures");
+            for(Map.Entry<String, PredeclaredProc> p:(program.rootContext).predeclaredProcs.entrySet()){
+                message.append("\n- ").append(p.getKey()).append(" (called at ").append(p.getValue().pos).append(")");
             }
             throw new SyntaxError(message.toString(),reader.currentPos);
         }
@@ -1134,15 +1200,18 @@ public class Interpreter {
                     case "."->{
                         if(prev==null||tokens.size()<2){
                             throw new SyntaxError("not enough tokens tokens for '.' modifier",pos);
-                        }else if(prevId!=null||prev.tokenType==TokenType.MACRO_EXPAND){
+                        }else if(prev.tokenType==TokenType.IDENTIFIER||
+                                prev.tokenType==TokenType.MACRO_EXPAND||prev.tokenType==TokenType.PROC_CALL){
                             Token prePrev=tokens.get(tokens.size()-2);
-                            if(prePrev.tokenType!=TokenType.IDENTIFIER&&prePrev.tokenType!=TokenType.MACRO_EXPAND){
+                            if(prePrev.tokenType!=TokenType.IDENTIFIER&&
+                                    prePrev.tokenType!=TokenType.MACRO_EXPAND&&prePrev.tokenType!=TokenType.PROC_CALL){
                                 throw new SyntaxError("invalid token for '.' modifier: "+prePrev,prePrev.pos);
                             }
                             String newName=((IdentifierToken)prePrev).name+ MODULE_SEPARATOR +((IdentifierToken)prev).name;
                             tokens.remove(tokens.size()-1);
                             prev=new IdentifierToken(
-                                    program.rootContext.hasMacro(newName)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,
+                                    program.rootContext.hasMacro(newName)?TokenType.MACRO_EXPAND:
+                                            program.rootContext.hasProcedure(newName)?TokenType.PROC_CALL :TokenType.IDENTIFIER,
                                     newName,pos);
                         }else{
                             throw new SyntaxError("invalid token for '.' modifier: "+prev,prev.pos);
@@ -1172,6 +1241,17 @@ public class Interpreter {
                         tokens.set(tokens.size()-1,prev);
                         return;
                     }
+                    case "@()"->{
+                        if(prev==null){
+                            throw new SyntaxError("not enough tokens tokens for '@()' modifier",pos);
+                        }else if(prev.tokenType==TokenType.PROC_CALL){
+                            tokens.set(tokens.size()-1,new IdentifierToken(TokenType.PROC_ID,
+                                    ((IdentifierToken)prev).name,prev.pos));
+                        }else{
+                            throw new SyntaxError("invalid token for '@()' modifier: "+prev,prev.pos);
+                        }
+                        return;
+                    }
                 }
                 if(prev!=null){
                     if(prev.tokenType==TokenType.MACRO_EXPAND) {
@@ -1185,7 +1265,8 @@ public class Interpreter {
                         }
                         //update identifiers at end of macro
                         finishWord("##",next,tokens, openBlocks, currentMacroPtr, pos, program,ioContext);
-                    }else if((!(next.equals(".")))&& prev instanceof IdentifierToken identifier){
+                    }else if((!(next.equals(".")||str.equals("proc")||str.equals("procedure")))&&
+                            prev instanceof IdentifierToken identifier){
                         int index=tokens.size()-1;
                         VariableContext context=getContext(openBlocks.peekLast(),program.rootContext);
                         //update variables
@@ -1202,18 +1283,30 @@ public class Interpreter {
                             }
                             case IDENTIFIER -> {
                                 VariableId id=context.getId(identifier.name, identifier.pos,context);
-                                tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                        AccessType.READ,context));
+                                if(id!=null){
+                                    tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
+                                            AccessType.READ,context));
+                                }else{//first use of pre-declaration
+                                    Value.Procedure proc=program.rootContext.getProcedure(identifier.name,pos);
+                                    ProcedureToken token=new ProcedureToken(false,proc,pos);
+                                    assert proc==null;
+                                    program.rootContext.addProcDeclareListener(identifier.name,token);
+                                    tokens.set(index,token);
+                                }
                             }
                             case VAR_WRITE -> {
                                 VariableId id=context.getId(identifier.name, identifier.pos,context);
-                                if(id instanceof PredeclaredVariable){
-                                    tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                            AccessType.READ,context));
-                                }else{
-                                    tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                            AccessType.WRITE,context));
+                                tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
+                                        AccessType.WRITE,context));
+                            }
+                            case PROC_CALL, PROC_ID -> {
+                                Value.Procedure proc=program.rootContext.getProcedure(identifier.name,pos);
+                                ProcedureToken token=new ProcedureToken(identifier.tokenType==TokenType.PROC_ID
+                                        ,proc,pos);
+                                if(proc==null){
+                                    program.rootContext.addProcDeclareListener(identifier.name,token);
                                 }
+                                tokens.set(index,token);
                             }
                             default -> throw new RuntimeException("unexpected type of IdentifierToken:"+ identifier.tokenType);
                         }
@@ -1351,8 +1444,20 @@ public class Interpreter {
             case "intAsFloat"   -> tokens.add(new OperatorToken(OperatorType.INT_AS_FLOAT, pos));
             case "floatAsInt"   -> tokens.add(new OperatorToken(OperatorType.FLOAT_AS_INT, pos));
 
-            case "proc","procedure" ->
-                    openBlocks.add(new ProcedureBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
+            case "proc","procedure" ->{
+                if(openBlocks.size()>0){
+                    throw new SyntaxError("procedures can only be declared at root level",pos);
+                }
+                Token prev=tokens.remove(tokens.size()-1);
+                if(prev.tokenType!=TokenType.IDENTIFIER){
+                    //TODO better message for proc redeclaration
+                    throw new SyntaxError("token before proc has to be an identifier",pos);
+                }
+                String name=((IdentifierToken)prev).name;
+                openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,rootContext));
+            }
+            case "lambda","λ" ->
+                    openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
             case "while" -> openBlocks.add(new WhileBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
             case "&&" -> openBlocks.addLast(new ShortCircuitBlock(tokens.size(),pos,true,
                     getContext(openBlocks.peekLast(),rootContext)));
@@ -1413,11 +1518,19 @@ public class Interpreter {
                             ArrayList<Token> content=new ArrayList<>(subList);
                             subList.clear();
                             ProcedureContext context = ((ProcedureBlock) block).context();
-                            if(context.curried.isEmpty()){
-                                tokens.add(new ValueToken(Value.createProcedure(block.start,content, context),pos));
-                            }else{
+                            if (context.curried.isEmpty()) {
+                                Value.Procedure proc=Value.createProcedure(block.start, content, context);
+                                if(((ProcedureBlock) block).name!=null){
+                                    rootContext.declareProcedure(((ProcedureBlock) block).name,proc);
+                                }else{
+                                    tokens.add(new ValueToken(Value.createProcedure(block.start, content, context), pos));
+                                }
+                            } else {
+                                if(((ProcedureBlock) block).name==null){
+                                    throw new RuntimeException("named procedures cannot be curried");
+                                }
                                 tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,
-                                        Value.createProcedure(block.start,content, context),pos));
+                                        Value.createProcedure(block.start, content, context), pos));
                             }
                         }
                         case IF -> {
@@ -1531,7 +1644,8 @@ public class Interpreter {
             //<e0> ... <eN> <N> {}
             case "{}"     -> tokens.add(new OperatorToken(OperatorType.NEW_LIST, pos));
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   pos));
-            case "()"     -> tokens.add(new OperatorToken(OperatorType.CALL,     pos));
+
+            case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
 
             case "new"       -> tokens.add(new OperatorToken(OperatorType.NEW,        pos));
             case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
@@ -1551,7 +1665,8 @@ public class Interpreter {
             case "stdout" -> tokens.add(new Token(TokenType.STD_OUT, pos));
             case "stderr" -> tokens.add(new Token(TokenType.STD_ERR, pos));
 
-            default -> tokens.add(new IdentifierToken(rootContext.hasMacro(str)?TokenType.MACRO_EXPAND:TokenType.IDENTIFIER,
+            default -> tokens.add(new IdentifierToken(rootContext.hasMacro(str)?TokenType.MACRO_EXPAND:
+                rootContext.hasProcedure(str)?TokenType.PROC_CALL :TokenType.IDENTIFIER,
                     str, pos));
         }
     }
@@ -1855,31 +1970,6 @@ public class Interpreter {
                                     throw new ConcatRuntimeError("new only supports tuples and lists");
                                 }
                             }
-                            case CALL -> {
-                                Value called = stack.pop();
-                                if(called instanceof Value.Procedure procedure){
-                                    assert ((Value.Procedure) called).context.curried.isEmpty();
-                                    ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                            null,context);
-                                    if(e!=ExitType.NORMAL){
-                                        if(e==ExitType.ERROR) {
-                                            context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
-                                        }
-                                        return e;
-                                    }
-                                }else if(called instanceof Value.CurriedProcedure procedure){
-                                    ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                            procedure.curried,context);
-                                    if(e!=ExitType.NORMAL){
-                                        if(e==ExitType.ERROR) {
-                                            context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
-                                        }
-                                        return e;
-                                    }
-                                }else{
-                                    throw new ConcatRuntimeError("cannot call objects of type "+called.type);
-                                }
-                            }
                             case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
                             case FLOAT_AS_INT -> stack.push(Value.ofInt(Double.doubleToRawLongBits(stack.pop().asDouble())));
                             case OPEN -> {
@@ -2016,7 +2106,7 @@ public class Interpreter {
                             stack.pop();// remove token
                         }
                     }
-                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,MACRO_EXPAND, PLACEHOLDER ->
+                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,PROC_CALL, PROC_ID,MACRO_EXPAND, PLACEHOLDER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN ->
@@ -2026,6 +2116,40 @@ public class Interpreter {
                             throw new RuntimeException("unexpected CONTEXT_CLOSE operation");
                         }
                         variables.remove(variables.size()-1);
+                    }
+                    case PUSH_PROC_PTR -> {
+                        ProcedureToken token=(ProcedureToken) next;
+                        stack.push(token.getProcedure());
+                    }
+                    case CALL_PROC, CALL_PTR -> {
+                        Value called;
+                        if(next.tokenType==TokenType.CALL_PROC){
+                            called=((ProcedureToken) next).getProcedure();
+                        }else{
+                            called = stack.pop();
+                        }
+                        if(called instanceof Value.Procedure procedure){
+                            assert ((Value.Procedure) called).context.curried.isEmpty();
+                            ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
+                                    null,context);
+                            if(e!=ExitType.NORMAL){
+                                if(e==ExitType.ERROR) {
+                                    context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                                }
+                                return e;
+                            }
+                        }else if(called instanceof Value.CurriedProcedure procedure){
+                            ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
+                                    procedure.curried,context);
+                            if(e!=ExitType.NORMAL){
+                                if(e==ExitType.ERROR) {
+                                    context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                                }
+                                return e;
+                            }
+                        }else{
+                            throw new ConcatRuntimeError("cannot call objects of type "+called.type);
+                        }
                     }
                     case RETURN -> {
                         return ExitType.NORMAL;
