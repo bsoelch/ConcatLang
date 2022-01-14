@@ -130,8 +130,7 @@ end
 print   #define core stringValue . puts #end
 ## !!! result of stringValue is not mutable
 println #define core stringValue . puts "\n" puts #end ## TODO get rid of additional puts call
-
-## addLater fprint
+fprint  #define swap core stringValue . swap fputs #end
 
 1 int __IO_FLAG_PAD_0 =$
 2 int __IO_FLAG_ALIGN_LEFT =$
@@ -290,6 +289,8 @@ isFormatChar proc ## bool -> byte (char)
   false
 end
 
+##TODO format string should consume a fixed number of arguments
+##  ?accept argument-count as parameter <arg1> ... <argN> N <string> formatString
 formatString proc ## args:... format:string
   string format =:
 
@@ -514,6 +515,10 @@ formatString proc ## args:... format:string
 end
 
 printf #define core formatString . puts #end
-## addLater fprintf
+## formats string file
+fprintf proc
+  (file) file =:
+  formatString file fputs
+end
 
 #end ##std

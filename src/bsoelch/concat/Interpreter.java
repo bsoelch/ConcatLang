@@ -1454,8 +1454,8 @@ public class Interpreter {
                 Token prev=tokens.remove(tokens.size()-1);
                 if(prev.tokenType==TokenType.PROC_CALL){
                     if(!rootContext.predeclaredProcs.containsKey(((IdentifierToken)prev).name)){
-                        throw new SyntaxError("token before proc has to be an identifier",pos);
-                        //TODO better message for proc redeclaration
+                        //addLater? print position of previous declaration
+                        throw new SyntaxError("procedure "+((IdentifierToken)prev).name+" does already exist",pos);
                     }
                 }else if(prev.tokenType!=TokenType.IDENTIFIER){
                     throw new SyntaxError("token before proc has to be an identifier",pos);
