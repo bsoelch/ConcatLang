@@ -9,6 +9,8 @@ Hello World:
 
 ```C
 stringIO #include
+core #import ## to use puts in global scope
+
 "Hello World\n" puts
 ```
 
@@ -16,6 +18,8 @@ Recursive Fibonacci Numbers:
 ```Julia
 stack #include ## for usage of dup and swap
 valueIO #include ## for println
+core #import ## to use println in global scope
+
 fib proc
  if dup 1 > :
    dup 1 - fib swap 2 - fib +
@@ -29,7 +33,7 @@ end
 #_ print 10th Fibonacci Number: _#
 10 fib println
 ```
-!!! `#include` is not part of the comments !!!
+!!! `#include` and `#import` are not part of the comments !!!
 
 ## Syntax
 The code is a sequence of instructions 
@@ -71,19 +75,43 @@ leaves the following values on the stack:
 `bool:false` `bool:true` 
 
 ### IO
+#### Native IO
+- `debugPrint` prints the to value on the stack 
+(this operation will not be supported in compiled code)
+- `open` arguments: `<path> <options>`
+opens the file at `path`, `options` a string
+containing `r` for reading and `w` for writing
+- `stdin`,`stdout`,`stderr` standard input,output and error streams
+- `close` closes a file stream returns `true` 
+if the close operation was successful, `false` otherwise
+- `read` 
+- `write`
+- `size`
+- `pos`
+- `truncate`
+- `seek`
+- `seekEnd`
 
-[//]: # (TODO *puts)
+[//]: # (TODO file io)
 
-general print functions 
-(can be included with `valueIO #include`)
+#### Standard Library
+in `stringIO`
+- `fputs` prints a string to a file
+(arguments `<string> <file>`)
+- `puts` prints a string to standard output
+- `eputs` prints a string to `stderr`
+
+in `valueIO`
 - `print` removes and prints the top value on the stack
 - `println` like `print` but adds a new-line add the end
+- `fprint` (arguments: `<value> <file>`) 
+prints `<value>` to `<file>`
 - `printf`
   removes the top value and uses it as a
   format-string for printing, consuming one element
   for each element used in the format string
-
-[//]: # (TODO file io)
+- `fprintf` like `printf` but with an additional 
+first argument of the input stream
 
 ### Operators
 Operators are evaluated in postfix notation
