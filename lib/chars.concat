@@ -1,4 +1,4 @@
-std #module
+core #module
 
 ## files are parsed only once => defines can be at top level
 +char      #define int cast + byte      cast #end

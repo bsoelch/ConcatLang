@@ -1,6 +1,6 @@
 stack #include
 valueIO #include
-std #import
+core #import
 
 1 dup print println
 1 1 drop println

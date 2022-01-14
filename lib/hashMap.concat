@@ -1,7 +1,7 @@
 hashMap #module
 
 optional #include
-std #import
+core #import
 
 proc ## var -> int
   var value =:

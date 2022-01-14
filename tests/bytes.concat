@@ -1,6 +1,6 @@
 valueIO #include
 bytes   #include
-std #import
+core #import
 
 255 byte cast dup typeof swap byteToString () "%s: %s\n" printf
 0x123456789abcdef intToBytes () byteListToString () println

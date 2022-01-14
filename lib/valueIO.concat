@@ -1,4 +1,4 @@
-std #module
+core #module
 
 stack #include
 stringIO #include
@@ -127,9 +127,9 @@ proc ## byte list -> string
   res "]" :+ return
 end *->* byteListToString =$
 
-print   #define std stringValue . ()           puts #end
+print   #define core stringValue . ()           puts #end
 ## !!! result of stringValue is not mutable
-println #define std stringValue . () puts "\n" puts #end ## TODO get rid of additional puts call
+println #define core stringValue . () puts "\n" puts #end ## TODO get rid of additional puts call
 
 ## addLater fprint
 
@@ -513,7 +513,7 @@ proc ## args:... format:string
   tmp
 end *->* formatString =$
 
-printf #define std formatString . () puts #end
+printf #define core formatString . () puts #end
 ## addLater fprintf
 
 #end ##std

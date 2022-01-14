@@ -1,4 +1,4 @@
-std #module
+core #module
 
 optional #include
 
@@ -37,9 +37,9 @@ proc ## <?> itr => <?> itr optional
 end *->* iteratorPrev =$
 ## addLater allow iterators to modify the underlying list
 
-^.. #define std iterateStart . () #end
-..^ #define std iterateEnd   . () #end
-^>  #define std iteratorNext . () #end
-<^  #define std iteratorPrev . () #end
+^.. #define core iterateStart . () #end
+..^ #define core iterateEnd   . () #end
+^>  #define core iteratorNext . () #end
+<^  #define core iteratorPrev . () #end
 
 #end ## std

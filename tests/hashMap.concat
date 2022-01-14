@@ -1,6 +1,6 @@
 stack #include
 valueIO #include
-std #import
+core #import
 hashMap #include
 hashMap #import
 

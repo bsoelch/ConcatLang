@@ -1,6 +1,6 @@
 stack #include
 valueIO #include
-std #import
+core #import
 
  "Hello World" println
 u"Hello World" println

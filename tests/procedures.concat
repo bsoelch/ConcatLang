@@ -1,6 +1,6 @@
 stack #include
 valueIO #include
-std #import
+core #import
 
 proc
   dup float a =$ float x =:

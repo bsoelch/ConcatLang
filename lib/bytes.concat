@@ -1,4 +1,4 @@
-std #module
+core #module
 valueIO #include
 
 proc ## byte list -> int

@@ -1,5 +1,5 @@
 valueIO #include
-std #import
+core #import
 0x42 "0x%04x" formatString () 3.141592653589793238 -20 0 16 "%s %*.*(*)f\n" printf
 
 "test" stringValue () println

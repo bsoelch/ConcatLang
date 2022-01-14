@@ -1,4 +1,4 @@
-std #module
+core #module
 stringIO #include
 
 bool var 2 tuple type optional =$
@@ -26,8 +26,8 @@ proc ## optional -> value
   end
 end *->* optional_getValue =$
 
-wrap   #define std optional_of       . () #end
-unwrap #define std optional_getValue . () #end
-??     #define std optional_hasValue . () #end
+wrap   #define core optional_of       . () #end
+unwrap #define core optional_getValue . () #end
+??     #define core optional_hasValue . () #end
 
 #end ## std
