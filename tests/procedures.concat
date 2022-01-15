@@ -53,12 +53,12 @@ end () () () () ()
 
 curriedMinus proc
  int a =$
- lambda
+ lambda int => int :
    int b =:
    a b -
  end
 end
 
-1 curriedMinus *->* oneMinus =:
+1 curriedMinus int 1 int 1 -> oneMinus =:
 2 3 curriedMinus () println
 4 oneMinus () println

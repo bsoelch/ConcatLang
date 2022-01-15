@@ -1504,16 +1504,20 @@ public abstract class Value {
         }
     }
 
-    public static Procedure createProcedure(int startAddress, ArrayList<Interpreter.Token> tokens,
+    public static Procedure createProcedure(Type procType,int startAddress, ArrayList<Interpreter.Token> tokens,
                                         Interpreter.ProcedureContext variableContext) {
-        return new Procedure(startAddress,tokens,variableContext);
+        if(procType instanceof Type.Procedure||procType==Type.GENERIC_PROCEDURE){
+            return new Procedure(procType,startAddress,tokens,variableContext);
+        }else{
+            throw new IllegalArgumentException(procType+" is no valid procedure Type");
+        }
     }
     static class Procedure extends Value implements Interpreter.CodeSection {
         final int pos;
         final Interpreter.ProcedureContext context;
         final ArrayList<Interpreter.Token> tokens;
-        private Procedure(int pos, ArrayList<Interpreter.Token> tokens, Interpreter.ProcedureContext context) {
-            super(Type.PROCEDURE);
+        private Procedure(Type procType,int pos, ArrayList<Interpreter.Token> tokens, Interpreter.ProcedureContext context) {
+            super(procType);
             this.pos = pos;
             this.tokens=tokens;
             this.context=context;

@@ -283,7 +283,8 @@ public class Interpreter {
             RandomAccessStack<ValueToken> stack=new RandomAccessStack<>(tokens.size());
             for(Token t:tokens){
                 try {
-                    //addLater? support constants
+                    //addLater support constants
+                    //addLater generics
                     if(t instanceof ValueToken){
                         stack.push(((ValueToken) t));
                     }else if(t.tokenType==TokenType.VAR_ARGS){
@@ -350,7 +351,6 @@ public class Interpreter {
                 throw new SyntaxError("Procedure already has input arguments",pos);
             }
             inTypes = getSignature(ins);
-            //TODO handle ins
             ins.clear();
         }
         void addOuts(List<Token> outs,FilePosition pos) throws SyntaxError {
@@ -360,7 +360,6 @@ public class Interpreter {
                 throw new SyntaxError("Procedure already has output arguments",pos);
             }
             outTypes = getSignature(outs);
-            //TODO handle outs
             outs.clear();
         }
         @Override
@@ -1474,24 +1473,25 @@ public class Interpreter {
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
             case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
 
-            case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),             pos));
-            case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),             pos));
-            case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),              pos));
-            case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),        pos));
-            case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),            pos));
-            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTES()),          pos));
-            case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()), pos));
-            case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),             pos));
-            case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),        pos));
-            case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),              pos));
-            case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),     pos));
-            case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_OPTIONAL), pos));
-            case "(tuple)"    -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE),    pos));
-            case "(file)"     -> tokens.add(new ValueToken(Value.ofType(Type.FILE),             pos));
-            case "list"       -> tokens.add(new OperatorToken(OperatorType.LIST_OF,             pos));
-            case "optional"   -> tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF,         pos));
-            case "content"    -> tokens.add(new OperatorToken(OperatorType.CONTENT,             pos));
-            case "tuple"      -> tokens.add(new OperatorToken(OperatorType.TUPLE,               pos));
+            case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),              pos));
+            case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),              pos));
+            case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos));
+            case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos));
+            case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos));
+            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTES()),           pos));
+            case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos));
+            case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos));
+            case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_PROCEDURE), pos));
+            case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos));
+            case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),      pos));
+            case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_OPTIONAL),  pos));
+            case "(tuple)"    -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE),     pos));
+            case "(file)"     -> tokens.add(new ValueToken(Value.ofType(Type.FILE),              pos));
+            case "list"       -> tokens.add(new OperatorToken(OperatorType.LIST_OF,              pos));
+            case "optional"   -> tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF,          pos));
+            case "->"         -> tokens.add(new OperatorToken(OperatorType.NEW_PROC_TYPE,        pos));
+            case "content"    -> tokens.add(new OperatorToken(OperatorType.CONTENT,              pos));
+            case "tuple"      -> tokens.add(new OperatorToken(OperatorType.TUPLE,                pos));
 
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
@@ -1629,28 +1629,29 @@ public class Interpreter {
                             ProcedureContext context = ((ProcedureBlock) block).context();
                             Type[] ins=((ProcedureBlock) block).inTypes;
                             Type[] outs=((ProcedureBlock) block).outTypes;
+                            Type procType;
                             if(ins!=null) {
                                 if (outs == null) {
                                     throw new SyntaxError("procedure supplies inTypes but no outTypes", pos);
                                 } else {
-                                    //addLater use signature for type-checking
-                                    System.out.println("created Procedure:" + ((ProcedureBlock) block).name +
-                                            Arrays.toString(ins) + "=>" + Arrays.toString(outs));
+                                    procType=Type.Procedure.create(ins,outs);
                                 }
-                            }//addLater ensure that all named procedures have a signature
+                            }else{
+                                //addLater ensure that all named procedures have a signature
+                                procType=Type.GENERIC_PROCEDURE;
+                            }
+                            Value.Procedure proc=Value.createProcedure(procType,block.start, content, context);
                             if (context.curried.isEmpty()) {
-                                Value.Procedure proc=Value.createProcedure(block.start, content, context);
                                 if(((ProcedureBlock) block).name!=null){
                                     rootContext.declareProcedure(((ProcedureBlock) block).name,proc);
                                 }else{
-                                    tokens.add(new ValueToken(Value.createProcedure(block.start, content, context), pos));
+                                    tokens.add(new ValueToken(proc, pos));
                                 }
                             } else {
                                 if(((ProcedureBlock) block).name!=null){
                                     throw new RuntimeException("named procedures cannot be curried");
                                 }
-                                tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,
-                                        Value.createProcedure(block.start, content, context), pos));
+                                tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,proc, pos));
                             }
                         }
                         case IF -> {
@@ -2070,7 +2071,7 @@ public class Interpreter {
                             case TUPLE -> {
                                 long count=stack.pop().asLong();
                                 if(count<0){
-                                    throw new ConcatRuntimeError("he element count has to be at least 0");
+                                    throw new ConcatRuntimeError("the element count has to be at least 0");
                                 }else if(count>Integer.MAX_VALUE){
                                     throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
                                 }
@@ -2142,6 +2143,29 @@ public class Interpreter {
                             case SEEK_END -> {
                                 FileStream stream = stack.pop().asStream();
                                 stack.push(stream.seekEnd()?Value.TRUE:Value.FALSE);
+                            }
+                            case NEW_PROC_TYPE -> {
+                                long count=stack.pop().asLong();
+                                if(count<0){
+                                    throw new ConcatRuntimeError("the element count has to be at least 0");
+                                }else if(count>Integer.MAX_VALUE){
+                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+                                }
+                                Type[] outTypes=new Type[(int)count];
+                                for(int i=1;i<=count;i++){
+                                    outTypes[outTypes.length-i]=stack.pop().asType();
+                                }
+                                count=stack.pop().asLong();
+                                if(count<0){
+                                    throw new ConcatRuntimeError("the element count has to be at least 0");
+                                }else if(count>Integer.MAX_VALUE){
+                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+                                }
+                                Type[] inTypes=new Type[(int)count];
+                                for(int i=1;i<=count;i++){
+                                    inTypes[inTypes.length-i]=stack.pop().asType();
+                                }
+                                stack.push(Value.ofType(Type.Procedure.create(inTypes,outTypes)));
                             }
                             case OPTIONAL_OF -> {
                                 Type contentType = stack.pop().asType();
