@@ -165,7 +165,7 @@ __IO.b       #define 7 [] #end
 __IO.b_ptr   #define 8 [] #end
 __IO.format  #define 9 [] #end
 
-__IO_printValue proc ## __IO_FormatValue , var list -> string
+__IO_printValue proc __IO_FormatValue var list => string :
   (list) values =:
   __IO_FormatValue format =:
   format __IO.flags __IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
@@ -532,7 +532,7 @@ end
 
 printf #define core formatString . puts #end
 ## formats string file
-fprintf proc
+fprintf proc var ... string (file) => :
   (file) file =:
   formatString file fputs
 end

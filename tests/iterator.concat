@@ -3,7 +3,7 @@ iterator #include
 valueIO #include
 core #import
 
-reverse proc #_ list ? -> list ? _#
+reverse proc (list) => (list) :
   (list) toReverse =:
   ## store type and length of the list
   toReverse length toReverse typeof new toReverse typeof res =:
@@ -16,7 +16,7 @@ end
 
 "Hello World" reverse println
 
-sum proc #_ list ? -> ?  _#
+sum proc var list => var :
   0 var tmp =: ## Initialize sum to 0
   ## Iterate though all elements of the list
   ^.. while ^> ?? : unwrap

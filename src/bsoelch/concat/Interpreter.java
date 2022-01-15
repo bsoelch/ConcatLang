@@ -292,42 +292,13 @@ public class Interpreter {
             RandomAccessStack<ValueToken> stack=new RandomAccessStack<>(tokens.size());
             for(Token t:tokens){
                 try {
-                    //addLater support constants
                     //addLater generics
                     if(t instanceof ValueToken){
                         stack.push(((ValueToken) t));
                     }else if(t.tokenType==TokenType.VAR_ARGS){
                         Type argType = stack.pop().value.asType();
                         stack.push(new ValueToken(Value.ofType(Type.varArg(argType)), t.pos));
-                    }else if(t instanceof OperatorToken op){
-                        switch(op.opType){
-                            case LIST_OF ->
-                                    stack.push(new ValueToken(Value.ofType(Type.listOf(stack.pop().value.asType())),t.pos));
-                            case OPTIONAL_OF ->
-                                    stack.push(new ValueToken(Value.ofType(Type.optionalOf(stack.pop().value.asType())),t.pos));
-                            case CONTENT ->
-                                    stack.push(new ValueToken(Value.ofType(stack.pop().value.asType().content()),t.pos));
-                            case TUPLE ->{
-                                long count=stack.pop().value.asLong();
-                                checkElementCount(count);
-                                Type[] types=new Type[(int)count];
-                                for(int i=1;i<=count;i++){
-                                    types[types.length-i]=stack.pop().value.asType();
-                                }
-                                stack.push(new ValueToken(Value.ofType(Type.Tuple.create(types)),t.pos));
-                            }
-                            case CAST ->{
-                                    Type newType=stack.pop().value.asType();
-                                    stack.push(new ValueToken(stack.pop().value.castTo(newType),t.pos));
-                            }
-                            case TYPE_OF ->
-                                    stack.push(new ValueToken(Value.ofType(stack.pop().value.type),t.pos));
-
-                            default ->
-                                throw new SyntaxError("Operators of type "+op.opType+
-                                        " are not supported in procedure signatures",t.pos);
-                        }
-                    }else{
+                    }else{//list, optional, tuple, -> are evaluated in parser
                         throw new SyntaxError("Tokens of type "+t.tokenType+
                                 " are not supported in procedure signatures",t.pos);
                     }
@@ -977,7 +948,8 @@ public class Interpreter {
         ArrayList<Token> tokens();
         VariableContext context();
     }
-    record Program(ArrayList<Token> tokens, HashSet<String> files,RootContext rootContext) implements CodeSection{
+    record Program(ArrayList<Token> tokens, HashSet<String> files,RootContext rootContext,
+                   HashMap<VariableId,Value> constants) implements CodeSection{
         @Override
         public String toString() {
             return "Program{" +
@@ -994,7 +966,7 @@ public class Interpreter {
     public Program parse(File file, Program program, IOContext ioContext) throws IOException, SyntaxError {
         String fileName=file.getAbsolutePath();
         if(program==null){
-            program=new Program(new ArrayList<>(),new HashSet<>(),new RootContext());
+            program=new Program(new ArrayList<>(),new HashSet<>(),new RootContext(),new HashMap<>());
         }else if(program.files.contains(file.getAbsolutePath())){
             return program;
         }else{//ensure that each file is included only once
@@ -1131,9 +1103,9 @@ public class Interpreter {
             throw new SyntaxError("unclosed block: "+openBlocks.getLast(),openBlocks.getLast().startPos);
         }
         if((program.rootContext).predeclaredProcs.size()>0){
-            StringBuilder message=new StringBuilder("Syntax Error: File "+fileName+" contains missing procedures");
+            StringBuilder message=new StringBuilder("Syntax Error: File "+fileName+" contains missing variables/procedures");
             for(Map.Entry<String, PredeclaredProc> p:(program.rootContext).predeclaredProcs.entrySet()){
-                message.append("\n- ").append(p.getKey()).append(" (called at ").append(p.getValue().pos).append(")");
+                message.append("\n- ").append(p.getKey()).append(" (at ").append(p.getValue().pos).append(")");
             }
             throw new SyntaxError(message.toString(),reader.currentPos);
         }
@@ -1366,17 +1338,33 @@ public class Interpreter {
                                 VariableId id=context.declareVariable(
                                         identifier.name, identifier.tokenType == TokenType.CONST_DECLARE,
                                         identifier.pos,ioContext);
-                                AccessType accessType =
-                                        identifier.tokenType ==
-                                                TokenType.CONST_DECLARE ? AccessType.CONST_DECLARE : AccessType.DECLARE;
+                                AccessType accessType = identifier.tokenType == TokenType.CONST_DECLARE ?
+                                                AccessType.CONST_DECLARE : AccessType.DECLARE;
+                                if(index>0&&(prev=tokens.get(index-1)) instanceof ValueToken){
+                                    try {//remember constant declarations
+                                        Type type=((ValueToken)prev).value.asType();
+                                        //addLater remember type without value
+                                        if(id.isConstant&&id.context.procedure()==null&&//only remember root-level constants
+                                                index>1&&(prev=tokens.get(index-2)) instanceof ValueToken){
+                                            program.constants.put(id,((ValueToken) prev).value.castTo(type));
+                                        }
+                                    } catch (ConcatRuntimeError e) {
+                                        throw new SyntaxError(e.getMessage(),prev.pos);
+                                    }
+                                }
                                 tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
                                         accessType,context));
                             }
                             case IDENTIFIER -> {
                                 VariableId id=context.getId(identifier.name, identifier.pos,context);
                                 if(id!=null){
-                                    tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                            AccessType.READ,context));
+                                    Value constValue=program.constants.get(id);
+                                    if(constValue!=null){
+                                        tokens.set(index,new ValueToken(constValue,identifier.pos));
+                                    }else{
+                                        tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
+                                                AccessType.READ,context));
+                                    }
                                 }else{//first use of pre-declaration
                                     Value.Procedure proc=program.rootContext.getProcedure(identifier.name,pos);
                                     ProcedureToken token=new ProcedureToken(false,proc,pos);
@@ -1387,6 +1375,8 @@ public class Interpreter {
                             }
                             case VAR_WRITE -> {
                                 VariableId id=context.getId(identifier.name, identifier.pos,context);
+                                //addLater update value depending on previous token (needs variable type)
+                                program.constants.remove(id);
                                 tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
                                         AccessType.WRITE,context));
                             }
@@ -1752,6 +1742,10 @@ public class Interpreter {
                                     procType=Type.Procedure.create(ins,outs);
                                 }
                             }else{
+                                if(((ProcedureBlock) block).name!=null){
+                                    throw new SyntaxError("named procedure "+((ProcedureBlock) block).name+
+                                            " does not have a signature",block.startPos);
+                                }
                                 //addLater ensure that all named procedures have a signature
                                 procType=Type.GENERIC_PROCEDURE;
                             }
@@ -1840,8 +1834,8 @@ public class Interpreter {
             case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
             case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
             case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
-            case "u/"   -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_DIV, pos));
-            case "u%"   -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_MOD, pos));
+            case "u/"  -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_DIV, pos));
+            case "u%"  -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_MOD, pos));
             case "**"  -> tokens.add(new OperatorToken(OperatorType.POW,           pos));
             case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           pos));
             case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          pos));

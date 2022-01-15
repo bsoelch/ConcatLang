@@ -2,17 +2,17 @@ core #module
 
 (list) int 2 tuple type iterator =$
 
-^.. proc ## <?> list <index> -> <?> itr
+^.. proc (list) => iterator :
   (list) elements =:
   elements 0 iterator new
 end
 
-..^ proc ## <?> list <index> -> <?> itr
+..^ proc (list) => iterator :
   (list) elements =:
   elements elements length iterator new
 end
 
-^> proc ## <?> itr => <?> itr optional
+^> proc iterator => iterator var optional :
   iterator mItr =:
   mItr
   if mItr 1 [] mItr 0 [] length < :
@@ -23,7 +23,7 @@ end
   end
 end
 
-<^ proc ## <?> itr => <?> itr optional
+<^ proc iterator => iterator var optional :
   iterator mItr =:
   mItr
   if mItr 1 [] 0 > :

@@ -29,7 +29,7 @@ _Map.data    #define 2 [] #end
 
 false false  0 tuple new  _Entry new _Entry _Empty =$
 
-newHashMap proc ## keyType:type valType:type cap:int -> HashMap
+newHashMap proc #_keyType_# type #_valType_# type #_cap_# int => HashMap :
   int cap =:
   type keyType =:
   type valType =:
@@ -38,7 +38,7 @@ newHashMap proc ## keyType:type valType:type cap:int -> HashMap
   keyType valType data HashMap new
 end
 
-HashMap.put proc ## map:HashMap key:var value:var -> prevVal:optional<var>
+HashMap.put proc #_map_# HashMap #_key_# var #_value_# var => #_prevVal_# var optional :
   var value =:
   var key =:
   HashMap map =:
@@ -71,7 +71,7 @@ HashMap.put proc ## map:HashMap key:var value:var -> prevVal:optional<var>
   end
 end
 
-HashMap.get proc ## map:HashMap key:var -> value:optional<var>
+HashMap.get proc #_map_# HashMap #_key_# var => #_value_# var optional :
   var key =:
   HashMap map =:
   key hashCode int hash =:
@@ -86,7 +86,7 @@ HashMap.get proc ## map:HashMap key:var -> value:optional<var>
   map _Map.valType empty return
 end
 
-HashMap.remove proc ## map:HashMap key:var -> prevVal:optional<var>
+HashMap.remove proc #_map_# HashMap #_key_# var => #_prevVal_# var optional :
   var key =:
   HashMap map =:
   key hashCode int hash =:

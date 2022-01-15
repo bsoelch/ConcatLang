@@ -77,10 +77,11 @@ public class Type {
         final Type contentType;
         final String wrapperName;
 
-        WrapperType(String wrapperName, Type contentType) {
+        WrapperType(String wrapperName, Type contentType){
             super(contentType.name+" "+ wrapperName);
             this.wrapperName = wrapperName;
             this.contentType = contentType;
+            //TODO VAR_ARG cannot be part of composite types
         }
 
         public boolean isList() {

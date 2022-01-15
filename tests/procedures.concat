@@ -2,7 +2,7 @@ stack #include
 valueIO #include
 core #import
 
-sqrt proc
+sqrt proc float => float :
   dup float a =$ float x =:
   while x x * a - 1E-16 > :
    a x / x + 2 / x =
@@ -10,7 +10,7 @@ sqrt proc
   x
 end
 
-fib proc
+fib proc int => int :
  if dup 1 > :
   dup 1 - fib swap 2 - fib +
  elif 1 == :
@@ -51,7 +51,7 @@ lambda
   end
 end () () () () ()
 
-curriedMinus proc
+curriedMinus proc int => int 1 int 1 -> :
  int a =$
  lambda int => int :
    int b =:

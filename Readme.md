@@ -20,7 +20,7 @@ stack #include ## for usage of dup and swap
 valueIO #include ## for println
 core #import ## to use println in global scope
 
-fib proc
+fib proc int => int :
  if dup 1 > :
    dup 1 - fib swap 2 - fib +
  elif 1 == :
@@ -231,7 +231,7 @@ drop ## Drop iterator
 
 reverse a list:
 ```Julia
-reverse proc
+reverse proc (list) => (list) :
   (list) toReverse =:
   ## store type and length of the list
   toReverse length toReverse typeof new toReverse typeof res =:
@@ -394,10 +394,53 @@ while  <condition> end
 ### Procedures
 Procedures are code blocks that can be called 
 from other points in the program. 
+#### Syntax
 Procedures are declared in blocks starting with
 the name of the procedure, followed by
-`proc` or `procedure` and ending with `end`. 
+`proc` or `procedure` then the input arguments
+followed by `=>` then the output arguments
+followed by `:` then the body of the procedure 
+followed by end `end`.
+```Rust
+<Name> proc <In1> <In...> <InN> => <Out1> <Out...> <OutN> :
+ <body>
+end
+```
+The return instruction allows returning from a
+procedure before reaching the end.
 
+all appearances of the name of a procedure 
+will be resolved as a procedure call, even 
+if that procedure is declared later in the same file
+
+##### Var-Args
+If an Input of Output type is followed by `...` it
+is treated as a var-args parameter, which will consist
+of an integer on the stack followed by exactly that 
+number of elements of the given type.
+
+Examples:
+```Rust
+sum proc int ... => int :
+  int count =: ## save Number of arguments
+  0 int res =:
+  while count 0 > :
+    res + res = ## add top-element on the stack to res
+    count 1 - count = ##reduce count by 1
+  end
+  res return
+end
+1 2 3 4 5 6 7 8  8 sum println ## sum 8 integers
+2 4 6 8 10 12    3 sum println ## sum 3 integers
+```
+prints 
+```C
+36
+30
+```
+and leaves `2` `4` `6` on the stack
+
+#### Lambda-Procedures and Procedure-Pointers
 Lambda procedures don't have a name and use `lambda` or `λ` 
 instead of proc, unlike normal procedures lambda-procedures
 push a procedure-pointer procedure onto the stack
@@ -406,18 +449,14 @@ If the name of a procedure appears in the code,
 that procedure is called unless it is followed by 
 `@()` in which case a pointer to that procedure 
 will be pushed onto the stack.
-Names of procedures will be resolved as long as 
-the procedure is declared within the same file
 
-procedure pointers can be called with the call-operator `()`
+Procedure pointers can be called with the call-operator `()`
 
-The return instruction allows retuning from a 
-procedure before without reaching the end.
-
+#### procedure Examples
 Examples:
 ```Rust
 ## procedure for recursivly printing the fibonacci numbers
-fib proc
+fib proc int => int :
  if dup 1 > :
    dup 1 - fib swap 2 - fib +
  elif 1 == :
@@ -427,14 +466,14 @@ fib proc
  end
 end
 ## mutually recursive functions
-isEven proc
+isEven proc int => bool :
   if dup 0 == :
     true return
   else
     1 - isOdd return
   end
 end
-isOdd proc
+isOdd proc int => bool :
   if dup 0 == :
       false return
   elif dup 0 < :
