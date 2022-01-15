@@ -253,6 +253,15 @@ public class Interpreter {
         }
     }
 
+
+    private static void checkElementCount(long count) throws ConcatRuntimeError {
+        if(count<0){
+            throw new ConcatRuntimeError("the element count has to be at least 0");
+        }else if(count >Integer.MAX_VALUE){
+            throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+        }
+    }
+
     enum BlockType{
         PROCEDURE,IF,WHILE,SHORT_AND,SHORT_OR
     }
@@ -300,11 +309,7 @@ public class Interpreter {
                                     stack.push(new ValueToken(Value.ofType(stack.pop().value.asType().content()),t.pos));
                             case TUPLE ->{
                                 long count=stack.pop().value.asLong();
-                                if(count<0){
-                                    throw new ConcatRuntimeError("he element count has to be at least 0");
-                                }else if(count>Integer.MAX_VALUE){
-                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-                                }
+                                checkElementCount(count);
                                 Type[] types=new Type[(int)count];
                                 for(int i=1;i<=count;i++){
                                     types[types.length-i]=stack.pop().value.asType();
@@ -1468,6 +1473,7 @@ public class Interpreter {
 
     private void addWord(String str, ArrayList<Token> tokens, ArrayDeque<CodeBlock> openBlocks,
                          FilePosition pos,RootContext rootContext) throws SyntaxError {
+        Token prev;
         switch (str) {
             case END_OF_FILE -> {} //## string can only be passed to the method on end of file
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
@@ -1487,14 +1493,123 @@ public class Interpreter {
             case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_OPTIONAL),  pos));
             case "(tuple)"    -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE),     pos));
             case "(file)"     -> tokens.add(new ValueToken(Value.ofType(Type.FILE),              pos));
-            case "list"       -> tokens.add(new OperatorToken(OperatorType.LIST_OF,              pos));
-            case "optional"   -> tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF,          pos));
-            case "->"         -> tokens.add(new OperatorToken(OperatorType.NEW_PROC_TYPE,        pos));
-            case "content"    -> tokens.add(new OperatorToken(OperatorType.CONTENT,              pos));
-            case "tuple"      -> tokens.add(new OperatorToken(OperatorType.TUPLE,                pos));
+
+            case "list" -> {
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
+                    try {
+                        tokens.set(tokens.size()-1,
+                                new ValueToken(Value.ofType(Type.listOf(((ValueToken)prev).value.asType())),pos));
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }else{
+                    tokens.add(new OperatorToken(OperatorType.LIST_OF, pos));
+                }
+            }
+            case "optional" -> {
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
+                    try {
+                        tokens.set(tokens.size()-1,
+                                new ValueToken(Value.ofType(Type.optionalOf(((ValueToken)prev).value.asType())),pos));
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }else{
+                    tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF, pos));
+                }
+            }
+            case "content" -> {
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
+                    try {
+                        tokens.set(tokens.size()-1,
+                                new ValueToken(Value.ofType(((ValueToken)prev).value.asType().content()),pos));
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }else{
+                    tokens.add(new OperatorToken(OperatorType.CONTENT, pos));
+                }
+            }
+            case "tuple" -> {
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken) {
+                    try {
+                        long c = ((ValueToken)prev).value.asLong();
+                        checkElementCount(c);
+                        int iMin=tokens.size()-1-(int)c;
+                        if(iMin>=0){
+                            Type[] types=new Type[(int)c];
+                            for(int i=0;i<c;i++){
+                                prev=tokens.get(iMin+i);
+                                if(prev instanceof ValueToken){
+                                    types[i]=((ValueToken) prev).value.asType();
+                                }else{
+                                    break;
+                                }
+                            }
+                            if(c==0||types[types.length-1]!=null){//all types resolved successfully
+                                tokens.subList(iMin, tokens.size()).clear();
+                                tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(types)),pos));
+                                break;
+                            }
+                        }
+                    } catch (ConcatRuntimeError e) {
+                        throw new SyntaxError(e.getMessage(), prev.pos);
+                    }
+                }
+                tokens.add(new OperatorToken(OperatorType.TUPLE, pos));
+            }
+            case "->" ->{
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken) {
+                    try {
+                        long outCount = ((ValueToken)prev).value.asLong();
+                        checkElementCount(outCount);
+                        int iMin=tokens.size()-1-(int)outCount;
+                        if(iMin>0&&(prev=tokens.get(iMin-1)) instanceof ValueToken){
+                            long inCount = ((ValueToken)prev).value.asLong();
+                            checkElementCount(inCount);
+                            Type[] outTypes=new Type[(int)outCount];
+                            for(int i=0;i<outCount;i++){
+                                prev=tokens.get(iMin+i);
+                                if(prev instanceof ValueToken){
+                                    outTypes[i]=((ValueToken) prev).value.asType();
+                                }else{
+                                    break;
+                                }
+                            }
+                            if(outCount==0||outTypes[outTypes.length-1]!=null){//all out-types resolved successfully
+                                Type[] inTypes=new Type[(int)inCount];
+                                iMin=iMin-1-(int)inCount;
+                                for(int i=0;i<inCount;i++){
+                                    prev=tokens.get(iMin+i);
+                                    if(prev instanceof ValueToken){
+                                        inTypes[i]=((ValueToken) prev).value.asType();
+                                    }else{
+                                        break;
+                                    }
+                                }
+                                if(inCount==0||inTypes[inTypes.length-1]!=null){
+                                    tokens.subList(iMin, tokens.size()).clear();
+                                    tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),pos));
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (ConcatRuntimeError e) {
+                        throw new SyntaxError(e.getMessage(), prev.pos);
+                    }
+                }
+                tokens.add(new OperatorToken(OperatorType.NEW_PROC_TYPE, pos));
+            }
 
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
-            case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
+            case "typeof" ->  {
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
+                    tokens.set(tokens.size()-1,
+                            new ValueToken(Value.ofType(((ValueToken)prev).value.type),pos));
+                }else{
+                    tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
+                }
+            }
 
             /*<off> <count> $dup*/
             /*<off> <count> $drop*/
@@ -1540,7 +1655,7 @@ public class Interpreter {
                 if(tokens.size()==0){
                     throw new SyntaxError("missing procedure name before proc",pos);
                 }
-                Token prev=tokens.remove(tokens.size()-1);
+                prev=tokens.remove(tokens.size()-1);
                 if(prev.tokenType==TokenType.PROC_CALL){
                     if(!rootContext.predeclaredProcs.containsKey(((IdentifierToken)prev).name)){
                         //addLater? print position of previous declaration
@@ -1981,11 +2096,7 @@ public class Interpreter {
                                 Type type = stack.pop().asType();
                                 //count after type to make signature consistent with var-args procedures
                                 long count = stack.pop().asLong();
-                                if(count<0){
-                                    throw new ConcatRuntimeError("he element count has to be at least 0");
-                                }else if(count>Integer.MAX_VALUE){
-                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-                                }
+                                checkElementCount(count);
                                 ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
                                 while (count > 0) {
                                     tmp.addFirst(stack.pop().castTo(type));
@@ -2070,11 +2181,7 @@ public class Interpreter {
                             }
                             case TUPLE -> {
                                 long count=stack.pop().asLong();
-                                if(count<0){
-                                    throw new ConcatRuntimeError("the element count has to be at least 0");
-                                }else if(count>Integer.MAX_VALUE){
-                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-                                }
+                                checkElementCount(count);
                                 Type[] types=new Type[(int)count];
                                 for(int i=1;i<=count;i++){
                                     types[types.length-i]=stack.pop().asType();
@@ -2146,21 +2253,13 @@ public class Interpreter {
                             }
                             case NEW_PROC_TYPE -> {
                                 long count=stack.pop().asLong();
-                                if(count<0){
-                                    throw new ConcatRuntimeError("the element count has to be at least 0");
-                                }else if(count>Integer.MAX_VALUE){
-                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-                                }
+                                checkElementCount(count);
                                 Type[] outTypes=new Type[(int)count];
                                 for(int i=1;i<=count;i++){
                                     outTypes[outTypes.length-i]=stack.pop().asType();
                                 }
                                 count=stack.pop().asLong();
-                                if(count<0){
-                                    throw new ConcatRuntimeError("the element count has to be at least 0");
-                                }else if(count>Integer.MAX_VALUE){
-                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-                                }
+                                checkElementCount(count);
                                 Type[] inTypes=new Type[(int)count];
                                 for(int i=1;i<=count;i++){
                                     inTypes[inTypes.length-i]=stack.pop().asType();
