@@ -1,26 +1,26 @@
 1026
 1026
 put:
-(false, false)
-(false, false)
-(false, false)
-(false, false)
-(false, false)
-(false, false)
-(false, false)
-(false, false)
-(true, 0)
-(true, 3)
+int empty
+int empty
+int empty
+int empty
+int empty
+int empty
+int empty
+int empty
+0 wrap
+3 wrap
 get:
-(true, 8)
-(true, 2)
-(true, 4)
-(false, false)
+8 wrap
+2 wrap
+4 wrap
+int empty
 remove:
-(true, 1)
-(true, 9)
-(true, 5)
-(false, false)
+1 wrap
+9 wrap
+5 wrap
+int empty
 map:
 (int, int, [(0, 8, (4, 4, (false, false, ()))), (false, false, ()), (2, 2, (6, 6, (false, false, ()))), (7, 7, (false, false, ()))])
 

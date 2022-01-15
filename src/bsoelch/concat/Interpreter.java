@@ -284,17 +284,17 @@ public class Interpreter {
             for(Token t:tokens){
                 try {
                     //addLater? support constants
-                    //addLater generic types
                     if(t instanceof ValueToken){
                         stack.push(((ValueToken) t));
                     }else if(t.tokenType==TokenType.VAR_ARGS){
                         Type argType = stack.pop().value.asType();
-                        //TODO var-args
-                        stack.push(new ValueToken(Value.ofType(Type.listOf(argType)), t.pos));
+                        stack.push(new ValueToken(Value.ofType(Type.varArg(argType)), t.pos));
                     }else if(t instanceof OperatorToken op){
                         switch(op.opType){
                             case LIST_OF ->
                                     stack.push(new ValueToken(Value.ofType(Type.listOf(stack.pop().value.asType())),t.pos));
+                            case OPTIONAL_OF ->
+                                    stack.push(new ValueToken(Value.ofType(Type.optionalOf(stack.pop().value.asType())),t.pos));
                             case CONTENT ->
                                     stack.push(new ValueToken(Value.ofType(stack.pop().value.asType().content()),t.pos));
                             case TUPLE ->{
@@ -316,6 +316,7 @@ public class Interpreter {
                             }
                             case TYPE_OF ->
                                     stack.push(new ValueToken(Value.ofType(stack.pop().value.type),t.pos));
+
                             default ->
                                 throw new SyntaxError("Operators of type "+op.opType+
                                         " are not supported in procedure signatures",t.pos);
@@ -1473,22 +1474,24 @@ public class Interpreter {
             case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
             case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
 
-            case "bool"      -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),             pos));
-            case "byte"      -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),             pos));
-            case "int"       -> tokens.add(new ValueToken(Value.ofType(Type.INT),              pos));
-            case "codepoint" -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),        pos));
-            case "float"     -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),            pos));
-            case "string"    -> tokens.add(new ValueToken(Value.ofType(Type.BYTES()),          pos));
-            case "ustring"   -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()), pos));
-            case "type"      -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),             pos));
-            case "*->*"      -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),        pos));
-            case "var"       -> tokens.add(new ValueToken(Value.ofType(Type.ANY),              pos));
-            case "(list)"    -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),     pos));
-            case "(tuple)"   -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE),    pos));
-            case "(file)"    -> tokens.add(new ValueToken(Value.ofType(Type.FILE),             pos));
-            case "list"      -> tokens.add(new OperatorToken(OperatorType.LIST_OF,             pos));
-            case "content"   -> tokens.add(new OperatorToken(OperatorType.CONTENT,             pos));
-            case "tuple"     -> tokens.add(new OperatorToken(OperatorType.TUPLE,               pos));
+            case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),             pos));
+            case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),             pos));
+            case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),              pos));
+            case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),        pos));
+            case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),            pos));
+            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTES()),          pos));
+            case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()), pos));
+            case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),             pos));
+            case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.PROCEDURE),        pos));
+            case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),              pos));
+            case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),     pos));
+            case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_OPTIONAL), pos));
+            case "(tuple)"    -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE),    pos));
+            case "(file)"     -> tokens.add(new ValueToken(Value.ofType(Type.FILE),             pos));
+            case "list"       -> tokens.add(new OperatorToken(OperatorType.LIST_OF,             pos));
+            case "optional"   -> tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF,         pos));
+            case "content"    -> tokens.add(new OperatorToken(OperatorType.CONTENT,             pos));
+            case "tuple"      -> tokens.add(new OperatorToken(OperatorType.TUPLE,               pos));
 
             case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
             case "typeof" ->  tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
@@ -1763,6 +1766,11 @@ public class Interpreter {
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   pos));
 
             case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
+
+            case "wrap"   -> tokens.add(new OperatorToken(OperatorType.WRAP,          pos));
+            case "unwrap" -> tokens.add(new OperatorToken(OperatorType.UNWRAP,         pos));
+            case "??"     -> tokens.add(new OperatorToken(OperatorType.HAS_VALUE,      pos));
+            case "empty"  -> tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL, pos));
 
             case "new"       -> tokens.add(new OperatorToken(OperatorType.NEW,        pos));
             case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
@@ -2134,6 +2142,26 @@ public class Interpreter {
                             case SEEK_END -> {
                                 FileStream stream = stack.pop().asStream();
                                 stack.push(stream.seekEnd()?Value.TRUE:Value.FALSE);
+                            }
+                            case OPTIONAL_OF -> {
+                                Type contentType = stack.pop().asType();
+                                stack.push(Value.ofType(Type.optionalOf(contentType)));
+                            }
+                            case EMPTY_OPTIONAL -> {
+                                Type t=stack.pop().asType();
+                                stack.push(Value.emptyOptional(t));
+                            }
+                            case WRAP -> {
+                                Value value=stack.pop();
+                                stack.push(Value.wrap(value));
+                            }
+                            case UNWRAP -> {
+                                Value value=stack.pop();
+                                stack.push(value.unwrap());
+                            }
+                            case HAS_VALUE -> {
+                                Value value=stack.peek();
+                                stack.push(value.hasValue()?Value.TRUE:Value.FALSE);
                             }
                         }
                     }

@@ -1,8 +1,5 @@
 hashMap #module
 
-optional #include
-core #import
-
 hashCode proc var => int :
   var value =:
   value typeof type valType =:
@@ -52,7 +49,7 @@ HashMap.put proc ## map:HashMap key:var value:var -> prevVal:optional<var>
   hash map _Map.data length % int i =:
   if map _Map.data i [] _Empty === :
     map _Map.data  key value _Empty _Entry new  i [] =
-    optional_empty return
+    map _Map.valType empty return
   else
     map _Map.data i [] _Entry entry =:
     while entry _Entry.next _Empty =!= :
@@ -69,7 +66,7 @@ HashMap.put proc ## map:HashMap key:var value:var -> prevVal:optional<var>
       wrap return
     else
       entry key value _Empty _Entry new _Entry.next=
-      optional_empty return
+      map _Map.valType empty return
     end
   end
 end
@@ -86,7 +83,7 @@ HashMap.get proc ## map:HashMap key:var -> value:optional<var>
     end
     entry _Entry.next entry =
   end
-  optional_empty return
+  map _Map.valType empty return
 end
 
 HashMap.remove proc ## map:HashMap key:var -> prevVal:optional<var>
@@ -95,7 +92,7 @@ HashMap.remove proc ## map:HashMap key:var -> prevVal:optional<var>
   key hashCode int hash =:
   hash map _Map.data length % int i =:
   if map _Map.data i [] _Empty === :
-    optional_empty return
+    map _Map.valType empty return
   elif map _Map.data i [] _Entry.key key == :
     map _Map.data i [] _Entry.val ## get previous value
     map _Map.data   map _Map.data i [] _Entry.next  i [] = ## remove entry
@@ -110,7 +107,7 @@ HashMap.remove proc ## map:HashMap key:var -> prevVal:optional<var>
       end
       entry _Entry.next entry =
     end
-    optional_empty return
+    map _Map.valType empty return
   end
 end
 

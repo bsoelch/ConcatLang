@@ -33,6 +33,12 @@ stringValue proc var => string :
       i 1 + i =
     end
     res "]" :+ return
+  elif value typeof (optional) <= :
+    if value ?? :
+      unwrap stringValue " wrap" +: return
+    else
+      typeof content stringValue " empty" +: return
+    end
   elif value typeof type == :
     if value string == :
       "string" return
@@ -58,6 +64,12 @@ stringValue proc var => string :
         "(list)" return
       else
         value content stringValue " list" :+ return
+      end
+    elif value (optional) <= :
+      if value (optional) == :
+        "(optional)" return
+      else
+        value content stringValue " optional" :+ return
       end
     elif value *->* <= :
       "*->*" return

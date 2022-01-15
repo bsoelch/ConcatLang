@@ -15,17 +15,18 @@ public class Type {
     public static final Type PROCEDURE = new Type("*->*");
     public static final Type FILE = new Type("(file)");
 
-    public static final Type GENERIC_LIST  = new Type("(list)");
-    public static final Type GENERIC_TUPLE = new Type("(tuple)");
+    public static final Type GENERIC_LIST     = new Type("(list)");
+    public static final Type GENERIC_OPTIONAL = new Type("(optional)");
+    public static final Type GENERIC_TUPLE    = new Type("(tuple)");
 
     /**blank type that could contain any value*/
     public static final Type ANY = new Type("var") {};
 
     public static Type UNICODE_STRING() {
-        return ListType.UNICODE_STRING;
+        return WrapperType.UNICODE_STRING;
     }
     public static Type BYTES() {
-        return ListType.BYTES;
+        return WrapperType.BYTES;
     }
 
     public Type(String name) {
@@ -48,23 +49,38 @@ public class Type {
     public Type content() {
         throw new UnsupportedOperationException();
     }
-        public static Type listOf(Type contentType) {
+
+    public static Type listOf(Type contentType) {
         if (contentType == CODEPOINT) {
-            return ListType.UNICODE_STRING;
+            return WrapperType.UNICODE_STRING;
         } else if (contentType == BYTE) {
-            return ListType.BYTES;
+            return WrapperType.BYTES;
         } else {
-            return new ListType(contentType);
+            return new WrapperType(WrapperType.LIST,contentType);
         }
     }
-    private static class ListType extends Type {
-        static final Type UNICODE_STRING = new ListType(Type.CODEPOINT);
-        static final Type BYTES  = new ListType(Type.BYTE);
+    public static Type varArg(Type contentType) {
+        return new WrapperType(WrapperType.VAR_ARG,contentType);
+    }
+    public static Type optionalOf(Type contentType) {
+        return new WrapperType(WrapperType.OPTIONAL,contentType);
+    }
+
+    private static class WrapperType extends Type {
+        static final String LIST = "list";
+        static final String VAR_ARG = "...";
+        static final String OPTIONAL = "optional";
+
+        static final Type UNICODE_STRING = new WrapperType(LIST,Type.CODEPOINT);
+        static final Type BYTES  = new WrapperType(LIST,Type.BYTE);
+
 
         final Type contentType;
+        final String wrapperName;
 
-        ListType(Type contentType) {
-            super(contentType.name+" list");
+        WrapperType(String wrapperName, Type contentType) {
+            super(contentType.name+" "+ wrapperName);
+            this.wrapperName = wrapperName;
             this.contentType = contentType;
         }
 
@@ -74,10 +90,11 @@ public class Type {
 
         @Override
         public boolean isSubtype(Type t) {
-            if(t instanceof ListType){
+            if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
                 return content().isSubtype(t.content());
             }else{
-                return t==GENERIC_LIST||super.isSubtype(t);
+                return (wrapperName.equals(LIST)&&t==GENERIC_LIST)||(wrapperName.equals(OPTIONAL)&&t==GENERIC_OPTIONAL)||
+                        super.isSubtype(t);
             }
         }
 
@@ -91,7 +108,7 @@ public class Type {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ListType that = (ListType) o;
+            WrapperType that = (WrapperType) o;
             return Objects.equals(contentType, that.contentType);
         }
         @Override

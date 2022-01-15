@@ -108,27 +108,23 @@ public abstract class Value {
     public void fill(Value val, long off, long count) throws ConcatRuntimeError {
         throw new TypeError("fill is not supported for type "+type);
     }
+    //addLater add instructions to insert/remove arbitrary elements of lists
     public void push(Value value,boolean start) throws ConcatRuntimeError {
         throw new TypeError("adding elements is not supported for type "+type);
     }
     public void pushAll(Value value,boolean start) throws ConcatRuntimeError {
         throw new TypeError("adding elements is not supported for type "+type);
     }
-    //addLater add instructions to insert/remove arbitrary elements of lists
+    public Value unwrap() throws ConcatRuntimeError {
+        throw new TypeError("Cannot unwrap values of type "+type);
+    }
+    public boolean hasValue() throws TypeError {
+        throw new TypeError("Cannot unwrap values of type "+type);
+    }
+
     public Value clone(boolean deep) {
         return this;
     }
-
-    public boolean isString(){
-        return Type.UNICODE_STRING().equals(type);
-    }
-    public abstract String stringValue();
-
-    @Override
-    public String toString() {
-        return type+":"+stringValue();
-    }
-
     public Value castTo(Type type) throws ConcatRuntimeError {
         if(this.type.isSubtype(type)){
             return this;
@@ -136,8 +132,6 @@ public abstract class Value {
             throw new TypeError("cannot cast from "+this.type+" to "+type);
         }
     }
-
-
     /**A wrapper for TypeError that can be thrown inside functional interfaces*/
     private static class WrappedConcatError extends RuntimeException {
         final ConcatRuntimeError wrapped;
@@ -152,6 +146,17 @@ public abstract class Value {
             throw new WrappedConcatError(e);
         }
     }
+
+    public boolean isString(){
+        return Type.BYTES().equals(type)||Type.UNICODE_STRING().equals(type);
+    }
+    public abstract String stringValue();
+
+    @Override
+    public String toString() {
+        return type+":"+stringValue();
+    }
+
 
     private interface NumberValue{}
     private static int valueOf(char digit,int base) throws ConcatRuntimeError {
@@ -1638,6 +1643,67 @@ public abstract class Value {
             return Objects.hash(streamValue);
         }
     }
+
+    public static Value wrap(Value v){
+        return new OptionalValue(v);
+    }
+    public static Value emptyOptional(Type t){
+        return new OptionalValue(t);
+    }
+    static class OptionalValue extends Value{
+        final Value wrapped;
+        private OptionalValue(Value wrapped) {
+            super(Type.optionalOf(wrapped.type));
+            this.wrapped = wrapped;
+        }
+        private OptionalValue(Type t) {
+            super(Type.optionalOf(t));
+            this.wrapped = null;
+        }
+
+        @Override
+        public boolean hasValue() {
+            return wrapped!=null;
+        }
+        @Override
+        public Value unwrap() throws ConcatRuntimeError {
+            if(wrapped==null){
+                throw new ConcatRuntimeError("cannot unwrap empty optionals");
+            }
+            return wrapped;
+        }
+
+        @Override
+        public Value clone(boolean deep) {
+            if(wrapped!=null&&deep){
+                return new OptionalValue(wrapped.clone(true));
+            }else{
+                return this;
+            }
+        }
+
+        @Override
+        public String stringValue() {
+            if(wrapped!=null){
+                return wrapped+" wrap";
+            }else{
+                return type.content()+" empty";
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            OptionalValue that = (OptionalValue) o;
+            return Objects.equals(wrapped, that.wrapped);
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(wrapped);
+        }
+    }
+
 
     private static Value cmpToValue(int c, OperatorType opType) {
         switch (opType){

@@ -1,7 +1,5 @@
 core #module
 
-optional #include
-
 (list) int 2 tuple type iterator =$
 
 ^.. proc ## <?> list <index> -> <?> itr
@@ -21,7 +19,7 @@ end
     mItr 0 [] mItr 1 [] [] wrap ## push element
     mItr  mItr 1 [] 1 +  1 [] = ## increment iterator
   else
-    optional_empty
+    mItr 0 [] typeof empty return
   end
 end
 
@@ -32,7 +30,7 @@ end
     mItr  mItr 1 [] 1 -  1 [] = ## decrement iterator
     mItr 0 [] mItr 1 [] [] wrap ## push element
   else
-    optional_empty
+    mItr 0 [] typeof empty return
   end
 end
 ## addLater allow iterators to modify the underlying list
