@@ -1,7 +1,7 @@
 lists #module
 ## TODO binary search
 
-reverse proc ## (list) ->
+reverse proc (list) => :
   (list) toReverse =:
   0 int i =:
   toReverse length 1 - int maxId =:
@@ -13,7 +13,7 @@ reverse proc ## (list) ->
   end
 end
 
-__LISTS_mergesort_helper proc ## <list> <off> <to> <buffer>
+__LISTS_mergesort_helper proc (list) #_off_# int  #_to_# int #_buffer_# (list) => :
   (list) buffer =:
   int to =:
   int off =:
@@ -54,7 +54,7 @@ __LISTS_mergesort_helper proc ## <list> <off> <to> <buffer>
   end
 end
 
-mergesort proc ## (list) ->
+mergesort proc (list) => :
   (list) input =:
   #_list:_#input  #_off:_#0  #_to:_#input length 1 -  #_buffer:_#input length 2 / input typeof new __LISTS_mergesort_helper
 end

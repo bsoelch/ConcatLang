@@ -5,7 +5,7 @@ stringIO #include
 numbers #include
 utf8 #include
 
-stringValue proc ## var -> string
+stringValue proc var => string :
   var value =:
   if value typeof string == :
     value return
@@ -51,7 +51,7 @@ stringValue proc ## var -> string
           res value i [] stringValue :+ res =
           i 1 + i =
         end
-        res " " :+ i false 10 false intToString :+ " tuple" :+ return
+        res " " :+ i  10 false false intToString :+ " tuple" :+ return
       end
     elif value (list) <= :
       if value (list) == :
@@ -85,34 +85,34 @@ stringValue proc ## var -> string
     if value : "true" else "false" end return
   elif value typeof byte == :
     if value 0x80 byte cast < :
-      value byte 1 {}  return ## print valid ascii-characters as character
+      value 1 byte {}  return ## print valid ascii-characters as character
     else
       value byteToString return ## print all other bytes as their byte-code
     end
   elif value typeof int == :
-    value false 10 false intToString return
+    value  10 false false intToString return
   elif value typeof float == :
     value 0 10 false false floatToString return
   elif value typeof codepoint == :
     value codepointToString return
   elif value typeof *->* <= :
     ## procedure
-    "*->*@" value refId true 16 true intToString +: return
+    "*->*@" value refId  16 true true intToString +: return
   elif value typeof (file) == :
     ## procedure
-    "(file)@" value refId true 16 true intToString +: return
+    "(file)@" value refId  16 true true intToString +: return
   else
     "unreachable\n" eputs
     1 exit
   end
 end
 
-byteToString proc ## byte list -> string
+byteToString proc byte => string :
   byte value =:
-  "0x" value int cast true 16 false intToString :+ return
+  "0x" value int cast  16 true false intToString :+ return
 end
 
-byteListToString proc ## byte list -> string
+byteListToString proc byte list => string :
   byte list bytes =:
   bytes length 6 * string new string res =:
   res "[" :+ res =
@@ -182,43 +182,43 @@ __IO_printValue proc ## __IO_FormatValue , var list -> string
   elif format __IO.format  'B' == :
     if values format __IO.index [] cast bool : "TRUE" else "FALSE" end
   elif format __IO.format  'i' == :
-    values format __IO.index [] false base false intToString
+    values format __IO.index []  base false false intToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
   elif format __IO.format  'I' == :
-    values format __IO.index [] false base true intToString
+    values format __IO.index []  base false true intToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
   elif format __IO.format  'u' == :
-    values format __IO.index [] true  base false intToString
+    values format __IO.index []   base true false intToString
     if plusSgn '\0' != :
         plusSgn swap >>:
     end
   elif format __IO.format  'U' == :
-    values format __IO.index [] true  base true intToString
+    values format __IO.index []   base true true intToString
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
   elif format __IO.format  'd' == :
-    values format __IO.index [] false 10 false intToString
+    values format __IO.index []   10 false false intToString
     if plusSgn '\0' != :
       if values format __IO.index [] 0 >= :
         plusSgn swap >>:
       end
     end
   elif format __IO.format  'x' == :
-    values format __IO.index [] true  16 false intToString
+    values format __IO.index []  16 true false intToString
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
   elif format __IO.format  'X' == :
-    values format __IO.index [] true  16 true intToString
+    values format __IO.index []  16 true true intToString
     if plusSgn '\0' != :
       plusSgn swap >>:
     end
@@ -251,7 +251,7 @@ __IO_printValue proc ## __IO_FormatValue , var list -> string
       end
     end
   elif format __IO.format  'c' == :
-    values format __IO.index [] byte 1 {}
+    values format __IO.index [] 1 byte {}
   elif format __IO.format  's' == :
     values format __IO.index [] stringValue
   elif format __IO.format  'S' == :
@@ -276,7 +276,7 @@ __IO_printValue proc ## __IO_FormatValue , var list -> string
   res
 end
 
-isFormatChar proc ## bool -> byte (char)
+isFormatChar proc #_char_# byte => bool :
   byte c =:
   "bBiIuUdxXfFeEcsS%" string formats =: ## addLater? formatted printing of lists
   0 int i =:
@@ -289,10 +289,9 @@ isFormatChar proc ## bool -> byte (char)
   false
 end
 
-##TODO format string should consume a fixed number of arguments
-##  ?accept argument-count as parameter <arg1> ... <argN> N <string> formatString
-formatString proc ## args:... format:string
+formatString proc #_args_# var ... #_format_# string => string :
   string format =:
+  int argCount =:
 
   format length 4 / var list new var list parts =:
   0 int i0 =:
@@ -494,6 +493,11 @@ formatString proc ## args:... format:string
     end
   end
   maxFormat 1 + count =
+  if count argCount != :
+    "wrong number of arguments: " argCount 10 false false intToString :+ " expected " :+ count 10 false false intToString :+
+    '\n' :<< eputs
+    1 exit
+  end
   count var list new var list args =:
   0 i =
   while i count < :

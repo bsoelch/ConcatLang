@@ -11,7 +11,7 @@ core #import
 "Hello World!" dup "" 5 11 [:] = println
 
 "Test" dup "A" :+ clone "B" :+ println println println
-"Test" string 1 {} clone! clone 0 [] "C" :+ :<< println println
+"Test" 1 string {} clone! clone 0 [] "C" :+ :<< println println
 
 10 int list new dup println
 1000 ensureCap println
@@ -22,10 +22,10 @@ dup   dup 2.0 0 [] = println
 
 lists #include
 lists #import
-1 2 3 4 5 int 5 {} dup mergesort println
-5 4 3 2 1 int 5 {} dup mergesort println
+1 2 3 4 5  5 int {} dup mergesort println
+5 4 3 2 1  5 int {} dup mergesort println
 
-1 2 3 4 5 int 5 {} dup reverse println
+1 2 3 4 5  5 int {} dup reverse println
 
-1 2 3 4 rot3 int 4 {} println
+1 2 3 4 rot3  4 int {} println
 

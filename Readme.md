@@ -106,10 +106,10 @@ in `valueIO`
 - `println` like `print` but adds a new-line add the end
 - `fprint` (arguments: `<value> <file>`) 
 prints `<value>` to `<file>`
-- `printf`
-  removes the top value and uses it as a
-  format-string for printing, consuming one element
-  for each element used in the format string
+- `printf` (arguments: `<argCount>` `<formatString>`)
+formatted printing of values using `<formatString>` 
+expects exactly `<argCount>` elements from the stack 
+as parameters for the format string
 - `fprintf` like `printf` but with an additional 
 first argument of the input stream
 
@@ -231,13 +231,16 @@ drop ## Drop iterator
 
 reverse a list:
 ```Julia
-## store type and length of the list
-dup typeof content type arg.type   =:
-dup length         int  arg.length =:
-## Iterate though the elements in reverse order
-..^ while <^ ?? : unwrap swap end drop drop
-## reassemble the list
-arg.type arg.length {}
+reverse proc
+  (list) toReverse =:
+  ## store type and length of the list
+  toReverse length toReverse typeof new toReverse typeof res =:
+  ## Iterate though the elements in reverse order
+  toReverse ..^ while <^ ?? :
+    unwrap res swap :<< res =
+  end drop drop
+  res return
+end
 ```
 Sum all elements of a list
 ```Julia
@@ -257,7 +260,7 @@ type `type` and pushes the result
 - `list`  wraps a type in the corresponding list-type
 - `content` unwraps list and stream types
 - `{}` creates a new list (syntax:
-`<elements> <type> <count> {}`)
+`<elements> <count> <type> {}`)
 - `>>:` `:<<` add a new element at the start/end of a list
 - `:+` `+:`   concatenates two lists, changes the value of 
 the argument on the side of the `:`
@@ -284,7 +287,7 @@ Examples:
 1 typeof println
 3.1 int cast println
 int list list drop ## list of list of ints
-1 2 3 float 3 {} dup println
+1 2 3   3 float {} dup println
 1 [] println
 "Hello" ' ' "World" >>: ++ '!' :<< println
 4 fib () #_ call procedure at the procedure-pointer fib 
@@ -445,7 +448,7 @@ end
 10 isEven println
 -143 isEven println
 1 
-isEven @() isOdd @() *->* 2 {} 
+isEven @() isOdd @() 2 *->* {} 
 1 [] () println 
 
 lambda dup * end *->* square =:

@@ -12,24 +12,24 @@ int_MIN #define -0x8000000000000000 #end
  1 0.0 / float float_Positive_Infinity =$
 -1 0.0 / float float_Negative_Infinity =$
 
-float_isNaN proc
+float_isNaN proc float => bool :
   float val =:
-  val val =!=
+  val val =!= return
 end
-float_isFinite proc
+float_isFinite proc float => bool :
   float val =:
-  if val float_Positive_Infinity < : val float_Negative_Infinity > else false end
+  && val float_Positive_Infinity < : val float_Negative_Infinity > end return
 end
 
-__NUMBERS_getDigit proc ## value:int base:int big:bool -> byte (char)
+__NUMBERS_getDigit proc #_value_# int #_base_# int #_big_# bool => #_ char _# byte :
     bool big =:
     int base =:
     int value =:
     if || value 0 < : value base >= end :
         ## even though intToString calls this function
         ## this error check should not be activated when intToString is called normally
-        "Digit out of range: " value false 10 false intToString :+ " base: "
-        :+ base false 10 false  intToString '\n' :<< eputs
+        "Digit out of range: " value  10 false false intToString :+ " base: "
+        :+ base  10 false false intToString '\n' :<< eputs
         1 exit
     end
     if value 10 < :
@@ -41,15 +41,15 @@ __NUMBERS_getDigit proc ## value:int base:int big:bool -> byte (char)
     end
 end
 
-intToString proc ## value:int unsigned:bool base:int big:bool
+intToString proc #_value_# int #_base_# int #_unsigned_# bool #_big_# bool => string :
   bool big =:
-  int base =:
   bool unsigned =:
+  int base =:
   int value =:
   if || base 2 < : base 62 > end :
     ## even though printing recursively calls this function
     ## this error check should not be activated when intToString is called normally
-    "Base out of range: " base false 10 false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base 10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   if value 0 == :
@@ -79,14 +79,14 @@ intToString proc ## value:int unsigned:bool base:int big:bool
   end
 end
 
-floatToString proc ## value:float precision:int base:int big:bool sci:bool
+floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #_sci_# bool => string :
   bool  sci =:
   bool  big =:
   int   base =:
   int   precision =:
   float value =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " base false 10 false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base 10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   if value float_isFinite ! :
@@ -159,7 +159,7 @@ floatToString proc ## value:float precision:int base:int big:bool sci:bool
     end
     if base 10 <= : 'E' elif base 30 <= : 'X' else '#' end :<<
     if e_max 0 >= : '+' :<< end
-    e_max false base big intToString :+
+    e_max  base false big intToString :+
   elif e_max 0 >= :
     0 while dup n < :
       swap over buff swap [] base big __NUMBERS_getDigit :<<
@@ -181,7 +181,7 @@ floatToString proc ## value:float precision:int base:int big:bool sci:bool
   end
 end
 
-__NUMBERS_valueOfDigit proc ## digit:byte (char) base:int -> value:int
+__NUMBERS_valueOfDigit proc #_digit _# byte #_base_# int => #_value_# int :
   int  base =:
   byte digit =:
   if && digit '0' >= : digit '9' <= end :
@@ -191,20 +191,20 @@ __NUMBERS_valueOfDigit proc ## digit:byte (char) base:int -> value:int
   elif && digit 'a' >= : digit 'Z' <= end :
     digit 'a' charDiff if base 37 < : 10 else 36 end +
   else
-    "invalid digit for base " base false 10 false intToString :+ " number: '" :<< digit "'\n" :+ eputs
+    "invalid digit for base " base  10 false false intToString :+ " number: '" :<< digit "'\n" :+ eputs
     1 exit ## addLater? return error-code instead of exit
   end
   if dup base >= :
-    "invalid digit for base " base false 10 false intToString :+ " number: '" :<< digit "'\n" :+ eputs
+    "invalid digit for base " base  10 false false intToString :+ " number: '" :<< digit "'\n" :+ eputs
     1 exit
   end
 end
 
-stringToInt proc ## source:string base:int -> int
+stringToInt proc #_source_# string #_base_# int => int :
   int base =:
   string source =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " base false 10 false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base  10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   0 ## res
@@ -232,7 +232,7 @@ end
 
 parseInt #define 10 core stringToInt . #end
 
-_isExpChar proc ## c:byte (char) base:int -> bool
+_isExpChar proc #_char_# byte #_base_# int => bool :
   int base =:
   byte c =:
   if || c 'e' == : c 'E' == end :
@@ -248,11 +248,11 @@ _isExpChar proc ## c:byte (char) base:int -> bool
   end
 end
 
-stringToFloat proc ## str:string base:int -> float
+stringToFloat proc #_str_# string #_base_# int => float :
   int base =:
   string str =:
   if || base 2 < : base 62 > end :
-    "Base out of range: " base false 10 false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base  10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   0 ## val

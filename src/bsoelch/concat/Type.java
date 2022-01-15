@@ -10,6 +10,8 @@ public class Type {
     public static final Type BOOL = new Type("bool");
     public static final Type BYTE = new Type("byte");
     //TODO (optional) type signatures for procedures
+    //  <in1> ... <inN> <N> <out1> ... <outM> <M> ->
+
     public static final Type PROCEDURE = new Type("*->*");
     public static final Type FILE = new Type("(file)");
 

@@ -4,8 +4,8 @@ core #import
 hashMap #include
 hashMap #import
 
-1 2 3 int 3 {} hashCode println
-1 2 3 int 3 {} hashCode println
+1 2 3  3 int {} hashCode println
+1 2 3  3 int {} hashCode println
 
 int int 4 newHashMap HashMap map =:
 "put:" println

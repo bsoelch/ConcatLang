@@ -2,7 +2,7 @@ core #module
 stack #include
 ## basic procedures/marcos for printing strings
 
-fputs proc  ## string (file)  -> bool
+fputs proc string (file) => bool :
   (file) file =:
   string str =:
   file str 0 str length write

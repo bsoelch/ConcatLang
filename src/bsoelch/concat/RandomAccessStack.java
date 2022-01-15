@@ -44,6 +44,10 @@ public class RandomAccessStack<T> {
         }
     }
 
+    public int size() {
+        return size;
+    }
+
     @Override
     public String toString() {
         return Arrays.toString(Arrays.copyOf(data,size));

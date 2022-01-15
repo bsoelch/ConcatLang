@@ -44,6 +44,7 @@ public class Interpreter {
         VARIABLE,
         PLACEHOLDER,//placeholder token for jumps
         CONTEXT_OPEN,CONTEXT_CLOSE,
+        VAR_ARGS,
         CALL_PROC, PUSH_PROC_PTR,CALL_PTR,
         RETURN,
         DEBUG_PRINT,
@@ -271,10 +272,95 @@ public class Interpreter {
     static class ProcedureBlock extends CodeBlock{
         final String name;
         final ProcedureContext context;
+        Type[] inTypes=null,outTypes=null;
+
         ProcedureBlock(String name, int startToken, FilePosition pos, VariableContext parentContext) {
             super(startToken, BlockType.PROCEDURE,pos, parentContext);
             this.name = name;
             context=new ProcedureContext(parentContext);
+        }
+        private Type[] getSignature(List<Token> tokens) throws SyntaxError {
+            RandomAccessStack<ValueToken> stack=new RandomAccessStack<>(tokens.size());
+            for(Token t:tokens){
+                try {
+                    //addLater? support constants
+                    //addLater generic types
+                    if(t instanceof ValueToken){
+                        stack.push(((ValueToken) t));
+                    }else if(t.tokenType==TokenType.VAR_ARGS){
+                        Type argType = stack.pop().value.asType();
+                        //TODO var-args
+                        stack.push(new ValueToken(Value.ofType(Type.listOf(argType)), t.pos));
+                    }else if(t instanceof OperatorToken op){
+                        switch(op.opType){
+                            case LIST_OF ->
+                                    stack.push(new ValueToken(Value.ofType(Type.listOf(stack.pop().value.asType())),t.pos));
+                            case CONTENT ->
+                                    stack.push(new ValueToken(Value.ofType(stack.pop().value.asType().content()),t.pos));
+                            case TUPLE ->{
+                                long count=stack.pop().value.asLong();
+                                if(count<0){
+                                    throw new ConcatRuntimeError("he element count has to be at least 0");
+                                }else if(count>Integer.MAX_VALUE){
+                                    throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+                                }
+                                Type[] types=new Type[(int)count];
+                                for(int i=1;i<=count;i++){
+                                    types[types.length-i]=stack.pop().value.asType();
+                                }
+                                stack.push(new ValueToken(Value.ofType(Type.Tuple.create(types)),t.pos));
+                            }
+                            case CAST ->{
+                                    Type newType=stack.pop().value.asType();
+                                    stack.push(new ValueToken(stack.pop().value.castTo(newType),t.pos));
+                            }
+                            case TYPE_OF ->
+                                    stack.push(new ValueToken(Value.ofType(stack.pop().value.type),t.pos));
+                            default ->
+                                throw new SyntaxError("Operators of type "+op.opType+
+                                        " are not supported in procedure signatures",t.pos);
+                        }
+                    }else{
+                        throw new SyntaxError("Tokens of type "+t.tokenType+
+                                " are not supported in procedure signatures",t.pos);
+                    }
+                } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
+                    throw new SyntaxError(e.getMessage(),t.pos);
+                }
+            }
+            Type[] types=new Type[stack.size()];
+            int i=types.length;
+            try {
+                while(i>0){
+                    ValueToken v=stack.pop();
+                    if(v.value.type.isSubtype(Type.TYPE)){
+                        types[--i]=v.value.asType();
+                    }else{
+                        throw new SyntaxError("Elements in procedure signature have to evaluate to types",v.pos);
+                    }
+                }
+            } catch (TypeError|RandomAccessStack.StackUnderflow e) {
+                throw new RuntimeException(e);
+            }
+            return types;
+        }
+        void addIns(List<Token> ins,FilePosition pos) throws SyntaxError {
+            if(inTypes!=null){
+                throw new SyntaxError("Procedure already has input arguments",pos);
+            }
+            inTypes = getSignature(ins);
+            //TODO handle ins
+            ins.clear();
+        }
+        void addOuts(List<Token> outs,FilePosition pos) throws SyntaxError {
+            if(inTypes==null){
+                throw new SyntaxError("procedure declares output arguments but no input arguments",pos);
+            }else if(outTypes!=null){
+                throw new SyntaxError("Procedure already has output arguments",pos);
+            }
+            outTypes = getSignature(outs);
+            //TODO handle outs
+            outs.clear();
         }
         @Override
         ProcedureContext context() {
@@ -1463,6 +1549,15 @@ public class Interpreter {
                 String name=((IdentifierToken)prev).name;
                 openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,rootContext));
             }
+            case "=>" ->{
+                CodeBlock block = openBlocks.peekLast();
+                if(!(block instanceof ProcedureBlock proc)){
+                    throw new SyntaxError("elif can only be used in if-blocks",pos);
+                }
+                proc.addIns(tokens.subList(proc.start,tokens.size()),pos);
+            }
+            case "..."->
+                tokens.add(new Token(TokenType.VAR_ARGS,pos));
             case "lambda","λ" ->
                     openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
             case "while" -> openBlocks.add(new WhileBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
@@ -1499,6 +1594,10 @@ public class Interpreter {
                 CodeBlock block=openBlocks.peekLast();
                 if(block==null){
                     throw new SyntaxError(": can only be used in if-, while-, &&- and  ||- blocks",pos);
+                }else if(block.type==BlockType.PROCEDURE){
+                    //handle procedure separately since : does not change context of produce a jump
+                    ProcedureBlock proc=(ProcedureBlock) block;
+                    proc.addOuts(tokens.subList(proc.start,tokens.size()),pos);
                 }else{
                     int forkPos=tokens.size();
                     tokens.add(new Token(TokenType.PLACEHOLDER, pos));
@@ -1525,6 +1624,17 @@ public class Interpreter {
                             ArrayList<Token> content=new ArrayList<>(subList);
                             subList.clear();
                             ProcedureContext context = ((ProcedureBlock) block).context();
+                            Type[] ins=((ProcedureBlock) block).inTypes;
+                            Type[] outs=((ProcedureBlock) block).outTypes;
+                            if(ins!=null) {
+                                if (outs == null) {
+                                    throw new SyntaxError("procedure supplies inTypes but no outTypes", pos);
+                                } else {
+                                    //addLater use signature for type-checking
+                                    System.out.println("created Procedure:" + ((ProcedureBlock) block).name +
+                                            Arrays.toString(ins) + "=>" + Arrays.toString(outs));
+                                }
+                            }//addLater ensure that all named procedures have a signature
                             if (context.curried.isEmpty()) {
                                 Value.Procedure proc=Value.createProcedure(block.start, content, context);
                                 if(((ProcedureBlock) block).name!=null){
@@ -1858,9 +1968,10 @@ public class Interpreter {
                                 Type wrappedType = stack.pop().asType();
                                 stack.push(Value.ofType(wrappedType.content()));
                             }
-                            case NEW_LIST -> {//e1 e2 ... eN type count {}
-                                long count = stack.pop().asLong();
+                            case NEW_LIST -> {//e1 e2 ... eN count type {}
                                 Type type = stack.pop().asType();
+                                //count after type to make signature consistent with var-args procedures
+                                long count = stack.pop().asLong();
                                 if(count<0){
                                     throw new ConcatRuntimeError("he element count has to be at least 0");
                                 }else if(count>Integer.MAX_VALUE){
@@ -2116,6 +2227,8 @@ public class Interpreter {
                     case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,PROC_CALL, PROC_ID,MACRO_EXPAND, PLACEHOLDER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
+                    case VAR_ARGS ->
+                            throw new ConcatRuntimeError("... is only allowed in procedure signatures");
                     case CONTEXT_OPEN ->
                             variables.add(new Variable[((ContextOpen)next).context.variables.size()]);
                     case CONTEXT_CLOSE -> {

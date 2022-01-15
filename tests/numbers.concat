@@ -2,7 +2,7 @@ numbers #include
 valueIO #include
 core #import
 
--123456 false 36 true intToString println
+-123456  36 false true intToString println
 3.141592653589793238 0 16 false false floatToString println
 3.141592653589793238 println
 "3.141592653589793238" parseFloat println

@@ -3,7 +3,7 @@ hashMap #module
 optional #include
 core #import
 
-hashCode proc ## var -> int
+hashCode proc var => int :
   var value =:
   value typeof type valType =:
   if || valType (list) <= : valType (tuple) <= end :
