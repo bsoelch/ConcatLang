@@ -34,7 +34,6 @@ public class Interpreter {
     }
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
-    //addLater? distinguish between byte list/string and byte/char
     //addLater switch/match statement
     enum TokenType {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
@@ -44,7 +43,6 @@ public class Interpreter {
         VARIABLE,
         PLACEHOLDER,//placeholder token for jumps
         CONTEXT_OPEN,CONTEXT_CLOSE,
-        VAR_ARGS,
         CALL_PROC, PUSH_PROC_PTR,CALL_PTR,
         RETURN,
         DEBUG_PRINT,
@@ -78,6 +76,19 @@ public class Interpreter {
             }else{
                 return path+":"+line + ":" + posInLine;
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FilePosition that = (FilePosition) o;
+            return line == that.line && posInLine == that.posInLine &&
+                    Objects.equals(path, that.path) && Objects.equals(expandedAt, that.expandedAt);
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(path, line, posInLine, expandedAt);
         }
     }
 
@@ -141,13 +152,16 @@ public class Interpreter {
     }
     static class ValueToken extends Token {
         final Value value;
-        ValueToken(Value value, FilePosition pos) {
+        final boolean cloneOnCreate;
+        ValueToken(Value value, FilePosition pos, boolean cloneOnCreate) {
             super(TokenType.VALUE, pos);
             this.value=value;
+            this.cloneOnCreate = cloneOnCreate;
         }
-        ValueToken(TokenType type,Value value, FilePosition pos) {
+        ValueToken(TokenType type, Value value, FilePosition pos, boolean cloneOnCreate) {
             super(type, pos);
             this.value=value;
+            this.cloneOnCreate = cloneOnCreate;
         }
         @Override
         public String toString() {
@@ -291,19 +305,12 @@ public class Interpreter {
         private Type[] getSignature(List<Token> tokens) throws SyntaxError {
             RandomAccessStack<ValueToken> stack=new RandomAccessStack<>(tokens.size());
             for(Token t:tokens){
-                try {
-                    //addLater generics
-                    if(t instanceof ValueToken){
-                        stack.push(((ValueToken) t));
-                    }else if(t.tokenType==TokenType.VAR_ARGS){
-                        Type argType = stack.pop().value.asType();
-                        stack.push(new ValueToken(Value.ofType(Type.varArg(argType)), t.pos));
-                    }else{//list, optional, tuple, -> are evaluated in parser
-                        throw new SyntaxError("Tokens of type "+t.tokenType+
-                                " are not supported in procedure signatures",t.pos);
-                    }
-                } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
-                    throw new SyntaxError(e.getMessage(),t.pos);
+                //addLater generics
+                if(t instanceof ValueToken){
+                    stack.push(((ValueToken) t));
+                }else{//list, optional, tuple, -> are evaluated in parser
+                    throw new SyntaxError("Tokens of type "+t.tokenType+
+                            " are not supported in procedure signatures",t.pos);
                 }
             }
             Type[] types=new Type[stack.size()];
@@ -949,7 +956,7 @@ public class Interpreter {
         VariableContext context();
     }
     record Program(ArrayList<Token> tokens, HashSet<String> files,RootContext rootContext,
-                   HashMap<VariableId,Value> constants) implements CodeSection{
+                   HashMap<VariableId,Value> globalConstants) implements CodeSection{
         @Override
         public String toString() {
             return "Program{" +
@@ -1117,15 +1124,15 @@ public class Interpreter {
     private boolean tryParseInt(ArrayList<Token> tokens, String str,FilePosition pos) throws SyntaxError {
         try {
             if(intDec.matcher(str).matches()){//dez-Int
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 10)), pos));
+                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 10)), pos, false));
                 return false;
             }else if(intBin.matcher(str).matches()){//bin-Int
                 str=str.replaceAll(BIN_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 2)),  pos));
+                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 2)),  pos, false));
                 return false;
             }else if(intHex.matcher(str).matches()){ //hex-Int
                 str=str.replaceAll(HEX_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 16)), pos));
+                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 16)), pos, false));
                 return false;
             }
         } catch (NumberFormatException nfeL) {
@@ -1343,10 +1350,12 @@ public class Interpreter {
                                 if(index>0&&(prev=tokens.get(index-1)) instanceof ValueToken){
                                     try {//remember constant declarations
                                         Type type=((ValueToken)prev).value.asType();
-                                        //addLater remember type without value
+                                        //addLater remember variable types
                                         if(id.isConstant&&id.context.procedure()==null&&//only remember root-level constants
                                                 index>1&&(prev=tokens.get(index-2)) instanceof ValueToken){
-                                            program.constants.put(id,((ValueToken) prev).value.castTo(type));
+                                            program.globalConstants.put(id,((ValueToken) prev).value.clone(true).castTo(type));
+                                            tokens.subList(index-2, tokens.size()).clear();
+                                            break;//don't add token to code
                                         }
                                     } catch (ConcatRuntimeError e) {
                                         throw new SyntaxError(e.getMessage(),prev.pos);
@@ -1358,9 +1367,9 @@ public class Interpreter {
                             case IDENTIFIER -> {
                                 VariableId id=context.getId(identifier.name, identifier.pos,context);
                                 if(id!=null){
-                                    Value constValue=program.constants.get(id);
+                                    Value constValue=program.globalConstants.get(id);
                                     if(constValue!=null){
-                                        tokens.set(index,new ValueToken(constValue,identifier.pos));
+                                        tokens.set(index,new ValueToken(constValue,identifier.pos, false));
                                     }else{
                                         tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
                                                 AccessType.READ,context));
@@ -1375,8 +1384,7 @@ public class Interpreter {
                             }
                             case VAR_WRITE -> {
                                 VariableId id=context.getId(identifier.name, identifier.pos,context);
-                                //addLater update value depending on previous token (needs variable type)
-                                program.constants.remove(id);
+                                assert !program.globalConstants.containsKey(id);
                                 tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
                                         AccessType.WRITE,context));
                             }
@@ -1399,7 +1407,7 @@ public class Interpreter {
                 if(str.codePoints().count()==1){
                     int codePoint = str.codePointAt(0);
                     if(codePoint<0x7f){
-                        tokens.add(new ValueToken(Value.ofByte((byte)codePoint), pos));
+                        tokens.add(new ValueToken(Value.ofByte((byte)codePoint), pos, false));
                     }else{
                         throw new SyntaxError("codePoint "+codePoint+
                                 "does not fit in one byte " +
@@ -1413,18 +1421,18 @@ public class Interpreter {
                 str=str.substring(2);
                 if(str.codePoints().count()==1){
                     int codePoint = str.codePointAt(0);
-                    tokens.add(new ValueToken(Value.ofChar(codePoint), pos));
+                    tokens.add(new ValueToken(Value.ofChar(codePoint), pos, false));
                 }else{
                     throw new SyntaxError("A char-literal must contain exactly one codepoint", pos);
                 }
                 return;
             }else if(str.charAt(0)=='"'){
                 str=str.substring(1);
-                tokens.add(new ValueToken(Value.ofString(str,false),  pos));
+                tokens.add(new ValueToken(Value.ofString(str,false),  pos, true));
                 return;
             }else if(str.startsWith("u\"")){
                 str=str.substring(2);
-                tokens.add(new ValueToken(Value.ofString(str,true),  pos));
+                tokens.add(new ValueToken(Value.ofString(str,true),  pos, true));
                 return;
             }
             try{
@@ -1432,15 +1440,15 @@ public class Interpreter {
                     if(floatDec.matcher(str).matches()){
                         //dez-Float
                         double d = Double.parseDouble(str);
-                        tokens.add(new ValueToken(Value.ofFloat(d), pos));
+                        tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
                     }else if(floatBin.matcher(str).matches()){
                         //bin-Float
                         double d= Value.parseFloat(str.substring(BIN_PREFIX.length()),2);
-                        tokens.add(new ValueToken(Value.ofFloat(d), pos));
+                        tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
                     }else if(floatHex.matcher(str).matches()){
                         //hex-Float
                         double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
-                        tokens.add(new ValueToken(Value.ofFloat(d), pos));
+                        tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
                     }else {
                         addWord(str,tokens,openBlocks,pos,program.rootContext);
                     }
@@ -1466,30 +1474,30 @@ public class Interpreter {
         Token prev;
         switch (str) {
             case END_OF_FILE -> {} //## string can only be passed to the method on end of file
-            case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
-            case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
+            case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos, false));
+            case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos, false));
 
-            case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),              pos));
-            case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),              pos));
-            case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos));
-            case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos));
-            case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos));
-            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTES()),           pos));
-            case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos));
-            case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos));
-            case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_PROCEDURE), pos));
-            case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos));
-            case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),      pos));
-            case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_OPTIONAL),  pos));
-            case "(tuple)"    -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE),     pos));
-            case "(file)"     -> tokens.add(new ValueToken(Value.ofType(Type.FILE),              pos));
+            case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),              pos, false));
+            case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),              pos, false));
+            case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos, false));
+            case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos, false));
+            case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos, false));
+            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTES()),           pos, false));
+            case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
+            case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
+            case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_PROCEDURE), pos, false));
+            case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
+            case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),      pos, false));
+            case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_OPTIONAL),  pos, false));
+            case "(tuple)"    -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE),     pos, false));
+            case "(file)"     -> tokens.add(new ValueToken(Value.ofType(Type.FILE),              pos, false));
 
             case "list" -> {
                 if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
                     try {
                         tokens.set(tokens.size()-1,
-                                new ValueToken(Value.ofType(Type.listOf(((ValueToken)prev).value.asType())),pos));
-                    } catch (TypeError e) {
+                                new ValueToken(Value.ofType(Type.listOf(((ValueToken)prev).value.asType())),pos, false));
+                    } catch (ConcatRuntimeError e) {
                         throw new SyntaxError(e,pos);
                     }
                 }else{
@@ -1500,24 +1508,49 @@ public class Interpreter {
                 if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
                     try {
                         tokens.set(tokens.size()-1,
-                                new ValueToken(Value.ofType(Type.optionalOf(((ValueToken)prev).value.asType())),pos));
-                    } catch (TypeError e) {
+                                new ValueToken(Value.ofType(Type.optionalOf(((ValueToken)prev).value.asType())),pos, false));
+                    } catch (ConcatRuntimeError e) {
                         throw new SyntaxError(e,pos);
                     }
                 }else{
                     tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF, pos));
                 }
             }
+            case "..."->{
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
+                    try {
+                        tokens.set(tokens.size()-1,
+                                new ValueToken(Value.ofType(Type.varArg(((ValueToken)prev).value.asType())),pos, false));
+                    } catch (ConcatRuntimeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }else{
+                    tokens.add(new OperatorToken(OperatorType.VAR_ARG, pos));
+                }
+            }
             case "content" -> {
                 if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
                     try {
                         tokens.set(tokens.size()-1,
-                                new ValueToken(Value.ofType(((ValueToken)prev).value.asType().content()),pos));
+                                new ValueToken(Value.ofType(((ValueToken)prev).value.asType().content()),pos, false));
                     } catch (TypeError e) {
                         throw new SyntaxError(e,pos);
                     }
                 }else{
                     tokens.add(new OperatorToken(OperatorType.CONTENT, pos));
+                }
+            }
+            case "isVarArg"->{
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
+                    try {
+                        tokens.set(tokens.size()-1,
+                                new ValueToken(((ValueToken)prev).value.asType().isVarArg()?Value.TRUE:Value.FALSE
+                                        ,pos, false));
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }else{
+                    tokens.add(new OperatorToken(OperatorType.IS_VAR_ARG,pos));
                 }
             }
             case "tuple" -> {
@@ -1538,7 +1571,7 @@ public class Interpreter {
                             }
                             if(c==0||types[types.length-1]!=null){//all types resolved successfully
                                 tokens.subList(iMin, tokens.size()).clear();
-                                tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(types)),pos));
+                                tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(types)),pos, false));
                                 break;
                             }
                         }
@@ -1579,7 +1612,7 @@ public class Interpreter {
                                 }
                                 if(inCount==0||inTypes[inTypes.length-1]!=null){
                                     tokens.subList(iMin, tokens.size()).clear();
-                                    tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),pos));
+                                    tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),pos, false));
                                     break;
                                 }
                             }
@@ -1595,7 +1628,7 @@ public class Interpreter {
             case "typeof" ->  {
                 if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
                     tokens.set(tokens.size()-1,
-                            new ValueToken(Value.ofType(((ValueToken)prev).value.type),pos));
+                            new ValueToken(Value.ofType(((ValueToken)prev).value.type),pos, false));
                 }else{
                     tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
                 }
@@ -1635,6 +1668,7 @@ public class Interpreter {
 
             case "debugPrint"    -> tokens.add(new Token(TokenType.DEBUG_PRINT, pos));
 
+            //addLater? change to float To/from bytes
             case "intAsFloat"   -> tokens.add(new OperatorToken(OperatorType.INT_AS_FLOAT, pos));
             case "floatAsInt"   -> tokens.add(new OperatorToken(OperatorType.FLOAT_AS_INT, pos));
 
@@ -1646,15 +1680,16 @@ public class Interpreter {
                     throw new SyntaxError("missing procedure name before proc",pos);
                 }
                 prev=tokens.remove(tokens.size()-1);
+                String name = ((IdentifierToken) prev).name;
                 if(prev.tokenType==TokenType.PROC_CALL){
-                    if(!rootContext.predeclaredProcs.containsKey(((IdentifierToken)prev).name)){
-                        //addLater? print position of previous declaration
-                        throw new SyntaxError("procedure "+((IdentifierToken)prev).name+" does already exist",pos);
+                    if(!rootContext.predeclaredProcs.containsKey(name)){
+                        Value.Procedure proc=rootContext.getProcedure(name,pos);
+                        throw new SyntaxError("procedure "+ name +" does already exist" +
+                                " (declared at "+proc.declaredAt+")",pos);
                     }
                 }else if(prev.tokenType!=TokenType.IDENTIFIER){
                     throw new SyntaxError("token before proc has to be an identifier",pos);
                 }
-                String name=((IdentifierToken)prev).name;
                 openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,rootContext));
             }
             case "=>" ->{
@@ -1664,8 +1699,6 @@ public class Interpreter {
                 }
                 proc.addIns(tokens.subList(proc.start,tokens.size()),pos);
             }
-            case "..."->
-                tokens.add(new Token(TokenType.VAR_ARGS,pos));
             case "lambda","λ" ->
                     openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
             case "while" -> openBlocks.add(new WhileBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
@@ -1743,24 +1776,24 @@ public class Interpreter {
                                 }
                             }else{
                                 if(((ProcedureBlock) block).name!=null){
+                                    //ensure that all named procedures have a signature
                                     throw new SyntaxError("named procedure "+((ProcedureBlock) block).name+
                                             " does not have a signature",block.startPos);
                                 }
-                                //addLater ensure that all named procedures have a signature
                                 procType=Type.GENERIC_PROCEDURE;
                             }
-                            Value.Procedure proc=Value.createProcedure(procType,block.start, content, context);
+                            Value.Procedure proc=Value.createProcedure(procType,block.startPos, content, context);
                             if (context.curried.isEmpty()) {
                                 if(((ProcedureBlock) block).name!=null){
                                     rootContext.declareProcedure(((ProcedureBlock) block).name,proc);
                                 }else{
-                                    tokens.add(new ValueToken(proc, pos));
+                                    tokens.add(new ValueToken(proc, pos, false));
                                 }
                             } else {
                                 if(((ProcedureBlock) block).name!=null){
                                     throw new RuntimeException("named procedures cannot be curried");
                                 }
-                                tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,proc, pos));
+                                tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,proc, pos, false));
                             }
                         }
                         case IF -> {
@@ -1827,6 +1860,7 @@ public class Interpreter {
             case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
             case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
 
+            //addLater constant folding
             case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,          pos));
             case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,         pos));
             case "-_"  -> tokens.add(new OperatorToken(OperatorType.NEGATE,        pos));
@@ -1948,7 +1982,14 @@ public class Interpreter {
             boolean incIp=true;
             try {
                 switch (next.tokenType) {
-                    case VALUE -> stack.push(((ValueToken) next).value.clone(true));
+                    case VALUE -> {
+                        ValueToken value = (ValueToken) next;
+                        if(value.cloneOnCreate){
+                            stack.push(value.value.clone(true));
+                        }else{
+                            stack.push(value.value);
+                        }
+                    }
                     case CURRIED_PROCEDURE -> {
                         if(globalVariables==null){
                             throw new RuntimeException("curried procedures should only exist inside of procedures");
@@ -2260,9 +2301,17 @@ public class Interpreter {
                                 }
                                 stack.push(Value.ofType(Type.Procedure.create(inTypes,outTypes)));
                             }
+                            case IS_VAR_ARG -> {
+                                Type type = stack.pop().asType();
+                                stack.push(type.isVarArg()?Value.TRUE:Value.FALSE);
+                            }
                             case OPTIONAL_OF -> {
                                 Type contentType = stack.pop().asType();
                                 stack.push(Value.ofType(Type.optionalOf(contentType)));
+                            }
+                            case VAR_ARG ->{
+                                Type contentType = stack.pop().asType();
+                                stack.push(Value.ofType(Type.varArg(contentType)));
                             }
                             case EMPTY_OPTIONAL -> {
                                 Type t=stack.pop().asType();
@@ -2372,8 +2421,6 @@ public class Interpreter {
                     case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,PROC_CALL, PROC_ID,MACRO_EXPAND, PLACEHOLDER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
-                    case VAR_ARGS ->
-                            throw new ConcatRuntimeError("... is only allowed in procedure signatures");
                     case CONTEXT_OPEN ->
                             variables.add(new Variable[((ContextOpen)next).context.variables.size()]);
                     case CONTEXT_CLOSE -> {

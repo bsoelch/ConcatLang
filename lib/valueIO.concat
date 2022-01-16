@@ -8,7 +8,7 @@ utf8 #include
 stringValue proc var => string :
   var value =:
   if value typeof string == :
-    value return
+    value clone swap drop return
   elif value typeof ustring == :
     value codepointsToString return
   elif value typeof (tuple) <= :
@@ -59,6 +59,33 @@ stringValue proc var => string :
         end
         res " " :+ i  10 false false intToString :+ " tuple" :+ return
       end
+    elif value *->* <= :
+      if value *->* == :
+        "*->*" return
+      else
+        "" string res =:
+        value 0 [] type list args =:
+        0 int i =:
+        while i args length < :
+          if i 0 > :
+            res " " :+ res =
+          end
+          res args i [] stringValue :+ res =
+          i 1 + i =
+        end
+        res " " :+ i  10 false false intToString :+ " " :+ res =
+        value 1 [] args =
+        0 i =
+        while i args length < :
+          if i 0 > :
+            res " " :+ res =
+          end
+          res args i [] stringValue :+ res =
+          i 1 + i =
+        end
+        res " " :+ i  10 false false intToString :+
+        " ->" :+ return
+      end
     elif value (list) <= :
       if value (list) == :
         "(list)" return
@@ -71,8 +98,8 @@ stringValue proc var => string :
       else
         value content stringValue " optional" :+ return
       end
-    elif value *->* <= :
-      "*->*" return
+    elif value isVarArg :
+      value content stringValue " ..." :+ return
     elif value (file) == :
       "(file)" return
     elif value type == :
@@ -139,10 +166,9 @@ byteListToString proc byte list => string :
   res "]" :+ return
 end
 
-print   #define core stringValue . puts #end
-## !!! result of stringValue is not mutable
-println #define core stringValue . puts "\n" puts #end ## TODO get rid of additional puts call
-fprint  #define swap core stringValue . swap fputs #end
+print   #define core stringValue .           core puts . #end
+println #define core stringValue . "\n" :+   core puts . #end
+fprint  #define swap core stringValue . swap core fputs . #end
 
 1 int __IO_FLAG_PAD_0 =$
 2 int __IO_FLAG_ALIGN_LEFT =$

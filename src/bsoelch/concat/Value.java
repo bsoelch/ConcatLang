@@ -132,13 +132,7 @@ public abstract class Value {
             throw new TypeError("cannot cast from "+this.type+" to "+type);
         }
     }
-    /**A wrapper for TypeError that can be thrown inside functional interfaces*/
-    private static class WrappedConcatError extends RuntimeException {
-        final ConcatRuntimeError wrapped;
-        public WrappedConcatError(ConcatRuntimeError wrapped) {
-            this.wrapped = wrapped;
-        }
-    }
+
     private Value unsafeCastTo(Type type) throws WrappedConcatError {
         try {
             return castTo(type);
@@ -411,6 +405,11 @@ public abstract class Value {
                             +((Type.Tuple) typeValue).elementCount());
                 }
                 return ofType(((Type.Tuple) typeValue).get((int)index));
+            }else if(typeValue instanceof Type.Procedure){
+                if(index<0||index>=2){
+                    throw new ConcatRuntimeError("index out of bounds:"+index+" size: 2");
+                }
+                return index==0?((Type.Procedure) typeValue).ins():((Type.Procedure) typeValue).outs();
             }else{
                 return super.get(index);
             }
@@ -546,6 +545,9 @@ public abstract class Value {
         }
     }
     public static Value createList(Type type, ArrayList<Value> elements) throws ConcatRuntimeError {
+        if(!type.isList()){
+            throw new IllegalArgumentException(type+" is no valid list-type");
+        }
         if(type==Type.BYTES()){
             byte[] bytes=new byte[elements.size()];
             for(int i=0;i<elements.size();i++){
@@ -1504,33 +1506,44 @@ public abstract class Value {
         }
     }
 
-    public static Procedure createProcedure(Type procType,int startAddress, ArrayList<Interpreter.Token> tokens,
-                                        Interpreter.ProcedureContext variableContext) {
+    public static Procedure createProcedure(Type procType,Interpreter.FilePosition declaredAt,
+                                            ArrayList<Interpreter.Token> tokens, Interpreter.ProcedureContext variableContext) {
         if(procType instanceof Type.Procedure||procType==Type.GENERIC_PROCEDURE){
-            return new Procedure(procType,startAddress,tokens,variableContext);
+            return new Procedure(procType,declaredAt,tokens,variableContext);
         }else{
             throw new IllegalArgumentException(procType+" is no valid procedure Type");
         }
     }
     static class Procedure extends Value implements Interpreter.CodeSection {
-        final int pos;
+        final Interpreter.FilePosition declaredAt;
+
         final Interpreter.ProcedureContext context;
         final ArrayList<Interpreter.Token> tokens;
-        private Procedure(Type procType,int pos, ArrayList<Interpreter.Token> tokens, Interpreter.ProcedureContext context) {
+        private Procedure(Type procType, Interpreter.FilePosition declaredAt, ArrayList<Interpreter.Token> tokens,
+                          Interpreter.ProcedureContext context) {
             super(procType);
-            this.pos = pos;
+            this.declaredAt = declaredAt;
             this.tokens=tokens;
             this.context=context;
         }
 
         @Override
         public long id() {
-            return System.identityHashCode(pos);
+            return declaredAt.hashCode();
+        }
+
+        @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(this.type==Type.GENERIC_PROCEDURE&&(type instanceof Type.Procedure)){
+                //addLater type-check body
+                return new Procedure(type, declaredAt,tokens,context);
+            }
+            return super.castTo(type);
         }
 
         @Override
         public String stringValue() {
-            return "@("+pos+")";
+            return "@("+ declaredAt +")";
         }
 
         CurriedProcedure withCurried(Value[] curried){
@@ -1542,11 +1555,11 @@ public abstract class Value {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Procedure that = (Procedure) o;
-            return pos==that.pos;
+            return declaredAt.equals(that.declaredAt);
         }
         @Override
         public int hashCode() {
-            return Objects.hash(pos);
+            return Objects.hash(declaredAt);
         }
 
         @Override
@@ -1648,19 +1661,19 @@ public abstract class Value {
         }
     }
 
-    public static Value wrap(Value v){
+    public static Value wrap(Value v) throws ConcatRuntimeError {
         return new OptionalValue(v);
     }
-    public static Value emptyOptional(Type t){
+    public static Value emptyOptional(Type t) throws ConcatRuntimeError {
         return new OptionalValue(t);
     }
     static class OptionalValue extends Value{
         final Value wrapped;
-        private OptionalValue(Value wrapped) {
+        private OptionalValue(Value wrapped) throws ConcatRuntimeError {
             super(Type.optionalOf(wrapped.type));
             this.wrapped = wrapped;
         }
-        private OptionalValue(Type t) {
+        private OptionalValue(Type t) throws ConcatRuntimeError {
             super(Type.optionalOf(t));
             this.wrapped = null;
         }
@@ -1680,7 +1693,11 @@ public abstract class Value {
         @Override
         public Value clone(boolean deep) {
             if(wrapped!=null&&deep){
-                return new OptionalValue(wrapped.clone(true));
+                try {
+                    return new OptionalValue(wrapped.clone(true));
+                } catch (ConcatRuntimeError e) {
+                    throw new RuntimeException(e);
+                }
             }else{
                 return this;
             }

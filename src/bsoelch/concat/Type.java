@@ -1,7 +1,9 @@
 package bsoelch.concat;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class Type {
     public static final Type INT = new Type("int");
@@ -45,11 +47,15 @@ public class Type {
     public boolean isList() {
         return false;
     }
+    public boolean isVarArg() {
+        return false;
+    }
     public Type content() {
         throw new UnsupportedOperationException();
     }
 
-    public static Type listOf(Type contentType) {
+    public static Type listOf(Type contentType) throws ConcatRuntimeError {
+        //addLater? caching
         if (contentType == CODEPOINT) {
             return WrapperType.UNICODE_STRING;
         } else if (contentType == BYTE) {
@@ -58,10 +64,10 @@ public class Type {
             return new WrapperType(WrapperType.LIST,contentType);
         }
     }
-    public static Type varArg(Type contentType) {
+    public static Type varArg(Type contentType) throws ConcatRuntimeError {
         return new WrapperType(WrapperType.VAR_ARG,contentType);
     }
-    public static Type optionalOf(Type contentType) {
+    public static Type optionalOf(Type contentType) throws ConcatRuntimeError {
         return new WrapperType(WrapperType.OPTIONAL,contentType);
     }
 
@@ -70,22 +76,36 @@ public class Type {
         static final String VAR_ARG = "...";
         static final String OPTIONAL = "optional";
 
-        static final Type UNICODE_STRING = new WrapperType(LIST,Type.CODEPOINT);
-        static final Type BYTES  = new WrapperType(LIST,Type.BYTE);
-
+        static final Type BYTES;
+        static final Type UNICODE_STRING;
+        static {
+            try {
+                BYTES  = new WrapperType(LIST,Type.BYTE);
+                UNICODE_STRING = new WrapperType(LIST,Type.CODEPOINT);
+            } catch (ConcatRuntimeError e) {
+                throw new RuntimeException(e);
+            }
+        }
 
         final Type contentType;
         final String wrapperName;
 
-        WrapperType(String wrapperName, Type contentType){
+        private WrapperType(String wrapperName, Type contentType) throws ConcatRuntimeError {
             super(contentType.name+" "+ wrapperName);
             this.wrapperName = wrapperName;
             this.contentType = contentType;
-            //TODO VAR_ARG cannot be part of composite types
+            if(contentType.isVarArg()){
+                throw new ConcatRuntimeError(contentType+" cannot be part of "+wrapperName);
+            }
         }
 
         public boolean isList() {
-            return true;
+            return wrapperName.equals(LIST);
+        }
+
+        @Override
+        public boolean isVarArg() {
+            return wrapperName.equals(VAR_ARG);
         }
 
         @Override
@@ -117,10 +137,13 @@ public class Type {
     }
 
     public static class Tuple extends Type{
-        public static Tuple create(Type[] elements){
+        public static Tuple create(Type[] elements) throws ConcatRuntimeError {
             StringBuilder name=new StringBuilder();
             for(Type t:elements){
                 name.append(t.name).append(' ');
+                if(t.isVarArg()){
+                    throw new ConcatRuntimeError(t+" cannot be part of tuples");
+                }
             }
             return new Tuple(name.append(elements.length).append(" tuple").toString(),elements);
         }
@@ -165,8 +188,10 @@ public class Type {
     }
 
     public static class Procedure extends Type{
-        Type[] inTypes;
-        Type[] outTypes;
+        final Type[] inTypes;
+        final Type[] outTypes;
+        private final Value insValue,outsValue;
+
         public static Type create(Type[] inTypes,Type[] outTypes){
             StringBuilder name=new StringBuilder();
             for(Type t:inTypes){
@@ -183,9 +208,22 @@ public class Type {
             super(name);
             this.inTypes=inTypes;
             this.outTypes=outTypes;
+            try {
+                insValue  = Value.createList(listOf(TYPE), Arrays.stream(inTypes).map(Value::ofType).
+                        collect(Collectors.toCollection(ArrayList::new)));
+                outsValue  = Value.createList(listOf(TYPE), Arrays.stream(outTypes).map(Value::ofType).
+                        collect(Collectors.toCollection(ArrayList::new)));
+            } catch (ConcatRuntimeError e) {
+                throw new RuntimeException(e);
+            }
         }
-        //addLater? possibility to access elements
 
+        Value ins(){
+            return insValue;
+        }
+        Value outs(){
+            return outsValue;
+        }
 
         @Override
         public boolean isSubtype(Type t) {

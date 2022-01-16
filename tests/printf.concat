@@ -8,3 +8,4 @@ core #import
 1.3 7 'c' float int byte 3 tuple new dup typeof stringValue print stringValue println
 u"a°💻" stringValue println
 u'💻' stringValue println
+formatString @() typeof println

@@ -5,6 +5,7 @@ test
 float int byte 3 tuple(1.3, 7, c)
 a°💻
 💻
+var ... string 2 string 1 ->
 
 Stack:
 []
