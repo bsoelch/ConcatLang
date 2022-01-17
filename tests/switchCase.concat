@@ -1,0 +1,68 @@
+valueIO #include
+core #import
+
+test proc int => string :
+  #_input _# switch
+  1 case
+    "1st case" return
+    break
+  2 case
+    "2nd case" return
+    break
+  3 case
+    "3rd case" return
+    break
+  0 4 5 6 7 8 9 case
+    "0,4,5,6,7,8,9 case" return
+    break
+  end
+  "fallthrough" return
+end
+testDefault proc int => string :
+  9 swap -
+  #_input _# switch
+  1 case
+    "1st case" return
+    break
+  2 case
+    "2nd case" return
+    break
+  3 case
+    "3rd case" return
+    break
+  0 4 5 6 7 8 9 case
+    "0,4,5,6,7,8,9 case" return
+    break
+  default
+    "default case" return
+  end
+  "fallthrough" return
+end
+
+-1 test println
+ 0 test println
+ 1 test println
+ 2 test println
+ 3 test println
+ 4 test println
+ 5 test println
+ 6 test println
+ 7 test println
+ 8 test println
+ 9 test println
+10 test println
+
+"____________________________________" println
+
+-1 testDefault println
+ 0 testDefault println
+ 1 testDefault println
+ 2 testDefault println
+ 3 testDefault println
+ 4 testDefault println
+ 5 testDefault println
+ 6 testDefault println
+ 7 testDefault println
+ 8 testDefault println
+ 9 testDefault println
+10 testDefault println

@@ -6,22 +6,22 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class Type {
-    public static final Type INT = new Type("int");
-    public static final Type CODEPOINT = new Type("codepoint");
-    public static final Type FLOAT = new Type("float");
-    public static final Type TYPE  = new Type("type");
-    public static final Type BOOL  = new Type("bool");
-    public static final Type BYTE  = new Type("byte");
+    public static final Type INT = new Type("int", true);
+    public static final Type CODEPOINT = new Type("codepoint", true);
+    public static final Type FLOAT = new Type("float", false);
+    public static final Type TYPE  = new Type("type", false);
+    public static final Type BOOL  = new Type("bool", false);
+    public static final Type BYTE  = new Type("byte", true);
 
-    public static final Type FILE = new Type("(file)");
+    public static final Type FILE = new Type("(file)", false);
 
-    public static final Type GENERIC_LIST      = new Type("(list)");
-    public static final Type GENERIC_OPTIONAL  = new Type("(optional)");
-    public static final Type GENERIC_TUPLE     = new Type("(tuple)");
-    public static final Type GENERIC_PROCEDURE = new Type("*->*");
+    public static final Type GENERIC_LIST      = new Type("(list)", false);
+    public static final Type GENERIC_OPTIONAL  = new Type("(optional)", false);
+    public static final Type GENERIC_TUPLE     = new Type("(tuple)", false);
+    public static final Type GENERIC_PROCEDURE = new Type("*->*", false);
 
     /**blank type that could contain any value*/
-    public static final Type ANY = new Type("var") {};
+    public static final Type ANY = new Type("var", false) {};
 
     public static Type UNICODE_STRING() {
         return WrapperType.UNICODE_STRING;
@@ -30,10 +30,13 @@ public class Type {
         return WrapperType.BYTES;
     }
 
-    public Type(String name) {
+    private Type(String name, boolean switchable) {
         this.name = name;
+        this.switchable = switchable;
     }
-    private final String name;
+
+    final String name;
+    final boolean switchable;
 
 
     public boolean isSubtype(Type t){
@@ -91,7 +94,8 @@ public class Type {
         final String wrapperName;
 
         private WrapperType(String wrapperName, Type contentType) throws ConcatRuntimeError {
-            super(contentType.name+" "+ wrapperName);
+            super(contentType.name+" "+ wrapperName, LIST.equals(wrapperName)&&
+                    (contentType==BYTE||contentType==CODEPOINT));
             this.wrapperName = wrapperName;
             this.contentType = contentType;
             if(contentType.isVarArg()){
@@ -149,7 +153,7 @@ public class Type {
         }
         final Type[] elements;
         private Tuple(String name,Type[] elements) {
-            super(name);
+            super(name, false);
             this.elements=elements;
         }
 
@@ -205,7 +209,7 @@ public class Type {
             return new Procedure(name.toString(),inTypes,outTypes);
         }
         private Procedure(String name,Type[] inTypes,Type[] outTypes) {
-            super(name);
+            super(name, false);
             this.inTypes=inTypes;
             this.outTypes=outTypes;
             try {

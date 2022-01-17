@@ -1,0 +1,28 @@
+fallthrough
+0,4,5,6,7,8,9 case
+1st case
+2nd case
+3rd case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+fallthrough
+____________________________________
+default case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+0,4,5,6,7,8,9 case
+3rd case
+2nd case
+1st case
+0,4,5,6,7,8,9 case
+default case
+
+Stack:
+[]

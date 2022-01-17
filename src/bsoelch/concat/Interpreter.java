@@ -34,7 +34,15 @@ public class Interpreter {
     }
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
-    //addLater switch/match statement
+    //addLater enums
+    /*
+    <Name> enum
+      <Name>
+      <Name>
+      <Name>
+      <Name>
+    end
+    * */
     enum TokenType {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
         STD_IN,STD_OUT,STD_ERR,
@@ -47,6 +55,7 @@ public class Interpreter {
         RETURN,
         DEBUG_PRINT,
         SHORT_AND_JMP, SHORT_OR_JMP,JEQ,JNE,JMP,//jump commands only for internal representation
+        SWITCH,
         EXIT
     }
 
@@ -194,6 +203,13 @@ public class Interpreter {
             this.context = context;
         }
     }
+    static class SwitchToken extends Token{
+        final SwitchCaseBlock block;
+        SwitchToken(SwitchCaseBlock block,FilePosition pos) {
+            super(TokenType.SWITCH,pos);
+            this.block = block;
+        }
+    }
     static class ProcedureToken extends Token {
         private Value.Procedure value;
 
@@ -277,7 +293,7 @@ public class Interpreter {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SHORT_AND,SHORT_OR
+        PROCEDURE,IF,WHILE,SHORT_AND,SHORT_OR,SWITCH_CASE,
     }
     static abstract class CodeBlock{
         final int start;
@@ -462,6 +478,91 @@ public class Interpreter {
         @Override
         VariableContext context() {
             return context;
+        }
+    }
+
+    private static class SwitchCaseBlock extends CodeBlock{
+        int sectionStart=-1;
+        int blockStart =-1;
+
+        int defaultJump=-1;
+
+        HashMap<Value,Integer> blockJumps =new HashMap<>();
+        ArrayDeque<Integer> blockEnds=new ArrayDeque<>();
+        Type switchType;
+        VariableContext context;
+
+        SwitchCaseBlock(int start,FilePosition startPos, VariableContext parentContext) {
+            super(start, BlockType.SWITCH_CASE, startPos, parentContext);
+        }
+        void newSection(int start, FilePosition pos) throws SyntaxError {
+            context=null;
+            if(sectionStart!=-1||defaultJump!=-1){
+                throw new SyntaxError("unexpected 'break' statement",pos);
+            }else{
+                sectionStart=start;
+                if(blockStart !=-1){
+                    blockEnds.add(start-1);
+                    blockStart =-1;
+                }
+            }
+        }
+        VariableContext caseBlock(List<Token> caseValues,FilePosition pos) throws SyntaxError {
+            if(sectionStart==-1||defaultJump!=-1){
+                throw new SyntaxError("unexpected 'case' statement",pos);
+            }else if(caseValues.isEmpty()){
+                throw new SyntaxError("empty 'case' statement",pos);
+            }
+            for (Token token : caseValues) {
+                if (!(token instanceof ValueToken)) {
+                    throw new SyntaxError("case values have to be constant values ", token.pos);
+                }
+                Value v = ((ValueToken) token).value;
+                if (!v.type.switchable) {
+                    throw new SyntaxError("values of type " + v.type +
+                            " cannot be used in switch-case statements", token.pos);
+                }
+                if (switchType == null) {
+                    switchType = v.type;
+                } else if (!switchType.equals(v.type)) {
+                    throw new SyntaxError("values of type " + v.type +
+                            " cannot be used in "+switchType+" switch-case statements", token.pos);
+                } //no else
+                if (blockJumps.put(v, sectionStart-start) != null) {
+                    throw new SyntaxError("duplicate entry in switch case " + v, token.pos);
+                }
+            }
+            blockStart =sectionStart;
+            sectionStart=-1;
+            context=new BlockContext(parentContext);
+            return parentContext;
+        }
+        VariableContext defaultBlock(int blockStart, FilePosition pos) throws SyntaxError {
+            if(sectionStart==-1||blockStart!=sectionStart){
+                throw new SyntaxError("unexpected 'default' statement",pos);
+            }else if(defaultJump!=-1){
+                throw new SyntaxError("this switch case already has a 'default' statement",pos);
+            }
+            defaultJump=blockStart-start;
+            context=new BlockContext(parentContext);
+            return context;
+        }
+        void end(int endPos,FilePosition pos) throws SyntaxError {
+            if(blockStart !=-1||(defaultJump==-1&&endPos>sectionStart)){
+                throw new SyntaxError("unfinished case-block",pos);
+            }else if(switchType==null){
+                throw new SyntaxError("switch-case does not contain any case block",pos);
+            }
+            if(defaultJump==-1) {
+                defaultJump = endPos - start;
+            }
+            //TODO check enum-switch-case
+        }
+
+
+        @Override
+        VariableContext context() {
+            return context==null?parentContext:context;
         }
     }
 
@@ -1707,6 +1808,13 @@ public class Interpreter {
             case "||" -> openBlocks.addLast(new ShortCircuitBlock(tokens.size(),pos,false,
                     getContext(openBlocks.peekLast(),rootContext)));
             case "if" -> openBlocks.addLast(new IfBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
+            case "switch"->{
+                SwitchCaseBlock switchBlock=new SwitchCaseBlock(tokens.size(), pos,getContext(openBlocks.peekLast(), rootContext));
+                openBlocks.addLast(switchBlock);
+                //handle switch-case separately since : does not change context and produces special jump
+                tokens.add(new SwitchToken(switchBlock,pos));
+                switchBlock.newSection(tokens.size(),pos);
+            }
             case "elif" -> {
                 CodeBlock block = openBlocks.peekLast();
                 if(!(block instanceof IfBlock ifBlock)){
@@ -1752,6 +1860,37 @@ public class Interpreter {
                     }
                     tokens.add(new ContextOpen(newContext,pos));
                 }
+            }
+            case "case" ->{
+                CodeBlock block=openBlocks.peekLast();
+                if(!(block instanceof SwitchCaseBlock switchBlock)){
+                    throw new SyntaxError("case can only be used in switch-case-blocks",pos);
+                }
+                int start=switchBlock.sectionStart;
+                if(start==-1){
+                    throw new SyntaxError("unexpected case statement",pos);
+                }
+                List<Token> caseValues=tokens.subList(start,tokens.size());
+                VariableContext context=switchBlock.caseBlock(caseValues,pos);
+                caseValues.clear();
+                tokens.add(new ContextOpen(context,pos));
+            }
+            case "default" ->{
+                CodeBlock block=openBlocks.peekLast();
+                if(!(block instanceof SwitchCaseBlock switchBlock)){
+                    throw new SyntaxError("default can only be used in switch-case-blocks",pos);
+                }
+                VariableContext context=switchBlock.defaultBlock(tokens.size(),pos);
+                tokens.add(new ContextOpen(context,pos));
+            }
+            case "break" ->{
+                CodeBlock block=openBlocks.peekLast();
+                if(!(block instanceof SwitchCaseBlock switchBlock)){
+                    throw new SyntaxError("break can only be used in switch-case-blocks",pos);
+                }
+                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                tokens.add(new Token(TokenType.PLACEHOLDER,pos));
+                switchBlock.newSection(tokens.size(),pos);
             }
             case "end" ->{
                 CodeBlock block=openBlocks.pollLast();
@@ -1854,10 +1993,21 @@ public class Interpreter {
                             tokens.set(((ShortCircuitBlock) block).forkPos,new RelativeJump(TokenType.SHORT_OR_JMP,tmp.pos,
                                     tokens.size()-((ShortCircuitBlock) block).forkPos));
                         }
+                        case SWITCH_CASE -> {
+                            if(((SwitchCaseBlock)block).defaultJump!=-1){
+                                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                            }
+                            ((SwitchCaseBlock)block).end(tokens.size(),pos);
+                            for(Integer i:((SwitchCaseBlock) block).blockEnds){
+                                tmp=tokens.get(i);
+                                assert tmp.tokenType==TokenType.PLACEHOLDER;
+                                tokens.set(i,new RelativeJump(TokenType.JMP,tmp.pos,tokens.size()-i));
+                            }
+                        }
                     }
                 }
             }
-            case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
+            case "return" -> tokens.add(new Token(TokenType.RETURN,  pos)); //TODO return in switch -> break
             case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
 
             //addLater constant folding
@@ -1868,8 +2018,8 @@ public class Interpreter {
             case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
             case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
             case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
-            case "u/"  -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_DIV, pos));
-            case "u%"  -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_MOD, pos));
+            case "u/"  -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_DIV,  pos));
+            case "u%"  -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_MOD,  pos));
             case "**"  -> tokens.add(new OperatorToken(OperatorType.POW,           pos));
             case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           pos));
             case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          pos));
@@ -2483,6 +2633,16 @@ public class Interpreter {
                             ip+=((RelativeJump) next).delta;
                             incIp = false;
                         }
+                    }
+                    case SWITCH -> {
+                        Value v= stack.pop();
+                        Integer jumpTo=((SwitchToken)next).block.blockJumps.get(v);
+                        if(jumpTo==null){
+                            ip+=((SwitchToken)next).block.defaultJump;
+                        }else{
+                            ip+=jumpTo;
+                        }
+                        incIp=false;
                     }
                     case EXIT -> {
                         long exitCode=stack.pop().asLong();
