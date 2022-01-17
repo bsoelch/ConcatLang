@@ -5,16 +5,16 @@ test proc int => string :
   #_input _# switch
   1 case
     "1st case" return
-    break
+    end-case
   2 case
     "2nd case" return
-    break
+    end-case
   3 case
     "3rd case" return
-    break
+    end-case
   0 4 5 6 7 8 9 case
     "0,4,5,6,7,8,9 case" return
-    break
+    end-case
   end
   "fallthrough" return
 end
@@ -23,16 +23,16 @@ testDefault proc int => string :
   #_input _# switch
   1 case
     "1st case" return
-    break
+    end-case
   2 case
     "2nd case" return
-    break
+    end-case
   3 case
     "3rd case" return
-    break
+    end-case
   0 4 5 6 7 8 9 case
     "0,4,5,6,7,8,9 case" return
-    break
+    end-case
   default
     "default case" return
   end

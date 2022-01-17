@@ -498,7 +498,7 @@ public class Interpreter {
         void newSection(int start, FilePosition pos) throws SyntaxError {
             context=null;
             if(sectionStart!=-1||defaultJump!=-1){
-                throw new SyntaxError("unexpected 'break' statement",pos);
+                throw new SyntaxError("unexpected 'end-case' statement",pos);
             }else{
                 sectionStart=start;
                 if(blockStart !=-1){
@@ -1883,10 +1883,10 @@ public class Interpreter {
                 VariableContext context=switchBlock.defaultBlock(tokens.size(),pos);
                 tokens.add(new ContextOpen(context,pos));
             }
-            case "break" ->{
+            case "end-case" ->{
                 CodeBlock block=openBlocks.peekLast();
                 if(!(block instanceof SwitchCaseBlock switchBlock)){
-                    throw new SyntaxError("break can only be used in switch-case-blocks",pos);
+                    throw new SyntaxError("end-case can only be used in switch-case-blocks",pos);
                 }
                 tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                 tokens.add(new Token(TokenType.PLACEHOLDER,pos));
@@ -2007,7 +2007,7 @@ public class Interpreter {
                     }
                 }
             }
-            case "return" -> tokens.add(new Token(TokenType.RETURN,  pos)); //TODO return in switch -> break
+            case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
             case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
 
             //addLater constant folding
