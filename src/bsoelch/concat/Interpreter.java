@@ -47,7 +47,7 @@ public class Interpreter {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
         STD_IN,STD_OUT,STD_ERR,
         DROP,DUP,
-        DECLARE,CONST_DECLARE, IDENTIFIER,MACRO_EXPAND, PROC_CALL, PROC_ID,VAR_WRITE,//addLater option to free values/variables
+        DECLARE,CONST_DECLARE,IDENTIFIER,PROC_ID,VAR_WRITE,//addLater option to free values/variables
         VARIABLE,
         PLACEHOLDER,//placeholder token for jumps
         CONTEXT_OPEN,CONTEXT_CLOSE,
@@ -108,10 +108,18 @@ public class Interpreter {
         }
     }
     record Macro(FilePosition pos, String name,
-                 ArrayList<StringWithPos> content) {
+                 ArrayList<StringWithPos> content) implements Declarable{
         @Override
         public String toString() {
             return "macro " +name+":"+content;
+        }
+        @Override
+        public DeclarableType declarableType() {
+            return DeclarableType.MACRO;
+        }
+        @Override
+        public FilePosition declaredAt() {
+            return pos;
         }
     }
 
@@ -293,7 +301,7 @@ public class Interpreter {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SHORT_AND,SHORT_OR,SWITCH_CASE,
+        PROCEDURE,IF,WHILE,SHORT_AND,SHORT_OR,SWITCH_CASE,ENUM,
     }
     static abstract class CodeBlock{
         final int start;
@@ -565,6 +573,19 @@ public class Interpreter {
             return context==null?parentContext:context;
         }
     }
+    private static class EnumBlock extends CodeBlock{
+        final String name;
+        final ArrayList<String> elements=new ArrayList<>();
+        EnumBlock(String name,int start, FilePosition startPos, VariableContext parentContext) {
+            super(start, BlockType.ENUM, startPos, parentContext);
+            this.name=name;
+        }
+
+        @Override
+        VariableContext context() {
+            return parentContext;
+        }
+    }
 
     private Interpreter() {}
 
@@ -650,7 +671,40 @@ public class Interpreter {
         }
     }
 
-    private static class VariableId{
+    enum DeclarableType{
+        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM
+    }
+    static String declarableName(DeclarableType t, boolean a){
+        switch (t){
+            case VARIABLE -> {
+                return a?"a variable":"variable";
+            }
+            case CONSTANT -> {
+                return a?"a constant":"constant";
+            }
+            case CURRIED_VARIABLE -> {
+                return a?"a curried variable":"curried variable";
+            }
+            case MACRO -> {
+                return a?"a macro":"macro";
+            }
+            case PROCEDURE -> {
+                return a?"a procedure":"procedure";
+            }
+            case PREDECLARED_PROCEDURE -> {
+                return a?"a predeclared procedure":"predeclared procedure";
+            }
+            case ENUM -> {
+                return a?"an enum":"enum";
+            }
+        }
+        throw new RuntimeException("unreachable");
+    }
+    interface Declarable{
+        DeclarableType declarableType();
+        FilePosition declaredAt();
+    }
+    private static class VariableId implements Declarable{
         final boolean predeclared;
         final VariableContext context;
         final int level;
@@ -672,6 +726,15 @@ public class Interpreter {
         public String toString() {
             return "@"+context+"."+level+"-"+id;
         }
+
+        @Override
+        public FilePosition declaredAt() {
+            return declaredAt;
+        }
+        @Override
+        public DeclarableType declarableType() {
+            return isConstant?DeclarableType.CONSTANT:DeclarableType.VARIABLE;
+        }
     }
     private static class CurriedVariable extends VariableId{
         final VariableId source;
@@ -683,6 +746,11 @@ public class Interpreter {
         public String toString() {
             return "@"+context+".curried"+id;
         }
+
+        @Override
+        public DeclarableType declarableType() {
+            return DeclarableType.CURRIED_VARIABLE;
+        }
     }
 
     record ModuleBlock(String[] path,ArrayList<String> imports,FilePosition declaredAt){
@@ -692,42 +760,51 @@ public class Interpreter {
         }
     }
     static abstract class VariableContext{
-        final HashMap<String,VariableId> variables=new HashMap<>();
-        VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
-            VariableId prev=variables.get(name);
+        final HashMap<String,Declarable> elements =new HashMap<>();
+        int variables=0;
+        void checkExisting(String name,DeclarableType type,FilePosition pos) throws SyntaxError {
+            Declarable prev= elements.get(name);
             if(prev!=null){
-                throw new SyntaxError("variable "+name+" already exists",pos);
+                throw new SyntaxError("Cannot declare " + type + " name " +
+                        ", the identifier is already used by " + declarableName(prev.declarableType(), true)
+                        + "declared at " + prev.declaredAt() + ")",pos);
             }
-            VariableId id = new VariableId(this,level(), nextId(), false,isConstant, pos,pos);
-            variables.put(name, id);
+        }
+        VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
+            checkExisting(name,isConstant?DeclarableType.CONSTANT:DeclarableType.VARIABLE,pos);
+            VariableId id = new VariableId(this,level(), variables++, false,isConstant, pos,pos);
+            elements.put(name, id);
             return id;
         }
-        int nextId() {
-            return variables.size();
-        }
-
-        abstract VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError;
-        abstract VariableId unsafeGetId(String name);
+        abstract VariableId getVariableId(String name, FilePosition pos, VariableContext callee) throws SyntaxError;
+        abstract Declarable unsafeGetDeclared(String name);
         /**returns the enclosing procedure or null if this variable is not enclosed in a procedure*/
         abstract ProcedureContext procedure();
         /**number of blocks (excluding procedures) this variable is contained in*/
         abstract int level();
+        abstract boolean isMacro(String name);
+        abstract boolean isProcedure(String name);
     }
 
     /**File specific part of module parsing*/
     private static class FileContext{
         final ArrayList<String> globalImports=new ArrayList<>();
         final ArrayList<ModuleBlock> openModules=new ArrayList<>();
-        final HashMap<String,VariableId> declaredVars =new HashMap<>();
-        final HashMap<String,Macro> declaredMarcos =new HashMap<>();
+        final HashMap<String,Declarable> declared =new HashMap<>();
     }
-    record PredeclaredProc(FilePosition pos,ArrayDeque<ProcedureToken> listeners){}
+    record PredeclaredProc(FilePosition pos,ArrayDeque<ProcedureToken> listeners) implements Declarable{
+        @Override
+        public DeclarableType declarableType() {
+            return DeclarableType.PREDECLARED_PROCEDURE;
+        }
+        @Override
+        public FilePosition declaredAt() {
+            return pos;
+        }
+    }
     private static class RootContext extends VariableContext{
         RootContext(){}
-
-        final HashMap<String,Macro> macros=new HashMap<>();
-
-        final HashMap<String, Value.Procedure> procedures = new HashMap<>();
+        //TODO better handling of predeclared procedures (modules, point of declaration, ...)
         final HashMap<String,PredeclaredProc> predeclaredProcs = new HashMap<>();
 
         ArrayDeque<FileContext> openFiles=new ArrayDeque<>();
@@ -797,158 +874,142 @@ public class Interpreter {
             }
             return paths;
         }
+        Declarable getDeclarable(String name){
+            Declarable d;
+            ArrayDeque<String> paths = currentPaths();
+            while(paths.size()>0){//go through all modules
+                d=elements.get(paths.removeLast()+name);
+                if(d!=null){
+                    return d;
+                }
+            }
+            return elements.get(name);
+        }
+        void checkShadowed(Declarable declared,String name,FilePosition pos,IOContext ioContext){
+            Declarable shadowed = file().declared.get(name);
+            if(shadowed!=null){
+                ioContext.stdErr.println("Warning: macro " + name + " declared at " + pos +
+                        "\n     shadows existing " + declarableName(shadowed.declarableType(),false)+ " declared at "
+                        + shadowed.declaredAt());
+            }
+            file().declared.put(name,declared);
+        }
 
         void declareProcedure(String name, Value.Procedure proc) {
-            PredeclaredProc predeclared=predeclaredProcs.remove(name);
+            PredeclaredProc predeclared=predeclaredProcs.remove(inCurrentModule(name));
             if(predeclared!=null){
                 for(ProcedureToken token:predeclared.listeners){
                     token.declareProcedure(proc);
                 }
+                Declarable prev=elements.remove(name);
+                assert prev==predeclared;
             }
             name=inCurrentModule(name);
-            procedures.put(name,proc);
-        }
-        boolean hasProcedure(String name){
-            if(predeclaredProcs.containsKey(name)){
-                return true;
-            }
-            ArrayDeque<String> paths = currentPaths();
-            while(paths.size()>0){//go through all modules
-                if(procedures.containsKey(paths.removeLast()+name)){
-                    return true;
-                }
-            }
-            return procedures.containsKey(name);
+            elements.put(name,proc);
         }
         /**@return the procedure with the given name or null if there is no such procedure*/
         Value.Procedure getProcedure(String name,FilePosition pos) throws SyntaxError {
-            Value.Procedure p;
-            ArrayDeque<String> paths = currentPaths();
-            while(paths.size()>0){//go through all modules
-                p=procedures.get(paths.removeLast()+name);
-                if(p!=null){
-                    return p;
-                }
-            }
-            p=procedures.get(name);
-            if(p==null&&!predeclaredProcs.containsKey(name)){
+            Declarable d= getDeclarable(name);
+            if(d==null){
                 throw new SyntaxError("procedure "+name+" does not exists",pos);
+            }else if(d.declarableType()==DeclarableType.PREDECLARED_PROCEDURE){
+                return null;
+            }else if(d.declarableType()!=DeclarableType.PROCEDURE){
+                throw new SyntaxError("procedure "+name+" does not exists, " +
+                        "or is shadowed by "+declarableName(d.declarableType(),false)
+                        +" (declared at "+d.declaredAt()+")",pos);
             }
-            return p;
+            return (Value.Procedure) d;
         }
         public void addProcDeclareListener(String name, ProcedureToken token) {
-            PredeclaredProc predeclared=predeclaredProcs.get(name);
+            PredeclaredProc predeclared=predeclaredProcs.get(inCurrentModule(name));
             if(predeclared==null){
                 throw new RuntimeException(name+" is no predeclared procedure");
             }
             predeclared.listeners.add(token);
         }
+        boolean isProcedure(String name){
+            Declarable d=getDeclarable(name);
+            return d!=null&&(d.declarableType()==DeclarableType.PROCEDURE||d.declarableType()==DeclarableType.PREDECLARED_PROCEDURE);
+        }
 
         void declareMacro(Macro macro,IOContext ioContext) throws SyntaxError{
             String name=inCurrentModule(macro.name);
-            if(variables.containsKey(name)){
-                throw new SyntaxError("cannot declare macro "+macro.name+
-                        ", the identifier is already used by a variable (declared at "+variables.get(name).declaredAt+")",
-                        macro.pos);
-            }else if(macros.put(name,macro)!=null){
-                throw new SyntaxError("macro "+macro.name+" does already exists",macro.pos);
-            }
-            VariableId shadowedVar = file().declaredVars.get(macro.name);
-            if(shadowedVar!=null){
-                ioContext.stdErr.println("Warning: macro " + macro.name + " declared at " + macro.pos +
-                        "\n     shadows existing " + (shadowedVar.isConstant ? "constant" : "variable") + " declared at "
-                        + shadowedVar.declaredAt);
-            }
-            Macro shadowedMacro = file().declaredMarcos.get(macro.name);
-            if(shadowedMacro!=null){
-                ioContext.stdErr.println("Warning: macro " + macro.name + " declared at " + macro.pos +
-                        "\n     shadows existing macro declared at "+ shadowedMacro.pos);
-            }
-            file().declaredMarcos.put(macro.name,macro);
+            checkExisting(name,DeclarableType.MACRO,macro.pos);
+            checkShadowed(macro,macro.name,macro.pos,ioContext);
+            elements.put(name,macro);
         }
         Macro getMacro(String name, FilePosition pos) throws SyntaxError {
-            Macro m;
-            ArrayDeque<String> paths = currentPaths();
-            while(paths.size()>0){//go through all modules
-                m=macros.get(paths.removeLast()+name);
-                if(m!=null){
-                    return m;
-                }
-            }
-            m= macros.get(name);
-            if(m==null){
+            Declarable d=getDeclarable(name);
+            if(d==null){
                 throw new SyntaxError("macro "+name+" does not exists",pos);
+            }else if(d.declarableType()!=DeclarableType.MACRO){
+                throw new SyntaxError("macro "+name+" does not exists, " +
+                        "or is shadowed by "+declarableName(d.declarableType(),false)
+                        +" (declared at "+d.declaredAt()+")",pos);
             }
-            return m;
-        }
-        boolean hasMacro(String name){
-            ArrayDeque<String> paths = currentPaths();
-            while(paths.size()>0){//go through all modules
-                if(macros.containsKey(paths.removeLast()+name)){
-                    return true;
-                }
-            }
-            return macros.containsKey(name);
+            return (Macro)d;
         }
         void removeMacro(String name, FilePosition pos) throws SyntaxError {
-            if(macros.remove(inCurrentModule(name))==null){
+            Declarable removed=elements.remove(inCurrentModule(name));
+            if(removed==null){
                 throw new SyntaxError("macro "+name+" does not exists in the current module",pos);
+            }else if(removed.declarableType()!=DeclarableType.MACRO){
+                throw new SyntaxError("macro "+name+" does not exists, or is" +
+                        " shadowed by "+declarableName(removed.declarableType(),false)
+                        +" (declared at "+removed.declaredAt()+")",pos);
             }
+        }
+        boolean isMacro(String name){
+            Declarable d=getDeclarable(name);
+            return d!=null&&d.declarableType()==DeclarableType.MACRO;
+        }
+
+        void declareEnum(Type.Enum anEnum, FilePosition pos) {
+            String localName=inCurrentModule(anEnum.name);
+
+            //TODO declare enum
+            throw new UnsupportedOperationException("enums are currently not supported"+localName+pos);
         }
 
         @Override
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
             String name0=name;
             name=inCurrentModule(name);
-            PredeclaredProc predeclaredProc = predeclaredProcs.get(name);
-            if(predeclaredProc!=null){//initialize predeclared variable
-                throw new SyntaxError("cannot declare variable "+name+
-                        ", it is already used for a predeclared procedure call (at "+predeclaredProc.pos+")",pos);
-            }
             VariableId id = super.declareVariable(name, isConstant, pos,ioContext);
-            VariableId shadowed = file().declaredVars.get(name0);
-            if(shadowed!=null){
-                ioContext.stdErr.println("Warning: variable " + name0 + " declared at " + pos +
-                        "\n     shadows existing " + (shadowed.isConstant ? "constant" : "variable") + " declared at "
-                        + shadowed.declaredAt);
-            }
-            file().declaredVars.put(name0,id);
+            checkShadowed(id,name0,pos,ioContext);
             return id;
         }
-
         @Override
-        VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError {
-            ArrayDeque<String> paths = currentPaths();
-            VariableId id;
-            while(paths.size()>0){//go through all modules
-                id=variables.get(paths.removeLast()+name);
-                if(id!=null){
-                    return id;
-                }
-            }
-            id=variables.get(name);
-            if(id==null){
+        VariableId getVariableId(String name, FilePosition pos, VariableContext callee) throws SyntaxError {
+            Declarable d=getDeclarable(name);
+            if(d==null){
                 String localName=inCurrentModule(name);
                 PredeclaredProc predeclared=predeclaredProcs.get(localName);
                 if(predeclared==null){
                     if(callee.procedure()!=null){
-                        predeclaredProcs.put(name,new PredeclaredProc(pos,new ArrayDeque<>()));
-                        // file().declaredVars add label to macro
+                        predeclared = new PredeclaredProc(pos, new ArrayDeque<>());
+                        predeclaredProcs.put(localName, predeclared);
+                        elements.put(localName,predeclared);//add to elements for better handling of shadowing
                     }else{
-                        throw new SyntaxError("Variable "+name+" does not exist",pos);
+                        throw new SyntaxError("variable "+name+" does not exist",pos);
                     }
                 }
+            }else if(!(d instanceof VariableId)){
+                throw new SyntaxError("variable "+name+" does not exist, or is" +
+                        " shadowed by "+declarableName(d.declarableType(),false)
+                        +" (declared at "+d.declaredAt()+")",pos);
             }
-            return id;
+            return (VariableId) d;
         }
 
         @Override
-        VariableId unsafeGetId(String name) {
+        Declarable unsafeGetDeclared(String name) {
             String name0=name;
             name=inCurrentModule(name);
-            VariableId id=variables.get(name);
+            Declarable id= elements.get(name);
             if(id==null){
-                id= file().declaredVars.get(name0);
+                id= file().declared.get(name0);
             }
             return id;
         }
@@ -973,30 +1034,25 @@ public class Interpreter {
         @Override
         VariableId declareVariable(String name, boolean isConstant, FilePosition pos,IOContext ioContext) throws SyntaxError {
             VariableId id = super.declareVariable(name, isConstant, pos,ioContext);
-            VariableId shadowed = parent.unsafeGetId(name);
+            Declarable shadowed = parent.unsafeGetDeclared(name);
             if (shadowed != null) {//check for shadowing
-                if (shadowed.initializedAt == null) {
-                    throw new SyntaxError("unexpected initialization of predeclared constant " + name +
-                            ", predeclared constants have to be initialized at global level " +
-                            "\n  (" + name + " was declared at " + shadowed.declaredAt + ")", pos);
-                }
                 ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
-                        "\n     shadows existing " + (shadowed.isConstant ? "constant" : "variable") + " declared at "
-                        + shadowed.declaredAt);
+                        "\n     shadows existing " + declarableName(shadowed.declarableType(),false)
+                        + " declared at "  + shadowed.declaredAt());
             }
             return id;
         }
 
         @Override
-        VariableId unsafeGetId(String name) {
-            VariableId id = variables.get(name);
-            return id == null ? parent.unsafeGetId(name) : id;
+        Declarable unsafeGetDeclared(String name) {
+            Declarable id = elements.get(name);
+            return id == null ? parent.unsafeGetDeclared(name) : id;
         }
         @Override
-        VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError {
-            VariableId id=variables.get(name);
+        VariableId getVariableId(String name, FilePosition pos, VariableContext callee) throws SyntaxError {
+            VariableId id= (VariableId) elements.get(name);//all elements should be VariableIds
             if(id == null){
-                id=parent.getId(name,pos,callee);
+                id=parent.getVariableId(name,pos,callee);
             }
             return id;
         }
@@ -1010,6 +1066,15 @@ public class Interpreter {
         int level() {
             return parent.level()+1;
         }
+
+        @Override
+        boolean isMacro(String name) {
+            return !elements.containsKey(name)&&parent.isMacro(name);
+        }
+        @Override
+        boolean isProcedure(String name) {
+            return !elements.containsKey(name)&&parent.isProcedure(name);
+        }
     }
 
     static class ProcedureContext extends BlockContext {
@@ -1020,22 +1085,17 @@ public class Interpreter {
         }
 
         @Override
-        int nextId() {
-            return super.nextId()-curried.size();
-        }
-
-        @Override
-        VariableId getId(String name,FilePosition pos,VariableContext callee) throws SyntaxError {
-            VariableId id=variables.get(name);
+        VariableId getVariableId(String name, FilePosition pos, VariableContext callee) throws SyntaxError {
+            VariableId id= (VariableId) elements.get(name);//all elements should be VariableIds
             if(id == null){
-                id=parent.getId(name,pos,callee);
+                id=parent.getVariableId(name,pos,callee);
                 if(id!=null){
                     if(!id.isConstant){
                         throw new SyntaxError("external variable "+name+" is not constant",pos);
                     }else if(id.context.procedure()!=null){
                         id=new CurriedVariable(id,this, curried.size(), pos);
                         curried.add((CurriedVariable)id);//curry variable
-                        variables.put(name,id);//add curried variable to variable list
+                        elements.put(name,id);//add curried variable to variable list
                     }
                 }
             }
@@ -1049,6 +1109,15 @@ public class Interpreter {
         @Override
         int level() {
             return 0;
+        }
+
+        @Override
+        boolean isMacro(String name) {
+            return !elements.containsKey(name)&&parent.isMacro(name);
+        }
+        @Override
+        boolean isProcedure(String name) {
+            return !elements.containsKey(name)&&parent.isProcedure(name);
         }
     }
 
@@ -1260,6 +1329,7 @@ public class Interpreter {
                 Token prev=tokens.size()>0?tokens.get(tokens.size()-1):null;
                 String prevId=(prev!=null&&prev.tokenType==TokenType.IDENTIFIER)?
                         ((IdentifierToken)prev).name:null;
+                VariableContext context=getContext(openBlocks.peekLast(),program.rootContext);
                 switch (str){
                     case "#define"->{
                         if(openBlocks.size()>0){
@@ -1277,9 +1347,8 @@ public class Interpreter {
                         if(openBlocks.size()>0){
                             throw new SyntaxError("macros can only be undefined at root-level",pos);
                         }
-                        if(prev!=null&&prev.tokenType==TokenType.MACRO_EXPAND){
+                        if(prev!=null&&prev.tokenType==TokenType.IDENTIFIER){
                             tokens.remove(tokens.size()-1);
-                            assert prev instanceof IdentifierToken;
                             program.rootContext.removeMacro(((IdentifierToken)prev).name,pos);
                         }else{
                             throw new SyntaxError("invalid token preceding #undef: "+prev+" expected macro-name",pos);
@@ -1371,18 +1440,14 @@ public class Interpreter {
                     case "."->{
                         if(prev==null||tokens.size()<2){
                             throw new SyntaxError("not enough tokens tokens for '.' modifier",pos);
-                        }else if(prev.tokenType==TokenType.IDENTIFIER||
-                                prev.tokenType==TokenType.MACRO_EXPAND||prev.tokenType==TokenType.PROC_CALL){
+                        }else if(prev.tokenType==TokenType.IDENTIFIER){
                             Token prePrev=tokens.get(tokens.size()-2);
-                            if(prePrev.tokenType!=TokenType.IDENTIFIER&&
-                                    prePrev.tokenType!=TokenType.MACRO_EXPAND&&prePrev.tokenType!=TokenType.PROC_CALL){
+                            if(prePrev.tokenType!=TokenType.IDENTIFIER){
                                 throw new SyntaxError("invalid token for '.' modifier: "+prePrev,prePrev.pos);
                             }
                             String newName=((IdentifierToken)prePrev).name+ MODULE_SEPARATOR +((IdentifierToken)prev).name;
                             tokens.remove(tokens.size()-1);
-                            prev=new IdentifierToken(
-                                    program.rootContext.hasMacro(newName)?TokenType.MACRO_EXPAND:
-                                            program.rootContext.hasProcedure(newName)?TokenType.PROC_CALL :TokenType.IDENTIFIER,
+                            prev=new IdentifierToken(TokenType.IDENTIFIER,
                                     newName,pos);
                         }else{
                             throw new SyntaxError("invalid token for '.' modifier: "+prev,prev.pos);
@@ -1415,9 +1480,12 @@ public class Interpreter {
                     case "@()"->{
                         if(prev==null){
                             throw new SyntaxError("not enough tokens tokens for '@()' modifier",pos);
-                        }else if(prev.tokenType==TokenType.PROC_CALL){
-                            tokens.set(tokens.size()-1,new IdentifierToken(TokenType.PROC_ID,
-                                    ((IdentifierToken)prev).name,prev.pos));
+                        }else if(prev.tokenType==TokenType.IDENTIFIER){
+                            if(context.isProcedure(prevId)){
+                                tokens.set(tokens.size()-1,new IdentifierToken(TokenType.PROC_ID,prevId,prev.pos));
+                            }else{
+                                throw new SyntaxError(prevId+" is no procedure",prev.pos);
+                            }
                         }else{
                             throw new SyntaxError("invalid token for '@()' modifier: "+prev,prev.pos);
                         }
@@ -1425,10 +1493,9 @@ public class Interpreter {
                     }
                 }
                 if(prev!=null){
-                    if(prev.tokenType==TokenType.MACRO_EXPAND) {
+                    if(prev.tokenType==TokenType.IDENTIFIER&&context.isMacro(prevId)) {
                         tokens.remove(tokens.size() - 1);//remove prev
-                        assert prev instanceof IdentifierToken;
-                        Macro m = program.rootContext.getMacro(((IdentifierToken) prev).name,prev.pos);
+                        Macro m = program.rootContext.getMacro(prevId,prev.pos);
                         for(int i=0;i<m.content.size();i++){
                             StringWithPos s=m.content.get(i);
                             finishWord(s.str,i+1<m.content.size()?m.content.get(i+1).str:"##"
@@ -1439,7 +1506,6 @@ public class Interpreter {
                     }else if((!(next.equals(".")||str.equals("proc")||str.equals("procedure")))&&
                             prev instanceof IdentifierToken identifier){
                         int index=tokens.size()-1;
-                        VariableContext context=getContext(openBlocks.peekLast(),program.rootContext);
                         //update variables
                         switch (identifier.tokenType){
                             case DECLARE,CONST_DECLARE -> {
@@ -1466,33 +1532,41 @@ public class Interpreter {
                                         accessType,context));
                             }
                             case IDENTIFIER -> {
-                                VariableId id=context.getId(identifier.name, identifier.pos,context);
-                                if(id!=null){
-                                    Value constValue=program.globalConstants.get(id);
-                                    if(constValue!=null){
-                                        tokens.set(index,new ValueToken(constValue,identifier.pos, false));
-                                    }else{
-                                        tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                                AccessType.READ,context));
-                                    }
-                                }else{//first use of pre-declaration
+                                if(context.isProcedure(identifier.name)){
                                     Value.Procedure proc=program.rootContext.getProcedure(identifier.name,pos);
                                     ProcedureToken token=new ProcedureToken(false,proc,pos);
-                                    assert proc==null;
-                                    program.rootContext.addProcDeclareListener(identifier.name,token);
+                                    if(proc==null){
+                                        program.rootContext.addProcDeclareListener(identifier.name,token);
+                                    }
                                     tokens.set(index,token);
+                                }else{
+                                    VariableId id=context.getVariableId(identifier.name, identifier.pos,context);
+                                    if(id!=null){
+                                        Value constValue=program.globalConstants.get(id);
+                                        if(constValue!=null){
+                                            tokens.set(index,new ValueToken(constValue,identifier.pos, false));
+                                        }else{
+                                            tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
+                                                    AccessType.READ,context));
+                                        }
+                                    }else{//first use of pre-declaration
+                                        Value.Procedure proc=program.rootContext.getProcedure(identifier.name,pos);
+                                        ProcedureToken token=new ProcedureToken(false,proc,pos);
+                                        assert proc==null;
+                                        program.rootContext.addProcDeclareListener(identifier.name,token);
+                                        tokens.set(index,token);
+                                    }
                                 }
                             }
                             case VAR_WRITE -> {
-                                VariableId id=context.getId(identifier.name, identifier.pos,context);
+                                VariableId id=context.getVariableId(identifier.name, identifier.pos,context);
                                 assert !program.globalConstants.containsKey(id);
                                 tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
                                         AccessType.WRITE,context));
                             }
-                            case PROC_CALL, PROC_ID -> {
+                            case PROC_ID -> {
                                 Value.Procedure proc=program.rootContext.getProcedure(identifier.name,pos);
-                                ProcedureToken token=new ProcedureToken(identifier.tokenType==TokenType.PROC_ID
-                                        ,proc,pos);
+                                ProcedureToken token=new ProcedureToken(true,proc,pos);
                                 if(proc==null){
                                     program.rootContext.addProcDeclareListener(identifier.name,token);
                                 }
@@ -1773,6 +1847,20 @@ public class Interpreter {
             case "intAsFloat"   -> tokens.add(new OperatorToken(OperatorType.INT_AS_FLOAT, pos));
             case "floatAsInt"   -> tokens.add(new OperatorToken(OperatorType.FLOAT_AS_INT, pos));
 
+            case "enum" ->{
+                if(openBlocks.size()>0){
+                    throw new SyntaxError("enums can only be declared at root level",pos);
+                }
+                if(tokens.size()==0){
+                    throw new SyntaxError("missing enum name before proc",pos);
+                }
+                prev=tokens.remove(tokens.size()-1);
+                if(prev.tokenType!=TokenType.IDENTIFIER){
+                    throw new SyntaxError("token before 'enum' has to be an identifier",pos);
+                }
+                String name = ((IdentifierToken) prev).name;
+                openBlocks.add(new EnumBlock(name, tokens.size(),pos,rootContext));
+            }
             case "proc","procedure" ->{
                 if(openBlocks.size()>0){
                     throw new SyntaxError("procedures can only be declared at root level",pos);
@@ -1781,16 +1869,19 @@ public class Interpreter {
                     throw new SyntaxError("missing procedure name before proc",pos);
                 }
                 prev=tokens.remove(tokens.size()-1);
-                String name = ((IdentifierToken) prev).name;
-                if(prev.tokenType==TokenType.PROC_CALL){
-                    if(!rootContext.predeclaredProcs.containsKey(name)){
+                if(prev.tokenType!=TokenType.IDENTIFIER){
+                    throw new SyntaxError("token before 'proc' has to be an identifier",pos);
+                }
+                if(getContext(openBlocks.peekLast(),rootContext).isProcedure(((IdentifierToken)prev).name)){
+                    String name = ((IdentifierToken) prev).name;
+                    if(!rootContext.predeclaredProcs.containsKey(rootContext.inCurrentModule(name))){
                         Value.Procedure proc=rootContext.getProcedure(name,pos);
+                        assert proc!=null;
                         throw new SyntaxError("procedure "+ name +" does already exist" +
                                 " (declared at "+proc.declaredAt+")",pos);
                     }
-                }else if(prev.tokenType!=TokenType.IDENTIFIER){
-                    throw new SyntaxError("token before proc has to be an identifier",pos);
                 }
+                String name = ((IdentifierToken) prev).name;
                 openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,rootContext));
             }
             case "=>" ->{
@@ -2004,9 +2095,18 @@ public class Interpreter {
                                 tokens.set(i,new RelativeJump(TokenType.JMP,tmp.pos,tokens.size()-i));
                             }
                         }
+                        case ENUM -> {
+                            if(tokens.size()>block.start){
+                                tmp=tokens.get(block.start);
+                                throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
+                            }
+                            EnumBlock asEnum=((EnumBlock) block);
+                            rootContext.declareEnum(new Type.Enum(asEnum.name,asEnum.elements.toArray(new String[0])),pos);
+                        }
                     }
                 }
             }
+
             case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
             case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
 
@@ -2084,9 +2184,14 @@ public class Interpreter {
             case "stdout" -> tokens.add(new Token(TokenType.STD_OUT, pos));
             case "stderr" -> tokens.add(new Token(TokenType.STD_ERR, pos));
 
-            default -> tokens.add(new IdentifierToken(rootContext.hasMacro(str)?TokenType.MACRO_EXPAND:
-                rootContext.hasProcedure(str)?TokenType.PROC_CALL :TokenType.IDENTIFIER,
-                    str, pos));
+            default -> {
+                CodeBlock last= openBlocks.peekLast();
+                if(last instanceof EnumBlock){
+                    ((EnumBlock) last).elements.add(str);
+                }else{
+                    tokens.add(new IdentifierToken(TokenType.IDENTIFIER, str, pos));
+                }
+            }
         }
     }
 
@@ -2124,7 +2229,7 @@ public class Interpreter {
     private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,
                                   ArrayList<Variable[]> globalVariables, Value[] curried, IOContext context){
         ArrayList<Variable[]> variables=new ArrayList<>();
-        variables.add(new Variable[program.context().variables.size()]);
+        variables.add(new Variable[program.context().elements.size()]);
         int ip=0;
         ArrayList<Token> tokens=program.tokens();
         while(ip<tokens.size()){
@@ -2568,11 +2673,11 @@ public class Interpreter {
                             stack.pop();// remove token
                         }
                     }
-                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE,PROC_CALL, PROC_ID,MACRO_EXPAND, PLACEHOLDER ->
+                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE, PROC_ID, PLACEHOLDER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN ->
-                            variables.add(new Variable[((ContextOpen)next).context.variables.size()]);
+                            variables.add(new Variable[((ContextOpen)next).context.elements.size()]);
                     case CONTEXT_CLOSE -> {
                         if(variables.size()<=1){
                             throw new RuntimeException("unexpected CONTEXT_CLOSE operation");

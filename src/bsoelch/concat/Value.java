@@ -405,6 +405,12 @@ public abstract class Value {
                             +((Type.Tuple) typeValue).elementCount());
                 }
                 return ofType(((Type.Tuple) typeValue).get((int)index));
+            }else if(typeValue instanceof Type.Enum){
+                if(index<0||index>=((Type.Enum) typeValue).elementCount()){
+                    throw new ConcatRuntimeError("index out of bounds:"+index+" size:"
+                            +((Type.Enum) typeValue).elementCount());
+                }
+                return ofString(((Type.Enum) typeValue).get((int)index),false);
             }else if(typeValue instanceof Type.Procedure){
                 if(index<0||index>=2){
                     throw new ConcatRuntimeError("index out of bounds:"+index+" size: 2");
@@ -1514,7 +1520,7 @@ public abstract class Value {
             throw new IllegalArgumentException(procType+" is no valid procedure Type");
         }
     }
-    static class Procedure extends Value implements Interpreter.CodeSection {
+    static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Declarable {
         final Interpreter.FilePosition declaredAt;
 
         final Interpreter.ProcedureContext context;
@@ -1570,6 +1576,15 @@ public abstract class Value {
         @Override
         public Interpreter.VariableContext context() {
             return context;
+        }
+
+        @Override
+        public Interpreter.DeclarableType declarableType() {
+            return Interpreter.DeclarableType.PROCEDURE;
+        }
+        @Override
+        public Interpreter.FilePosition declaredAt() {
+            return declaredAt;
         }
     }
     static class CurriedProcedure extends Value implements Interpreter.CodeSection{

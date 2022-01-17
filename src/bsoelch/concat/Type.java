@@ -266,4 +266,17 @@ public class Type {
         }
     }
 
+    public static class Enum extends Type{
+        final String[] entries;
+        public Enum(String name,String[] entries) {
+            super(name, true);
+            this.entries=entries;
+        }
+        public int elementCount(){
+            return entries.length;
+        }
+        public String get(int i) {
+            return entries[i];
+        }
+    }
 }
