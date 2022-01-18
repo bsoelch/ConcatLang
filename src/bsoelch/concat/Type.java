@@ -266,17 +266,28 @@ public class Type {
         }
     }
 
-    public static class Enum extends Type{
+    public static class Enum extends Type implements Interpreter.Declarable {
+        final Interpreter.FilePosition declaredAt;
         final String[] entries;
-        public Enum(String name,String[] entries) {
+        public Enum(String name, String[] entries, Interpreter.FilePosition declaredAt) {
             super(name, true);
             this.entries=entries;
+            this.declaredAt = declaredAt;
         }
         public int elementCount(){
             return entries.length;
         }
         public String get(int i) {
             return entries[i];
+        }
+
+        @Override
+        public Interpreter.DeclarableType declarableType() {
+            return Interpreter.DeclarableType.ENUM;
+        }
+        @Override
+        public Interpreter.FilePosition declaredAt() {
+            return declaredAt;
         }
     }
 }
