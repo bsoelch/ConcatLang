@@ -142,7 +142,7 @@ public abstract class Value {
     }
 
     public boolean isString(){
-        return Type.BYTES().equals(type)||Type.UNICODE_STRING().equals(type);
+        return Type.RAW_STRING().equals(type)||Type.UNICODE_STRING().equals(type);
     }
     public abstract String stringValue();
 
@@ -379,6 +379,14 @@ public abstract class Value {
         }
 
         @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(typeValue instanceof Type.Enum&&type==Type.RAW_STRING()){
+                return ofString(typeValue.name,false);
+            }
+            return super.castTo(type);
+        }
+
+        @Override
         public long id() {
             return System.identityHashCode(typeValue);
         }
@@ -392,6 +400,8 @@ public abstract class Value {
         public int length() throws TypeError {
             if(typeValue instanceof Type.Tuple){
                 return ((Type.Tuple) typeValue).elementCount();
+            }else if(typeValue instanceof Type.Enum){
+                return ((Type.Enum) typeValue).elementCount();
             }else{
                 return super.length();
             }
@@ -554,7 +564,7 @@ public abstract class Value {
         if(!type.isList()){
             throw new IllegalArgumentException(type+" is no valid list-type");
         }
-        if(type==Type.BYTES()){
+        if(type==Type.RAW_STRING()){
             byte[] bytes=new byte[elements.size()];
             for(int i=0;i<elements.size();i++){
                 bytes[i]=elements.get(i).asByte();
@@ -570,7 +580,7 @@ public abstract class Value {
         }else if(initCap>Integer.MAX_VALUE){
             throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
         }
-        if(type==Type.BYTES()){
+        if(type==Type.RAW_STRING()){
             return new ByteListImpl((int)initCap);
         }else{
             return new ListValue(type,new ArrayList<>((int) initCap));
@@ -998,7 +1008,7 @@ public abstract class Value {
     }
     public static abstract class ByteList extends Value {
         private ByteList(){
-            super(Type.BYTES());
+            super(Type.RAW_STRING());
         }
         public abstract int length();
         @Override
@@ -1727,8 +1737,7 @@ public abstract class Value {
             }
         }
 
-        @Override
-        public boolean equals(Object o) {
+        @Override public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             OptionalValue that = (OptionalValue) o;
@@ -1739,6 +1748,60 @@ public abstract class Value {
             return Objects.hash(wrapped);
         }
     }
+    static class EnumEntry extends Value implements Interpreter.Declarable {
+        final Interpreter.FilePosition declaredAt;
+        final int index;
+        EnumEntry(Type.Enum type, int index, Interpreter.FilePosition declaredAt) {
+            super(type);
+            this.index = index;
+            this.declaredAt = declaredAt;
+        }
+
+        @Override
+        public long id() {
+            return index;
+        }
+        @Override
+        public long asLong(){
+            return index;
+        }
+
+        @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(type==Type.INT){
+                return ofInt(index);
+            }else{
+                return super.castTo(type);
+            }
+        }
+
+        @Override
+        public String stringValue() {
+            return ((Type.Enum)type).entryNames[index];
+        }
+
+        @Override
+        public Interpreter.DeclarableType declarableType() {
+            return Interpreter.DeclarableType.ENUM_ENTRY;
+        }
+        @Override
+        public Interpreter.FilePosition declaredAt() {
+            return declaredAt;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            EnumEntry enumEntry = (EnumEntry) o;
+            return index == enumEntry.index && Objects.equals(declaredAt, enumEntry.declaredAt);
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(declaredAt, index);
+        }
+    }
+
 
 
     private static Value cmpToValue(int c, OperatorType opType) {

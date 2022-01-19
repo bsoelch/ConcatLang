@@ -39,6 +39,8 @@ stringValue proc var => string :
     else
       typeof content stringValue " empty" +: return
     end
+  elif value typeof isEnum :
+    value typeof string cast " " :+ value typeof value [] :+ " ." :+ return
   elif value typeof type == :
     if value string == :
       "string" return
@@ -100,6 +102,8 @@ stringValue proc var => string :
       end
     elif value isVarArg :
       value content stringValue " ..." :+ return
+    elif value isEnum :
+      value string cast return ## return enum-name
     elif value (file) == :
       "(file)" return
     elif value type == :

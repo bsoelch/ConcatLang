@@ -38,7 +38,7 @@ public class Interpreter {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
         STD_IN,STD_OUT,STD_ERR,
         DROP,DUP,
-        DECLARE,CONST_DECLARE,IDENTIFIER,PROC_ID,VAR_WRITE,//addLater option to free values/variables
+        IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
         PLACEHOLDER,//placeholder token for jumps
         CONTEXT_OPEN,CONTEXT_CLOSE,
@@ -133,18 +133,23 @@ public class Interpreter {
             return tokenType.toString();
         }
     }
+    enum IdentifierType{
+        DECLARE,CONST_DECLARE,UNMODIFIED,PROC_ID,VAR_WRITE
+    }
     static class IdentifierToken extends Token {
+        final IdentifierType type;
         final String name;
-        IdentifierToken(TokenType type, String name,FilePosition pos) throws SyntaxError {
-            super(type, pos);
+        IdentifierToken(IdentifierType type, String name,FilePosition pos) throws SyntaxError {
+            super(TokenType.IDENTIFIER, pos);
             this.name = name;
+            this.type=type;
             if(name.isEmpty()){
                 throw new SyntaxError("empty variable name",pos);
             }
         }
         @Override
         public String toString() {
-            return tokenType.toString()+": \""+ name +"\"";
+            return type.toString()+": \""+ name +"\"";
         }
     }
     static class OperatorToken extends Token {
@@ -485,6 +490,7 @@ public class Interpreter {
         int blockStart =-1;
 
         int defaultJump=-1;
+        FilePosition defaultStart=null;
 
         HashMap<Value,Integer> blockJumps =new HashMap<>();
         ArrayDeque<Integer> blockEnds=new ArrayDeque<>();
@@ -543,19 +549,33 @@ public class Interpreter {
                 throw new SyntaxError("this switch case already has a 'default' statement",pos);
             }
             defaultJump=blockStart-start;
+            defaultStart=pos;
             context=new BlockContext(parentContext);
             return context;
         }
-        void end(int endPos,FilePosition pos) throws SyntaxError {
+        void end(int endPos,FilePosition pos,IOContext ioContext) throws SyntaxError {
             if(blockStart !=-1||(defaultJump==-1&&endPos>sectionStart)){
                 throw new SyntaxError("unfinished case-block",pos);
             }else if(switchType==null){
                 throw new SyntaxError("switch-case does not contain any case block",pos);
             }
-            if(defaultJump==-1) {
+            if(defaultStart==null) {
                 defaultJump = endPos - start;
             }
-            //TODO check enum-switch-case
+            if(switchType instanceof Type.Enum){//special checks for enum switch-case
+                if(defaultStart!=null){
+                    if(blockJumps.size()<((Type.Enum) switchType).elementCount()){
+                        ioContext.stdErr.println("Warning: enum switch-case at "+startPos+
+                                " contains a default statement (at "+defaultStart+")");
+                    }else{
+                        throw new SyntaxError("enum switch-case at "+startPos+
+                                " contains a unreachable default statement",defaultStart);
+                    }
+                }else if(blockJumps.size()<((Type.Enum) switchType).elementCount()){
+                    //addLater print missing cases
+                    throw new SyntaxError("enum switch-case does not cover all cases",pos);
+                }
+            }
         }
 
 
@@ -567,6 +587,7 @@ public class Interpreter {
     private static class EnumBlock extends CodeBlock{
         final String name;
         final ArrayList<String> elements=new ArrayList<>();
+        final ArrayList<FilePosition> elementPositions=new ArrayList<>();
         EnumBlock(String name,int start, FilePosition startPos, VariableContext parentContext) {
             super(start, BlockType.ENUM, startPos, parentContext);
             this.name=name;
@@ -575,6 +596,16 @@ public class Interpreter {
         @Override
         VariableContext context() {
             return parentContext;
+        }
+
+        public void add(String str, FilePosition pos) throws SyntaxError {
+            int prev=elements.indexOf(str);
+            if(prev!=-1){
+                throw new SyntaxError("duplicate enum entry "+str+
+                        " (previously declaration at "+elementPositions.get(prev)+")",pos);
+            }
+            elements.add(str);
+            elementPositions.add(pos);
         }
     }
 
@@ -663,7 +694,7 @@ public class Interpreter {
     }
 
     enum DeclarableType{
-        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM
+        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM,ENUM_ENTRY
     }
     static String declarableName(DeclarableType t, boolean a){
         switch (t){
@@ -687,6 +718,9 @@ public class Interpreter {
             }
             case ENUM -> {
                 return a?"an enum":"enum";
+            }
+            case ENUM_ENTRY -> {
+                return a?"an enum entry":"enum entry";
             }
         }
         throw new RuntimeException("unreachable");
@@ -796,6 +830,7 @@ public class Interpreter {
     }
     private static class RootContext extends VariableContext{
         RootContext(){}
+        HashSet<String> modules=new HashSet<>();
         ArrayDeque<FileContext> openFiles=new ArrayDeque<>();
 
         private FileContext file(){
@@ -811,14 +846,34 @@ public class Interpreter {
                         ", the identifier is already used by " + declarableName(d.declarableType(), true)
                         + " (declared at " + d.declaredAt() + ")",declaredAt);
             }
-            file().openModules.add(new ModuleBlock(moduleName.split(MODULE_SEPARATOR),new ArrayList<>(),declaredAt,new HashMap<>()));
+            StringBuilder fullPath=new StringBuilder();
+            for(ModuleBlock m:file().openModules){
+                for(String s:m.path){
+                    fullPath.append(s).append(MODULE_SEPARATOR);
+                }
+            }
+            String[] path = moduleName.split(MODULE_SEPARATOR);
+            for(String s:path){
+                fullPath.append(s);
+                modules.add(fullPath.toString());
+                fullPath.append(MODULE_SEPARATOR);
+            }
+            file().openModules.add(new ModuleBlock(path,new ArrayList<>(),declaredAt,new HashMap<>()));
         }
-        void addImport(String path){
-            path+="'";
-            if(file().openModules.size()>0){
-                file().openModules.get(file().openModules.size()-1).imports.add(path);
+        void addImport(String path,FilePosition pos) throws SyntaxError {
+            if(modules.contains(path)){
+                path+="'";
+                if(file().openModules.size()>0){
+                    file().openModules.get(file().openModules.size()-1).imports.add(path);
+                }else{
+                    file().globalImports.add(path);
+                }
+            }else if(elements.containsKey(path)){
+                //addLater static imports
+                throw new UnsupportedOperationException("static imports are currently unimplemented");
             }else{
-                file().globalImports.add(path);
+                //addLater formatted printing of module paths
+                throw new SyntaxError("module "+path+" does not exist",pos);
             }
         }
         void endModule(FilePosition pos) throws SyntaxError {
@@ -960,11 +1015,21 @@ public class Interpreter {
                         +" (declared at "+removed.declaredAt()+")",pos);
             }
         }
-        void declareEnum(Type.Enum anEnum, IOContext ioContext) throws SyntaxError {
-            String localName=inCurrentModule(anEnum.name);
+        void declareEnum(EnumBlock source, IOContext ioContext) throws SyntaxError {
+            String localName=inCurrentModule(source.name);
+            Type.Enum anEnum=new Type.Enum(source.name,source.elements.toArray(new String[0]),
+                    source.elementPositions,source.startPos);
             checkExisting(localName,DeclarableType.ENUM,anEnum.declaredAt);
             checkShadowed(anEnum,anEnum.name,anEnum.declaredAt,ioContext);
             elements.put(localName,anEnum);
+            for(int i = 0; i<anEnum.entryNames.length; i++){
+                String fieldName = anEnum.entryNames[i];
+                String path = localName + MODULE_SEPARATOR + fieldName;
+                Value.EnumEntry entry = anEnum.entries[i];
+                checkExisting(path,DeclarableType.ENUM,entry.declaredAt);
+                checkShadowed(entry, fieldName, entry.declaredAt,ioContext);
+                elements.put(path,entry);
+            }
         }
 
         @Override
@@ -1277,7 +1342,7 @@ public class Interpreter {
             }
             {//preprocessor
                 Token prev=tokens.size()>0?tokens.get(tokens.size()-1):null;
-                String prevId=(prev!=null&&prev.tokenType==TokenType.IDENTIFIER)?
+                String prevId=(prev instanceof IdentifierToken &&((IdentifierToken) prev).type == IdentifierType.UNMODIFIED)?
                         ((IdentifierToken)prev).name:null;
                 VariableContext context=getContext(openBlocks.peekLast(),program.rootContext);
                 switch (str){
@@ -1297,9 +1362,9 @@ public class Interpreter {
                         if(openBlocks.size()>0){
                             throw new SyntaxError("macros can only be undefined at root-level",pos);
                         }
-                        if(prev!=null&&prev.tokenType==TokenType.IDENTIFIER){
+                        if(prevId!=null){
                             tokens.remove(tokens.size()-1);
-                            program.rootContext.removeMacro(((IdentifierToken)prev).name,pos);
+                            program.rootContext.removeMacro(prevId,pos);
                         }else{
                             throw new SyntaxError("invalid token preceding #undef: "+prev+" expected macro-name",pos);
                         }
@@ -1333,7 +1398,7 @@ public class Interpreter {
                         }
                         if(prevId != null){
                             tokens.remove(tokens.size()-1);
-                            program.rootContext.addImport(prevId);
+                            program.rootContext.addImport(prevId,pos);
                         }else{
                             throw new SyntaxError("module name has to be an identifier",pos);
                         }
@@ -1376,8 +1441,8 @@ public class Interpreter {
                             //<array> <val> <off> <to> [:] =
                             tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_SLICE,prev.pos));
                         }else if(prev instanceof IdentifierToken){
-                            if(prev.tokenType == TokenType.IDENTIFIER){
-                                prev=new IdentifierToken(TokenType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
+                            if(((IdentifierToken) prev).type == IdentifierType.UNMODIFIED){
+                                prev=new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
                             }else{
                                 throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
                             }
@@ -1390,15 +1455,14 @@ public class Interpreter {
                     case "."->{
                         if(prev==null||tokens.size()<2){
                             throw new SyntaxError("not enough tokens tokens for '.' modifier",pos);
-                        }else if(prev.tokenType==TokenType.IDENTIFIER){
+                        }else if(prevId!=null){
                             Token prePrev=tokens.get(tokens.size()-2);
-                            if(prePrev.tokenType!=TokenType.IDENTIFIER){
+                            if(!(prePrev instanceof IdentifierToken && ((IdentifierToken) prePrev).type==IdentifierType.UNMODIFIED)){
                                 throw new SyntaxError("invalid token for '.' modifier: "+prePrev,prePrev.pos);
                             }
-                            String newName=((IdentifierToken)prePrev).name+ MODULE_SEPARATOR +((IdentifierToken)prev).name;
+                            String newName=((IdentifierToken)prePrev).name+ MODULE_SEPARATOR +prevId;
                             tokens.remove(tokens.size()-1);
-                            prev=new IdentifierToken(TokenType.IDENTIFIER,
-                                    newName,pos);
+                            prev=new IdentifierToken(IdentifierType.UNMODIFIED, newName,pos);
                         }else{
                             throw new SyntaxError("invalid token for '.' modifier: "+prev,prev.pos);
                         }
@@ -1409,7 +1473,7 @@ public class Interpreter {
                         if(prev==null){
                             throw new SyntaxError("not enough tokens tokens for '=:' modifier",pos);
                         }else if(prevId!=null){
-                            prev=new IdentifierToken(TokenType.DECLARE,prevId,prev.pos);
+                            prev=new IdentifierToken(IdentifierType.DECLARE,prevId,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '=:' modifier "+prev,prev.pos);
                         }
@@ -1420,7 +1484,7 @@ public class Interpreter {
                         if(prev==null){
                             throw new SyntaxError("not enough tokens tokens for '=$' modifier",pos);
                         }else if(prevId!=null){
-                            prev=new IdentifierToken(TokenType.CONST_DECLARE,prevId,prev.pos);
+                            prev=new IdentifierToken(IdentifierType.CONST_DECLARE,prevId,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '=$' modifier: "+prev,prev.pos);
                         }
@@ -1430,8 +1494,8 @@ public class Interpreter {
                     case "@()"->{
                         if(prev==null){
                             throw new SyntaxError("not enough tokens tokens for '@()' modifier",pos);
-                        }else if(prev.tokenType==TokenType.IDENTIFIER){
-                            tokens.set(tokens.size()-1,new IdentifierToken(TokenType.PROC_ID,prevId,prev.pos));
+                        }else if(prevId!=null){
+                            tokens.set(tokens.size()-1,new IdentifierToken(IdentifierType.PROC_ID,prevId,prev.pos));
                         }else{
                             throw new SyntaxError("invalid token for '@()' modifier: "+prev,prev.pos);
                         }
@@ -1443,12 +1507,12 @@ public class Interpreter {
                             prev instanceof IdentifierToken identifier){
                         int index=tokens.size()-1;
                         //update variables
-                        switch (identifier.tokenType){
+                        switch (identifier.type){
                             case DECLARE,CONST_DECLARE -> {
                                 VariableId id=context.declareVariable(
-                                        identifier.name, identifier.tokenType == TokenType.CONST_DECLARE,
+                                        identifier.name, identifier.type == IdentifierType.CONST_DECLARE,
                                         identifier.pos,ioContext);
-                                AccessType accessType = identifier.tokenType == TokenType.CONST_DECLARE ?
+                                AccessType accessType = identifier.type == IdentifierType.CONST_DECLARE ?
                                                 AccessType.CONST_DECLARE : AccessType.DECLARE;
                                 if(index>0&&(prev=tokens.get(index-1)) instanceof ValueToken){
                                     try {//remember constant declarations
@@ -1467,46 +1531,55 @@ public class Interpreter {
                                 tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
                                         accessType,context));
                             }
-                            case IDENTIFIER -> {
+                            case UNMODIFIED -> {
                                 Declarable d=context.getDeclarable(identifier.name);
-                                if(d instanceof Value.Procedure proc) {
-                                    ProcedureToken token=new ProcedureToken(false,proc,pos);
-                                    tokens.set(index,token);
-                                }else if(d==null||d instanceof PredeclaredProc){
-                                    PredeclaredProc proc;
-                                    if(d!=null){
-                                        proc=(PredeclaredProc) d;
-                                    }else{
-                                        proc=program.rootContext.predeclareProcedure(identifier.name,context,pos);
+                                DeclarableType type=d==null?DeclarableType.PREDECLARED_PROCEDURE:d.declarableType();
+                                switch (type){
+                                    case PROCEDURE -> {
+                                        Value.Procedure proc=(Value.Procedure)d;
+                                        ProcedureToken token=new ProcedureToken(false,proc,pos);
+                                        tokens.set(index,token);
                                     }
-                                    ProcedureToken token=new ProcedureToken(false,null,pos);
-                                    proc.listeners.add(token);
-                                    tokens.set(index,token);
-                                }else if(d instanceof VariableId id){
-                                    id=context.wrapCurried(identifier.name,id,identifier.pos);
-                                    Value constValue=program.globalConstants.get(id);
-                                    if(constValue!=null){
-                                        tokens.set(index,new ValueToken(constValue,identifier.pos, false));
-                                    }else{
-                                        tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                                AccessType.READ,context));
+                                    case PREDECLARED_PROCEDURE -> {
+                                        PredeclaredProc proc;
+                                        if(d!=null){
+                                            proc=(PredeclaredProc) d;
+                                        }else{
+                                            proc=program.rootContext.predeclareProcedure(identifier.name,context,pos);
+                                        }
+                                        ProcedureToken token=new ProcedureToken(false,null,pos);
+                                        proc.listeners.add(token);
+                                        tokens.set(index,token);
                                     }
-                                }else if(d instanceof Macro m){
-                                    tokens.remove(index);//remove prev
-                                    for(int i=0;i<m.content.size();i++){
-                                        StringWithPos s=m.content.get(i);
-                                        finishWord(s.str,i+1<m.content.size()?m.content.get(i+1).str:"##",
-                                                tokens, openBlocks, currentMacroPtr, new FilePosition(s.start, identifier.pos),
-                                                program,ioContext);
+                                    case VARIABLE,CONSTANT,CURRIED_VARIABLE -> {
+                                        VariableId id=(VariableId)d;
+                                        id=context.wrapCurried(identifier.name,id,identifier.pos);
+                                        Value constValue=program.globalConstants.get(id);
+                                        if(constValue!=null){
+                                            tokens.set(index,new ValueToken(constValue,identifier.pos, false));
+                                        }else{
+                                            tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
+                                                    AccessType.READ,context));
+                                        }
                                     }
-                                    //update identifiers at end of macro
-                                    finishWord("##",next,tokens, openBlocks, currentMacroPtr, identifier.pos, program,ioContext);
-                                }else if(d instanceof Type.Enum){
-                                    //TODO implement runtime handling for enums
-                                    throw new UnsupportedOperationException("unimplemented");
-                                }else{
-                                    throw new RuntimeException(declarableName(d.declarableType(),false)+" "+
-                                            identifier.name+" (declared at "+d.declaredAt()+") cannot be used as identifier");
+                                    case MACRO -> {
+                                        Macro m=(Macro) d;
+                                        tokens.remove(index);//remove prev
+                                        for(int i=0;i<m.content.size();i++){
+                                            StringWithPos s=m.content.get(i);
+                                            finishWord(s.str,i+1<m.content.size()?m.content.get(i+1).str:"##",
+                                                    tokens, openBlocks, currentMacroPtr, new FilePosition(s.start, identifier.pos),
+                                                    program,ioContext);
+                                        }
+                                        //update identifiers at end of macro
+                                        finishWord("##",next,tokens, openBlocks, currentMacroPtr, identifier.pos, program,ioContext);
+                                    }
+                                    case ENUM ->
+                                        tokens.set(index,
+                                                new ValueToken(Value.ofType((Type.Enum)d), identifier.pos, false));
+                                    case ENUM_ENTRY ->
+                                        tokens.set(index,
+                                                new ValueToken((Value.EnumEntry)d, identifier.pos, false));
                                 }
                             }
                             case VAR_WRITE -> {
@@ -1542,7 +1615,6 @@ public class Interpreter {
                                             identifier.name+" (declared at "+d.declaredAt()+") is not a procedure",pos);
                                 }
                             }
-                            default -> throw new RuntimeException("unexpected type of IdentifierToken:"+ identifier.tokenType);
                         }
                     }
                 }
@@ -1621,7 +1693,7 @@ public class Interpreter {
             case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos, false));
             case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos, false));
             case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos, false));
-            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.BYTES()),           pos, false));
+            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),           pos, false));
             case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
             case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
             case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_PROCEDURE), pos, false));
@@ -1690,6 +1762,19 @@ public class Interpreter {
                     }
                 }else{
                     tokens.add(new OperatorToken(OperatorType.IS_VAR_ARG,pos));
+                }
+            }
+            case "isEnum"->{
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
+                    try {
+                        tokens.set(tokens.size()-1,
+                                new ValueToken(((ValueToken)prev).value.asType() instanceof Type.Enum ?Value.TRUE:Value.FALSE,
+                                        pos, false));
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }else{
+                    tokens.add(new OperatorToken(OperatorType.IS_ENUM,pos));
                 }
             }
             case "tuple" -> {
@@ -1819,8 +1904,10 @@ public class Interpreter {
                     throw new SyntaxError("missing enum name before proc",pos);
                 }
                 prev=tokens.remove(tokens.size()-1);
-                if(prev.tokenType!=TokenType.IDENTIFIER){
+                if(!(prev instanceof IdentifierToken)){
                     throw new SyntaxError("token before 'enum' has to be an identifier",pos);
+                }else if(((IdentifierToken) prev).type!=IdentifierType.UNMODIFIED){
+                    throw new SyntaxError("token before 'enum' has to be an unmodified identifier",pos);
                 }
                 String name = ((IdentifierToken) prev).name;
                 openBlocks.add(new EnumBlock(name, tokens.size(),pos,rootContext));
@@ -1833,8 +1920,10 @@ public class Interpreter {
                     throw new SyntaxError("missing procedure name before proc",pos);
                 }
                 prev=tokens.remove(tokens.size()-1);
-                if(prev.tokenType!=TokenType.IDENTIFIER){
+                if(!(prev instanceof IdentifierToken)){
                     throw new SyntaxError("token before 'proc' has to be an identifier",pos);
+                }else if(((IdentifierToken) prev).type!=IdentifierType.UNMODIFIED){
+                    throw new SyntaxError("token before 'proc' has to be an unmodified identifier",pos);
                 }
                 String name = ((IdentifierToken) prev).name;
                 openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,rootContext));
@@ -2043,7 +2132,7 @@ public class Interpreter {
                             if(((SwitchCaseBlock)block).defaultJump!=-1){
                                 tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                             }
-                            ((SwitchCaseBlock)block).end(tokens.size(),pos);
+                            ((SwitchCaseBlock)block).end(tokens.size(),pos,ioContext);
                             for(Integer i:((SwitchCaseBlock) block).blockEnds){
                                 tmp=tokens.get(i);
                                 assert tmp.tokenType==TokenType.PLACEHOLDER;
@@ -2055,9 +2144,7 @@ public class Interpreter {
                                 tmp=tokens.get(block.start);
                                 throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
                             }
-                            EnumBlock asEnum=((EnumBlock) block);
-                            rootContext.declareEnum(new Type.Enum(asEnum.name,asEnum.elements.toArray(new String[0]),
-                                    asEnum.startPos),ioContext);
+                            rootContext.declareEnum(((EnumBlock) block),ioContext);
                         }
                     }
                 }
@@ -2143,9 +2230,9 @@ public class Interpreter {
             default -> {
                 CodeBlock last= openBlocks.peekLast();
                 if(last instanceof EnumBlock){
-                    ((EnumBlock) last).elements.add(str);
+                    ((EnumBlock) last).add(str,pos);
                 }else{
-                    tokens.add(new IdentifierToken(TokenType.IDENTIFIER, str, pos));
+                    tokens.add(new IdentifierToken(IdentifierType.UNMODIFIED, str, pos));
                 }
             }
         }
@@ -2341,7 +2428,14 @@ public class Interpreter {
                             case NEW_LIST -> {//e1 e2 ... eN count type {}
                                 Type type = stack.pop().asType();
                                 //count after type to make signature consistent with var-args procedures
-                                long count = stack.pop().asLong();
+
+                                long count;
+                                Value top=stack.pop();
+                                if(top.type==Type.TYPE&&top.asType() instanceof Type.Enum){
+                                    count=((Type.Enum) top.asType()).elementCount();
+                                }else {
+                                    count = top.asLong();
+                                }
                                 checkElementCount(count);
                                 ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
                                 while (count > 0) {
@@ -2516,6 +2610,10 @@ public class Interpreter {
                                 Type type = stack.pop().asType();
                                 stack.push(type.isVarArg()?Value.TRUE:Value.FALSE);
                             }
+                            case IS_ENUM -> {
+                                Type type = stack.pop().asType();
+                                stack.push(type instanceof Type.Enum?Value.TRUE:Value.FALSE);
+                            }
                             case OPTIONAL_OF -> {
                                 Type contentType = stack.pop().asType();
                                 stack.push(Value.ofType(Type.optionalOf(contentType)));
@@ -2629,7 +2727,7 @@ public class Interpreter {
                             stack.pop();// remove token
                         }
                     }
-                    case DECLARE, CONST_DECLARE,IDENTIFIER,VAR_WRITE, PROC_ID, PLACEHOLDER ->
+                    case IDENTIFIER, PLACEHOLDER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN ->

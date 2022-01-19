@@ -1,0 +1,30 @@
+valueIO #include
+core #import
+
+a enum
+  this
+  is
+  an
+  enumeration
+end
+
+"list" "indexed" "by" "enumeration" a string {} string list table =:
+
+table a this . [] println
+table a enumeration . [] println
+
+a this . int cast println
+
+a println
+a is . println
+
+a enumeration . switch
+a this .  a is . case
+  "this or is" println
+end-case
+a enumeration . case
+  "enumeration" println
+end-case
+default
+  "default-case" println
+end

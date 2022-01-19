@@ -26,7 +26,7 @@ public class Type {
     public static Type UNICODE_STRING() {
         return WrapperType.UNICODE_STRING;
     }
-    public static Type BYTES() {
+    public static Type RAW_STRING() {
         return WrapperType.BYTES;
     }
 
@@ -268,17 +268,23 @@ public class Type {
 
     public static class Enum extends Type implements Interpreter.Declarable {
         final Interpreter.FilePosition declaredAt;
-        final String[] entries;
-        public Enum(String name, String[] entries, Interpreter.FilePosition declaredAt) {
+        final String[] entryNames;
+        final Value.EnumEntry[] entries;
+        public Enum(String name, String[] entryNames, ArrayList<Interpreter.FilePosition> entryPositions,
+                    Interpreter.FilePosition declaredAt) {
             super(name, true);
-            this.entries=entries;
+            this.entryNames =entryNames;
+            entries=new Value.EnumEntry[entryNames.length];
+            for(int i=0;i<entryNames.length;i++){
+                entries[i]=new Value.EnumEntry(this,i,entryPositions.get(i));
+            }
             this.declaredAt = declaredAt;
         }
         public int elementCount(){
-            return entries.length;
+            return entryNames.length;
         }
         public String get(int i) {
-            return entries[i];
+            return entryNames[i];
         }
 
         @Override

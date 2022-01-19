@@ -1,0 +1,9 @@
+list
+enumeration
+0
+a
+a is .
+enumeration
+
+Stack:
+[]
