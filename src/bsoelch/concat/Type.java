@@ -17,7 +17,6 @@ public class Type {
 
     public static final Type GENERIC_LIST      = new Type("(list)", false);
     public static final Type GENERIC_OPTIONAL  = new Type("(optional)", false);
-    public static final Type GENERIC_TUPLE     = new Type("(tuple)", false);
     public static final Type GENERIC_PROCEDURE = new Type("*->*", false);
 
     /**blank type that could contain any value*/
@@ -38,7 +37,7 @@ public class Type {
     final String name;
     final boolean switchable;
 
-
+    /**@return true if values of this type can be assigned to type t*/
     public boolean isSubtype(Type t){
         return (t==this)||t==ANY;
     }
@@ -159,15 +158,15 @@ public class Type {
 
         @Override
         public boolean isSubtype(Type t) {
-            if(t instanceof Tuple&&((Tuple) t).elementCount()==elementCount()){
-                for(int i=0;i<elements.length;i++){
+            if(t instanceof Tuple&&((Tuple) t).elementCount()<=elementCount()){
+                for(int i=0;i<((Tuple) t).elements.length;i++){
                     if(!elements[i].isSubtype(((Tuple) t).elements[i])){
                         return false;
                     }
                 }
                 return true;
             }else{
-                return t==GENERIC_TUPLE||super.isSubtype(t);
+                return super.isSubtype(t);
             }
         }
 

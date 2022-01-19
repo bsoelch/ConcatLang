@@ -3,7 +3,7 @@ hashMap #module
 hashCode proc var => int :
   var value =:
   value typeof type valType =:
-  if || valType (list) <= : valType (tuple) <= end :
+  if || valType (list) <= : valType 0 tuple <= end : ## addLater? use list-hash for tuple/enum-types
     0 int hash =:
     0 int i =:
     while i value length < :
@@ -16,7 +16,7 @@ hashCode proc var => int :
   end
 end
 
-var  var  (tuple)           3 tuple type _Entry =$
+var  var   0 tuple  3 tuple type _Entry =$
 _Entry.key   #define 0 []   #end
 _Entry.val   #define 1 []   #end
 _Entry.val=  #define 1 [] = #end

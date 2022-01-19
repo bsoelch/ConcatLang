@@ -1453,25 +1453,6 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.GENERIC_TUPLE||this.type.equals(type)){
-                return this;
-            }else if(type instanceof Type.Tuple&&
-                    ((Type.Tuple) type).elementCount()==((Type.Tuple)this.type).elementCount()){
-                Value[] newValues=elements.clone();
-                return createTuple((Type.Tuple)type,newValues);
-            }else if(type.isList()){
-                ArrayList<Value> newElements=new ArrayList<>(elements.length);
-                for (Value element : elements) {
-                    newElements.add(element.castTo(type.content()));
-                }
-                return new ListValue(type,newElements);
-            }else{
-                return super.castTo(type);
-            }
-        }
-
-        @Override
         public int length() throws TypeError {
             return elements.length;
         }

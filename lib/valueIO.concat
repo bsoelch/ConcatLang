@@ -11,7 +11,7 @@ stringValue proc var => string :
     value clone swap drop return
   elif value typeof ustring == :
     value codepointsToString return
-  elif value typeof (tuple) <= :
+  elif value typeof 0 tuple <= :
     "(" string res =:
     0 int i =:
     while i value length < :
@@ -46,21 +46,17 @@ stringValue proc var => string :
       "string" return
     elif value ustring == :
       "ustring" return
-    elif value (tuple) <= :
-      if value (tuple) == :
-        "(tuple)" return
-      else
-        "" string res =:
-        0 int i =:
-        while i value length < :
-          if i 0 > :
-            res " " :+ res =
-          end
-          res value i [] stringValue :+ res =
-          i 1 + i =
+    elif value 0 tuple <= :
+      "" string res =:
+      0 int i =:
+      while i value length < :
+        if i 0 > :
+          res " " :+ res =
         end
-        res " " :+ i  10 false false intToString :+ " tuple" :+ return
+        res value i [] stringValue :+ res =
+        i 1 + i =
       end
+      res " " :+ i  10 false false intToString :+ " tuple" :+ return
     elif value *->* <= :
       if value *->* == :
         "*->*" return
@@ -179,6 +175,7 @@ fprint  #define swap core stringValue . swap core fputs . #end
 4 int __IO_FLAG_SGN =$
 8 int __IO_FLAG_SGN_SPACE =$
 
+bool 1 tuple type _IO_Format =$
 ## isValue:bool value:string$
 bool string 2 tuple   type __IO_FormatString =$
 __IO.isValue #define 0 [] #end
@@ -335,7 +332,7 @@ formatString proc #_args_# var ... #_format_# string => string :
   string format =:
   int argCount =:
 
-  format length 4 / var list new var list parts =:
+  format length 4 / _IO_Format list new _IO_Format list parts =:
   0 int i0 =:
   0 int i  =:
   format length int n  =:
@@ -542,9 +539,9 @@ formatString proc #_args_# var ... #_format_# string => string :
   end
   count var list new var list args =:
   0 i =
-  while i count < :
+  while argCount 0 > :
     args >>: args = ## get var-arg arguments from stack
-    i 1 + i =
+    argCount 1 - argCount =
   end
   0 i =
   while i parts length < :

@@ -44,7 +44,7 @@ public class Interpreter {
         CONTEXT_OPEN,CONTEXT_CLOSE,
         CALL_PROC, PUSH_PROC_PTR,CALL_PTR,
         RETURN,
-        DEBUG_PRINT,
+        DEBUG_PRINT,ASSERT,//debug time operations, may be replaced with drop in compiled code
         SHORT_AND_JMP, SHORT_OR_JMP,JEQ,JNE,JMP,//jump commands only for internal representation
         SWITCH,
         EXIT
@@ -212,6 +212,13 @@ public class Interpreter {
         SwitchToken(SwitchCaseBlock block,FilePosition pos) {
             super(TokenType.SWITCH,pos);
             this.block = block;
+        }
+    }
+    static class AssertToken extends Token{
+        final String message;
+        AssertToken(String message,FilePosition pos) {
+            super(TokenType.ASSERT,pos);
+            this.message = message;
         }
     }
     static class ProcedureToken extends Token {
@@ -577,7 +584,6 @@ public class Interpreter {
                 }
             }
         }
-
 
         @Override
         VariableContext context() {
@@ -1700,7 +1706,6 @@ public class Interpreter {
             case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
             case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),      pos, false));
             case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_OPTIONAL),  pos, false));
-            case "(tuple)"    -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_TUPLE),     pos, false));
             case "(file)"     -> tokens.add(new ValueToken(Value.ofType(Type.FILE),              pos, false));
 
             case "list" -> {
@@ -1891,6 +1896,27 @@ public class Interpreter {
             case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, pos));
 
             case "debugPrint"    -> tokens.add(new Token(TokenType.DEBUG_PRINT, pos));
+            case "assert"    -> {
+                if(tokens.size()<2){
+                    throw new SyntaxError("not enough tokens for 'assert'",pos);
+                }
+                prev=tokens.remove(tokens.size()-1);
+                if(!(prev instanceof ValueToken&&((ValueToken) prev).value.isString())){
+                    throw new SyntaxError("tokens directly preceding 'assert' has to be a string-constant",pos);
+                }
+                String message=((ValueToken) prev).value.stringValue();
+                if((prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
+                    try {
+                        if(!((ValueToken) prev).value.asBool()){
+                            throw new SyntaxError("assertion failed: "+message,pos);
+                        }
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }else{
+                    tokens.add(new AssertToken(message, pos));
+                }
+            }
 
             //addLater? change to float To/from bytes
             case "intAsFloat"   -> tokens.add(new OperatorToken(OperatorType.INT_AS_FLOAT, pos));
@@ -2428,7 +2454,6 @@ public class Interpreter {
                             case NEW_LIST -> {//e1 e2 ... eN count type {}
                                 Type type = stack.pop().asType();
                                 //count after type to make signature consistent with var-args procedures
-
                                 long count;
                                 Value top=stack.pop();
                                 if(top.type==Type.TYPE&&top.asType() instanceof Type.Enum){
@@ -2684,7 +2709,7 @@ public class Interpreter {
                                         }
                                     }
                                     case CURRIED ->
-                                            throw new ConcatRuntimeError("curried variables are currently unimplemented");
+                                            throw new ConcatRuntimeError("cannot modify curried variables");
                                 }
                             }
                             case CONST_DECLARE,DECLARE -> {
@@ -2704,9 +2729,14 @@ public class Interpreter {
                                         }
                                     }
                                     case CURRIED ->
-                                            throw new ConcatRuntimeError("curried variables are currently unimplemented");
+                                            throw new ConcatRuntimeError("cannot declare curried variables");
                                 }
                             }
+                        }
+                    }
+                    case ASSERT -> {
+                        if(!stack.pop().asBool()){
+                            throw new ConcatRuntimeError("assertion failed: "+((AssertToken)next).message);
                         }
                     }
                     case SHORT_AND_JMP -> {
