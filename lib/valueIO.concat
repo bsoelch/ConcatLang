@@ -108,8 +108,10 @@ stringValue proc var => string :
       "bool" return
     else value byte == _if
       "byte" return
-    else value int == _if
+    else value  int == _if
       "int" return
+    else value uint == _if
+      "uint" return
     else value float == _if
       "float" return
     else value codepoint == _if
@@ -128,8 +130,10 @@ stringValue proc var => string :
     else
       value byteToString return ## print all other bytes as their byte-code
     end
-  else value typeof int == _if
-    value  10 false false intToString return
+  else value typeof  int == _if
+    value   10 false false intToString return
+  else value typeof uint == _if
+    value   10  true false intToString return
   else value typeof float == _if
     value 0 10 false false floatToString return
   else value typeof codepoint == _if

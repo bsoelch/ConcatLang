@@ -29,7 +29,7 @@ end
 
 codepoint>>string proc codepoint string => string :
   string    str =:
-  codepoint cp =: ##addLater? more efficient algorithm
+  codepoint cp =:
   str 0 0 [:] cp string<<codepoint drop
   str return
 end
@@ -70,7 +70,7 @@ ustring:+string proc ustring string => ustring :
 end
 string+:ustring proc string ustring => ustring :
   ustring value   =:
-  string  append  =: ##addLater? more efficient algorithm
+  string  append  =:
   value 0 0 [:] append ustring:+string drop
   value return
 end

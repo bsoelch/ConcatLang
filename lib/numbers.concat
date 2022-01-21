@@ -60,14 +60,14 @@ intToString proc #_value_# int #_base_# int #_unsigned_# bool #_big_# bool => st
   "" ## result
   value 0 < if
     unsigned if
-      value base u% base big __NUMBERS_getDigit :<<
-      value base u/ value =
+      value uint cast base uint cast % base big __NUMBERS_getDigit :<<
+      value uint cast base uint cast / value =
     else
       true neg =
       value -_ value =
       value 0 < if  ## int_MIN
-        value base u% base big __NUMBERS_getDigit :<<
-        value base u/ value =
+        value uint cast base uint cast % base big __NUMBERS_getDigit :<<
+        value uint cast base uint cast / value =
       end
     end
   end
@@ -202,6 +202,7 @@ __NUMBERS_valueOfDigit proc #_digit _# byte #_base_# int => #_value_# int :
   end
 end
 
+## TODO unsigned stringToInt
 stringToInt proc #_source_# string #_base_# int => int :
   int base =:
   string source =:

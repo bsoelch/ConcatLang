@@ -3,11 +3,11 @@ package bsoelch.concat;
 public enum OperatorType {
     REF_ID,CLONE,DEEP_CLONE,
     NEGATE,PLUS,MINUS,
-    INVERT, MULTIPLY,DIV,MOD, UNSIGNED_DIV,UNSIGNED_MOD,
+    INVERT, MULTIPLY,DIV,MOD,
     POW,
     NOT,FLIP,AND,OR,XOR,
     LOG,FLOOR,CEIL,
-    LSHIFT,SLSHIFT,RSHIFT,SRSHIFT,
+    LSHIFT,RSHIFT,
     GT,GE,EQ,NE,LE,LT,//value equality
     REF_EQ,REF_NE,//reference equality
     CAST,TYPE_OF,

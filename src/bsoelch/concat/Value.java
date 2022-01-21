@@ -170,10 +170,9 @@ public abstract class Value {
         return val;
     }
 
-    public static Value ofInt(long intValue) {
-        return new IntValue(intValue);
+    public static Value ofInt(long intValue,boolean unsigned) {
+        return new IntValue(intValue,unsigned);
     }
-
     public static long parseInt(String source,int base) throws ConcatRuntimeError {
         if(base<2||base>62){
             throw new ConcatRuntimeError("base out of range:"+base+" base has to be between 2 and 62");
@@ -184,6 +183,7 @@ public abstract class Value {
             i++;
         }
         long res=0;
+        //TODO parsing of unsigned integers
         for(;i<source.length();i++){
             if(res>Long.MAX_VALUE/base){
                 throw new ConcatRuntimeError("invalid string-format for int \""+source+"\" (overflow)");
@@ -195,8 +195,8 @@ public abstract class Value {
     }
     private static class IntValue extends Value implements NumberValue{
         final long intValue;
-        private IntValue(long intValue) {
-            super(Type.INT);
+        private IntValue(long intValue, boolean unsigned) {
+            super(unsigned?Type.UINT:Type.INT);
             this.intValue = intValue;
         }
 
@@ -207,7 +207,7 @@ public abstract class Value {
 
         @Override
         public double asDouble() {
-            return intValue;
+            return type==Type.UINT?((intValue>>>1)*2.0):intValue;
         }
         @Override
         public long asLong() {
@@ -216,7 +216,19 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.BYTE){
+            if(type==Type.INT){
+                if(this.type==Type.INT){
+                    return this;
+                }else{
+                    return ofInt(intValue,false);
+                }
+            }else if(type==Type.UINT){
+                if(this.type==Type.UINT){
+                    return this;
+                }else{
+                    return ofInt(intValue,true);
+                }
+            }else if(type==Type.BYTE){
                 if(intValue<0||intValue>0xff){
                     throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to byte");
                 }
@@ -235,10 +247,10 @@ public abstract class Value {
         }
 
         public Value negate(){
-            return ofInt(-intValue);
+            return ofInt(-intValue,false);
         }
         public Value flip(){
-            return ofInt(~intValue);
+            return ofInt(~intValue,type==Type.UINT);
         }
         public Value invert(){
             return ofFloat(1.0/intValue);
@@ -343,7 +355,11 @@ public abstract class Value {
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
-                return ofInt((long)floatValue);
+                return ofInt((long)floatValue,false);
+            }else if(type==Type.UINT){
+                return ofInt(floatValue<0 ? 0 :
+                            floatValue>=18446744073709551615.0 ? -1 :
+                                    ((long)floatValue/2)<<1,true);
             }else{
                 return super.castTo(type);
             }
@@ -472,7 +488,9 @@ public abstract class Value {
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
-                return ofInt(codePoint);
+                return ofInt(codePoint,false);
+            }else if(type==Type.UINT){
+                return ofInt(codePoint,true);
             }else{
                 return super.castTo(type);
             }
@@ -520,7 +538,9 @@ public abstract class Value {
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
-                return ofInt(byteValue&0xff);
+                return ofInt(byteValue&0xff,false);
+            }else if(type==Type.UINT){
+                return ofInt(byteValue&0xff,true);
             }else{
                 return super.castTo(type);
             }
@@ -1750,7 +1770,9 @@ public abstract class Value {
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
-                return ofInt(index);
+                return ofInt(index,false);
+            }else if(type==Type.UINT){
+                return ofInt(index,true);
             }else{
                 return super.castTo(type);
             }
@@ -1827,7 +1849,10 @@ public abstract class Value {
         }else if(a instanceof CodepointValue &&b instanceof CodepointValue){
             return cmpToValue(Integer.compare(((CodepointValue) a).codePoint,((CodepointValue) b).codePoint), opType);
         }else if(a instanceof NumberValue&&b instanceof NumberValue){
-            return mathOp(a,b,(x,y)->cmpToValue(x.compareTo(y),opType),(x,y)->cmpToValue(x.compareTo(y),opType));
+            return mathOp(a,b,
+                    (x,y)->cmpToValue(x.compareTo(y),opType),
+                    (x,y)->cmpToValue(Long.compareUnsigned(x,y),opType),
+                    (x,y)->cmpToValue(x.compareTo(y),opType));
         }else if(a instanceof TypeValue&&b instanceof TypeValue&&(opType==OperatorType.GE||opType==OperatorType.LE)){
             if(opType==OperatorType.LE){
                 return a.asType().isSubtype(b.asType())?TRUE:FALSE;
@@ -1839,16 +1864,18 @@ public abstract class Value {
         }
     }
 
-    public static Value mathOp(Value a, Value b, BiFunction<Long,Long,Value> intOp, BiFunction<Double,Double,Value> floatOp) throws TypeError {
+    public static Value mathOp(Value a, Value b, BiFunction<Long,Long,Value> intOp,  BiFunction<Long,Long,Value> uintOp,
+                               BiFunction<Double,Double,Value> floatOp) throws TypeError {
         if(a instanceof IntValue){
             if(b instanceof IntValue){
-                return intOp.apply(((IntValue) a).intValue, ((IntValue) b).intValue);
+                return (uintOp!=null&&a.type==Type.UINT&&b.type==Type.UINT?uintOp:intOp)
+                            .apply(((IntValue) a).intValue, ((IntValue) b).intValue);
             }else if(b instanceof FloatValue){
-                return floatOp.apply((double)((IntValue) a).intValue, ((FloatValue) b).floatValue);
+                return floatOp.apply(((IntValue) a).asDouble(), ((FloatValue) b).floatValue);
             }
         }else if(a instanceof FloatValue){
             if(b instanceof IntValue){
-                return floatOp.apply((((FloatValue) a).floatValue),(double)((IntValue) b).intValue);
+                return floatOp.apply((((FloatValue) a).floatValue),((IntValue) b).asDouble());
             }else if(b instanceof FloatValue){
                 return floatOp.apply((((FloatValue) a).floatValue),((FloatValue) b).floatValue);
             }
@@ -1859,12 +1886,36 @@ public abstract class Value {
         if(a.type==Type.BOOL&&b.type==Type.BOOL){
             return boolOp.apply(a.asBool(),b.asBool())?TRUE:FALSE;
         }else{
-            return intOp(a,b,intOp);
+            if(a instanceof IntValue&&b instanceof IntValue){
+                return ofInt(intOp.apply(((IntValue) a).intValue, ((IntValue) b).intValue),false);
+            }
+            throw new TypeError("invalid parameters for int operator:"+a.type+" "+b.type);
         }
     }
-    public static Value intOp(Value a,Value b,BinaryOperator<Long> intOp) throws TypeError {
+
+    private static long signedLeftShift(long x, long y) {
+        return x&0x8000000000000000L|(x<<y&0x7fffffffffffffffL);
+    }
+    public static Value shift(Value a,Value b,boolean left) throws TypeError {
         if(a instanceof IntValue&&b instanceof IntValue){
-                return ofInt(intOp.apply(((IntValue) a).intValue, ((IntValue) b).intValue));
+            long x=((IntValue) a).intValue,y=((IntValue) b).intValue;
+            if(y<0&&b.type==Type.INT){
+                left=!left;//negative b => flip direction
+                y=-y;
+            }
+            if(left){
+                if(a.type==Type.UINT){
+                    return ofInt(x<<y,true);
+                }else{
+                    return ofInt(signedLeftShift(x,y),false);
+                }
+            }else{
+                if(a.type==Type.UINT){
+                    return ofInt(x>>>y,true);
+                }else{
+                    return ofInt(x>>y,false);
+                }
+            }
         }
         throw new TypeError("invalid parameters for int operator:"+a.type+" "+b.type);
     }

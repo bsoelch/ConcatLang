@@ -1,10 +1,10 @@
 core #module
 valueIO #include
 
-intToBytes proc int => byte list :
-  int val =:
+uintToBytes proc uint => byte list :
+  uint val =:
   8 byte list new byte list rawData =:
-  0 int i =:
+  0 uint i =:
   while i 8 < :
     rawData val 0xff & byte cast :<< rawData =
     val 8 >> val =
@@ -13,22 +13,22 @@ intToBytes proc int => byte list :
   rawData
 end
 
-intFromBytes proc byte list => int :
+uintFromBytes proc byte list => uint :
   byte list rawData =:
   rawData length 8 > if
     "too much bytes from convert to int:" puts rawData length print " maximum: 8\n" puts
     1 exit
   end
-  0 int val =:
+  0 uint val =:
   rawData length 0 > if
-    0 int shift =:
-    0 int i =:
+    0 uint shift =:
+    0 uint i =:
     while i rawData length < :
-      val rawData i [] int cast shift << | val =
+      val rawData i [] uint cast shift << | val =
       shift 8 + shift =
       i 1 + i =
     end
-    rawData length 8 < && rawData rawData length 1 - [] int cast 0x80 & 0 != end if
+    rawData length 8 < && rawData rawData length 1 - [] uint cast 0x80 & 0 != end if
       val -1 shift << | val =
     end
   end

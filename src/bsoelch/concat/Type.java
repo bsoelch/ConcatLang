@@ -6,9 +6,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class Type {
-    public static final Type INT = new Type("int", true);
+    public static final Type INT   = new Type("int",  true);
+    public static final Type UINT  = new Type("uint", true);
     public static final Type CODEPOINT = new Type("codepoint", true);
-    public static final Type FLOAT = new Type("float", false);
+    public static final Type FLOAT = new Type("float",false);
     public static final Type TYPE  = new Type("type", false);
     public static final Type BOOL  = new Type("bool", false);
     public static final Type BYTE  = new Type("byte", true);

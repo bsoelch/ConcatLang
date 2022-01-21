@@ -1277,15 +1277,15 @@ public class Interpreter {
     private boolean tryParseInt(ArrayList<Token> tokens, String str,FilePosition pos) throws SyntaxError {
         try {
             if(intDec.matcher(str).matches()){//dez-Int
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 10)), pos, false));
+                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 10),false), pos, false));
                 return false;
             }else if(intBin.matcher(str).matches()){//bin-Int
                 str=str.replaceAll(BIN_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 2)),  pos, false));
+                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 2),false),  pos, false));
                 return false;
             }else if(intHex.matcher(str).matches()){ //hex-Int
                 str=str.replaceAll(HEX_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 16)), pos, false));
+                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 16),false), pos, false));
                 return false;
             }
         } catch (NumberFormatException nfeL) {
@@ -1659,6 +1659,7 @@ public class Interpreter {
             case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),              pos, false));
             case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),              pos, false));
             case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos, false));
+            case "uint"       -> tokens.add(new ValueToken(Value.ofType(Type.UINT),              pos, false));
             case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos, false));
             case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos, false));
             case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos, false));
@@ -2149,8 +2150,6 @@ public class Interpreter {
             case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
             case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
             case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
-            case "u/"  -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_DIV,  pos));
-            case "u%"  -> tokens.add(new OperatorToken(OperatorType.UNSIGNED_MOD,  pos));
             case "**"  -> tokens.add(new OperatorToken(OperatorType.POW,           pos));
             case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           pos));
             case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          pos));
@@ -2165,12 +2164,9 @@ public class Interpreter {
             case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE,        pos));
             case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,            pos));
             case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,            pos));
-            //addLater compare unsigned
 
             case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
-            case ".>>" -> tokens.add(new OperatorToken(OperatorType.SRSHIFT, pos));
             case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  pos));
-            case ".<<" -> tokens.add(new OperatorToken(OperatorType.SLSHIFT, pos));
 
             case "log"   -> tokens.add(new OperatorToken(OperatorType.LOG, pos));
             case "floor" -> tokens.add(new OperatorToken(OperatorType.FLOOR, pos));
@@ -2296,7 +2292,8 @@ public class Interpreter {
                     }
                     case OPERATOR -> {
                         switch (((OperatorToken) next).opType) {
-                            case REF_ID -> stack.push(Value.ofInt(stack.pop().id()));
+                            case REF_ID ->
+                                    stack.push(Value.ofInt(stack.pop().id(),true));
                             case CLONE -> {
                                 Value t = stack.peek();
                                 stack.push(t.clone(false));
@@ -2324,42 +2321,42 @@ public class Interpreter {
                             case PLUS -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y), (x, y) -> Value.ofFloat(x + y)));
+                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y,false), null,
+                                        (x, y) -> Value.ofFloat(x + y)));
                             }
                             case MINUS -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y), (x, y) -> Value.ofFloat(x - y)));
+                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y,false), null,
+                                        (x, y) -> Value.ofFloat(x - y)));
                             }
                             case MULTIPLY -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y), (x, y) -> Value.ofFloat(x * y)));
+                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y,false), null,
+                                        (x, y) -> Value.ofFloat(x * y)));
                             }
                             case DIV -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x / y), (x, y) -> Value.ofFloat(x / y)));
+                                stack.push(Value.mathOp(a, b,
+                                        (x, y) -> Value.ofInt(x / y,false),
+                                        (x, y) -> Value.ofInt(Long.divideUnsigned(x,y),true),
+                                        (x, y) -> Value.ofFloat(x / y)));
                             }
                             case MOD -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x % y), (x, y) -> Value.ofFloat(x % y)));
-                            }
-                            case UNSIGNED_DIV -> {
-                                long b = stack.pop().asLong();
-                                long a = stack.pop().asLong();
-                                stack.push(Value.ofInt(Long.divideUnsigned(a,b)));
-                            }
-                            case UNSIGNED_MOD -> {
-                                long b = stack.pop().asLong();
-                                long a = stack.pop().asLong();
-                                stack.push(Value.ofInt(Long.remainderUnsigned(a,b)));
+                                stack.push(Value.mathOp(a, b,
+                                        (x, y) -> Value.ofInt(x % y,false),
+                                        (x, y) -> Value.ofInt(Long.remainderUnsigned(x,y),true),
+                                        (x, y) -> Value.ofFloat(x % y)));
                             }
                             case POW -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(longPow(x, y)),
+                                stack.push(Value.mathOp(a, b,
+                                        (x, y) -> Value.ofInt(longPow(x, y),false), null,
                                         (x, y) -> Value.ofFloat(Math.pow(x, y))));
                             }
                             case EQ, NE, GT, GE, LE, LT,REF_EQ,REF_NE -> {
@@ -2388,22 +2385,12 @@ public class Interpreter {
                             case LSHIFT -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? x >>> -y : x << y));
+                                stack.push(Value.shift(a, b,true));
                             }
                             case RSHIFT -> {
                                 Value b = stack.pop();
                                 Value a = stack.pop();
-                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? x << -y : x >>> y));
-                            }
-                            case SLSHIFT -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? x >> -y : signedLeftShift(x, y)));
-                            }
-                            case SRSHIFT -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.intOp(a, b, (x, y) -> y < 0 ? signedLeftShift(x, -y) : x >> y));
+                                stack.push(Value.shift(a, b,false));
                             }
                             case LIST_OF -> {
                                 Type contentType = stack.pop().asType();
@@ -2443,7 +2430,7 @@ public class Interpreter {
                             }
                             case LENGTH -> {
                                 Value val = stack.pop();
-                                stack.push(Value.ofInt(val.length()));
+                                stack.push(Value.ofInt(val.length(),false));
                             }
                             case CLEAR ->
                                     stack.pop().clear();
@@ -2532,7 +2519,8 @@ public class Interpreter {
                                 }
                             }
                             case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
-                            case FLOAT_AS_INT -> stack.push(Value.ofInt(Double.doubleToRawLongBits(stack.pop().asDouble())));
+                            case FLOAT_AS_INT -> stack.push(
+                                    Value.ofInt(Double.doubleToRawLongBits(stack.pop().asDouble()),true));
                             case OPEN -> {
                                 String options = stack.pop().stringValue();
                                 String path    = stack.pop().stringValue();
@@ -2548,7 +2536,7 @@ public class Interpreter {
                                 long off    = stack.pop().asLong();
                                 Value buff  = stack.pop();
                                 FileStream stream = stack.pop().asStream();
-                                stack.push(Value.ofInt(stream.read(buff.asByteList(),off,count)));
+                                stack.push(Value.ofInt(stream.read(buff.asByteList(),off,count),false));
                             }
                             case WRITE -> {//<file> <buff> <off> <count> write => <isOk>
                                 long count  = stack.pop().asLong();
@@ -2559,11 +2547,11 @@ public class Interpreter {
                             }
                             case SIZE -> {
                                 FileStream stream  = stack.pop().asStream();
-                                stack.push(Value.ofInt(stream.size()));
+                                stack.push(Value.ofInt(stream.size(),true));
                             }
                             case POS -> {
                                 FileStream stream  = stack.pop().asStream();
-                                stack.push(Value.ofInt(stream.pos()));
+                                stack.push(Value.ofInt(stream.pos(),true));
                             }
                             case TRUNCATE -> {
                                 FileStream stream = stack.pop().asStream();
@@ -2820,9 +2808,6 @@ public class Interpreter {
         return ExitType.NORMAL;
     }
 
-    private long signedLeftShift(long x, long y) {
-        return x&0x8000000000000000L|x<<y;
-    }
 
     private long longPow(Long x, Long y) {
         long pow=1;
