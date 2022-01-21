@@ -18,24 +18,25 @@ float_isNaN proc float => bool :
 end
 float_isFinite proc float => bool :
   float val =:
-  && val float_Positive_Infinity < : val float_Negative_Infinity > end return
+  val float_Positive_Infinity < && val float_Negative_Infinity > end return
 end
 
 __NUMBERS_getDigit proc #_value_# int #_base_# int #_big_# bool => #_ char _# byte :
     bool big =:
     int base =:
     int value =:
-    if || value 0 < : value base >= end :
+    value 0 < || value base >= end if
         ## even though intToString calls this function
         ## this error check should not be activated when intToString is called normally
         "Digit out of range: " value  10 false false intToString :+ " base: "
         :+ base  10 false false intToString '\n' :<< eputs
         1 exit
     end
-    if value 10 < :
+    value 10 < if
         value '0' +char return
-    elif value 36 < :
-        value 10 - if || big : base 36 > end : 'A'  else 'a' end +char return
+    else value 36 < _if
+        value 10 -
+        big || base 36 > end if 'A'  else 'a' end +char return
     else
         value 36 - 'a' +char return
     end
@@ -46,25 +47,25 @@ intToString proc #_value_# int #_base_# int #_unsigned_# bool #_big_# bool => st
   bool unsigned =:
   int base =:
   int value =:
-  if || base 2 < : base 62 > end :
+  base 2 < || base 62 > end if
     ## even though printing recursively calls this function
     ## this error check should not be activated when intToString is called normally
     "Base out of range: " base 10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
-  if value 0 == :
+  value 0 == if
     "0" return
   end
   false bool neg =:
   "" ## result
-  if value 0 < :
-    if unsigned :
+  value 0 < if
+    unsigned if
       value base u% base big __NUMBERS_getDigit :<<
       value base u/ value =
     else
       true neg =
       value -_ value =
-      if value 0 < : ## int_MIN
+      value 0 < if  ## int_MIN
         value base u% base big __NUMBERS_getDigit :<<
         value base u/ value =
       end
@@ -74,7 +75,7 @@ intToString proc #_value_# int #_base_# int #_unsigned_# bool #_big_# bool => st
       value base % base big __NUMBERS_getDigit swap >>:
       value base / value =
   end
-  if neg :
+  neg if
     "-" swap +:
   end
 end
@@ -85,23 +86,23 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
   int   base =:
   int   precision =:
   float value =:
-  if || base 2 < : base 62 > end :
+  base 2 < || base 62 > end if
     "Base out of range: " base 10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
-  if value float_isFinite ! :
-    if value float_isNaN :
+  value float_isFinite ! if
+    value float_isNaN if
       "[NaN]"
-    elif value 0 > :
+    else value 0 > _if
       "[Infinity]"
     else
       "-[Infinity]"
     end return
-  elif || value 0.0 == : value -0.0 == end :
+  else value 0.0 == || value -0.0 == end _if
     "0" return
   end
   "" ## result
-  if value 0 < :
+  value 0 < if
     '-' :<<
     value -_ value =
   end
@@ -119,51 +120,51 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
     p base / p =
     e 1 + e =
   end
-  if || precision 0 == : precision n >= end :
+  precision 0 == || precision n >= end if
     n 1 -
   else
     precision
   end n =
-  if buff n [] base 2 / >= :
+  buff n [] base 2 / >= if
     n 1 - int j =:
     true bool inc =:
-    while && inc : j 0 >= end :
+    while inc && j 0 >= end :
       buff   buff j [] 1 +   j [] =
-      if buff j [] base >= :
+      buff j [] base >= if
           buff   buff j [] base -  j [] =
       else
           false inc =
       end
       j 1 - j =
     end
-    if inc :
+    inc if
       1 buff >>: buff =
       e_max 1 + e_max =
       n 1 + n =
     end
   end
-  while && n 1 - e_max > : buff n 1 - [] 0 == end :
+  while n 1 - e_max > && buff n 1 - [] 0 == end :
     n 1 - n =
   end
-  if || sci : || e_max n >= : e_max -5 < end end :
-    while && n 1 - 0 > : buff n 1 - [] 0 == end :
+  sci || e_max n >= || e_max -5 < end end if
+    while n 1 - 0 > && buff n 1 - [] 0 == end :
       n 1 - n =
     end
     buff 0 [] base big __NUMBERS_getDigit :<<
-    if n 1 > :
+    n 1 > if
       '.' :<<
       1 while dup n < :
          swap over buff swap [] base big __NUMBERS_getDigit :<<
          swap 1 +
       end drop
     end
-    if base 10 <= : 'E' elif base 30 <= : 'X' else '#' end :<<
-    if e_max 0 >= : '+' :<< end
+    base 10 <= if 'E' else base 30 <= _if 'X' else '#' end :<<
+    e_max 0 >= if '+' :<< end
     e_max  base false big intToString :+
-  elif e_max 0 >= :
+  else e_max 0 >= _if
     0 while dup n < :
       swap over buff swap [] base big __NUMBERS_getDigit :<<
-      if && over e_max == : over n 1 - < end :
+      over e_max == && over n 1 - < end if
         '.' :<<
       end
       swap 1 +
@@ -184,17 +185,18 @@ end
 __NUMBERS_valueOfDigit proc #_digit _# byte #_base_# int => #_value_# int :
   int  base =:
   byte digit =:
-  if && digit '0' >= : digit '9' <= end :
+  digit '0' >= && digit '9' <= end if
     digit '0' charDiff
-  elif && digit 'A' >= : digit 'Z' <= end :
+  else digit 'A' >= && digit 'Z' <= end _if
     digit 'A' charDiff 10 +
-  elif && digit 'a' >= : digit 'Z' <= end :
-    digit 'a' charDiff if base 37 < : 10 else 36 end +
+  else digit 'a' >= && digit 'Z' <= end _if
+    digit 'a' charDiff
+    base 37 < if 10 else 36 end +
   else
     "invalid digit for base " base  10 false false intToString :+ " number: '" :<< digit "'\n" :+ eputs
     1 exit ## addLater? return error-code instead of exit
   end
-  if dup base >= :
+  dup base >= if
     "invalid digit for base " base  10 false false intToString :+ " number: '" :<< digit "'\n" :+ eputs
     1 exit
   end
@@ -203,16 +205,16 @@ end
 stringToInt proc #_source_# string #_base_# int => int :
   int base =:
   string source =:
-  if || base 2 < : base 62 > end :
+  base 2 < || base 62 > end if
     "Base out of range: " base  10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   0 ## res
   false bool sgn =:
-  if source 0 [] '-' == :
+  source 0 [] '-' == if
     true sgn =
     1 ## i = 1
-  elif source 0 [] '+' == :
+  else source 0 [] '+' == _if
     1 ## i = 1
   else
     0 ## i = 0
@@ -220,14 +222,14 @@ stringToInt proc #_source_# string #_base_# int => int :
   int_MAX base / int max =:
   while dup source length < :
     swap
-    if dup max > :
+    dup max > if
       "invalid string-format for int \"" source :+ "\" (overflow)\n" :+ eputs
       1 exit
     end
     base * over source swap [] base __NUMBERS_valueOfDigit +
     swap 1 +
   end drop
-  if sgn : -_ end
+  sgn if -_ end
 end
 
 parseInt #define 10 core stringToInt . #end
@@ -235,13 +237,13 @@ parseInt #define 10 core stringToInt . #end
 _isExpChar proc #_char_# byte #_base_# int => bool :
   int base =:
   byte c =:
-  if || c 'e' == : c 'E' == end :
+  c 'e' == || c 'E' == end if
     base 'E' 'A' - 10 + 1 + <
-  elif || c 'p' == : c 'P' == end :
+  else c 'p' == || c 'P' == end _if
     base 'P' 'A' - 10 + 1 + <
-  elif || c 'x' == : c 'X' == end :
+  else c 'x' == || c 'X' == end _if
     base 'X' 'A' - 10 + 1 + <
-  elif c '#' == :
+  else c '#' == _if
     true
   else
     false
@@ -251,16 +253,16 @@ end
 stringToFloat proc #_str_# string #_base_# int => float :
   int base =:
   string str =:
-  if || base 2 < : base 62 > end :
+  base 2 < || base 62 > end if
     "Base out of range: " base  10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   0 ## val
   false bool sgn =:
-  if str 0 [] '-' == :
+  str 0 [] '-' == if
     true sgn =
     1 ## i = 1
-  elif str 0 [] '+' == :
+  else str 0 [] '+' == _if
     1 ## i = 1
   else
     0 ## i = 0
@@ -270,18 +272,18 @@ stringToFloat proc #_str_# string #_base_# int => float :
   -1 int e =:
   2 53 ** int max =: ## maximum precision of ieee float64
   while dup str length < :
-    if dup str swap [] '.' == : ## str[i] == '.'
-      if d 0 != :
+    dup str swap [] '.' == if ## str[i] == '.'
+      d 0 != if
         "invalid string-format for float \"" str :+ "\"\n" eputs
         1 exit
       end
       1 d =
-    elif dup str swap [] base _isExpChar :
+    else dup str swap [] base _isExpChar _if
       dup 1 + e =
       str length + ## break Loop by setting index to value >= str.length
     else
       swap
-      if dup max < :
+      dup max < if
         base * over str swap [] base __NUMBERS_valueOfDigit +
         c d + c =
       else
@@ -292,10 +294,10 @@ stringToFloat proc #_str_# string #_base_# int => float :
     end
     1 +
   end drop
-  if e 0 > :
+  e 0 > if
     c str e str length [:] base stringToInt - c =
   end
-  if sgn : -_ end base c -_ float cast ** *
+  sgn if -_ end base c -_ float cast ** *
 end
 
 parseFloat #define 10 core stringToFloat . #end

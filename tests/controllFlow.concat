@@ -2,67 +2,89 @@ valueIO #include
 core #import
 
 "branches:\n" puts
-if true :
+true if
+  0 int test =:
   "if-end\n" puts
 end
-if false :
+false if
+  0 int test =:
   1 exit
 end
-if true :
+true if
+  0 int test =:
   "if(true)-else-end\n" puts
 else
+  0 int test =:
   1 exit
 end
-if false :
+false if
+  0 int test =:
   1 exit
 else
+  0 int test =:
   "if(false)-else-end\n" puts
 end
-if true :
+true if
+  0 int test =:
   "if(true)-elif-end\n" puts
-elif true :
+else true _if
+  0 int test =:
   1 exit
 end
-if false :
+false if
+  0 int test =:
   1 exit
-elif true :
+else true _if
+  0 int test =:
   "if(false)-elif(true)-end\n" puts
 end
-if false :
+false if
+  0 int test =:
   1 exit
-elif false :
+else false _if
+  0 int test =:
   1 exit
 end
-if true :
+true if
+  0 int test =:
   "if(true)-elif-else-end\n" puts
-elif false :
+else false _if
+  0 int test =:
   1 exit
 else
+  0 int test =:
   1 exit
 end
-if false :
+false if
+  0 int test =:
   1 exit
-elif true :
+else true _if
+  0 int test =:
   "if(false)-elif(true)-else-end\n" puts
 else
+  0 int test =:
   1 exit
 end
-if false :
+false if
+  0 int test =:
   1 exit
-elif false :
+else false _if
+  0 int test =:
   1 exit
 else
+  0 int test =:
   "if(false)-elif(false)-else-end\n" puts
 end
 
-&& "A " puts true  : "B " puts true   end println
-&& "A " puts true  : "B " puts false  end println
-&& "A " puts false : "B " puts true   end println
-&& "A " puts false : "B " puts false  end println
-|| "A " puts true  : "B " puts true   end println
-|| "A " puts true  : "B " puts false  end println
-|| "A " puts false : "B " puts true   end println
-|| "A " puts false : "B " puts false  end println
+
+"A " puts true  && "B " puts true   end println
+"A " puts true  && "B " puts false  end println
+"A " puts false && "B " puts true   end println
+"A " puts false && "B " puts false  end println
+"A " puts true  || "B " puts true   end println
+"A " puts true  || "B " puts false  end println
+"A " puts false || "B " puts true   end println
+"A " puts false || "B " puts false  end println
 
 while false :
   1 exit
@@ -72,14 +94,14 @@ while puts false : end
 
 "__________________________\n" puts
 "scopes:\n" puts
-if true bool a =: true :
+   true bool a =: true if
   false bool a =:
 end
 a println
-if false :
-elif 1 int a =: false :
-elif a 1 + a = false :
-elif a 1 + a = false :
+                false  if
+else 1 int a =: false _if
+else a 1 + a =  false _if
+else a 1 + a =  false _if
 else
  a println
 end

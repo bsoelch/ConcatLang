@@ -18,23 +18,23 @@ __LISTS_mergesort_helper proc (list) #_off_# int  #_to_# int #_buffer_# (list) =
   int to =:
   int off =:
   (list) input =:
-  if off to < :
+  off to < if
     off to + 2 / int c =:
     input off c buffer __LISTS_mergesort_helper
     c 1 + c =
     input c  to buffer __LISTS_mergesort_helper
     ## 0 ... c-1 and c...to-1 are sorted
     c int i =:
-    while && off c < : c to <= end :
-      while && off c < : input off [] input c [] <= end :
+    while off c < && c to <= end :
+      while off c < && input off [] input c [] <= end :
         off 1 + off =
       end
-      if off c < :
-        while && i to <= : input off [] input i [] > end :
+      off c < if
+        while i to <= && input off [] input i [] > end :
           i 1 + i =
         end
         i c - int delta =:
-        if delta c off - <= :
+        delta c off - <= if
           buffer clear
           buffer input c i [:] :+ buffer = ## store data in buffer
           input  input off c [:]  off delta + c delta + [:] = ## move remaining part of left half to the right

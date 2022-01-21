@@ -15,7 +15,7 @@ end
 ^> proc iterator => iterator var optional :
   iterator mItr =:
   mItr
-  if mItr 1 [] mItr 0 [] length < :
+  mItr 1 [] mItr 0 [] length < if
     mItr 0 [] mItr 1 [] [] wrap ## push element
     mItr  mItr 1 [] 1 +  1 [] = ## increment iterator
   else
@@ -26,7 +26,7 @@ end
 <^ proc iterator => iterator var optional :
   iterator mItr =:
   mItr
-  if mItr 1 [] 0 > :
+  mItr 1 [] 0 > if
     mItr  mItr 1 [] 1 -  1 [] = ## decrement iterator
     mItr 0 [] mItr 1 [] [] wrap ## push element
   else

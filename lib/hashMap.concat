@@ -3,7 +3,7 @@ hashMap #module
 hashCode proc var => int :
   var value =:
   value typeof type valType =:
-  if || valType (list) <= : valType 0 tuple <= end : ## addLater? use list-hash for tuple/enum-types
+  valType (list) <= || valType 0 tuple <= end if ## addLater? use list-hash for tuple/enum-types
     0 int hash =:
     0 int i =:
     while i value length < :
@@ -47,20 +47,20 @@ HashMap.put proc #_map_# HashMap #_key_# var #_value_# var => #_prevVal_# var op
   key   map _Map.keyType cast key =
   key hashCode int hash =:
   hash map _Map.data length % int i =:
-  if map _Map.data i [] _Empty === :
+  map _Map.data i [] _Empty === if
     map _Map.data  key value _Empty _Entry new  i [] =
     map _Map.valType empty return
   else
     map _Map.data i [] _Entry entry =:
     while entry _Entry.next _Empty =!= :
-      if entry _Entry.key key == :
+      entry _Entry.key key == if
         entry _Entry.val
         entry value _Entry.val=
         wrap return
       end
       entry _Entry.next entry =
     end
-    if entry _Entry.key key == :
+    entry _Entry.key key == if
       entry _Entry.val
       entry value _Entry.val=
       wrap return
@@ -78,7 +78,7 @@ HashMap.get proc #_map_# HashMap #_key_# var => #_value_# var optional :
   hash map _Map.data length % int i =:
   map _Map.data i [] _Entry entry =:
   while entry _Empty =!= :
-    if entry _Entry.key key == :
+    entry _Entry.key key == if
       entry _Entry.val wrap return
     end
     entry _Entry.next entry =
@@ -91,16 +91,16 @@ HashMap.remove proc #_map_# HashMap #_key_# var => #_prevVal_# var optional :
   HashMap map =:
   key hashCode int hash =:
   hash map _Map.data length % int i =:
-  if map _Map.data i [] _Empty === :
+  map _Map.data i [] _Empty === if
     map _Map.valType empty return
-  elif map _Map.data i [] _Entry.key key == :
+  else map _Map.data i [] _Entry.key key == _if
     map _Map.data i [] _Entry.val ## get previous value
     map _Map.data   map _Map.data i [] _Entry.next  i [] = ## remove entry
     wrap return
   else
     map _Map.data i [] _Entry entry =:
     while entry _Entry.next _Empty =!= :
-      if entry _Entry.next _Entry.key key == :
+      entry _Entry.next _Entry.key key == if
         entry _Entry.next _Entry.val ## get previous value
         entry   entry _Entry.next _Entry.next  _Entry.next= ## remove entry
         wrap return

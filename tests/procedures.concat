@@ -11,9 +11,9 @@ sqrt proc float => float :
 end
 
 fib proc int => int :
- if dup 1 > :
+    dup 1 > if
   dup 1 - fib swap 2 - fib +
- elif 1 == :
+ else 1 == _if
   1
  else
   0

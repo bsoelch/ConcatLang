@@ -21,9 +21,9 @@ valueIO #include ## for println
 core #import ## to use println in global scope
 
 fib proc int => int :
- if dup 1 > :
+   dup 1 >  if 
    dup 1 - fib swap 2 - fib +
- elif 1 == :
+ else 1 == _if 
    1
  else
    0
@@ -331,21 +331,21 @@ interacting with the specific values
 #### If-Statements
 If statements start with
 
-```Python
-if <condition> :
+```C
+<condition> if 
  <body>
 ```
 
-followed by zero or more elif-sections
+followed by zero or more else-_if-sections
 
-```Python
-elif <condition> :
+```C
+else <condition> _if
  <body>
 ```
 
 and an optional else-block
 
-```Python
+```C
 else 
  <body>
 ```
@@ -358,17 +358,17 @@ end
 
 Examples:
 ```Julia
-if a b > : a else b end
+a b > if a else b end
 
-if a ! :
+a ! if 
  "not a" println
 end
 
-if dup 0 == : drop
+dup 0 == if  drop
  "zero"
-elif dup 1 == : drop
+else dup 1 == _if drop
  "one"
-elif 2 == :
+else 2 == _if
  "two"
 else 
  "may"
@@ -457,9 +457,9 @@ Examples:
 ```Rust
 ## procedure for recursivly printing the fibonacci numbers
 fib proc int => int :
- if dup 1 > :
+   dup 1 >  if 
    dup 1 - fib swap 2 - fib +
- elif 1 == :
+ else 1 == _if
    1
  else
    0
@@ -467,16 +467,16 @@ fib proc int => int :
 end
 ## mutually recursive functions
 isEven proc int => bool :
-  if dup 0 == :
+  dup 0 == if 
     true return
   else
     1 - isOdd return
   end
 end
 isOdd proc int => bool :
-  if dup 0 == :
+      dup 0 ==  if 
       false return
-  elif dup 0 < :
+  else dup 0 < _if
      -_ isOdd return
   else
     1 - isEven return

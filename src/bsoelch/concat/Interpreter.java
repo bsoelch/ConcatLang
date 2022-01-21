@@ -380,82 +380,44 @@ public class Interpreter {
     private record IfBranch(int fork,int end){}
     static class IfBlock extends CodeBlock{
         ArrayList<IfBranch> branches=new ArrayList<>();
-        int forkPos=-1;
-        int elsePos=-1;
+        int forkPos;
+
         VariableContext ifContext;
         VariableContext elseContext;
         IfBlock(int startToken,FilePosition pos, VariableContext parentContext) {
             super(startToken, BlockType.IF,pos, parentContext);
-            elseContext=parentContext;
+            forkPos=start;
+            ifContext=new BlockContext(parentContext);
+            elseContext=new BlockContext(parentContext);
         }
-        void end(FilePosition pos) throws SyntaxError {
-            if(forkPos==-1&&elsePos==-1){
-                throw new SyntaxError("unexpected 'end' in if-statement 'end' can only appear after ':' or 'else'",pos);
-            }
-        }
-        VariableContext fork(int tokenPos,FilePosition pos) throws SyntaxError {
-            if(elsePos!=-1||forkPos!=-1){
-                throw new SyntaxError("unexpected ':' in if-statement ':' can only appear after 'if' or 'elif'",pos);
+
+        VariableContext newBranch(int tokenPos,FilePosition pos) throws SyntaxError{
+            if(forkPos!=-1){
+                throw new SyntaxError("unexpected '_if' in if-statement '_if' can only appear after 'else'",pos);
             }
             forkPos=tokenPos;
             ifContext=new BlockContext(elseContext);
             return ifContext;
         }
-        VariableContext newBranch(int tokenPos,FilePosition pos) throws SyntaxError{
-            if(forkPos==-1||elsePos!=-1){
-                throw new SyntaxError("unexpected 'if' or 'elif' in if-statement 'if'/'elif'" +
-                        " can only appear after ':'",pos);
-            }
-            branches.add(new IfBranch(forkPos,tokenPos));
-            forkPos=-1;
-            if(elseContext==parentContext){
-                elseContext=new BlockContext(parentContext);
-                return elseContext;
-            }
-            return null;
-        }
         VariableContext elseBranch(int tokenPos,FilePosition pos) throws SyntaxError {
-            if(elsePos!=-1){
-                throw new SyntaxError("duplicate 'else' in if-statement 'else' can appear at most once",pos);
-            }else if(forkPos==-1){
-                throw new SyntaxError("unexpected 'else' in if-statement 'else' can only appear after ':'",pos);
+            if(forkPos==-1){
+                throw new SyntaxError("unexpected 'else' in if-statement 'else' can only appear after 'if' or 'if_",pos);
             }
             branches.add(new IfBranch(forkPos,tokenPos));
             forkPos=-1;
-            elsePos=tokenPos;
-            if(elseContext==parentContext){
-                elseContext=new BlockContext(parentContext);
-                return elseContext;
-            }
-            return null;
+            return elseContext;
         }
 
         @Override
         VariableContext context() {
-            return forkPos==-1?elseContext:ifContext;
+            return forkPos!=-1?ifContext:elseContext;
         }
     }
     static class ShortCircuitBlock extends CodeBlock{
-        int forkPos=-1;
         VariableContext context;
         ShortCircuitBlock(int startToken,FilePosition pos,boolean isAnd, VariableContext parentContext) {
             super(startToken, isAnd?BlockType.SHORT_AND:BlockType.SHORT_OR,pos, parentContext);
-            context=parentContext;
-        }
-        void end(FilePosition pos) throws SyntaxError {
-            if(forkPos==-1){
-                throw new SyntaxError("unexpected 'end' in short-circuit-statement " +
-                        "'end' can only appear after ':'",pos);
-            }
-        }
-        VariableContext fork(int tokenPos,FilePosition pos) throws SyntaxError{
-            if(forkPos!=-1){
-                throw new SyntaxError("duplicate ':' in short-circuit-statement ':' " +
-                        "can only appear after '&&' or '||'",pos);
-            }
-            forkPos=tokenPos;
-            context=new BlockContext(context);
-            return context;
+            context=new BlockContext(parentContext);
         }
 
         @Override
@@ -1699,7 +1661,7 @@ public class Interpreter {
             case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos, false));
             case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos, false));
             case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos, false));
-            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),           pos, false));
+            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos, false));
             case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
             case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
             case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_PROCEDURE), pos, false));
@@ -1964,11 +1926,6 @@ public class Interpreter {
             case "lambda","λ" ->
                     openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
             case "while" -> openBlocks.add(new WhileBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
-            case "&&" -> openBlocks.addLast(new ShortCircuitBlock(tokens.size(),pos,true,
-                    getContext(openBlocks.peekLast(),rootContext)));
-            case "||" -> openBlocks.addLast(new ShortCircuitBlock(tokens.size(),pos,false,
-                    getContext(openBlocks.peekLast(),rootContext)));
-            case "if" -> openBlocks.addLast(new IfBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
             case "switch"->{
                 SwitchCaseBlock switchBlock=new SwitchCaseBlock(tokens.size(), pos,getContext(openBlocks.peekLast(), rootContext));
                 openBlocks.addLast(switchBlock);
@@ -1976,17 +1933,27 @@ public class Interpreter {
                 tokens.add(new SwitchToken(switchBlock,pos));
                 switchBlock.newSection(tokens.size(),pos);
             }
-            case "elif" -> {
+            case "&&","||" -> {
+                ShortCircuitBlock shortCircuitBlock = new ShortCircuitBlock(tokens.size(), pos, str.equals("&&"),
+                        getContext(openBlocks.peekLast(), rootContext));
+                openBlocks.addLast(shortCircuitBlock);
+                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                tokens.add(new ContextOpen(shortCircuitBlock.context(),pos));
+            }
+            case "if" ->{
+                IfBlock ifBlock = new IfBlock(tokens.size(), pos, getContext(openBlocks.peekLast(), rootContext));
+                openBlocks.addLast(ifBlock);
+                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                tokens.add(new ContextOpen(ifBlock.context(),pos));
+            }
+            case "_if" -> {
                 CodeBlock block = openBlocks.peekLast();
                 if(!(block instanceof IfBlock ifBlock)){
-                    throw new SyntaxError("elif can only be used in if-blocks",pos);
+                    throw new SyntaxError("_if can only be used in if-blocks",pos);
                 }
-                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                 VariableContext context=ifBlock.newBranch(tokens.size(),pos);
                 tokens.add(new Token(TokenType.PLACEHOLDER, pos));
-                if(context!=null){
-                    tokens.add(new ContextOpen(context,pos));
-                }
+                tokens.add(new ContextOpen(context,pos));
             }
             case "else" -> {
                 CodeBlock block = openBlocks.peekLast();
@@ -1996,14 +1963,14 @@ public class Interpreter {
                 tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                 VariableContext context=ifBlock.elseBranch(tokens.size(),pos);
                 tokens.add(new Token(TokenType.PLACEHOLDER, pos));
-                if(context!=null){
+                if(ifBlock.branches.size()<2){//start else-context after first else
                     tokens.add(new ContextOpen(context,pos));
                 }
             }
             case ":" -> {
                 CodeBlock block=openBlocks.peekLast();
                 if(block==null){
-                    throw new SyntaxError(": can only be used in if-, while-, &&- and  ||- blocks",pos);
+                    throw new SyntaxError(": can only be used in proc-, lambda- and while- blocks",pos);
                 }else if(block.type==BlockType.PROCEDURE){
                     //handle procedure separately since : does not change context of produce a jump
                     ProcedureBlock proc=(ProcedureBlock) block;
@@ -2012,12 +1979,10 @@ public class Interpreter {
                     int forkPos=tokens.size();
                     tokens.add(new Token(TokenType.PLACEHOLDER, pos));
                     VariableContext newContext;
-                    switch (block.type){
-                        case IF -> newContext=((IfBlock)block).fork(forkPos,pos);
-                        case SHORT_AND,SHORT_OR -> newContext=((ShortCircuitBlock)block).fork(forkPos,pos);
-                        case WHILE -> newContext=((WhileBlock)block).fork(forkPos,pos);
-                        default ->
-                                throw new SyntaxError(": can only be used in if-, while-, &&- and  ||- blocks",pos);
+                    if (block.type == BlockType.WHILE) {
+                        newContext = ((WhileBlock) block).fork(forkPos, pos);
+                    } else {
+                        throw new SyntaxError(": can only be used in proc-, lambda- and while- blocks", pos);
                     }
                     tokens.add(new ContextOpen(newContext,pos));
                 }
@@ -2097,7 +2062,6 @@ public class Interpreter {
                             }
                         }
                         case IF -> {
-                            ((IfBlock)block).end(pos);
                             if(((IfBlock) block).forkPos!=-1){
                                 tmp=tokens.get(((IfBlock) block).forkPos);
                                 assert tmp.tokenType==TokenType.PLACEHOLDER;
@@ -2139,20 +2103,18 @@ public class Interpreter {
                             }
                         }
                         case SHORT_AND -> {
-                            ((ShortCircuitBlock)block).end(pos);
                             tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            tmp=tokens.get(((ShortCircuitBlock) block).forkPos);
+                            tmp=tokens.get(block.start);
                             assert tmp.tokenType==TokenType.PLACEHOLDER;
-                            tokens.set(((ShortCircuitBlock) block).forkPos,new RelativeJump(TokenType.SHORT_AND_JMP,tmp.pos,
-                                    tokens.size()-((ShortCircuitBlock) block).forkPos));
+                            tokens.set(block.start,new RelativeJump(TokenType.SHORT_AND_JMP,tmp.pos,
+                                    tokens.size()- block.start));
                         }
                         case SHORT_OR -> {
-                            ((ShortCircuitBlock)block).end(pos);
                             tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            tmp=tokens.get(((ShortCircuitBlock) block).forkPos);
+                            tmp=tokens.get(block.start);
                             assert tmp.tokenType==TokenType.PLACEHOLDER;
-                            tokens.set(((ShortCircuitBlock) block).forkPos,new RelativeJump(TokenType.SHORT_OR_JMP,tmp.pos,
-                                    tokens.size()-((ShortCircuitBlock) block).forkPos));
+                            tokens.set(block.start,new RelativeJump(TokenType.SHORT_OR_JMP,tmp.pos,
+                                    tokens.size()- block.start));
                         }
                         case SWITCH_CASE -> {
                             if(((SwitchCaseBlock)block).defaultJump!=-1){
