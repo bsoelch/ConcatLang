@@ -51,17 +51,30 @@ Writing a Value in the source code simply pushes that value
 on the stack, the natively supported value types are
 
 - booleans
+  - `true` or `false` 
 - integers (binary, decimal or hexadecimal)
+  - integer literal
+  - the prefixes `0b` and `0x` signal binary and hexadecimal numbers
+  - the postfix `u` signals unsigned numbers
 - floats (binary, decimal or hexadecimal)
-- codepoints
-- types
+  - floating point literal literal
+  - the prefixes `0b` and `0x` signal binary and hexadecimal numbers
 - bytes
+  - char-literal (of corresponding ascii-character)
+  - or int-literal followed by `byte cast`
+- codepoints
+  - char-literal prefixed with `u`
 - strings (byte list)
+  - string-literals
 - unicode-strings (codepoints list)
+  - string-literals prefixed with `u`
+- types
+  - the type name as plain text
 
 Examples: 
 ```C++
 true false
+0xffffffffffffffffu
 1 -0b10
 1.0E10 0x1P-1 
 'A'
@@ -70,8 +83,9 @@ int type
 ```
 leaves the following values on the stack:
 `string:"Hello World"` `type:type`
-`type:int` `char:A` `float:0.0625`
+`type:int` `byte:A` `float:0.0625`
 `float:1E10` `int:-2` `int:1`
+`uint:18446744073709551615`
 `bool:false` `bool:true` 
 
 ### IO
@@ -142,10 +156,10 @@ on the stack
 - `&` (bitwise) logical and
 - `|` (bitwise) logical or
 - `xor` (bitwise) logical xor
-- `>>` right-shift
+- `>>` right-shift 
+(signed/unsigned depending on the type of the left integer)
 - `<<` left-shift
-- `.>>` arithmetic right-shift
-- `.<<` arithmetic left-shift
+(signed/unsigned depending on the type of the left integer)
 
 Examples:
 ```C++
@@ -165,7 +179,7 @@ the same value, and push the result on the stack
 stack and push a bool depending on the result 
 of the comparison.
 comparison either needs two strings, two chars or 
-two values of type int or float
+two numbers
 
 Examples:
 ```C++

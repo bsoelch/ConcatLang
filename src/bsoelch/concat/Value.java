@@ -160,7 +160,7 @@ public abstract class Value {
         }else if(digit>='A'&&digit<='Z'){
             val=digit-'A'+10;
         }else if(digit>='a'&&digit<='z'){
-            val=digit-'a'+base<37?10:36;
+            val=digit-'a'+(base<37?10:36);
         }else{
             throw new ConcatRuntimeError("invalid digit for base "+base+" number '"+digit+"'");
         }
@@ -173,7 +173,7 @@ public abstract class Value {
     public static Value ofInt(long intValue,boolean unsigned) {
         return new IntValue(intValue,unsigned);
     }
-    public static long parseInt(String source,int base) throws ConcatRuntimeError {
+    public static long parseInt(String source,int base,boolean unsigned) throws ConcatRuntimeError {
         if(base<2||base>62){
             throw new ConcatRuntimeError("base out of range:"+base+" base has to be between 2 and 62");
         }
@@ -183,9 +183,9 @@ public abstract class Value {
             i++;
         }
         long res=0;
-        //TODO parsing of unsigned integers
+        long max=unsigned?Long.divideUnsigned(-1,base):Long.MAX_VALUE/base;
         for(;i<source.length();i++){
-            if(res>Long.MAX_VALUE/base){
+            if(res>max){//signed compare works here, since sign bit is 0 in all cases
                 throw new ConcatRuntimeError("invalid string-format for int \""+source+"\" (overflow)");
             }
             res*=base;
@@ -258,7 +258,7 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            return Long.toString(intValue);
+            return type==Type.UINT?Long.toUnsignedString(intValue):Long.toString(intValue);
         }
         @Override
         public boolean equals(Object o) {
@@ -319,7 +319,7 @@ public abstract class Value {
             }
         }
         if (e > 0) {
-            c-=(int)parseInt(str.substring(e),base);
+            c-=(int)parseInt(str.substring(e),base,false);
         }
         return (sgn?-val:val)*Math.pow(base,-c);
     }

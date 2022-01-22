@@ -7,6 +7,7 @@
 [Infinity]
 -[Infinity]
 [NaN]
+18446744073709551615
 
 Stack:
 []

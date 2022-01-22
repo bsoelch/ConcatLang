@@ -1274,22 +1274,28 @@ public class Interpreter {
     }
 
     /**@return false if the value was an integer otherwise true*/
-    private boolean tryParseInt(ArrayList<Token> tokens, String str,FilePosition pos) throws SyntaxError {
+    private boolean tryParseInt(ArrayList<Token> tokens, String str0,FilePosition pos) throws SyntaxError {
         try {
+            String str=str0;
+            boolean unsigned=false;
+            if(str.toLowerCase(Locale.ROOT).endsWith("u")){//unsigned
+                str=str.substring(0,str.length()-1);
+                unsigned=true;
+            }
             if(intDec.matcher(str).matches()){//dez-Int
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 10),false), pos, false));
+                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,10,unsigned), unsigned), pos, false));
                 return false;
             }else if(intBin.matcher(str).matches()){//bin-Int
                 str=str.replaceAll(BIN_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 2),false),  pos, false));
+                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,2,unsigned), unsigned), pos, false));
                 return false;
             }else if(intHex.matcher(str).matches()){ //hex-Int
                 str=str.replaceAll(HEX_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Long.parseLong(str, 16),false), pos, false));
+                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,16,unsigned), unsigned), pos, false));
                 return false;
             }
-        } catch (NumberFormatException nfeL) {
-            throw new SyntaxError("Number out of Range:"+str,pos);
+        } catch (ConcatRuntimeError nfeL) {
+            throw new SyntaxError("Number out of Range: "+str0,pos);
         }
         return true;
     }
