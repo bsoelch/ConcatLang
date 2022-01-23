@@ -850,7 +850,7 @@ public class Interpreter {
             }
             ModuleBlock removed = file().openModules.remove(file().openModules.size() - 1);
             if(removed.predeclaredProcs.size()>0){
-                StringBuilder message=new StringBuilder("Syntax Error: missing procedures");
+                StringBuilder message=new StringBuilder("Syntax Error: missing variables/procedures");
                 for(Map.Entry<String, PredeclaredProc> p:removed.predeclaredProcs.entrySet()){
                     message.append("\n- ").append(p.getKey()).append(" (called at ").append(p.getValue().pos).append(")");
                 }
@@ -864,7 +864,7 @@ public class Interpreter {
                 while(ctx.openModules.size()>0){
                     ModuleBlock removed=ctx.openModules.remove(ctx.openModules.size()-1);
                     if(removed.predeclaredProcs.size()>0){
-                        StringBuilder message=new StringBuilder("Syntax Error: missing procedures");
+                        StringBuilder message=new StringBuilder("Syntax Error: missing variables/procedures");
                         for(Map.Entry<String, PredeclaredProc> p:removed.predeclaredProcs.entrySet()){
                             message.append("\n- ").append(p.getKey()).append(" (at ").append(p.getValue().pos).append(")");
                         }
@@ -874,7 +874,7 @@ public class Interpreter {
                 }
             }
             if(ctx.globalPredeclared.size()>0){
-                StringBuilder message=new StringBuilder("Syntax Error: missing procedures");
+                StringBuilder message=new StringBuilder("Syntax Error: missing variables/procedures");
                 for(Map.Entry<String, PredeclaredProc> p:ctx.globalPredeclared.entrySet()){
                     message.append("\n- ").append(p.getKey()).append(" (at ").append(p.getValue().pos).append(")");
                 }
@@ -1898,7 +1898,7 @@ public class Interpreter {
                     throw new SyntaxError("enums can only be declared at root level",pos);
                 }
                 if(tokens.size()==0){
-                    throw new SyntaxError("missing enum name before proc",pos);
+                    throw new SyntaxError("missing enum name",pos);
                 }
                 prev=tokens.remove(tokens.size()-1);
                 if(!(prev instanceof IdentifierToken)){
@@ -1914,7 +1914,7 @@ public class Interpreter {
                     throw new SyntaxError("procedures can only be declared at root level",pos);
                 }
                 if(tokens.size()==0){
-                    throw new SyntaxError("missing procedure name before proc",pos);
+                    throw new SyntaxError("missing procedure name",pos);
                 }
                 prev=tokens.remove(tokens.size()-1);
                 if(!(prev instanceof IdentifierToken)){
@@ -2158,7 +2158,6 @@ public class Interpreter {
             case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
             case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
             case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
-            case "**"  -> tokens.add(new OperatorToken(OperatorType.POW,           pos));
             case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           pos));
             case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          pos));
             case "&"   -> tokens.add(new OperatorToken(OperatorType.AND,           pos));
@@ -2176,9 +2175,11 @@ public class Interpreter {
             case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
             case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  pos));
 
-            case "log"   -> tokens.add(new OperatorToken(OperatorType.LOG, pos));
+            //TODO make non-primitive floating-point operations to native functions
+            case "**"    -> tokens.add(new OperatorToken(OperatorType.POW,   pos));
+            case "log"   -> tokens.add(new OperatorToken(OperatorType.LOG,   pos));
             case "floor" -> tokens.add(new OperatorToken(OperatorType.FLOOR, pos));
-            case "ceil"  -> tokens.add(new OperatorToken(OperatorType.CEIL, pos));
+            case "ceil"  -> tokens.add(new OperatorToken(OperatorType.CEIL,  pos));
 
             case ">>:"   -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     pos));
             case ":<<"   -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
@@ -2235,6 +2236,7 @@ public class Interpreter {
             case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
             case "fill"      -> tokens.add(new OperatorToken(OperatorType.FILL,       pos));
 
+            //TODO make IO operations native procedures
             case "open"     -> tokens.add(new OperatorToken(OperatorType.OPEN,     pos));
             case "close"    -> tokens.add(new OperatorToken(OperatorType.CLOSE,    pos));
             case "size"     -> tokens.add(new OperatorToken(OperatorType.SIZE,     pos));

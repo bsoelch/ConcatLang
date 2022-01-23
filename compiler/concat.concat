@@ -34,6 +34,7 @@ TokenType enum
   ENUM
   VALUE
   IDENTIFIER
+  OPERATOR
 end
 TokenType FilePosition 2 tuple type Token =$
 Token.type  #define 0 [] #end
@@ -54,6 +55,14 @@ TokenType FilePosition IdentifierType string 4 tuple type IdentifierToken =$
 IdentifierToken.idType #define 2 [] #end
 IdentifierToken.value  #define 3 [] #end
 
+OperatorType enum
+  PLUS MINUS NEGATE INVERT MULTIPLY DIVIDE MOD
+  NOT FLIP AND OR XOR  SHIFT_L SHIFT_R
+  LT LE EQ REF_EQ REF_NE NE GE GT
+end
+TokenType FilePosition OperatorType 3 tuple type OperatorToken =$
+OperatorToken.opType #define 2 [] #end
+
 Token.strAppend proc string Token => string :
   Token token =:
 
@@ -68,8 +77,18 @@ Token.strAppend proc string Token => string :
   TokenType IDENTIFIER . case
     IdentifierType token IdentifierToken.idType [] :+ ": " :+ token IdentifierToken.value :+
     end-case
+  TokenType OPERATOR . case
+    OperatorType token OperatorToken.opType [] :+
+    end-case
   end
 end
+
+#_name_# string #_words_# string list FilePosition 3 tuple type Macro =$
+Macro.name  #define 0 []   #end
+Macro.name= #define 0 [] = #end
+Macro.words #define 1 []   #end
+Macro.pos   #define 2 []   #end
+Macro.pos=  #define 2 [] = #end
 
 BufferedInput FilePosition string FilePosition 4 tuple type ParserReader =$
 ParserReader.in       #define 0 [] #end
@@ -107,11 +126,32 @@ ParseState enum
   STATE_LINE_COMMENT
 end
 
-parseWord proc #_word_# string #_pos_# FilePosition #_tokens_# Token list => :
+Macro 1 tuple type OpenBlocks =$
+OpenBlocks.currentMacro  #define 0 []   #end
+OpenBlocks.currentMacro= #define 0 [] = #end
+
+parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_blocks_# OpenBlocks #_tokens_# Token list => :
   Token list tokens =:
+  OpenBlocks openBlocks =:
   FilePosition fPos =:
+  string       next =:
   string       word =:
   word length 0 > if
+    openBlocks OpenBlocks.currentMacro Macro.name length 0 > if
+      word switch
+      "#end" case
+        ##TODO save macro
+        openBlocks "" 16 string list new fPos Macro new OpenBlocks.currentMacro=
+        end-case
+      "#define" "#undef" "#module" "#include" "#import" "proc" "procedure" "enum" case
+        word " is not allowed in macros " :+ fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+        end-case
+      default
+        openBlocks OpenBlocks.currentMacro Macro.words word :<< drop
+      end
+      return
+    end
     ## try parsing as integer
     0 int off =:
     ## detect signs
@@ -176,36 +216,9 @@ parseWord proc #_word_# string #_pos_# FilePosition #_tokens_# Token list => :
       end
     end
     ## end integer parsing
+
+    ##keywords that consume one or more words
     word switch
-    ## detect true and false
-    "true" case
-      tokens TokenType VALUE . fPos true  ValueToken new :<< tokens =
-      end-case
-    "false" case
-      tokens TokenType VALUE . fPos false ValueToken new :<< tokens =
-      end-case
-    ## detect primitive type-names
-    "bool" case
-      tokens TokenType VALUE . fPos bool ValueToken new :<< tokens =
-      end-case
-    "byte" case
-      tokens TokenType VALUE . fPos byte ValueToken new :<< tokens =
-      end-case
-    "int" case
-      tokens TokenType VALUE . fPos int ValueToken new :<< tokens =
-      end-case
-    "uint" case
-      tokens TokenType VALUE . fPos uint ValueToken new :<< tokens =
-      end-case
-    "codepoint" case
-      tokens TokenType VALUE . fPos codepoint ValueToken new :<< tokens =
-      end-case
-    "type" case
-      tokens TokenType VALUE . fPos type ValueToken new :<< tokens =
-      end-case
-    "var" case
-      tokens TokenType VALUE . fPos var ValueToken new :<< tokens =
-      end-case
     ## identifier - modifiers
     "."  case
       tokens length 2 < if
@@ -259,7 +272,42 @@ parseWord proc #_word_# string #_pos_# FilePosition #_tokens_# Token list => :
       tokens TokenType IDENTIFIER . fPos
         IdentifierType ADDRESS_OF . prev WordToken.value IdentifierToken new tokens length 1 - [] =
       end-case
-    ## control-flow key-words
+    ## macro&module key-words
+    "#end" case
+      "unimplemented\n" eputs
+      1 exit
+      end-case
+    "#define" case
+      tokens length 0 == if
+        "missing macro name " fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for macro name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - tokens length [:] clear
+      openBlocks OpenBlocks.currentMacro prev WordToken.value Macro.name=
+      openBlocks OpenBlocks.currentMacro prev Token.pos       Macro.pos=
+      end-case
+    "#undef" case
+      "unimplemented\n" eputs
+      1 exit
+      end-case
+    "#module" case
+      "unimplemented\n" eputs
+      1 exit
+      end-case
+    "#import" case
+      "unimplemented\n" eputs
+      1 exit
+      end-case
+    "#include" case
+      "unimplemented\n" eputs
+      1 exit
+      end-case
+    ## proc/enum key-words
     "proc" "procedure" case
       tokens length 0 == if
         "missing procedure name " fPos FilePosition.strAppend '\n' :<< eputs
@@ -284,15 +332,114 @@ parseWord proc #_word_# string #_pos_# FilePosition #_tokens_# Token list => :
       end
       tokens TokenType ENUM . fPos prev WordToken.value WordToken new tokens length 1 - [] =
       end-case
-    "lambda" "λ" "=>" ":"
-    "while" "if" "else" "if_" "switch" "case" "end-case" "default" "end" "&&" "||" "return" "exit" case
-      tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
-      end-case
-
-
-
     default
-      tokens TokenType WORD . fPos word WordToken new :<< tokens =
+      ##TODO resolve identifiers (if next is not .)
+      ##constants, operators and remaining keywords
+      word switch
+      ## detect true and false
+      "true" case
+        tokens TokenType VALUE . fPos true  ValueToken new :<< tokens =
+        end-case
+      "false" case
+        tokens TokenType VALUE . fPos false ValueToken new :<< tokens =
+        end-case
+      ## detect primitive type-names
+      "bool" case
+        tokens TokenType VALUE . fPos bool ValueToken new :<< tokens =
+        end-case
+      "byte" case
+        tokens TokenType VALUE . fPos byte ValueToken new :<< tokens =
+        end-case
+      "int" case
+        tokens TokenType VALUE . fPos int ValueToken new :<< tokens =
+        end-case
+      "uint" case
+        tokens TokenType VALUE . fPos uint ValueToken new :<< tokens =
+        end-case
+      "codepoint" case
+        tokens TokenType VALUE . fPos codepoint ValueToken new :<< tokens =
+        end-case
+      "type" case
+        tokens TokenType VALUE . fPos type ValueToken new :<< tokens =
+        end-case
+      "var" case
+        tokens TokenType VALUE . fPos var ValueToken new :<< tokens =
+        end-case
+      ## control-flow key-words
+      "lambda" "λ" "=>" ":"
+      "while" "if" "else" "if_" "switch" "case" "end-case" "default" "end" "&&" "||" "return" "exit" case
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      ## operators
+      "+" case
+        tokens TokenType OPERATOR . fPos OperatorType PLUS . OperatorToken new :<< tokens =
+        end-case
+      "-" case
+        tokens TokenType OPERATOR . fPos OperatorType MINUS . OperatorToken new :<< tokens =
+        end-case
+      "-_" case
+        tokens TokenType OPERATOR . fPos OperatorType NEGATE . OperatorToken new :<< tokens =
+        end-case
+      "*" case
+        tokens TokenType OPERATOR . fPos OperatorType MULTIPLY . OperatorToken new :<< tokens =
+        end-case
+      "/" case
+        tokens TokenType OPERATOR . fPos OperatorType DIVIDE . OperatorToken new :<< tokens =
+        end-case
+      "%" case
+        tokens TokenType OPERATOR . fPos OperatorType MOD . OperatorToken new :<< tokens =
+        end-case
+
+      "!" case
+        tokens TokenType OPERATOR . fPos OperatorType NOT . OperatorToken new :<< tokens =
+        end-case
+      "~" case
+        tokens TokenType OPERATOR . fPos OperatorType FLIP . OperatorToken new :<< tokens =
+        end-case
+      "&" case
+        tokens TokenType OPERATOR . fPos OperatorType AND . OperatorToken new :<< tokens =
+        end-case
+      "|" case
+        tokens TokenType OPERATOR . fPos OperatorType OR . OperatorToken new :<< tokens =
+        end-case
+      "xor" case
+        tokens TokenType OPERATOR . fPos OperatorType XOR . OperatorToken new :<< tokens =
+        end-case
+
+      "<<" case
+        tokens TokenType OPERATOR . fPos OperatorType SHIFT_L . OperatorToken new :<< tokens =
+        end-case
+      ">>" case
+        tokens TokenType OPERATOR . fPos OperatorType SHIFT_R . OperatorToken new :<< tokens =
+        end-case
+
+      "<" case
+        tokens TokenType OPERATOR . fPos OperatorType LT . OperatorToken new :<< tokens =
+        end-case
+      "<=" case
+        tokens TokenType OPERATOR . fPos OperatorType LE . OperatorToken new :<< tokens =
+        end-case
+      "==" case
+        tokens TokenType OPERATOR . fPos OperatorType EQ . OperatorToken new :<< tokens =
+        end-case
+      "===" case
+        tokens TokenType OPERATOR . fPos OperatorType REF_EQ . OperatorToken new :<< tokens =
+        end-case
+      "=!=" case
+        tokens TokenType OPERATOR . fPos OperatorType REF_NE . OperatorToken new :<< tokens =
+        end-case
+      "!=" case
+        tokens TokenType OPERATOR . fPos OperatorType NE . OperatorToken new :<< tokens =
+        end-case
+      ">=" case
+        tokens TokenType OPERATOR . fPos OperatorType GE . OperatorToken new :<< tokens =
+        end-case
+      ">" case
+        tokens TokenType OPERATOR . fPos OperatorType GT . OperatorToken new :<< tokens =
+        end-case
+      default
+        tokens TokenType WORD . fPos word WordToken new :<< tokens =
+      end
     end
   end
 end
@@ -347,6 +494,10 @@ parseFile proc #_fileName_# string => Token list :
   fileName 1 1 FilePosition new       #_wordPos_#
   ParserReader new ParserReader reader =:
   ParseState STATE_WORD . ParseState state =:
+  "" 16 string list new reader ParserReader.pos Macro new OpenBlocks new OpenBlocks openBlocks =:
+
+  "" string prevWord =:
+  fileName 1 1 FilePosition new FilePosition prevPos =:
 
   while reader ParserReader.nextByte ?? :
     unwrap #_next-char_#
@@ -354,7 +505,14 @@ parseFile proc #_fileName_# string => Token list :
       ParseState STATE_WORD . case
         byte next =:
         next ?WhiteSpace if
-          reader ParserReader.word clone reader ParserReader.wordPos clone tokens parseWord
+          reader ParserReader.word clone string nextWord =:
+          nextWord length 0 > if
+            prevWord length 0 > if
+              prevWord nextWord prevPos openBlocks tokens parseWord
+            end
+            nextWord prevWord =
+            reader ParserReader.wordPos clone prevPos =
+          end
           reader ParserReader.nextWord
         else
           next switch
@@ -386,11 +544,25 @@ parseFile proc #_fileName_# string => Token list :
               reader ParserReader.nextByte ?? if
                 unwrap next =
                 next '#' == if
-                  reader ParserReader.word clone reader ParserReader.wordPos clone tokens parseWord
+                  reader ParserReader.word clone string nextWord =:
+                  nextWord length 0 > if
+                    prevWord length 0 > if
+                      prevWord nextWord prevPos openBlocks tokens parseWord
+                    end
+                    nextWord prevWord =
+                    reader ParserReader.wordPos clone prevPos =
+                  end
                   reader ParserReader.nextWord
                   ParseState STATE_LINE_COMMENT . state =
                 else next '_' == _if
-                  reader ParserReader.word clone reader ParserReader.wordPos clone tokens parseWord
+                  reader ParserReader.word clone string nextWord =:
+                  nextWord length 0 > if
+                    prevWord length 0 > if
+                      prevWord nextWord prevPos openBlocks tokens parseWord
+                    end
+                    nextWord prevWord =
+                    reader ParserReader.wordPos clone prevPos =
+                  end
                   reader ParserReader.nextWord
                   ParseState STATE_COMMENT . state =
                 else
@@ -408,6 +580,9 @@ parseFile proc #_fileName_# string => Token list :
       ParseState STATE_STRING . ParseState STATE_USTRING . case
         byte next =:
         next '"' == if
+          prevWord length 0 > if
+            prevWord "" prevPos openBlocks tokens parseWord
+          end
           tokens
             TokenType VALUE . reader ParserReader.wordPos clone
             state ParseState STATE_USTRING . == if
@@ -427,6 +602,9 @@ parseFile proc #_fileName_# string => Token list :
       ParseState STATE_CHAR . ParseState STATE_UCHAR . case
         byte next =:
         next '\'' == if
+          prevWord length 0 > if
+            prevWord "" prevPos openBlocks tokens parseWord
+          end
           tokens
             TokenType VALUE . reader ParserReader.wordPos clone
             state ParseState STATE_UCHAR . == if
@@ -476,7 +654,11 @@ parseFile proc #_fileName_# string => Token list :
 
   state switch
     ParseState STATE_WORD . case
-      reader ParserReader.word clone reader ParserReader.wordPos clone tokens parseWord
+      reader ParserReader.word clone string nextWord =:
+      prevWord length 0 > if
+        prevWord nextWord prevPos openBlocks tokens parseWord
+      end
+      nextWord "" reader ParserReader.wordPos clone openBlocks tokens parseWord
       reader ParserReader.nextWord
       end-case
     ParseState STATE_CHAR . ParseState STATE_UCHAR . case
