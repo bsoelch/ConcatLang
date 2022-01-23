@@ -9,3 +9,4 @@ stack #include
 stringIO #include
 utf8 #include
 valueIO #include
+main proc => : end

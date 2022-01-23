@@ -26,12 +26,13 @@ public class Test {
                     includeAll.write(name+" #include");
                     includeAll.newLine();
                     context=new Interpreter.IOContext(System.in,out,err);
-                    Interpreter.compileAndRun(path,context);
+                    Interpreter.compileAndRun(path,new String[]{System.getProperty("user.dir")},context);
                 }else{
                     System.err.println("non-concat lib file:"+path);
                 }
             }
         }
+        includeAll.write("main proc => : end");
         includeAll.flush();
 
         File tests=new File(testPath);
@@ -44,7 +45,7 @@ public class Test {
                     out=new PrintStream(new FileOutputStream(reducedPath +".out.txt"));
                     err=new PrintStream(new FileOutputStream(reducedPath +".err.txt"));
                     context=new Interpreter.IOContext(System.in,out,err);
-                    Interpreter.compileAndRun(path,context);
+                    Interpreter.compileAndRun(path,new String[]{System.getProperty("user.dir")},context);
                 }
             }
         }else{

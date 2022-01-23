@@ -7,7 +7,7 @@ charDiff   #define swap int cast swap int cast - #end
 
 ?WhiteSpace proc byte => bool :
   #_input_# switch
-  ' ' '\r' '\t' '\n' case
+  '\0' ' ' '\r' '\t' '\n' case
     true return
   end-case
   default

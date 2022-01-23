@@ -585,18 +585,18 @@ public abstract class Value {
             return new ByteListImpl(bytes.length,bytes);
         }
     }
-    public static Value createList(Type type, ArrayList<Value> elements) throws ConcatRuntimeError {
-        if(!type.isList()){
-            throw new IllegalArgumentException(type+" is no valid list-type");
+    public static Value createList(Type listType, ArrayList<Value> elements) throws ConcatRuntimeError {
+        if(!listType.isList()){
+            throw new IllegalArgumentException(listType+" is no valid list-type");
         }
-        if(type==Type.RAW_STRING()){
+        if(listType==Type.RAW_STRING()){
             byte[] bytes=new byte[elements.size()];
             for(int i=0;i<elements.size();i++){
                 bytes[i]=elements.get(i).asByte();
             }
             return new ByteListImpl(bytes.length,bytes);
         }else{
-            return new ListValue(type,elements);
+            return new ListValue(listType,elements);
         }
     }
     public static Value createList(Type type, long initCap) throws ConcatRuntimeError {

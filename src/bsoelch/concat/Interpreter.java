@@ -1761,7 +1761,7 @@ public class Interpreter {
                         int iMin=tokens.size()-1-(int)c;
                         if(iMin>=0){
                             Type[] types=new Type[(int)c];
-                            for(int i=0;i<c;i++){
+                            for(int i=(int)c-1;i>=0;i--){
                                 prev=tokens.get(iMin+i);
                                 if(prev instanceof ValueToken){
                                     types[i]=((ValueToken) prev).value.asType();
@@ -1791,7 +1791,7 @@ public class Interpreter {
                             long inCount = ((ValueToken)prev).value.asLong();
                             checkElementCount(inCount);
                             Type[] outTypes=new Type[(int)outCount];
-                            for(int i=0;i<outCount;i++){
+                            for(int i=(int)outCount-1;i>=0;i--){
                                 prev=tokens.get(iMin+i);
                                 if(prev instanceof ValueToken){
                                     outTypes[i]=((ValueToken) prev).value.asType();
@@ -1802,7 +1802,7 @@ public class Interpreter {
                             if(outCount==0||outTypes[outTypes.length-1]!=null){//all out-types resolved successfully
                                 Type[] inTypes=new Type[(int)inCount];
                                 iMin=iMin-1-(int)inCount;
-                                for(int i=0;i<inCount;i++){
+                                for(int i=(int)inCount-1;i>=0;i--){
                                     prev=tokens.get(iMin+i);
                                     if(prev instanceof ValueToken){
                                         inTypes[i]=((ValueToken) prev).value.asType();
@@ -2201,7 +2201,37 @@ public class Interpreter {
             case "??"     -> tokens.add(new OperatorToken(OperatorType.HAS_VALUE,      pos));
             case "empty"  -> tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL, pos));
 
-            case "new"       -> tokens.add(new OperatorToken(OperatorType.NEW,        pos));
+            case "new"       -> {
+                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken) {
+                    try {
+                        Type t = ((ValueToken)prev).value.asType();
+                        if(t instanceof Type.Tuple){
+                            int c=((Type.Tuple) t).elementCount();
+                            checkElementCount(c);
+                            int iMin=tokens.size()-1-c;
+                            if(iMin>=0){
+                                Value[] values=new Value[c];
+                                for(int i=c-1;i>=0;i--){
+                                    prev=tokens.get(iMin+i);
+                                    if(prev instanceof ValueToken){
+                                        values[i]=((ValueToken) prev).value.castTo(((Type.Tuple) t).get(i));
+                                    }else{
+                                        break;
+                                    }
+                                }
+                                if(c==0||values[0]!=null){//all types resolved successfully
+                                    tokens.subList(iMin, tokens.size()).clear();
+                                    tokens.add(new ValueToken(Value.createTuple((Type.Tuple)t,values),pos, false));
+                                    break;
+                                }
+                            }
+                        }//TODO support list in pre-evaluation
+                    } catch (ConcatRuntimeError e) {
+                        throw new SyntaxError(e.getMessage(), prev.pos);
+                    }
+                }
+                tokens.add(new OperatorToken(OperatorType.NEW, pos));
+            }
             case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
             case "fill"      -> tokens.add(new OperatorToken(OperatorType.FILL,       pos));
 
@@ -2255,9 +2285,48 @@ public class Interpreter {
     }
 
 
-    public RandomAccessStack<Value> run(Program program, IOContext context){
+    public RandomAccessStack<Value> run(Program program, String[] arguments,IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
-        recursiveRun(stack,program,null,null,context);
+        Declarable main=program.rootContext.elements.get("main");
+        if(main==null){
+            recursiveRun(stack,program,null,null,context);
+        }else{
+            if(program.tokens.size()>0){
+                context.stdErr.println("programs with main procedure cannot contain code at top level "+
+                        program.tokens.get(0).pos);
+            }
+            if(main.declarableType()!=DeclarableType.PROCEDURE){
+                context.stdErr.println("main is not a procedure but "+
+                        declarableName(main.declarableType(),true)+" declared at "+main.declaredAt());
+            }else{
+                Type.Procedure type=(Type.Procedure) ((Value.Procedure)main).type;
+                if(type.outTypes.length>0){
+                    context.stdErr.println("illegal signature for main "+type+", main procedure cannot return values at "
+                            +main.declaredAt());
+                }else if(type.inTypes.length>0){
+                    if(type.inTypes.length>1){
+                        context.stdErr.println("illegal signature for main "+type+
+                                ", main procedure can accept at most one argument"+main.declaredAt());
+                    }else if(type.inTypes[0].isList()&&type.inTypes[0].content().equals(Type.RAW_STRING())){//string list
+                        ArrayList<Value> args=new ArrayList<>(arguments.length);
+                        for(String s:arguments){
+                            args.add(Value.ofString(s,false));
+                        }
+                        try {
+                            stack.push(Value.createList(Type.listOf(Type.RAW_STRING()),args));
+                        } catch (ConcatRuntimeError e) {
+                            throw new RuntimeException(e);
+                        }
+                    }else if(type.inTypes[0].isVarArg()&&type.inTypes[0].content().equals(Type.RAW_STRING())){//string list
+                        for(int i=arguments.length-1;i>=0;i--){
+                            stack.push(Value.ofString(arguments[i],false));
+                        }
+                        stack.push(Value.ofInt(arguments.length,true));
+                    }
+                }
+                recursiveRun(stack,(Value.Procedure)main,null,null,context);
+            }
+        }
         return stack;
     }
 
@@ -2837,7 +2906,7 @@ public class Interpreter {
         }
     }
 
-    static void compileAndRun(String path, IOContext context) throws IOException {
+    static void compileAndRun(String path,String[] arguments,IOContext context) throws IOException {
         Interpreter ip = new Interpreter();
         Program program;
         try {
@@ -2852,7 +2921,7 @@ public class Interpreter {
             }
             return;
         }
-        RandomAccessStack<Value> stack = ip.run(program,context);
+        RandomAccessStack<Value> stack = ip.run(program, arguments, context);
         context.stdOut.println("\nStack:");
         context.stdOut.println(stack);
     }
@@ -2863,7 +2932,9 @@ public class Interpreter {
             return;
         }
         String path=args[0];
+        int consumed=1;
         if(args.length>1&&args[1].equals("-lib")){
+            consumed+=2;
             if(args.length<3){
                 System.out.println("missing parameter for -lib");
                 return;
@@ -2875,7 +2946,10 @@ public class Interpreter {
             System.out.println(libPath+"  is no valid library path");
             return;
         }
-        compileAndRun(path,defaultContext);
+        String[] arguments=new String[args.length-consumed+1];
+        arguments[0]=System.getProperty("user.dir");
+        System.arraycopy(arguments,1,args,consumed,args.length-consumed);
+        compileAndRun(path,arguments,defaultContext);
     }
 
 }
