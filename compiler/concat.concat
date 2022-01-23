@@ -33,6 +33,7 @@ TokenType enum
   PROCEDURE
   ENUM
   VALUE
+  IDENTIFIER
 end
 TokenType FilePosition 2 tuple type Token =$
 Token.type  #define 0 [] #end
@@ -42,16 +43,30 @@ WordToken.value #define 2 [] #end
 TokenType FilePosition var 3 tuple type ValueToken =$
 ValueToken.value #define 2 [] #end
 
+IdentifierType enum
+  UNMODIFIED
+  WRITE
+  DECLARE
+  CONST_DECLARE
+  ADDRESS_OF
+end
+TokenType FilePosition IdentifierType string 4 tuple type IdentifierToken =$
+IdentifierToken.idType #define 2 [] #end
+IdentifierToken.value  #define 3 [] #end
+
 Token.strAppend proc string Token => string :
   Token token =:
 
   TokenType token Token.type [] +: ": " +:
   token Token.type switch
   TokenType WORD . TokenType KEY_WORD . TokenType PROCEDURE . TokenType ENUM . case
-    token WordToken.value " " :+ :+
+    token WordToken.value :+
     end-case
   TokenType VALUE . case
-    token ValueToken.value typeof stringValue :+ ": " :+ token ValueToken.value  stringValue " " :+ :+
+    token ValueToken.value typeof stringValue :+ ": " :+ token ValueToken.value  stringValue :+
+    end-case
+  TokenType IDENTIFIER . case
+    IdentifierType token IdentifierToken.idType [] :+ ": " :+ token IdentifierToken.value :+
     end-case
   end
 end
@@ -191,6 +206,59 @@ parseWord proc #_word_# string #_pos_# FilePosition #_tokens_# Token list => :
     "var" case
       tokens TokenType VALUE . fPos var ValueToken new :<< tokens =
       end-case
+    ## identifier - modifiers
+    "."  case
+      tokens length 2 < if
+        "not enough arguments for . " fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 2 - [] Token prePrev =:
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for '.' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      prePrev Token.type TokenType WORD . != if
+        "invalid token for '.' modifier: " prePrev Token.strAppend ' ' :<< prePrev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens TokenType WORD . fPos prePrev WordToken.value '\'' :<< prev WordToken.value :+ WordToken new tokens length 2 - [] =
+      tokens tokens length 1 - tokens length [:] clear
+      end-case
+    "="  case
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for '=' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens TokenType IDENTIFIER . fPos IdentifierType WRITE . prev WordToken.value IdentifierToken new tokens length 1 - [] =
+      end-case
+    "=:" case
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for '=:' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens TokenType IDENTIFIER . fPos IdentifierType DECLARE . prev WordToken.value IdentifierToken new tokens length 1 - [] =
+      end-case
+    "=$" case
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for '=$' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens TokenType IDENTIFIER . fPos
+        IdentifierType CONST_DECLARE . prev WordToken.value IdentifierToken new tokens length 1 - [] =
+      end-case
+    "@()" case
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for '@()' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens TokenType IDENTIFIER . fPos
+        IdentifierType ADDRESS_OF . prev WordToken.value IdentifierToken new tokens length 1 - [] =
+      end-case
     ## control-flow key-words
     "proc" "procedure" case
       tokens length 0 == if
@@ -199,7 +267,7 @@ parseWord proc #_word_# string #_pos_# FilePosition #_tokens_# Token list => :
       end
       tokens tokens length 1 - [] Token prev =:
       prev Token.type TokenType WORD . != if
-        "invalid token for procedure name: " prev Token.strAppend ' ' :<< fPos FilePosition.strAppend '\n' :<< eputs
+        "invalid token for procedure name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
       tokens TokenType PROCEDURE . fPos prev WordToken.value WordToken new tokens length 1 - [] =
@@ -211,7 +279,7 @@ parseWord proc #_word_# string #_pos_# FilePosition #_tokens_# Token list => :
       end
       tokens tokens length 1 - [] Token prev =:
       prev Token.type TokenType WORD . != if
-        "invalid token for enum name: " prev Token.strAppend ' ' :<< fPos FilePosition.strAppend '\n' :<< eputs
+        "invalid token for enum name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
       tokens TokenType ENUM . fPos prev WordToken.value WordToken new tokens length 1 - [] =
@@ -406,16 +474,48 @@ parseFile proc #_fileName_# string => Token list :
     end
   end drop
 
+  state switch
+    ParseState STATE_WORD . case
+      reader ParserReader.word clone reader ParserReader.wordPos clone tokens parseWord
+      reader ParserReader.nextWord
+      end-case
+    ParseState STATE_CHAR . ParseState STATE_UCHAR . case
+     "unfinished char-literal " reader ParserReader.wordPos FilePosition.strAppend '\n' :<<
+      eputs
+      1 exit
+      end-case
+    ParseState STATE_STRING . ParseState STATE_USTRING . case
+     "unfinished string-literal " reader ParserReader.wordPos FilePosition.strAppend '\n' :<<
+      eputs
+      1 exit
+      end-case
+    ParseState STATE_COMMENT . ParseState STATE_LINE_COMMENT . case
+     "unfinished comment " reader ParserReader.wordPos FilePosition.strAppend '\n' :<<
+      eputs
+      1 exit
+      end-case
+  end
   tokens return
 end
 
-"./compiler/test.concat" parseFile Token list tokens =:
-
-0 int i =:
-while i tokens length < :
-  tokens i [] Token token =:
-  "" token Token.strAppend token Token.pos FilePosition.strAppend '\n' :<< puts
-  i 1 + i =
-end
-
 ##addLater parseTokens
+
+main proc string list => :
+  string list args =:
+  args length 2 < if
+    "usage: <pathToFile> \n" puts ## "usage: <pathToFile> (-lib <libPath>)"
+    0 exit
+  end
+  args 1 [] string path =:
+  path length 0 > && path 0 [] '.' == end if ##local path
+    args 0 [] clone path 1 path length [:] :+ path =
+  end
+  path parseFile Token list tokens =:
+
+  0 int i =:
+  while i tokens length < :
+    tokens i [] Token token =:
+    "" token Token.strAppend " " :+ token Token.pos FilePosition.strAppend '\n' :<< puts
+    i 1 + i =
+  end
+end

@@ -2324,7 +2324,7 @@ public class Interpreter {
                         stack.push(Value.ofInt(arguments.length,true));
                     }
                 }
-                recursiveRun(stack,(Value.Procedure)main,null,null,context);
+                recursiveRun(stack,(Value.Procedure)main,new ArrayList<>(),null,context);
             }
         }
         return stack;
@@ -2948,7 +2948,7 @@ public class Interpreter {
         }
         String[] arguments=new String[args.length-consumed+1];
         arguments[0]=System.getProperty("user.dir");
-        System.arraycopy(arguments,1,args,consumed,args.length-consumed);
+        System.arraycopy(args,1,arguments,consumed,args.length-consumed);
         compileAndRun(path,arguments,defaultContext);
     }
 
