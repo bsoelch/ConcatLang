@@ -8,7 +8,7 @@ fputs proc string (file) => bool :
   file str 0 str length write
 end
 
-## specialized procedures for writing to stdout and stderr addLater? buffering of Output
+## specialized procedures for writing to stdout and stderr
  puts #define stdout core fputs . drop #end
 eputs #define stderr core fputs . drop #end
 

@@ -3,3 +3,4 @@
 /ConcatLang.iml
 .idea
 /examples/test.concat
+/compiler/test.concat

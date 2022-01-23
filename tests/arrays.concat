@@ -10,14 +10,14 @@ core #import
 "Hello World!" dup "Programmer" 6 11 [:] = println
 "Hello World!" dup "" 5 11 [:] = println
 
-"Test" dup "A" :+ clone "B" :+ println println println
-"Test" 1 string {} clone! clone 0 [] "C" :+ :<< println println
+"Test" dup "A" :+ dup clone "B" :+ println println println
+"Test" 1 string {} dup clone! dup clone 0 [] "C" :+ :<< println println
 
 10 int list new dup println
 1000 ensureCap println
 1 2 3 int float int 3 tuple new dup println
-clone dup  42 1 [] = println
-dup   dup 2.0 0 [] = println
+dup clone dup  42 1 [] = println
+dup       dup 2.0 0 [] = println
 2 [] println
 
 lists #include

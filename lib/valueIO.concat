@@ -8,7 +8,7 @@ utf8 #include
 stringValue proc var => string :
   var value =:
   value typeof string == if
-    value clone swap drop return
+    value clone return
   else value typeof ustring == _if
     value codepointsToString return
   else value typeof 0 tuple <= _if

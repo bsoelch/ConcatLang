@@ -1,0 +1,60 @@
+stack #include
+core #import
+io #module
+
+(file) byte list int 3 tuple type BufferedInput =$
+BufferedInput.file   #define 0 [] #end
+BufferedInput.buffer #define 1 [] #end
+BufferedInput.cap    #define 2 [] #end
+
+createBufferedIn proc (file) #_ cap _# int => BufferedInput :
+    int cap =:
+    (file) file =:
+    file cap byte list new cap BufferedInput new return
+end
+
+bufferedReadTo proc BufferedInput #_buffer_# byte list #_amount_# int => #_n-read_#int :
+  BufferedInput in =:
+  byte list buffer =:
+  int count =:
+  in BufferedInput.buffer byte list inBuf =:
+  0 int nRead =:
+  inBuf length 0 > if ##read from buffer
+    count inBuf length < if count else inBuf length end nRead =
+    buffer inBuf 0 nRead [:] :+ drop
+    inBuf 0 nRead [:] clear
+    count nRead - count =
+  end
+  count 0 > if ## get more data from file
+    in BufferedInput.file inBuf 0 in BufferedInput.cap read int res =:
+    res 0 < if
+      nRead 0 > if nRead else res end return
+    end
+  end
+  inBuf length 0 > if ##read from buffer
+    count inBuf length < if count else inBuf length end int n =:
+    buffer inBuf 0 n [:] :+ drop
+    inBuf 0 n [:] clear
+    count n - count =
+    nRead n + nRead =
+  end
+  nRead return
+end
+
+nextByte proc BufferedInput => byte optional :
+  BufferedInput in =:
+  in BufferedInput.buffer byte list inBuf =:
+  inBuf length 0 == if
+    in BufferedInput.file inBuf 0 in BufferedInput.cap read int res =:
+    res 0 <= if
+      byte empty return
+    end
+  end
+  inBuf 0 [] byte res =:
+  inBuf 0 1 [:] clear ##remove first element
+  res wrap return
+end
+
+## addLater? BufferedOutput
+
+#end

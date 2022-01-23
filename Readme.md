@@ -334,10 +334,10 @@ interacting with the specific values
   (can be included with `stack #include`)
 - `swap` swaps the top 2 element on the stack
   (can be included with `stack #include`)
-- `clone` pushes a shallow copy of the 
-  top element on the stack (without removing the object)
-- `clone!` pushes a deep copy of the
-  top element on the stack (without removing the object)
+- `clone` replaces the top element on the stack 
+with a shallow copy
+- `clone!` replaces the top element on the stack
+  with a deep copy
 
 
 ### Control Flow

@@ -6,9 +6,11 @@ core #import
 3.141592653589793238 0 16 false false floatToString println
 3.141592653589793238 println
 "3.141592653589793238" parseFloat println
-"11001001" 2 false stringToInt println
+"11001001" 2 false stringToInt drop println
 0.0 0 16 false false floatToString println
  1 0.0 / 0 16 false false floatToString println
 -1 0.0 / 0 16 false false floatToString println
  0 0.0 / 0 16 false false floatToString println
-"ffffffffffffffff" 16 true stringToInt uint cast println
+"ffffffffffffffff" 16 true stringToInt drop uint cast println
+"123456789abcdefg" 16 false stringToInt print " " puts println
+"ffffffffffffffff" 16 false stringToInt print " " puts println

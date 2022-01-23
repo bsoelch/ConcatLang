@@ -536,6 +536,11 @@ public abstract class Value {
         }
 
         @Override
+        public long asLong(){
+            return byteValue&0xff;
+        }
+
+        @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
                 return ofInt(byteValue&0xff,false);
@@ -1099,6 +1104,21 @@ public abstract class Value {
             byte[] bytes=toByteArray();
             return new String(bytes,StandardCharsets.UTF_8);
         }
+
+        @Override
+        public final boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
+            try {
+                return Objects.equals(getElements(), asValue.getElements());
+            } catch (TypeError e) {
+                throw new RuntimeException(e);
+            }
+        }
+        @Override
+        public final int hashCode() {
+            return getElements().hashCode();
+        }
     }
     private static class ByteListImpl extends ByteList {
         private byte[] elements;
@@ -1255,20 +1275,6 @@ public abstract class Value {
             }
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
-            try {
-                return Objects.equals(getElements(), asValue.getElements());
-            } catch (TypeError e) {
-                throw new RuntimeException(e);
-            }
-        }
-        @Override
-        public int hashCode() {
-            return Arrays.hashCode(elements);
-        }
     }
     private static class ByteListSlice extends ByteList{
         final ByteListImpl list;
@@ -1413,21 +1419,6 @@ public abstract class Value {
             }else{
                 return super.castTo(type);
             }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
-            try {
-                return Objects.equals(getElements(), asValue.getElements());
-            } catch (TypeError e) {
-                throw new RuntimeException(e);
-            }
-        }
-        @Override
-        public int hashCode() {
-            return Arrays.hashCode(toByteArray());
         }
     }
 
@@ -1866,18 +1857,18 @@ public abstract class Value {
 
     public static Value mathOp(Value a, Value b, BiFunction<Long,Long,Value> intOp,  BiFunction<Long,Long,Value> uintOp,
                                BiFunction<Double,Double,Value> floatOp) throws TypeError {
-        if(a instanceof IntValue){
-            if(b instanceof IntValue){
+        if(a instanceof IntValue||a.type==Type.BYTE){//addLater? isInt/isUInt functions
+            if(b instanceof IntValue||a.type==Type.BYTE){
                 return (uintOp!=null&&a.type==Type.UINT&&b.type==Type.UINT?uintOp:intOp)
-                            .apply(((IntValue) a).intValue, ((IntValue) b).intValue);
+                            .apply(a.asLong(), b.asLong());
             }else if(b instanceof FloatValue){
-                return floatOp.apply(((IntValue) a).asDouble(), ((FloatValue) b).floatValue);
+                return floatOp.apply(a.asDouble(), b.asDouble());
             }
         }else if(a instanceof FloatValue){
-            if(b instanceof IntValue){
-                return floatOp.apply((((FloatValue) a).floatValue),((IntValue) b).asDouble());
+            if(b instanceof IntValue||b.type==Type.BYTE){
+                return floatOp.apply(a.asDouble(),b.asDouble());
             }else if(b instanceof FloatValue){
-                return floatOp.apply((((FloatValue) a).floatValue),((FloatValue) b).floatValue);
+                return floatOp.apply(a.asDouble(),b.asDouble());
             }
         }
         throw new TypeError("invalid parameters for arithmetic operation:"+a.type+" "+b.type);
@@ -1886,8 +1877,8 @@ public abstract class Value {
         if(a.type==Type.BOOL&&b.type==Type.BOOL){
             return boolOp.apply(a.asBool(),b.asBool())?TRUE:FALSE;
         }else{
-            if(a instanceof IntValue&&b instanceof IntValue){
-                return ofInt(intOp.apply(((IntValue) a).intValue, ((IntValue) b).intValue),false);
+            if((a instanceof IntValue||a.type==Type.BYTE)&&(b instanceof IntValue||b.type==Type.BYTE)){
+                return ofInt(intOp.apply(a.asLong(), b.asLong()),a.type==Type.UINT&&b.type==Type.UINT);
             }
             throw new TypeError("invalid parameters for int operator:"+a.type+" "+b.type);
         }

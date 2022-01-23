@@ -184,7 +184,7 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
   end
 end
 
-__NUMBERS_valueOfDigit proc #_digit _# byte #_base_# int => #_value_# int :
+valueOfDigit proc #_digit _# byte #_base_# int => #_value_# int :
   int  base =:
   byte digit =:
   digit '0' >= && digit '9' <= end if
@@ -193,50 +193,92 @@ __NUMBERS_valueOfDigit proc #_digit _# byte #_base_# int => #_value_# int :
     digit 'A' charDiff 10 +
   else digit 'a' >= && digit 'z' <= end _if
     digit 'a' charDiff
-    base 37 < if 10 else 36 end +
+    base 37 < if 10 else 36 end
+    +
   else
-    "invalid digit for base " base  10 false false intToString :+ " number: '" :+ digit :<< "'\n" :+ eputs
-    1 exit ## addLater? return error-code instead of exit
+    -1
   end
   dup base >= if
-    "invalid digit for base " base  10 false false intToString :+ " number: '" :+ digit :<< "'\n" :+ eputs
-    1 exit
+    drop -1 return
   end
+  return
 end
 
-stringToInt proc #_source_# string #_base_# int #_unsigned_# bool => int :
+StringParseError enum
+  ERR_NONE
+  ERR_BASE
+  ERR_EMPTY
+  ERR_OVERFLOW
+  ERR_ILLEGAL_CHAR
+end
+
+stringToInt proc #_source_# string #_base_# int #_unsigned_# bool => #_val_# int #_err-code_# StringParseError :
   bool unsigned =:
   int  base =:
   string source =:
   base 2 < || base 62 > end if
-    "Base out of range: " base  10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
-    1 exit
+    0 StringParseError ERR_BASE . return
   end
-  0 ## res
+  source length 0 == if
+    0 StringParseError ERR_EMPTY . return
+  end
+  0 int res =:
+  0 int i =:
   false bool sgn =:
   source 0 [] '-' == if
     true sgn =
-    1 ## i = 1
+    1 i =
   else source 0 [] '+' == _if
-    1 ## i = 1
-  else
-    0 ## i = 0
+    1 i =
   end
   unsigned if uint_MAX else int_MAX end base uint cast / int max =:
-  while dup source length < :
-    swap
-    dup max > if
-      "invalid string-format for int \"" source :+ "\" (overflow)\n" :+ eputs
-      1 exit
+  while i source length < :
+    res max > if
+      res  sgn if -_ end StringParseError ERR_OVERFLOW . return
     end
-    base * over source swap [] base __NUMBERS_valueOfDigit +
-    swap 1 +
-  end drop
-  sgn if -_ end
+    source i [] base valueOfDigit int tmp =:
+    tmp 0 < if
+      res  sgn if -_ end StringParseError ERR_ILLEGAL_CHAR . return
+    end
+    res base * tmp + res =
+    i 1 + i =
+  end
+  res  sgn if -_ end StringParseError ERR_NONE . return
 end
 
- parseInt #define 10 false core stringToInt .           #end
-parseUInt #define 10 true  core stringToInt . uint cast #end
+checkErrCode proc #_err-code_# StringParseError #_type-name_# string #_source_# string => :
+  string source =:
+  string typeName =:
+  #_err-code_# switch
+  StringParseError ERR_NONE . case end-case
+  StringParseError ERR_BASE . case
+      "invalid string-format for " typeName :+ " \"" +: source :+ "\" (base outside of allowed rage)\n" :+ eputs
+      1 exit
+  end-case
+  StringParseError ERR_EMPTY . case
+      "invalid string-format for " typeName :+ " \"" +: source :+ "\" (empty-string)\n" :+ eputs
+      1 exit
+  end-case
+  StringParseError ERR_ILLEGAL_CHAR . case
+      "invalid string-format for " typeName :+ " \"" +: source :+ "\" (illegal-character)\n" :+ eputs
+      1 exit
+  end-case
+  StringParseError ERR_OVERFLOW . case
+      "invalid string-format for " typeName :+ " \"" +: source :+ "\" (overflow)\n" :+ eputs
+      1 exit
+  end-case
+  end
+end
+parseInt proc string => int :
+  string source =:
+  source 10 false core stringToInt .
+  "int" source checkErrCode
+end
+parseUInt proc string => int :
+  string source =:
+  source 10 true core stringToInt .
+  "uint" source checkErrCode
+end
 
 _isExpChar proc #_char_# byte #_base_# int => bool :
   int base =:
@@ -254,56 +296,67 @@ _isExpChar proc #_char_# byte #_base_# int => bool :
   end
 end
 
-stringToFloat proc #_str_# string #_base_# int => float :
+stringToFloat proc #_str_# string #_base_# int => #_val_# float #_err-code_# StringParseError :
   int base =:
   string str =:
   base 2 < || base 62 > end if
-    "Base out of range: " base  10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
-    1 exit
+    float_NaN StringParseError ERR_BASE . return
   end
-  0 ## val
+  str length 0 == if
+    0 StringParseError ERR_EMPTY . return
+  end
+  0 int val =:
+  0 int i =:
   false bool sgn =:
   str 0 [] '-' == if
     true sgn =
-    1 ## i = 1
+    1 i =
   else str 0 [] '+' == _if
-    1 ## i = 1
-  else
-    0 ## i = 0
+    1 i =
   end
   0  int c =:
   0  int d =:
   -1 int e =:
   2 53 ** int max =: ## maximum precision of ieee float64
-  while dup str length < :
-    dup str swap [] '.' == if ## str[i] == '.'
+  while i str length < :
+    str i [] '.' == if ## str[i] == '.'
       d 0 != if
-        "invalid string-format for float \"" str :+ "\"\n" eputs
-        1 exit
+        float_NaN StringParseError ERR_ILLEGAL_CHAR . return
       end
       1 d =
-    else dup str swap [] base _isExpChar _if
-      dup 1 + e =
-      str length + ## break Loop by setting index to value >= str.length
+    else str i [] base _isExpChar _if
+      i 1 + e =
+      i str length + i =  ## break Loop by setting index to value >= str.length
     else
-      swap
-      dup max < if
-        base * over str swap [] base __NUMBERS_valueOfDigit +
+      str i [] base valueOfDigit int tmp =:
+      tmp 0 < if
+        0.0 StringParseError ERR_ILLEGAL_CHAR . return
+      end
+      val max < if
+        val base * tmp + val =
         c d + c =
       else
-        over str swap [] base __NUMBERS_valueOfDigit drop ## check digit without storing value
         c 1 d - + c =
       end
-      swap
     end
-    1 +
-  end drop
-  e 0 > if
-    c str e str length [:] base false stringToInt - c =
+    i 1 + i =
   end
-  sgn if -_ end base c -_ float cast ** *
+  e 0 > if
+    str e str length [:] base false stringToInt
+    StringParseError err_code =:
+    int exponent =:
+    err_code StringParseError ERR_NONE . != if
+      float_NaN err_code return
+    end
+    c exponent - c =
+  end
+  val  sgn if -_ end base c -_ float cast ** * StringParseError ERR_NONE . return
 end
 
-parseFloat #define 10 core stringToFloat . #end
+parseFloat proc string => float :
+  string source =:
+  source 10 core stringToFloat .
+  "float" source checkErrCode
+end
 
 #end ## core

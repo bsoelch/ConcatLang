@@ -509,7 +509,7 @@ public class Interpreter {
             blockStart =sectionStart;
             sectionStart=-1;
             context=new BlockContext(parentContext);
-            return parentContext;
+            return context;
         }
         VariableContext defaultBlock(int blockStart, FilePosition pos) throws SyntaxError {
             if(sectionStart==-1||blockStart!=sectionStart){
@@ -1227,7 +1227,8 @@ public class Interpreter {
                                     }
                                     reader.buffer.append(Character.toChars(Integer.parseInt(tmp.toString(), 16)));
                                 }
-                                default -> throw new IllegalArgumentException("The escape sequence: '\\" + c + "' is not supported");
+                                default ->
+                                        throw new IllegalArgumentException("The escape sequence: '\\" + c + "' is not supported");
                             }
                         }else{
                             reader.buffer.append((char)c);
@@ -1668,6 +1669,7 @@ public class Interpreter {
             case "uint"       -> tokens.add(new ValueToken(Value.ofType(Type.UINT),              pos, false));
             case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos, false));
             case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos, false));
+//addLater define string/ustring in concat
             case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos, false));
             case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
             case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
@@ -2259,6 +2261,334 @@ public class Interpreter {
         return stack;
     }
 
+    private void executeOperator(OperatorToken op, RandomAccessStack<Value> stack)
+            throws RandomAccessStack.StackUnderflow, ConcatRuntimeError {
+        switch (op.opType) {
+            case REF_ID ->
+                    stack.push(Value.ofInt(stack.pop().id(),true));
+            case CLONE -> {
+                Value t = stack.pop();
+                stack.push(t.clone(false));
+            }
+            case DEEP_CLONE -> {
+                Value t = stack.pop();
+                stack.push(t.clone(true));
+            }
+            case NEGATE -> {
+                Value v = stack.pop();
+                stack.push(v.negate());
+            }
+            case INVERT -> {
+                Value v = stack.pop();
+                stack.push(v.invert());
+            }
+            case NOT -> {
+                Value v = stack.pop();
+                stack.push(v.asBool() ? Value.FALSE : Value.TRUE);
+            }
+            case FLIP -> {
+                Value v = stack.pop();
+                stack.push(v.flip());
+            }
+            case PLUS -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y,false), null,
+                        (x, y) -> Value.ofFloat(x + y)));
+            }
+            case MINUS -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y,false), null,
+                        (x, y) -> Value.ofFloat(x - y)));
+            }
+            case MULTIPLY -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y,false), null,
+                        (x, y) -> Value.ofFloat(x * y)));
+            }
+            case DIV -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.mathOp(a, b,
+                        (x, y) -> Value.ofInt(x / y,false),
+                        (x, y) -> Value.ofInt(Long.divideUnsigned(x,y),true),
+                        (x, y) -> Value.ofFloat(x / y)));
+            }
+            case MOD -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.mathOp(a, b,
+                        (x, y) -> Value.ofInt(x % y,false),
+                        (x, y) -> Value.ofInt(Long.remainderUnsigned(x,y),true),
+                        (x, y) -> Value.ofFloat(x % y)));
+            }
+            case POW -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.mathOp(a, b,
+                        (x, y) -> Value.ofInt(longPow(x, y),false), null,
+                        (x, y) -> Value.ofFloat(Math.pow(x, y))));
+            }
+            case EQ, NE, GT, GE, LE, LT,REF_EQ,REF_NE -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.compare(a, op.opType, b));
+            }
+            case AND -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.logicOp(a, b, (x, y) -> x && y, (x, y) -> x & y));
+            }
+            case OR -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.logicOp(a, b, (x, y) -> x || y, (x, y) -> x | y));
+            }
+            case XOR -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.logicOp(a, b, (x, y) -> x ^ y, (x, y) -> x ^ y));
+            }
+            case LOG   -> stack.push(Value.ofFloat(Math.log(stack.pop().asDouble())));
+            case FLOOR -> stack.push(Value.ofFloat(Math.floor(stack.pop().asDouble())));
+            case CEIL  -> stack.push(Value.ofFloat(Math.ceil(stack.pop().asDouble())));
+            case LSHIFT -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.shift(a, b,true));
+            }
+            case RSHIFT -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                stack.push(Value.shift(a, b,false));
+            }
+            case LIST_OF -> {
+                Type contentType = stack.pop().asType();
+                stack.push(Value.ofType(Type.listOf(contentType)));
+            }
+            case CONTENT -> {
+                Type wrappedType = stack.pop().asType();
+                stack.push(Value.ofType(wrappedType.content()));
+            }
+            case NEW_LIST -> {//e1 e2 ... eN count type {}
+                Type type = stack.pop().asType();
+                //count after type to make signature consistent with var-args procedures
+                long count;
+                Value top= stack.pop();
+                if(top.type==Type.TYPE&&top.asType() instanceof Type.Enum){
+                    count=((Type.Enum) top.asType()).elementCount();
+                }else {
+                    count = top.asLong();
+                }
+                checkElementCount(count);
+                ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
+                while (count > 0) {
+                    tmp.addFirst(stack.pop().castTo(type));
+                    count--;
+                }
+                ArrayList<Value> list = new ArrayList<>(tmp);
+                stack.push(Value.createList(Type.listOf(type), list));
+            }
+            case CAST -> {
+                Type type = stack.pop().asType();
+                Value val = stack.pop();
+                stack.push(val.castTo(type));
+            }
+            case TYPE_OF -> {
+                Value val = stack.pop();
+                stack.push(Value.ofType(val.type));
+            }
+            case LENGTH -> {
+                Value val = stack.pop();
+                stack.push(Value.ofInt(val.length(),false));
+            }
+            case CLEAR ->
+                    stack.pop().clear();
+            case ENSURE_CAP -> {
+                long newCap= stack.pop().asLong();
+                stack.peek().ensureCap(newCap);
+            }
+            case FILL -> {
+                Value val   = stack.pop();
+                long  count = stack.pop().asLong();
+                long  off   = stack.pop().asLong();
+                Value list  = stack.pop();
+                list.fill(val,off,count);
+            }
+            case GET_INDEX -> {//array index []
+                long index = stack.pop().asLong();
+                Value list = stack.pop();
+                stack.push(list.get(index));
+            }
+            case SET_INDEX -> {//array value index [] =
+                long index = stack.pop().asLong();
+                Value val = stack.pop();
+                Value list = stack.pop();
+                list.set(index,val);
+            }
+            case GET_SLICE -> {
+                long to = stack.pop().asLong();
+                long off = stack.pop().asLong();
+                Value list = stack.pop();
+                stack.push(list.getSlice(off, to));
+            }
+            case SET_SLICE -> {
+                long to = stack.pop().asLong();
+                long off = stack.pop().asLong();
+                Value val = stack.pop();
+                Value list = stack.pop();
+                list.setSlice(off,to,val);
+            }
+            case PUSH_FIRST -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                b.push(a,true);
+                stack.push(b);
+            }
+            case PUSH_LAST -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                a.push(b,false);
+                stack.push(a);
+            }
+            case PUSH_ALL_FIRST -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                b.pushAll(a,true);
+                stack.push(b);
+            }
+            case PUSH_ALL_LAST -> {
+                Value b = stack.pop();
+                Value a = stack.pop();
+                a.pushAll(b,false);
+                stack.push(a);
+            }
+            case TUPLE -> {
+                long count= stack.pop().asLong();
+                checkElementCount(count);
+                Type[] types=new Type[(int)count];
+                for(int i=1;i<=count;i++){
+                    types[types.length-i]= stack.pop().asType();
+                }
+                stack.push(Value.ofType(Type.Tuple.create(types)));
+            }
+            case NEW -> {
+                Type type= stack.pop().asType();
+                if(type instanceof Type.Tuple){
+                    int count=((Type.Tuple)type).elementCount();
+                    Value[] values=new Value[count];
+                    for(int i=1;i<= values.length;i++){
+                        values[count-i]= stack.pop().castTo(((Type.Tuple) type).get(count-i));
+                    }
+                    stack.push(Value.createTuple((Type.Tuple)type,values));
+                }else if(type.isList()){
+                    long initCap= stack.pop().asLong();
+                    stack.push(Value.createList(type,initCap));
+                }else{
+                    throw new ConcatRuntimeError("new only supports tuples and lists");
+                }
+            }
+            case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
+            case FLOAT_AS_INT -> stack.push(
+                    Value.ofInt(Double.doubleToRawLongBits(stack.pop().asDouble()),true));
+            case OPEN -> {
+                String options = stack.pop().stringValue();
+                String path    = stack.pop().stringValue();
+                stack.push(Value.ofFile(new RandomAccessFileStream(path,options)));
+                //FIXME don't crash on open failure
+            }
+            case CLOSE -> {
+                FileStream stream = stack.pop().asStream();
+                stack.push(stream.close()?Value.TRUE:Value.FALSE);
+                //??? keep stream
+            }
+            case READ -> {//<file> <buff> <off> <count> read => <nRead>
+                long count  = stack.pop().asLong();
+                long off    = stack.pop().asLong();
+                Value buff  = stack.pop();
+                FileStream stream = stack.pop().asStream();
+                stack.push(Value.ofInt(stream.read(buff.asByteList(),off,count),false));
+            }
+            case WRITE -> {//<file> <buff> <off> <count> write => <isOk>
+                long count  = stack.pop().asLong();
+                long off    = stack.pop().asLong();
+                Value buff  = stack.pop();
+                FileStream stream = stack.pop().asStream();
+                stack.push(stream.write(buff.toByteList(),off,count)?Value.TRUE:Value.FALSE);
+            }
+            case SIZE -> {
+                FileStream stream  = stack.pop().asStream();
+                stack.push(Value.ofInt(stream.size(),true));
+            }
+            case POS -> {
+                FileStream stream  = stack.pop().asStream();
+                stack.push(Value.ofInt(stream.pos(),true));
+            }
+            case TRUNCATE -> {
+                FileStream stream = stack.pop().asStream();
+                stack.push(stream.truncate()?Value.TRUE:Value.FALSE);
+            }
+            case SEEK -> {
+                long pos = stack.pop().asLong();
+                FileStream stream = stack.pop().asStream();
+                stack.push(stream.seek(pos)?Value.TRUE:Value.FALSE);
+            }
+            case SEEK_END -> {
+                FileStream stream = stack.pop().asStream();
+                stack.push(stream.seekEnd()?Value.TRUE:Value.FALSE);
+            }
+            case NEW_PROC_TYPE -> {
+                long count= stack.pop().asLong();
+                checkElementCount(count);
+                Type[] outTypes=new Type[(int)count];
+                for(int i=1;i<=count;i++){
+                    outTypes[outTypes.length-i]= stack.pop().asType();
+                }
+                count= stack.pop().asLong();
+                checkElementCount(count);
+                Type[] inTypes=new Type[(int)count];
+                for(int i=1;i<=count;i++){
+                    inTypes[inTypes.length-i]= stack.pop().asType();
+                }
+                stack.push(Value.ofType(Type.Procedure.create(inTypes,outTypes)));
+            }
+            case IS_VAR_ARG -> {
+                Type type = stack.pop().asType();
+                stack.push(type.isVarArg()?Value.TRUE:Value.FALSE);
+            }
+            case IS_ENUM -> {
+                Type type = stack.pop().asType();
+                stack.push(type instanceof Type.Enum?Value.TRUE:Value.FALSE);
+            }
+            case OPTIONAL_OF -> {
+                Type contentType = stack.pop().asType();
+                stack.push(Value.ofType(Type.optionalOf(contentType)));
+            }
+            case VAR_ARG ->{
+                Type contentType = stack.pop().asType();
+                stack.push(Value.ofType(Type.varArg(contentType)));
+            }
+            case EMPTY_OPTIONAL -> {
+                Type t= stack.pop().asType();
+                stack.push(Value.emptyOptional(t));
+            }
+            case WRAP -> {
+                Value value= stack.pop();
+                stack.push(Value.wrap(value));
+            }
+            case UNWRAP -> {
+                Value value= stack.pop();
+                stack.push(value.unwrap());
+            }
+            case HAS_VALUE -> {
+                Value value= stack.peek();
+                stack.push(value.hasValue()?Value.TRUE:Value.FALSE);
+            }
+        }
+    }
+
     private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,
                                   ArrayList<Variable[]> globalVariables, Value[] curried, IOContext context){
         ArrayList<Variable[]> variables=new ArrayList<>();
@@ -2296,331 +2626,8 @@ public class Interpreter {
                         }
                         stack.push(proc.withCurried(curried2));
                     }
-                    case OPERATOR -> {
-                        switch (((OperatorToken) next).opType) {
-                            case REF_ID ->
-                                    stack.push(Value.ofInt(stack.pop().id(),true));
-                            case CLONE -> {
-                                Value t = stack.peek();
-                                stack.push(t.clone(false));
-                            }
-                            case DEEP_CLONE -> {
-                                Value t = stack.peek();
-                                stack.push(t.clone(true));
-                            }
-                            case NEGATE -> {
-                                Value v = stack.pop();
-                                stack.push(v.negate());
-                            }
-                            case INVERT -> {
-                                Value v = stack.pop();
-                                stack.push(v.invert());
-                            }
-                            case NOT -> {
-                                Value v = stack.pop();
-                                stack.push(v.asBool() ? Value.FALSE : Value.TRUE);
-                            }
-                            case FLIP -> {
-                                Value v = stack.pop();
-                                stack.push(v.flip());
-                            }
-                            case PLUS -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y,false), null,
-                                        (x, y) -> Value.ofFloat(x + y)));
-                            }
-                            case MINUS -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y,false), null,
-                                        (x, y) -> Value.ofFloat(x - y)));
-                            }
-                            case MULTIPLY -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y,false), null,
-                                        (x, y) -> Value.ofFloat(x * y)));
-                            }
-                            case DIV -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b,
-                                        (x, y) -> Value.ofInt(x / y,false),
-                                        (x, y) -> Value.ofInt(Long.divideUnsigned(x,y),true),
-                                        (x, y) -> Value.ofFloat(x / y)));
-                            }
-                            case MOD -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b,
-                                        (x, y) -> Value.ofInt(x % y,false),
-                                        (x, y) -> Value.ofInt(Long.remainderUnsigned(x,y),true),
-                                        (x, y) -> Value.ofFloat(x % y)));
-                            }
-                            case POW -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.mathOp(a, b,
-                                        (x, y) -> Value.ofInt(longPow(x, y),false), null,
-                                        (x, y) -> Value.ofFloat(Math.pow(x, y))));
-                            }
-                            case EQ, NE, GT, GE, LE, LT,REF_EQ,REF_NE -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.compare(a, ((OperatorToken) next).opType, b));
-                            }
-                            case AND -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.logicOp(a, b, (x, y) -> x && y, (x, y) -> x & y));
-                            }
-                            case OR -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.logicOp(a, b, (x, y) -> x || y, (x, y) -> x | y));
-                            }
-                            case XOR -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.logicOp(a, b, (x, y) -> x ^ y, (x, y) -> x ^ y));
-                            }
-                            case LOG   -> stack.push(Value.ofFloat(Math.log(stack.pop().asDouble())));
-                            case FLOOR -> stack.push(Value.ofFloat(Math.floor(stack.pop().asDouble())));
-                            case CEIL  -> stack.push(Value.ofFloat(Math.ceil(stack.pop().asDouble())));
-                            case LSHIFT -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.shift(a, b,true));
-                            }
-                            case RSHIFT -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                stack.push(Value.shift(a, b,false));
-                            }
-                            case LIST_OF -> {
-                                Type contentType = stack.pop().asType();
-                                stack.push(Value.ofType(Type.listOf(contentType)));
-                            }
-                            case CONTENT -> {
-                                Type wrappedType = stack.pop().asType();
-                                stack.push(Value.ofType(wrappedType.content()));
-                            }
-                            case NEW_LIST -> {//e1 e2 ... eN count type {}
-                                Type type = stack.pop().asType();
-                                //count after type to make signature consistent with var-args procedures
-                                long count;
-                                Value top=stack.pop();
-                                if(top.type==Type.TYPE&&top.asType() instanceof Type.Enum){
-                                    count=((Type.Enum) top.asType()).elementCount();
-                                }else {
-                                    count = top.asLong();
-                                }
-                                checkElementCount(count);
-                                ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
-                                while (count > 0) {
-                                    tmp.addFirst(stack.pop().castTo(type));
-                                    count--;
-                                }
-                                ArrayList<Value> list = new ArrayList<>(tmp);
-                                stack.push(Value.createList(Type.listOf(type), list));
-                            }
-                            case CAST -> {
-                                Type type = stack.pop().asType();
-                                Value val = stack.pop();
-                                stack.push(val.castTo(type));
-                            }
-                            case TYPE_OF -> {
-                                Value val = stack.pop();
-                                stack.push(Value.ofType(val.type));
-                            }
-                            case LENGTH -> {
-                                Value val = stack.pop();
-                                stack.push(Value.ofInt(val.length(),false));
-                            }
-                            case CLEAR ->
-                                    stack.pop().clear();
-                            case ENSURE_CAP -> {
-                                long newCap=stack.pop().asLong();
-                                stack.peek().ensureCap(newCap);
-                            }
-                            case FILL -> {
-                                Value val   = stack.pop();
-                                long  count = stack.pop().asLong();
-                                long  off   = stack.pop().asLong();
-                                Value list  = stack.pop();
-                                list.fill(val,off,count);
-                            }
-                            case GET_INDEX -> {//array index []
-                                long index = stack.pop().asLong();
-                                Value list = stack.pop();
-                                stack.push(list.get(index));
-                            }
-                            case SET_INDEX -> {//array value index [] =
-                                long index = stack.pop().asLong();
-                                Value val = stack.pop();
-                                Value list = stack.pop();
-                                list.set(index,val);
-                            }
-                            case GET_SLICE -> {
-                                long to = stack.pop().asLong();
-                                long off = stack.pop().asLong();
-                                Value list = stack.pop();
-                                stack.push(list.getSlice(off, to));
-                            }
-                            case SET_SLICE -> {
-                                long to = stack.pop().asLong();
-                                long off = stack.pop().asLong();
-                                Value val = stack.pop();
-                                Value list = stack.pop();
-                                list.setSlice(off,to,val);
-                            }
-                            case PUSH_FIRST -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                b.push(a,true);
-                                stack.push(b);
-                            }
-                            case PUSH_LAST -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                a.push(b,false);
-                                stack.push(a);
-                            }
-                            case PUSH_ALL_FIRST -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                b.pushAll(a,true);
-                                stack.push(b);
-                            }
-                            case PUSH_ALL_LAST -> {
-                                Value b = stack.pop();
-                                Value a = stack.pop();
-                                a.pushAll(b,false);
-                                stack.push(a);
-                            }
-                            case TUPLE -> {
-                                long count=stack.pop().asLong();
-                                checkElementCount(count);
-                                Type[] types=new Type[(int)count];
-                                for(int i=1;i<=count;i++){
-                                    types[types.length-i]=stack.pop().asType();
-                                }
-                                stack.push(Value.ofType(Type.Tuple.create(types)));
-                            }
-                            case NEW -> {
-                                Type type=stack.pop().asType();
-                                if(type instanceof Type.Tuple){
-                                    int count=((Type.Tuple)type).elementCount();
-                                    Value[] values=new Value[count];
-                                    for(int i=1;i<= values.length;i++){
-                                        values[count-i]=stack.pop().castTo(((Type.Tuple) type).get(count-i));
-                                    }
-                                    stack.push(Value.createTuple((Type.Tuple)type,values));
-                                }else if(type.isList()){
-                                    long initCap=stack.pop().asLong();
-                                    stack.push(Value.createList(type,initCap));
-                                }else{
-                                    throw new ConcatRuntimeError("new only supports tuples and lists");
-                                }
-                            }
-                            case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
-                            case FLOAT_AS_INT -> stack.push(
-                                    Value.ofInt(Double.doubleToRawLongBits(stack.pop().asDouble()),true));
-                            case OPEN -> {
-                                String options = stack.pop().stringValue();
-                                String path    = stack.pop().stringValue();
-                                stack.push(Value.ofFile(new RandomAccessFileStream(path,options)));
-                            }
-                            case CLOSE -> {
-                                FileStream stream = stack.pop().asStream();
-                                stack.push(stream.close()?Value.TRUE:Value.FALSE);
-                                //??? keep stream
-                            }
-                            case READ -> {//<file> <buff> <off> <count> read => <nRead>
-                                long count  = stack.pop().asLong();
-                                long off    = stack.pop().asLong();
-                                Value buff  = stack.pop();
-                                FileStream stream = stack.pop().asStream();
-                                stack.push(Value.ofInt(stream.read(buff.asByteList(),off,count),false));
-                            }
-                            case WRITE -> {//<file> <buff> <off> <count> write => <isOk>
-                                long count  = stack.pop().asLong();
-                                long off    = stack.pop().asLong();
-                                Value buff  = stack.pop();
-                                FileStream stream = stack.pop().asStream();
-                                stack.push(stream.write(buff.toByteList(),off,count)?Value.TRUE:Value.FALSE);
-                            }
-                            case SIZE -> {
-                                FileStream stream  = stack.pop().asStream();
-                                stack.push(Value.ofInt(stream.size(),true));
-                            }
-                            case POS -> {
-                                FileStream stream  = stack.pop().asStream();
-                                stack.push(Value.ofInt(stream.pos(),true));
-                            }
-                            case TRUNCATE -> {
-                                FileStream stream = stack.pop().asStream();
-                                stack.push(stream.truncate()?Value.TRUE:Value.FALSE);
-                            }
-                            case SEEK -> {
-                                long pos = stack.pop().asLong();
-                                FileStream stream = stack.pop().asStream();
-                                stack.push(stream.seek(pos)?Value.TRUE:Value.FALSE);
-                            }
-                            case SEEK_END -> {
-                                FileStream stream = stack.pop().asStream();
-                                stack.push(stream.seekEnd()?Value.TRUE:Value.FALSE);
-                            }
-                            case NEW_PROC_TYPE -> {
-                                long count=stack.pop().asLong();
-                                checkElementCount(count);
-                                Type[] outTypes=new Type[(int)count];
-                                for(int i=1;i<=count;i++){
-                                    outTypes[outTypes.length-i]=stack.pop().asType();
-                                }
-                                count=stack.pop().asLong();
-                                checkElementCount(count);
-                                Type[] inTypes=new Type[(int)count];
-                                for(int i=1;i<=count;i++){
-                                    inTypes[inTypes.length-i]=stack.pop().asType();
-                                }
-                                stack.push(Value.ofType(Type.Procedure.create(inTypes,outTypes)));
-                            }
-                            case IS_VAR_ARG -> {
-                                Type type = stack.pop().asType();
-                                stack.push(type.isVarArg()?Value.TRUE:Value.FALSE);
-                            }
-                            case IS_ENUM -> {
-                                Type type = stack.pop().asType();
-                                stack.push(type instanceof Type.Enum?Value.TRUE:Value.FALSE);
-                            }
-                            case OPTIONAL_OF -> {
-                                Type contentType = stack.pop().asType();
-                                stack.push(Value.ofType(Type.optionalOf(contentType)));
-                            }
-                            case VAR_ARG ->{
-                                Type contentType = stack.pop().asType();
-                                stack.push(Value.ofType(Type.varArg(contentType)));
-                            }
-                            case EMPTY_OPTIONAL -> {
-                                Type t=stack.pop().asType();
-                                stack.push(Value.emptyOptional(t));
-                            }
-                            case WRAP -> {
-                                Value value=stack.pop();
-                                stack.push(Value.wrap(value));
-                            }
-                            case UNWRAP -> {
-                                Value value=stack.pop();
-                                stack.push(value.unwrap());
-                            }
-                            case HAS_VALUE -> {
-                                Value value=stack.peek();
-                                stack.push(value.hasValue()?Value.TRUE:Value.FALSE);
-                            }
-                        }
-                    }
+                    case OPERATOR ->
+                        executeOperator((OperatorToken) next, stack);
                     case DEBUG_PRINT -> context.stdOut.println(stack.pop().stringValue());
                     case STD_IN ->
                         stack.push(context.stdInValue);
@@ -2813,7 +2820,6 @@ public class Interpreter {
         }
         return ExitType.NORMAL;
     }
-
 
     private long longPow(Long x, Long y) {
         long pow=1;

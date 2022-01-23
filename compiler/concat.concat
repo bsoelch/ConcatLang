@@ -1,0 +1,421 @@
+## concat compiler written in concat
+
+## currently in early development phase
+
+stack   #include
+chars   #include
+valueIO #include
+utf8    #include
+core #import
+
+bufferedIO #include
+io #import
+
+string uint uint 3 tuple  type FilePosition =$
+FilePosition.fileName   #define 0 []   #end
+FilePosition.line       #define 1 []   #end
+FilePosition.line=      #define 1 [] = #end
+FilePosition.posInLine  #define 2 []   #end
+FilePosition.posInLine= #define 2 [] = #end
+FilePosition.newLine    #define dup dup 1 [] 1 + 1 [] = 1 2 [] = #end
+FilePosition.nextChar   #define dup 2 [] 1 + 2 [] = #end
+FilePosition.strAppend proc string FilePosition => string :
+  FilePosition position =:
+  string str =:
+  str position FilePosition.fileName :+
+  ':' :<< position FilePosition.line      10 true false intToString :+
+  ':' :<< position FilePosition.posInLine 10 true false intToString :+ return
+end
+
+TokenType enum
+  WORD
+  KEY_WORD
+  PROCEDURE
+  ENUM
+  VALUE
+end
+TokenType FilePosition 2 tuple type Token =$
+Token.type  #define 0 [] #end
+Token.pos   #define 1 [] #end
+TokenType FilePosition string 3 tuple type WordToken =$
+WordToken.value #define 2 [] #end
+TokenType FilePosition var 3 tuple type ValueToken =$
+ValueToken.value #define 2 [] #end
+
+Token.strAppend proc string Token => string :
+  Token token =:
+
+  TokenType token Token.type [] +: ": " +:
+  token Token.type switch
+  TokenType WORD . TokenType KEY_WORD . TokenType PROCEDURE . TokenType ENUM . case
+    token WordToken.value " " :+ :+
+    end-case
+  TokenType VALUE . case
+    token ValueToken.value typeof stringValue :+ ": " :+ token ValueToken.value  stringValue " " :+ :+
+    end-case
+  end
+end
+
+BufferedInput FilePosition string FilePosition 4 tuple type ParserReader =$
+ParserReader.in       #define 0 [] #end
+ParserReader.pos      #define 1 [] #end
+ParserReader.word     #define 2 [] #end
+ParserReader.wordPos  #define 3 [] #end
+ParserReader.nextWord proc ParserReader => :
+  ParserReader reader =:
+  reader ParserReader.word clear
+  reader ParserReader.wordPos  reader ParserReader.pos FilePosition.line       FilePosition.line=
+  reader ParserReader.wordPos  reader ParserReader.pos FilePosition.posInLine  FilePosition.posInLine=
+end
+ParserReader.nextByte proc ParserReader => byte optional :
+  ParserReader reader =:
+  reader ParserReader.in nextByte byte optional next =:
+  next ?? if
+    unwrap '\n' == if
+      reader ParserReader.pos FilePosition.newLine
+    else
+      reader ParserReader.pos FilePosition.nextChar
+    end
+  else
+    drop
+  end
+  next return
+end
+
+ParseState enum
+  STATE_WORD
+  STATE_STRING
+  STATE_USTRING
+  STATE_CHAR
+  STATE_UCHAR
+  STATE_COMMENT
+  STATE_LINE_COMMENT
+end
+
+parseWord proc #_word_# string #_pos_# FilePosition #_tokens_# Token list => :
+  Token list tokens =:
+  FilePosition fPos =:
+  string       word =:
+  word length 0 > if
+    ## try parsing as integer
+    0 int off =:
+    ## detect signs
+    false bool sgn =:
+         word 0 [] '-' ==  if
+      true sgn =
+      off 1 + off =
+    else word 0 [] '+' == _if
+      off 1 + off =
+    end
+    10 int base =:
+    ##detect base modifiers
+    word length off - 3 > if
+           word off off 2 + [:] "0b" ==  if
+        2 base =
+        off 2 + off =
+      else word off off 2 + [:] "0x" == _if
+        16 base =
+        off 2 + off =
+      end
+    end
+    off word length < && word off [] base valueOfDigit 0 >= end if ##number starts with digit after prefixes
+      word word length 1 - [] dup 'u' == || 'U' == end if ##unsigned
+        word off word length 1 - [:] base true stringToInt switch
+        StringParseError ERR_NONE . case
+          sgn if -_ end uint val =:
+          tokens TokenType VALUE . fPos val  ValueToken new :<< tokens =
+          return
+          end-case
+        StringParseError ERR_OVERFLOW . case
+          "value does not fit in an unsigned int: \"" word :+ "\" " :+
+              fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+          end-case
+        StringParseError ERR_BASE . StringParseError ERR_EMPTY . StringParseError ERR_ILLEGAL_CHAR . case
+          drop
+          end-case
+        end
+      else
+        word off word length [:] base false stringToInt switch
+        StringParseError ERR_NONE . case
+            sgn if -_ end int val =:
+            tokens TokenType VALUE . fPos val  ValueToken new :<< tokens =
+            return
+          end-case
+        StringParseError ERR_OVERFLOW . case
+          "value does not fit in a signed int: \"" word :+ "\" " :+
+              fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+          end-case
+        StringParseError ERR_BASE . StringParseError ERR_EMPTY . StringParseError ERR_ILLEGAL_CHAR . case
+          drop
+          end-case
+        end
+        word off word length [:] base stringToFloat StringParseError ERR_NONE . == if
+          sgn if -_ end float val =:
+          tokens TokenType VALUE . fPos val  ValueToken new :<< tokens =
+          return
+        else
+          drop
+        end
+      end
+    end
+    ## end integer parsing
+    word switch
+    ## detect true and false
+    "true" case
+      tokens TokenType VALUE . fPos true  ValueToken new :<< tokens =
+      end-case
+    "false" case
+      tokens TokenType VALUE . fPos false ValueToken new :<< tokens =
+      end-case
+    ## detect primitive type-names
+    "bool" case
+      tokens TokenType VALUE . fPos bool ValueToken new :<< tokens =
+      end-case
+    "byte" case
+      tokens TokenType VALUE . fPos byte ValueToken new :<< tokens =
+      end-case
+    "int" case
+      tokens TokenType VALUE . fPos int ValueToken new :<< tokens =
+      end-case
+    "uint" case
+      tokens TokenType VALUE . fPos uint ValueToken new :<< tokens =
+      end-case
+    "codepoint" case
+      tokens TokenType VALUE . fPos codepoint ValueToken new :<< tokens =
+      end-case
+    "type" case
+      tokens TokenType VALUE . fPos type ValueToken new :<< tokens =
+      end-case
+    "var" case
+      tokens TokenType VALUE . fPos var ValueToken new :<< tokens =
+      end-case
+    ## control-flow key-words
+    "proc" "procedure" case
+      tokens length 0 == if
+        "missing procedure name " fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for procedure name: " prev Token.strAppend ' ' :<< fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens TokenType PROCEDURE . fPos prev WordToken.value WordToken new tokens length 1 - [] =
+      end-case
+    "enum" case
+      tokens length 0 == if
+        "missing enum name " fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for enum name: " prev Token.strAppend ' ' :<< fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens TokenType ENUM . fPos prev WordToken.value WordToken new tokens length 1 - [] =
+      end-case
+    "lambda" "λ" "=>" ":"
+    "while" "if" "else" "if_" "switch" "case" "end-case" "default" "end" "&&" "||" "return" "exit" case
+      tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+      end-case
+
+
+
+    default
+      tokens TokenType WORD . fPos word WordToken new :<< tokens =
+    end
+  end
+end
+
+readEscapeChar proc ParserReader => :
+  ParserReader reader =:
+  reader ParserReader.nextByte ?? if
+  unwrap byte next =:
+  next switch
+  '\\' '\'' '"' case
+   reader ParserReader.word next :<< drop
+   end-case
+  'n' case
+   reader ParserReader.word '\n' :<< drop
+   end-case
+  't' case
+   reader ParserReader.word '\t' :<< drop
+   end-case
+  'r' case
+   reader ParserReader.word '\r' :<< drop
+   end-case
+  'b' case
+   reader ParserReader.word '\b' :<< drop
+   end-case
+  'f' case
+   reader ParserReader.word '\f' :<< drop
+   end-case
+  '0' case
+   reader ParserReader.word '\0' :<< drop
+   end-case
+  'u' 'U' case
+   "\\u is currently unimplemented" eputs
+   1 exit
+   end-case
+  default
+   "The escape sequence: '\\" next :<< "' is not supported ":+ reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
+   1 exit
+  end
+  else drop
+  "unexpected end of file " reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
+  1 exit
+  end
+end
+
+parseFile proc #_fileName_# string => Token list :
+  string fileName =:
+  16 Token list new Token list tokens =:
+
+  fileName "r" open 16 createBufferedIn #_input_#
+  fileName 1 1 FilePosition new       #_pos_#
+  16 byte list new                    #_word_#
+  fileName 1 1 FilePosition new       #_wordPos_#
+  ParserReader new ParserReader reader =:
+  ParseState STATE_WORD . ParseState state =:
+
+  while reader ParserReader.nextByte ?? :
+    unwrap #_next-char_#
+    state switch
+      ParseState STATE_WORD . case
+        byte next =:
+        next ?WhiteSpace if
+          reader ParserReader.word clone reader ParserReader.wordPos clone tokens parseWord
+          reader ParserReader.nextWord
+        else
+          next switch
+          '"' case
+              reader ParserReader.word "u" == if
+                ParseState STATE_USTRING . state =
+                reader ParserReader.word clear
+              else reader ParserReader.word length 0 == _if
+                ParseState STATE_STRING . state =
+              else
+                "illegal string-prefix: \"" reader ParserReader.word :+ "\" " :+
+                   reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
+                1 exit
+              end
+            end-case
+          '\'' case
+              reader ParserReader.word "u" == if
+                ParseState STATE_UCHAR . state =
+                reader ParserReader.word clear
+              else reader ParserReader.word length 0 == _if
+                ParseState STATE_CHAR . state =
+              else
+                "illegal char-prefix: \"" reader ParserReader.word :+ "\" " :+
+                   reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
+                1 exit
+              end
+            end-case
+          '#' case
+              reader ParserReader.nextByte ?? if
+                unwrap next =
+                next '#' == if
+                  reader ParserReader.word clone reader ParserReader.wordPos clone tokens parseWord
+                  reader ParserReader.nextWord
+                  ParseState STATE_LINE_COMMENT . state =
+                else next '_' == _if
+                  reader ParserReader.word clone reader ParserReader.wordPos clone tokens parseWord
+                  reader ParserReader.nextWord
+                  ParseState STATE_COMMENT . state =
+                else
+                  reader ParserReader.word '#' :<< next :<< drop
+                end
+              else drop
+                reader ParserReader.word '#' :<< drop
+              end
+            end-case
+          default
+            reader ParserReader.word next :<< drop
+          end
+        end
+      end-case
+      ParseState STATE_STRING . ParseState STATE_USTRING . case
+        byte next =:
+        next '"' == if
+          tokens
+            TokenType VALUE . reader ParserReader.wordPos clone
+            state ParseState STATE_USTRING . == if
+              reader ParserReader.word codepoints
+            else
+              reader ParserReader.word clone
+            end
+          ValueToken new :<< tokens =
+          reader ParserReader.nextWord
+          ParseState STATE_WORD . state =
+        else next '\\' == _if
+          reader readEscapeChar
+        else
+          reader ParserReader.word next :<< drop
+        end
+      end-case
+      ParseState STATE_CHAR . ParseState STATE_UCHAR . case
+        byte next =:
+        next '\'' == if
+          tokens
+            TokenType VALUE . reader ParserReader.wordPos clone
+            state ParseState STATE_UCHAR . == if
+              reader ParserReader.word codepoints
+              dup length 1 != if
+                reader ParserReader.word " is not a valid unicode character " :+
+                reader ParserReader.pos FilePosition.strAppend '\n' :<<
+                eputs
+                1 exit
+              end
+            else
+              reader ParserReader.word clone
+              dup length 1 != if
+                #_str_# " is not a valid unicode character " :+
+                reader ParserReader.pos FilePosition.strAppend '\n' :<<
+                eputs
+                1 exit
+              end
+            end
+          #_chars_# 0 [] ValueToken new :<< tokens =
+          reader ParserReader.nextWord
+          ParseState STATE_WORD . state =
+        else next '\\' == _if
+          reader readEscapeChar
+        else
+          reader ParserReader.word next :<< drop
+        end
+      end-case
+      ParseState STATE_COMMENT . case
+        #_input-char_# '_' == if
+          reader ParserReader.nextByte ?? if
+            unwrap '#' == if
+              ParseState STATE_WORD . state =
+            end
+          else
+            drop
+          end
+        end
+      end-case
+      ParseState STATE_LINE_COMMENT . case
+        #_input-char_# '\n' == if
+          ParseState STATE_WORD . state =
+        end
+      end-case
+    end
+  end drop
+
+  tokens return
+end
+
+"./compiler/test.concat" parseFile Token list tokens =:
+
+0 int i =:
+while i tokens length < :
+  tokens i [] Token token =:
+  "" token Token.strAppend token Token.pos FilePosition.strAppend '\n' :<< puts
+  i 1 + i =
+end
+
+##addLater parseTokens

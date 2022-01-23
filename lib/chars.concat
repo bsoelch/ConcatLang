@@ -5,4 +5,14 @@ core #module
 +codepoint #define int cast + codepoint cast #end
 charDiff   #define swap int cast swap int cast - #end
 
+?WhiteSpace proc byte => bool :
+  #_input_# switch
+  ' ' '\r' '\t' '\n' case
+    true return
+  end-case
+  default
+    false return
+  end
+end
+
 #end
