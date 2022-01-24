@@ -49,16 +49,7 @@ stringValue proc var => string :
     else value ustring == _if
       "ustring" return
     else value _EMPTY_TUPLE <= _if
-      "" string res =:
-      0 int i =:
-      while i value length < do
-        i 0 > if
-          res " " :+ res =
-        end
-        res value i [] stringValue :+ res =
-        i 1 + i =
-      end
-      res " " :+ i  10 false false intToString :+ " tuple" :+ return
+      value string cast return ## return tuple-name
     else value *->* <= _if
       value *->* == if
         "*->*" return

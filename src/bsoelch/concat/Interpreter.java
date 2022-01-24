@@ -1015,10 +1015,10 @@ public class Interpreter {
                 elements.put(path,entry);
             }
         }
-        public void declareTuple(String name, Type.Tuple tuple, IOContext ioContext) throws SyntaxError {
-            String localName=inCurrentModule(name);
+        public void declareTuple(Type.Tuple tuple, IOContext ioContext) throws SyntaxError {
+            String localName=inCurrentModule(tuple.name);
             checkExisting(localName,DeclarableType.TUPLE,tuple.declaredAt);
-            checkShadowed(tuple,name,tuple.declaredAt,ioContext);
+            checkShadowed(tuple,tuple.name,tuple.declaredAt,ioContext);
             elements.put(localName,tuple);
         }
 
@@ -2171,10 +2171,11 @@ public class Interpreter {
                         case TUPLE -> {
                             try {
                                 List<Token> subList = tokens.subList(block.start, tokens.size());
-                                Type.Tuple tuple=Type.Tuple.create(ProcedureBlock.getSignature(subList),block.startPos);
+                                Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name,
+                                        ProcedureBlock.getSignature(subList),block.startPos);
                                 subList.clear();
                                 if(((TupleBlock)block).name!=null){
-                                    rootContext.declareTuple(((TupleBlock) block).name,tuple,ioContext);
+                                    rootContext.declareTuple(tuple,ioContext);
                                 }else{
                                     tokens.add(new ValueToken(Value.ofType(tuple),block.startPos,false));
                                 }

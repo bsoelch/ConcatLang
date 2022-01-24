@@ -396,7 +396,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(typeValue instanceof Type.Enum&&type==Type.RAW_STRING()){
+            if((typeValue instanceof Type.Enum||typeValue instanceof Type.Tuple)&&type==Type.RAW_STRING()){
                 return ofString(typeValue.name,false);
             }
             return super.castTo(type);

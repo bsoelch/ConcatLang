@@ -143,19 +143,14 @@ public class Type {
 
     public static class Tuple extends Type implements Interpreter.Declarable{
         final Interpreter.FilePosition declaredAt;
-        public static Tuple create(Type[] elements, Interpreter.FilePosition declaredAt) throws ConcatRuntimeError {
-            StringBuilder name=new StringBuilder();
+        final Type[] elements;
+        public Tuple(String name, Type[] elements, Interpreter.FilePosition declaredAt) throws ConcatRuntimeError {
+            super(name, false);
             for(Type t:elements){
-                name.append(t.name).append(' ');
                 if(t.isVarArg()){
                     throw new ConcatRuntimeError(t+" cannot be part of tuples");
                 }
             }
-            return new Tuple(name.append(elements.length).append(" tuple").toString(),elements,declaredAt);
-        }
-        final Type[] elements;
-        private Tuple(String name, Type[] elements, Interpreter.FilePosition declaredAt) {
-            super(name, false);
             this.elements=elements;
             this.declaredAt = declaredAt;
         }
