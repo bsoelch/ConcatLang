@@ -1,5 +1,6 @@
 package bsoelch.concat;
 
+import java.text.FieldPosition;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
@@ -140,8 +141,9 @@ public class Type {
         }
     }
 
-    public static class Tuple extends Type{
-        public static Tuple create(Type[] elements) throws ConcatRuntimeError {
+    public static class Tuple extends Type implements Interpreter.Declarable{
+        final Interpreter.FilePosition declaredAt;
+        public static Tuple create(Type[] elements, Interpreter.FilePosition declaredAt) throws ConcatRuntimeError {
             StringBuilder name=new StringBuilder();
             for(Type t:elements){
                 name.append(t.name).append(' ');
@@ -149,12 +151,13 @@ public class Type {
                     throw new ConcatRuntimeError(t+" cannot be part of tuples");
                 }
             }
-            return new Tuple(name.append(elements.length).append(" tuple").toString(),elements);
+            return new Tuple(name.append(elements.length).append(" tuple").toString(),elements,declaredAt);
         }
         final Type[] elements;
-        private Tuple(String name,Type[] elements) {
+        private Tuple(String name, Type[] elements, Interpreter.FilePosition declaredAt) {
             super(name, false);
             this.elements=elements;
+            this.declaredAt = declaredAt;
         }
 
         @Override
@@ -188,6 +191,15 @@ public class Type {
         @Override
         public int hashCode() {
             return Arrays.hashCode(elements);
+        }
+
+        @Override
+        public Interpreter.DeclarableType declarableType() {
+            return Interpreter.DeclarableType.TUPLE;
+        }
+        @Override
+        public Interpreter.FilePosition declaredAt() {
+            return declaredAt;
         }
     }
 

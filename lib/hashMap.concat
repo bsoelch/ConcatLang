@@ -1,9 +1,11 @@
 hashMap #module
 
+_Empty_Tuple tuple end
+
 hashCode proc var => int :
   var value =:
   value typeof type valType =:
-  valType (list) <= || valType 0 tuple <= end if ## addLater? use list-hash for tuple/enum-types
+  valType (list) <= || valType _Empty_Tuple <= end if ## addLater? use list-hash for tuple/enum-types
     0 int hash =:
     0 int i =:
     while i value length < do
@@ -16,18 +18,18 @@ hashCode proc var => int :
   end
 end
 
-var  var   0 tuple  3 tuple type _Entry =$
+_Entry tuple var var _Empty_Tuple end
 _Entry.key   #define 0 []   #end
 _Entry.val   #define 1 []   #end
 _Entry.val=  #define 1 [] = #end
 _Entry.next  #define 2 []   #end
 _Entry.next= #define 2 [] = #end
-type type _Entry list 3 tuple type HashMap   =$
+HashMap tuple type type _Entry list end
 _Map.keyType #define 0 [] #end
 _Map.valType #define 1 [] #end
 _Map.data    #define 2 [] #end
 
-false false  0 tuple new  _Entry new _Entry _Empty =$
+false false _Empty_Tuple new  _Entry new _Entry _Empty =$
 
 newHashMap proc #_keyType_# type #_valType_# type #_cap_# int => HashMap :
   int cap =:

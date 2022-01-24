@@ -1,19 +1,19 @@
 core #module
 
-(list) int 2 tuple type iterator =$
+Iterator tuple (list) int end
 
-^.. proc (list) => iterator :
+^.. proc (list) => Iterator :
   (list) elements =:
-  elements 0 iterator new
+  elements 0 Iterator new
 end
 
-..^ proc (list) => iterator :
+..^ proc (list) => Iterator :
   (list) elements =:
-  elements elements length iterator new
+  elements elements length Iterator new
 end
 
-^> proc iterator => iterator var optional :
-  iterator mItr =:
+^> proc Iterator => Iterator var optional :
+  Iterator mItr =:
   mItr
   mItr 1 [] mItr 0 [] length < if
     mItr 0 [] mItr 1 [] [] wrap ## push element
@@ -23,8 +23,8 @@ end
   end
 end
 
-<^ proc iterator => iterator var optional :
-  iterator mItr =:
+<^ proc Iterator => Iterator var optional :
+  Iterator mItr =:
   mItr
   mItr 1 [] 0 > if
     mItr  mItr 1 [] 1 -  1 [] = ## decrement iterator

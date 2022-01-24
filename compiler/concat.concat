@@ -11,7 +11,7 @@ core #import
 bufferedIO #include
 io #import
 
-string uint uint 3 tuple  type FilePosition =$
+FilePosition tuple string uint uint end
 FilePosition.fileName   #define 0 []   #end
 FilePosition.line       #define 1 []   #end
 FilePosition.line=      #define 1 [] = #end
@@ -36,12 +36,12 @@ TokenType enum
   IDENTIFIER
   OPERATOR
 end
-TokenType FilePosition 2 tuple type Token =$
+Token tuple TokenType FilePosition end
 Token.type  #define 0 [] #end
 Token.pos   #define 1 [] #end
-TokenType FilePosition string 3 tuple type WordToken =$
+WordToken tuple TokenType FilePosition string end
 WordToken.value #define 2 [] #end
-TokenType FilePosition var 3 tuple type ValueToken =$
+ValueToken tuple TokenType FilePosition var end
 ValueToken.value #define 2 [] #end
 
 IdentifierType enum
@@ -51,7 +51,7 @@ IdentifierType enum
   CONST_DECLARE
   ADDRESS_OF
 end
-TokenType FilePosition IdentifierType string 4 tuple type IdentifierToken =$
+IdentifierToken tuple TokenType FilePosition IdentifierType string end
 IdentifierToken.idType #define 2 [] #end
 IdentifierToken.value  #define 3 [] #end
 
@@ -60,7 +60,7 @@ OperatorType enum
   NOT FLIP AND OR XOR  SHIFT_L SHIFT_R
   LT LE EQ REF_EQ REF_NE NE GE GT
 end
-TokenType FilePosition OperatorType 3 tuple type OperatorToken =$
+OperatorToken tuple TokenType FilePosition OperatorType end
 OperatorToken.opType #define 2 [] #end
 
 Token.strAppend proc string Token => string :
@@ -91,13 +91,13 @@ DeclarableType enum
   PROCEDURE
 end
 
-#_type_# DeclarableType #_pos_# FilePosition 2 tuple type Declarable =$
+Declarable tuple #_type_# DeclarableType #_pos_# FilePosition end
 
 Declarable.type #define 0 []   #end
 Declarable.pos  #define 1 []   #end
 Declarable.pos= #define 1 [] = #end
 
-#_type_# DeclarableType #_pos_# FilePosition #_name_# string #_words_# string list  4 tuple type Macro =$
+Macro tuple #_type_# DeclarableType #_pos_# FilePosition #_name_# string #_words_# string list end
 Macro.name  #define 2 []   #end
 Macro.name= #define 2 [] = #end
 Macro.words #define 3 []   #end
@@ -116,13 +116,13 @@ BlockType enum
   PROC_BLOCK
   ENUM_BLOCK
 end
-#_type_# BlockType #_startPos_# FilePosition #_start_# int 3 tuple type CodeBlock =$
+CodeBlock tuple #_type_# BlockType #_startPos_# FilePosition #_start_# int end
 CodeBlock.type     #define 0 [] #end
 CodeBlock.startPos #define 1 [] #end
 CodeBlock.start    #define 2 [] #end
-string FilePosition 2 tuple type NameWithPos =$
-#_type_# BlockType #_startPos_# FilePosition #_start_# int
-  #_name_# string #_elements_# NameWithPos list 5 tuple type EnumBlock =$
+NameWithPos tuple string FilePosition end
+EnumBlock tuple #_type_# BlockType #_startPos_# FilePosition #_start_# int
+  #_name_# string #_elements_# NameWithPos list end
 EnumBlock.name     #define 3 [] #end
 EnumBlock.elements #define 4 [] #end
 newEnumBlock proc #_name_# string #_startPos_# FilePosition #_start_# int => EnumBlock :
@@ -133,7 +133,7 @@ newEnumBlock proc #_name_# string #_startPos_# FilePosition #_start_# int => Enu
 end
 
 
-BufferedInput FilePosition string FilePosition 4 tuple type ParserReader =$
+ParserReader tuple BufferedInput FilePosition string FilePosition end
 ParserReader.in       #define 0 [] #end
 ParserReader.pos      #define 1 [] #end
 ParserReader.word     #define 2 [] #end
@@ -169,7 +169,7 @@ ParseState enum
   STATE_LINE_COMMENT
 end
 
-Macro CodeBlock list 2 tuple type OpenBlocks =$
+OpenBlocks tuple Macro CodeBlock list end
 OpenBlocks.currentMacro  #define 0 []   #end
 OpenBlocks.currentMacro= #define 0 [] = #end
 OpenBlocks.blocks        #define 1 []   #end
@@ -187,7 +187,7 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         ##TODO save macro
         openBlocks fPos "" newMacro OpenBlocks.currentMacro=
         end-case
-      "#define" "#undef" "#module" "#include" "#import" "proc" "procedure" "enum" case
+      "#define" "#undef" "#module" "#include" "#import" "proc" "procedure" "enum" "tuple" case
         word " is not allowed in macros " :+ fPos FilePosition.strAppend '\n' :<< eputs
         1 exit
         end-case
@@ -252,10 +252,6 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         IdentifierType ADDRESS_OF . prev WordToken.value IdentifierToken new tokens length 1 - [] =
       end-case
     ## macro&module key-words
-    "#end" case
-      "unimplemented\n" eputs
-      1 exit
-      end-case
     "#define" case
       tokens length 0 == if
         "missing macro name " fPos FilePosition.strAppend '\n' :<< eputs
@@ -275,6 +271,10 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
       1 exit
       end-case
     "#module" case
+      "unimplemented\n" eputs
+      1 exit
+      end-case
+    "#end" case
       "unimplemented\n" eputs
       1 exit
       end-case
@@ -312,6 +312,22 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
       end
       tokens tokens length 1 - tokens length [:] clear
       openBlocks OpenBlocks.blocks prev WordToken.value fPos tokens length newEnumBlock :<< drop
+      end-case
+    "tuple" case
+      tokens length 0 == if
+        "missing tuple name " fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for tuple name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - tokens length [:] clear
+      ##TODO TupleBlock
+      ## openBlocks OpenBlocks.blocks prev WordToken.value fPos tokens length newEnumBlock :<< drop
+      "tuples are currently unimplemented " fPos FilePosition.strAppend '\n' :<< eputs
+      1 exit
       end-case
     default
       tokens length 0 > && next "." != end if

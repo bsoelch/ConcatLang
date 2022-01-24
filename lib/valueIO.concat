@@ -5,13 +5,15 @@ stringIO #include
 numbers #include
 utf8 #include
 
+_EMPTY_TUPLE tuple end
+
 stringValue proc var => string :
   var value =:
   value typeof string == if
     value clone return
   else value typeof ustring == _if
     value codepointsToString return
-  else value typeof 0 tuple <= _if
+  else value typeof _EMPTY_TUPLE <= _if
     "(" string res =:
     0 int i =:
     while i value length < do
@@ -46,7 +48,7 @@ stringValue proc var => string :
       "string" return
     else value ustring == _if
       "ustring" return
-    else value 0 tuple <= _if
+    else value _EMPTY_TUPLE <= _if
       "" string res =:
       0 int i =:
       while i value length < do
@@ -179,13 +181,13 @@ fprint  #define swap core stringValue . swap core fputs . #end
 4 int __IO_FLAG_SGN =$
 8 int __IO_FLAG_SGN_SPACE =$
 
-bool 1 tuple type _IO_Format =$
+_IO_Format tuple bool end
 ## isValue:bool value:string$
-bool string 2 tuple   type __IO_FormatString =$
+__IO_FormatString tuple bool string end
 __IO.isValue #define 0 [] #end
 __IO.value   #define 1 [] #end
 ##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:byte (char)
-bool int int int bool int bool int bool byte 10 tuple   type __IO_FormatValue =$
+__IO_FormatValue tuple bool int int int bool int bool int bool byte end
 __IO.index   #define 1 [] #end
 __IO.flags   #define 2 [] #end
 __IO.w       #define 3 [] #end

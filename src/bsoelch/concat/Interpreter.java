@@ -304,7 +304,7 @@ public class Interpreter {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SHORT_AND,SHORT_OR,SWITCH_CASE,ENUM,
+        PROCEDURE,IF,WHILE,SHORT_AND,SHORT_OR,SWITCH_CASE,ENUM,TUPLE,
     }
     static abstract class CodeBlock{
         final int start;
@@ -329,7 +329,7 @@ public class Interpreter {
             this.name = name;
             context=new ProcedureContext(parentContext);
         }
-        private Type[] getSignature(List<Token> tokens) throws SyntaxError {
+        static Type[] getSignature(List<Token> tokens) throws SyntaxError {
             RandomAccessStack<ValueToken> stack=new RandomAccessStack<>(tokens.size());
             for(Token t:tokens){
                 //addLater generics
@@ -576,6 +576,19 @@ public class Interpreter {
             elementPositions.add(pos);
         }
     }
+    private static class TupleBlock extends CodeBlock{
+        final String name;
+
+        TupleBlock(String name,int start, FilePosition startPos, VariableContext parentContext) {
+            super(start, BlockType.TUPLE, startPos, parentContext);
+            this.name=name;
+        }
+
+        @Override
+        VariableContext context() {
+            return parentContext;
+        }
+    }
 
     private Interpreter() {}
 
@@ -662,7 +675,7 @@ public class Interpreter {
     }
 
     enum DeclarableType{
-        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM,ENUM_ENTRY
+        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM, TUPLE, ENUM_ENTRY
     }
     static String declarableName(DeclarableType t, boolean a){
         switch (t){
@@ -689,6 +702,9 @@ public class Interpreter {
             }
             case ENUM_ENTRY -> {
                 return a?"an enum entry":"enum entry";
+            }
+            case TUPLE -> {
+                return a?"a tuple":"tuple";
             }
         }
         throw new RuntimeException("unreachable");
@@ -998,6 +1014,12 @@ public class Interpreter {
                 checkShadowed(entry, fieldName, entry.declaredAt,ioContext);
                 elements.put(path,entry);
             }
+        }
+        public void declareTuple(String name, Type.Tuple tuple, IOContext ioContext) throws SyntaxError {
+            String localName=inCurrentModule(name);
+            checkExisting(localName,DeclarableType.TUPLE,tuple.declaredAt);
+            checkShadowed(tuple,name,tuple.declaredAt,ioContext);
+            elements.put(localName,tuple);
         }
 
         @Override
@@ -1478,7 +1500,8 @@ public class Interpreter {
                     }
                 }
                 if(prev!=null){
-                    if((!(next.equals(".")||str.equals("proc")||str.equals("procedure")||str.equals("enum")))&&
+                    if((!(next.equals(".")||str.equals("proc")||str.equals("procedure")||str.equals("enum")
+                            ||(str.equals("tuple")&&openBlocks.size()==0)))&&
                             prev instanceof IdentifierToken identifier){
                         int index=tokens.size()-1;
                         //update variables
@@ -1555,6 +1578,9 @@ public class Interpreter {
                                     case ENUM_ENTRY ->
                                         tokens.set(index,
                                                 new ValueToken((Value.EnumEntry)d, identifier.pos, false));
+                                    case TUPLE ->
+                                            tokens.set(index,
+                                                    new ValueToken(Value.ofType((Type.Tuple)d), identifier.pos, false));
                                 }
                             }
                             case VAR_WRITE -> {
@@ -1755,34 +1781,6 @@ public class Interpreter {
                     tokens.add(new OperatorToken(OperatorType.IS_ENUM,pos));
                 }
             }
-            case "tuple" -> {
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken) {
-                    try {
-                        long c = ((ValueToken)prev).value.asLong();
-                        checkElementCount(c);
-                        int iMin=tokens.size()-1-(int)c;
-                        if(iMin>=0){
-                            Type[] types=new Type[(int)c];
-                            for(int i=(int)c-1;i>=0;i--){
-                                prev=tokens.get(iMin+i);
-                                if(prev instanceof ValueToken){
-                                    types[i]=((ValueToken) prev).value.asType();
-                                }else{
-                                    break;
-                                }
-                            }
-                            if(c==0||types[types.length-1]!=null){//all types resolved successfully
-                                tokens.subList(iMin, tokens.size()).clear();
-                                tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(types)),pos, false));
-                                break;
-                            }
-                        }
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e.getMessage(), prev.pos);
-                    }
-                }
-                tokens.add(new OperatorToken(OperatorType.TUPLE, pos));
-            }
             case "->" ->{
                 if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken) {
                     try {
@@ -1895,6 +1893,23 @@ public class Interpreter {
             case "intAsFloat"   -> tokens.add(new OperatorToken(OperatorType.INT_AS_FLOAT, pos));
             case "floatAsInt"   -> tokens.add(new OperatorToken(OperatorType.FLOAT_AS_INT, pos));
 
+            case "tuple" -> {
+                String name;
+                if(openBlocks.size()>0){//addLater?  anonymous tuple (declarable at non-root level)
+                    throw new SyntaxError("tuples can only be declared at root level",pos);
+                }
+                if(tokens.size()==0){
+                    throw new SyntaxError("missing enum name",pos);
+                }
+                prev=tokens.remove(tokens.size()-1);
+                if(!(prev instanceof IdentifierToken)){
+                    throw new SyntaxError("token before root level tuple has to be an identifier",pos);
+                }else if(((IdentifierToken) prev).type!=IdentifierType.UNMODIFIED){
+                    throw new SyntaxError("token before root level tuple has to be an unmodified identifier",pos);
+                }
+                name = ((IdentifierToken) prev).name;
+                openBlocks.add(new TupleBlock(name, tokens.size(),pos,rootContext));
+            }
             case "enum" ->{
                 if(openBlocks.size()>0){
                     throw new SyntaxError("enums can only be declared at root level",pos);
@@ -2152,6 +2167,20 @@ public class Interpreter {
                                 throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
                             }
                             rootContext.declareEnum(((EnumBlock) block),ioContext);
+                        }
+                        case TUPLE -> {
+                            try {
+                                List<Token> subList = tokens.subList(block.start, tokens.size());
+                                Type.Tuple tuple=Type.Tuple.create(ProcedureBlock.getSignature(subList),block.startPos);
+                                subList.clear();
+                                if(((TupleBlock)block).name!=null){
+                                    rootContext.declareTuple(((TupleBlock) block).name,tuple,ioContext);
+                                }else{
+                                    tokens.add(new ValueToken(Value.ofType(tuple),block.startPos,false));
+                                }
+                            } catch (ConcatRuntimeError e) {
+                                throw new SyntaxError(e,pos);
+                            }
                         }
                     }
                 }
@@ -2545,15 +2574,6 @@ public class Interpreter {
                 Value a = stack.pop();
                 a.pushAll(b,false);
                 stack.push(a);
-            }
-            case TUPLE -> {
-                long count= stack.pop().asLong();
-                checkElementCount(count);
-                Type[] types=new Type[(int)count];
-                for(int i=1;i<=count;i++){
-                    types[types.length-i]= stack.pop().asType();
-                }
-                stack.push(Value.ofType(Type.Tuple.create(types)));
             }
             case NEW -> {
                 Type type= stack.pop().asType();

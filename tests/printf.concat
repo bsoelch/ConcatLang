@@ -5,7 +5,8 @@ core #import
 "test" stringValue println
 42 stringValue println
 1 2.5 3  3 float {} stringValue println
-1.3 7 'c' float int byte 3 tuple new dup typeof stringValue print stringValue println
+testTuple tuple float int byte end
+1.3 7 'c' testTuple new dup typeof stringValue print stringValue println
 u"a°💻" stringValue println
 u'💻' stringValue println
 sprintf @() typeof println

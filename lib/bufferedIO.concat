@@ -2,7 +2,7 @@ stack #include
 core #import
 io #module
 
-(file) byte list int 3 tuple type BufferedInput =$
+BufferedInput tuple (file) byte list int end
 BufferedInput.file   #define 0 [] #end
 BufferedInput.buffer #define 1 [] #end
 BufferedInput.cap    #define 2 [] #end
