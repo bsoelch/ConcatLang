@@ -6,7 +6,7 @@ hashCode proc var => int :
   valType (list) <= || valType 0 tuple <= end if ## addLater? use list-hash for tuple/enum-types
     0 int hash =:
     0 int i =:
-    while i value length < :
+    while i value length < do
       hash 31 * value i [] hashCode + hash =
       i 1 + i =
     end
@@ -52,7 +52,7 @@ HashMap.put proc #_map_# HashMap #_key_# var #_value_# var => #_prevVal_# var op
     map _Map.valType empty return
   else
     map _Map.data i [] _Entry entry =:
-    while entry _Entry.next _Empty =!= :
+    while entry _Entry.next _Empty =!= do
       entry _Entry.key key == if
         entry _Entry.val
         entry value _Entry.val=
@@ -77,7 +77,7 @@ HashMap.get proc #_map_# HashMap #_key_# var => #_value_# var optional :
   key hashCode int hash =:
   hash map _Map.data length % int i =:
   map _Map.data i [] _Entry entry =:
-  while entry _Empty =!= :
+  while entry _Empty =!= do
     entry _Entry.key key == if
       entry _Entry.val wrap return
     end
@@ -99,7 +99,7 @@ HashMap.remove proc #_map_# HashMap #_key_# var => #_prevVal_# var optional :
     wrap return
   else
     map _Map.data i [] _Entry entry =:
-    while entry _Entry.next _Empty =!= :
+    while entry _Entry.next _Empty =!= do
       entry _Entry.next _Entry.key key == if
         entry _Entry.next _Entry.val ## get previous value
         entry   entry _Entry.next _Entry.next  _Entry.next= ## remove entry

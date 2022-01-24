@@ -5,7 +5,7 @@ uintToBytes proc uint => byte list :
   uint val =:
   8 byte list new byte list rawData =:
   0 uint i =:
-  while i 8 < :
+  while i 8 < do
     rawData val 0xff & byte cast :<< rawData =
     val 8 >> val =
     i 1 + i =
@@ -23,7 +23,7 @@ uintFromBytes proc byte list => uint :
   rawData length 0 > if
     0 uint shift =:
     0 uint i =:
-    while i rawData length < :
+    while i rawData length < do
       val rawData i [] uint cast shift << | val =
       shift 8 + shift =
       i 1 + i =

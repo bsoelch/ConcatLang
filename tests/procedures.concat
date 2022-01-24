@@ -4,7 +4,7 @@ core #import
 
 sqrt proc float => float :
   dup float a =$ float x =:
-  while x x * a - 1E-16 > :
+  while x x * a - 1E-16 > do
    a x / x + 2 / x =
   end
   x
@@ -23,7 +23,7 @@ end
 2.0 sqrt println
 3 sqrt @() () println
 
-0 while dup 15 < :
+0 while dup 15 < do
  dup fib println
  1 +
 end drop

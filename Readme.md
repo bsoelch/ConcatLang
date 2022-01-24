@@ -236,7 +236,7 @@ Examples:
 template of for-each loop:
 ```Julia
 array ^.. ## create iterator
-while ^> ?? :   ## iterate over all elements
+while ^> ?? do   ## iterate over all elements
   unwrap println ## do something with data
 end 
 drop ## Drop empty element
@@ -250,7 +250,7 @@ reverse proc (list) => (list) :
   ## store type and length of the list
   toReverse length toReverse typeof new toReverse typeof res =:
   ## Iterate though the elements in reverse order
-  toReverse ..^ while <^ ?? :
+  toReverse ..^ while <^ ?? do
     unwrap res swap :<< res =
   end drop drop
   res return
@@ -260,7 +260,7 @@ Sum all elements of a list
 ```Julia
 0 var tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
-^.. while ^> ?? :
+^.. while ^> ?? do
  unwrap tmp swap + tmp =
 end drop drop
 tmp ## load the total sum onto the stack
@@ -392,7 +392,7 @@ end string count =:
 #### while-loops
 While loops have the syntax
 ```Julia
-while <condition> :
+while <condition> do
  <body>
 end
 ```
@@ -400,9 +400,9 @@ end
 do-while loops have the syntax
 
 ```Julia
-do 
+while 
   <body> 
-while  <condition> end
+<condition> do end
 ```
 
 ### Procedures
@@ -438,7 +438,7 @@ Examples:
 sum proc int ... => int :
   int count =: ## save Number of arguments
   0 int res =:
-  while count 0 > :
+  while count 0 > do
     res + res = ## add top-element on the stack to res
     count 1 - count = ##reduce count by 1
   end

@@ -8,7 +8,7 @@ reverse proc (list) => (list) :
   ## store type and length of the list
   toReverse length toReverse typeof new toReverse typeof res =:
   ## Iterate though the elements in reverse order
-  toReverse ..^ while <^ ?? :
+  toReverse ..^ while <^ ?? do
     unwrap res swap :<< res =
   end drop drop
   res return
@@ -19,7 +19,7 @@ end
 sum proc var list => var :
   0 var tmp =: ## Initialize sum to 0
   ## Iterate though all elements of the list
-  ^.. while ^> ?? : unwrap
+  ^.. while ^> ?? do unwrap
     tmp swap + tmp =
   end drop drop
   tmp ## load the total sum onto the stack
@@ -29,6 +29,6 @@ end
 1.5 2.5 3.5 4.5   4 float {} sum println
 
 "Hello" ^..
-while ^> ?? :
+while ^> ?? do
  unwrap println
 end drop drop ## iterator and optional

@@ -86,11 +86,11 @@ end
 "A " puts false || "B " puts true   end println
 "A " puts false || "B " puts false  end println
 
-while false :
+while false do
   1 exit
 end
 "do-while\n"
-while puts false : end
+while puts false do end
 
 "__________________________\n" puts
 "scopes:\n" puts
@@ -107,13 +107,13 @@ else
 end
 5 int i =:
 5 int j =:
-while i 0 > :
+while i 0 > do
   i i * int j =:
   i 1 - i =
   j println
 end
 j println
-while "do-while-scope" string doWhile =: j 0 > :
+while "do-while-scope" string doWhile =: j 0 > do
 j 1 - j =
 0 int doWhile =:
 end

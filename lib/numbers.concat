@@ -73,7 +73,7 @@ intToString proc #_value_# int #_base_# int #_unsigned_# bool #_big_# bool => st
       end
     end
   end
-  while value 0 > :
+  while value 0 > do
       value base % base big __NUMBERS_getDigit swap >>:
       value base / value =
   end
@@ -114,7 +114,7 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
   base e float cast ** float p =:
   64 int list new int list buff =:
   0 int n =:
-  while p eps > :
+  while p eps > do
     value p / floor int cast int d =:
     buff d :<< buff =
     n 1 + n =
@@ -130,7 +130,7 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
   buff n [] base 2 / >= if
     n 1 - int j =:
     true bool inc =:
-    while inc && j 0 >= end :
+    while inc && j 0 >= end do
       buff   buff j [] 1 +   j [] =
       buff j [] base >= if
           buff   buff j [] base -  j [] =
@@ -145,17 +145,17 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
       n 1 + n =
     end
   end
-  while n 1 - e_max > && buff n 1 - [] 0 == end :
+  while n 1 - e_max > && buff n 1 - [] 0 == end do
     n 1 - n =
   end
   sci || e_max n >= || e_max -5 < end end if
-    while n 1 - 0 > && buff n 1 - [] 0 == end :
+    while n 1 - 0 > && buff n 1 - [] 0 == end do
       n 1 - n =
     end
     buff 0 [] base big __NUMBERS_getDigit :<<
     n 1 > if
       '.' :<<
-      1 while dup n < :
+      1 while dup n < do
          swap over buff swap [] base big __NUMBERS_getDigit :<<
          swap 1 +
       end drop
@@ -164,7 +164,7 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
     e_max 0 >= if '+' :<< end
     e_max  base false big intToString :+
   else e_max 0 >= _if
-    0 while dup n < :
+    0 while dup n < do
       swap over buff swap [] base big __NUMBERS_getDigit :<<
       over e_max == && over n 1 - < end if
         '.' :<<
@@ -173,11 +173,11 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
     end drop
   else
     "0." :+
-    e_max -_ 1 - while dup 0 > :
+    e_max -_ 1 - while dup 0 > do
       swap '0' :<<
       swap 1 -
     end drop
-    0 while dup n < :
+    0 while dup n < do
       swap over buff swap [] base big __NUMBERS_getDigit :<<
       swap 1 +
     end drop
@@ -232,7 +232,7 @@ stringToInt proc #_source_# string #_base_# int #_unsigned_# bool => #_val_# int
     1 i =
   end
   unsigned if uint_MAX else int_MAX end base uint cast / int max =:
-  while i source length < :
+  while i source length < do
     res max > if
       res  sgn if -_ end StringParseError ERR_OVERFLOW . return
     end
@@ -318,7 +318,7 @@ stringToFloat proc #_str_# string #_base_# int => #_val_# float #_err-code_# Str
   0  int d =:
   -1 int e =:
   2 53 ** int max =: ## maximum precision of ieee float64
-  while i str length < :
+  while i str length < do
     str i [] '.' == if ## str[i] == '.'
       d 0 != if
         float_NaN StringParseError ERR_ILLEGAL_CHAR . return

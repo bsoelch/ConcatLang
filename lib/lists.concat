@@ -5,7 +5,7 @@ reverse proc (list) => :
   (list) toReverse =:
   0 int i =:
   toReverse length 1 - int maxId =:
-  while i toReverse length 2 / < :
+  while i toReverse length 2 / < do
     toReverse i [] var tmp =:
     toReverse toReverse maxId i - [] i [] =
     toReverse tmp maxId i - [] =
@@ -25,12 +25,12 @@ __LISTS_mergesort_helper proc (list) #_off_# int  #_to_# int #_buffer_# (list) =
     input c  to buffer __LISTS_mergesort_helper
     ## 0 ... c-1 and c...to-1 are sorted
     c int i =:
-    while off c < && c to <= end :
-      while off c < && input off [] input c [] <= end :
+    while off c < && c to <= end do
+      while off c < && input off [] input c [] <= end do
         off 1 + off =
       end
       off c < if
-        while i to <= && input off [] input i [] > end :
+        while i to <= && input off [] input i [] > end do
           i 1 + i =
         end
         i c - int delta =:

@@ -39,7 +39,7 @@ string:+ustring proc string ustring => string :
   string  value  =:
   value value length append length + ensureCap drop
   0 int i =:
-  while i append length < :
+  while i append length < do
     value append i [] string<<codepoint value =
     i 1 + i =
   end
@@ -51,7 +51,7 @@ ustring+:string proc ustring string => string :
   ustring append =:
   value value length append length + ensureCap drop
   append length 1 - int i =:
-  while i 0 >= :
+  while i 0 >= do
     append i [] value codepoint>>string value =
     i 1 - i =
   end
@@ -63,7 +63,7 @@ ustring:+string proc ustring string => ustring :
   ustring value   =:
   value value length append length + ensureCap drop
   append 0
-  while nextCodepoint :
+  while nextCodepoint do
     value swap :<< value =
   end 0 3 $drop ## drop remaining data
   value return
@@ -93,15 +93,15 @@ _#
 nextCodepoint proc string #_index_# int => string #_end_# int #_next_# codepoint #_has next_# bool :
   int    index =:
   string value =:
-  while index value length < && value index [] int cast 0xc0 & 0x80 == end :
+  while index value length < && value index [] int cast 0xc0 & 0x80 == end do
     index 1 + index = ## skip parts of unfinished codepoint
   end
-  while index value length < :
+  while index value length < do
     value index [] int char =:
     char 0x80 & 0 == if ## ascii - character
       value  index 1 +  char codepoint cast  true return
     else ## multi - char codepoint
-      0 while char 0x80 & 0 != :
+      0 while char 0x80 & 0 != do
         char 1 << char =
         1 +
       end
@@ -123,7 +123,7 @@ nextCodepoint proc string #_index_# int => string #_end_# int #_next_# codepoint
           -1 res =
         end
         count 0 >
-      : end
+      do end
       res 0 >= && res 0x10ffff <= end if
         value index  res codepoint cast  true return
       end

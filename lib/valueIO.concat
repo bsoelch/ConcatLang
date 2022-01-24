@@ -14,7 +14,7 @@ stringValue proc var => string :
   else value typeof 0 tuple <= _if
     "(" string res =:
     0 int i =:
-    while i value length < :
+    while i value length < do
       i 0 > if
         res ", " :+ res =
       end
@@ -25,7 +25,7 @@ stringValue proc var => string :
   else value typeof (list) <= _if
     "[" string res =:
     0 int i =:
-    while i value length < :
+    while i value length < do
       i 0 > if
         res ", " :+ res =
       end
@@ -49,7 +49,7 @@ stringValue proc var => string :
     else value 0 tuple <= _if
       "" string res =:
       0 int i =:
-      while i value length < :
+      while i value length < do
         i 0 > if
           res " " :+ res =
         end
@@ -64,7 +64,7 @@ stringValue proc var => string :
         "" string res =:
         value 0 [] type list args =:
         0 int i =:
-        while i args length < :
+        while i args length < do
           i 0 > if
             res " " :+ res =
           end
@@ -74,7 +74,7 @@ stringValue proc var => string :
         res " " :+ i  10 false false intToString :+ " " :+ res =
         value 1 [] args =
         0 i =
-        while i args length < :
+        while i args length < do
           i 0 > if
             res " " :+ res =
           end
@@ -160,7 +160,7 @@ byteListToString proc byte list => string :
   bytes length 6 * string new string res =:
   res "[" :+ res =
   0 int i =:
-  while i bytes length < :
+  while i bytes length < do
     i 0 > if
       res ", " :+ res =
     end
@@ -323,7 +323,7 @@ isFormatChar proc #_char_# byte => bool :
   byte c =:
   "bBiIuUdxXfFeEcsS%" string formats =: ## addLater? formatted printing of lists
   0 int i =:
-  while i formats length < :
+  while i formats length < do
     formats i [] c == if
       true return
     end
@@ -344,9 +344,9 @@ formatString proc #_args_# var list #_format_# string => string :
   -1 int maxFormat =:
   0 byte tmpC =:
   0 string new string tmp =:
-  while i0 n < :
+  while i0 n < do
     i0 i =
-    while i format length < && format i [] '%' != end :
+    while i format length < && format i [] '%' != end do
       i 1 + i =
     end
     i format length >= if
@@ -355,7 +355,7 @@ formatString proc #_args_# var list #_format_# string => string :
     else
       parts   false format i0 i [:] __IO_FormatString new   :<< parts =
       i 1 + dup i0 = i =
-      while i0 format length < && format i0 [] isFormatChar ! end :
+      while i0 format length < && format i0 [] isFormatChar ! end do
         i0 1 + i0 =
       end
       i0 format length >= if
@@ -386,7 +386,7 @@ formatString proc #_args_# var list #_format_# string => string :
         tmp clear
         tmp _formatString length ensureCap
         ## ([0-9]+$)?  index
-        while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end :
+        while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
           _formatString i [] :<<
           i 1 + i =
         end tmp =
@@ -400,13 +400,13 @@ formatString proc #_args_# var list #_format_# string => string :
         ## ' '  The result will include a leading space for positive values
         ## '0'  The result will be zero-padded
         0 int i1 =:
-        while i1 tmp length < && tmp i1 [] '0' == end :
+        while i1 tmp length < && tmp i1 [] '0' == end do
           flags __IO_FLAG_PAD_0 | flags =
           i1 1 + i1 =
         end
         tmp 0 i1 [:] clear
         tmp length 0 == if
-          true while #_ loop condition on stack _#&& i _formatString length < end :
+          true while #_ loop condition on stack _#&& i _formatString length < end do
             _formatString i [] tmpC =
             tmpC '-' == if
               flags __IO_FLAG_ALIGN_LEFT | flags =
@@ -428,7 +428,7 @@ formatString proc #_args_# var list #_format_# string => string :
               false ## break loop
             end
           end
-          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end :
+          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
             _formatString i [] :<<
             i 1 + i =
           end tmp =
@@ -442,7 +442,7 @@ formatString proc #_args_# var list #_format_# string => string :
           true w_ptr =
           count w =
           count 1 + count =
-          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end :
+          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
             _formatString i [] :<<
             i 1 + i =
           end tmp =
@@ -467,7 +467,7 @@ formatString proc #_args_# var list #_format_# string => string :
             count p =
             count 1 + count =
           end
-          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end :
+          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
             _formatString i [] :<<
             i 1 + i =
           end tmp =
@@ -494,7 +494,7 @@ formatString proc #_args_# var list #_format_# string => string :
             count b =
             count 1 + count =
           end
-          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end :
+          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
             _formatString i [] :<<
             i 1 + i =
           end tmp =
@@ -542,7 +542,7 @@ formatString proc #_args_# var list #_format_# string => string :
     1 exit
   end
   0 i =
-  while i parts length < :
+  while i parts length < do
     tmp
     parts i [] __IO.isValue if   ## Value format
       parts i [] args __IO_printValue

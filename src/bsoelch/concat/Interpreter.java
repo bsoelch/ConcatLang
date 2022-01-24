@@ -1936,7 +1936,35 @@ public class Interpreter {
             }
             case "lambda","λ" ->
                     openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
+            case ":" -> {
+                CodeBlock block=openBlocks.peekLast();
+                if(block==null){
+                    throw new SyntaxError(": can only be used in proc- and lambda- blocks",pos);
+                }else if(block.type==BlockType.PROCEDURE){
+                    //handle procedure separately since : does not change context of produce a jump
+                    ProcedureBlock proc=(ProcedureBlock) block;
+                    proc.addOuts(tokens.subList(proc.start,tokens.size()),pos);
+                }else{
+                    throw new SyntaxError(": can only be used in proc- and lambda- blocks", pos);
+                }
+            }
             case "while" -> openBlocks.add(new WhileBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
+            case "do" -> {
+                CodeBlock block=openBlocks.peekLast();
+                if(block==null){
+                    throw new SyntaxError("do can only be used in while- blocks",pos);
+                }else{
+                    int forkPos=tokens.size();
+                    tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                    VariableContext newContext;
+                    if (block.type == BlockType.WHILE) {
+                        newContext = ((WhileBlock) block).fork(forkPos, pos);
+                    } else {
+                        throw new SyntaxError(": can only be used in while- blocks", pos);
+                    }
+                    tokens.add(new ContextOpen(newContext,pos));
+                }
+            }
             case "switch"->{
                 SwitchCaseBlock switchBlock=new SwitchCaseBlock(tokens.size(), pos,getContext(openBlocks.peekLast(), rootContext));
                 openBlocks.addLast(switchBlock);
@@ -1976,26 +2004,6 @@ public class Interpreter {
                 tokens.add(new Token(TokenType.PLACEHOLDER, pos));
                 if(ifBlock.branches.size()<2){//start else-context after first else
                     tokens.add(new ContextOpen(context,pos));
-                }
-            }
-            case ":" -> {
-                CodeBlock block=openBlocks.peekLast();
-                if(block==null){
-                    throw new SyntaxError(": can only be used in proc-, lambda- and while- blocks",pos);
-                }else if(block.type==BlockType.PROCEDURE){
-                    //handle procedure separately since : does not change context of produce a jump
-                    ProcedureBlock proc=(ProcedureBlock) block;
-                    proc.addOuts(tokens.subList(proc.start,tokens.size()),pos);
-                }else{
-                    int forkPos=tokens.size();
-                    tokens.add(new Token(TokenType.PLACEHOLDER, pos));
-                    VariableContext newContext;
-                    if (block.type == BlockType.WHILE) {
-                        newContext = ((WhileBlock) block).fork(forkPos, pos);
-                    } else {
-                        throw new SyntaxError(": can only be used in proc-, lambda- and while- blocks", pos);
-                    }
-                    tokens.add(new ContextOpen(newContext,pos));
                 }
             }
             case "case" ->{
