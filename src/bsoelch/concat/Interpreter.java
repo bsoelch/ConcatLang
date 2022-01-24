@@ -1559,7 +1559,9 @@ public class Interpreter {
                             }
                             case VAR_WRITE -> {
                                 Declarable d=context.getDeclarable(identifier.name);
-                                if(d.declarableType()==DeclarableType.VARIABLE){
+                                if(d==null){
+                                    throw new SyntaxError("variable "+identifier.name+" does not exist",pos);
+                                }else if(d.declarableType()==DeclarableType.VARIABLE){
                                     VariableId id=(VariableId) d;
                                     context.wrapCurried(identifier.name,id,identifier.pos);
                                     assert !program.globalConstants.containsKey(id);

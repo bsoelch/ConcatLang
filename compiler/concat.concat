@@ -30,8 +30,8 @@ end
 TokenType enum
   WORD
   KEY_WORD
-  PROCEDURE
-  ENUM
+  PROCEDURE_START
+  ENUM_START
   VALUE
   IDENTIFIER
   OPERATOR
@@ -68,7 +68,7 @@ Token.strAppend proc string Token => string :
 
   TokenType token Token.type [] +: ": " +:
   token Token.type switch
-  TokenType WORD . TokenType KEY_WORD . TokenType PROCEDURE . TokenType ENUM . case
+  TokenType WORD . TokenType KEY_WORD . TokenType PROCEDURE_START . TokenType ENUM_START . case
     token WordToken.value :+
     end-case
   TokenType VALUE . case
@@ -83,12 +83,55 @@ Token.strAppend proc string Token => string :
   end
 end
 
-#_name_# string #_words_# string list FilePosition 3 tuple type Macro =$
-Macro.name  #define 0 []   #end
-Macro.name= #define 0 [] = #end
-Macro.words #define 1 []   #end
-Macro.pos   #define 2 []   #end
-Macro.pos=  #define 2 [] = #end
+DeclarableType enum
+  MACRO
+  ENUM
+  VARIABLE
+  CONSTANT
+  PROCEDURE
+end
+
+#_type_# DeclarableType #_pos_# FilePosition 2 tuple type Declarable =$
+
+Declarable.type #define 0 []   #end
+Declarable.pos  #define 1 []   #end
+Declarable.pos= #define 1 [] = #end
+
+#_type_# DeclarableType #_pos_# FilePosition #_name_# string #_words_# string list  4 tuple type Macro =$
+Macro.name  #define 2 []   #end
+Macro.name= #define 2 [] = #end
+Macro.words #define 3 []   #end
+newMacro proc FilePosition string => Macro :
+  string name =:
+  FilePosition mPos =:
+  DeclarableType MACRO . mPos name 16 byte list new Macro new return
+end
+
+BlockType enum
+  IF_BLOCK
+  &&_BLOCK
+  ||_BLOCK
+  WHILE_BLOCK
+  SWITCH_BLOCK
+  PROC_BLOCK
+  ENUM_BLOCK
+end
+#_type_# BlockType #_startPos_# FilePosition #_start_# int 3 tuple type CodeBlock =$
+CodeBlock.type     #define 0 [] #end
+CodeBlock.startPos #define 1 [] #end
+CodeBlock.start    #define 2 [] #end
+string FilePosition 2 tuple type NameWithPos =$
+#_type_# BlockType #_startPos_# FilePosition #_start_# int
+  #_name_# string #_elements_# NameWithPos list 5 tuple type EnumBlock =$
+EnumBlock.name     #define 3 [] #end
+EnumBlock.elements #define 4 [] #end
+newEnumBlock proc #_name_# string #_startPos_# FilePosition #_start_# int => EnumBlock :
+  int start =:
+  FilePosition startPos =:
+  string name =:
+  BlockType ENUM_BLOCK . startPos start name 16 NameWithPos list new EnumBlock new return
+end
+
 
 BufferedInput FilePosition string FilePosition 4 tuple type ParserReader =$
 ParserReader.in       #define 0 [] #end
@@ -126,9 +169,10 @@ ParseState enum
   STATE_LINE_COMMENT
 end
 
-Macro 1 tuple type OpenBlocks =$
+Macro CodeBlock list 2 tuple type OpenBlocks =$
 OpenBlocks.currentMacro  #define 0 []   #end
 OpenBlocks.currentMacro= #define 0 [] = #end
+OpenBlocks.blocks        #define 1 []   #end
 
 parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_blocks_# OpenBlocks #_tokens_# Token list => :
   Token list tokens =:
@@ -141,7 +185,7 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
       word switch
       "#end" case
         ##TODO save macro
-        openBlocks "" 16 string list new fPos Macro new OpenBlocks.currentMacro=
+        openBlocks fPos "" newMacro OpenBlocks.currentMacro=
         end-case
       "#define" "#undef" "#module" "#include" "#import" "proc" "procedure" "enum" case
         word " is not allowed in macros " :+ fPos FilePosition.strAppend '\n' :<< eputs
@@ -152,71 +196,6 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
       end
       return
     end
-    ## try parsing as integer
-    0 int off =:
-    ## detect signs
-    false bool sgn =:
-         word 0 [] '-' ==  if
-      true sgn =
-      off 1 + off =
-    else word 0 [] '+' == _if
-      off 1 + off =
-    end
-    10 int base =:
-    ##detect base modifiers
-    word length off - 3 > if
-           word off off 2 + [:] "0b" ==  if
-        2 base =
-        off 2 + off =
-      else word off off 2 + [:] "0x" == _if
-        16 base =
-        off 2 + off =
-      end
-    end
-    off word length < && word off [] base valueOfDigit 0 >= end if ##number starts with digit after prefixes
-      word word length 1 - [] dup 'u' == || 'U' == end if ##unsigned
-        word off word length 1 - [:] base true stringToInt switch
-        StringParseError ERR_NONE . case
-          sgn if -_ end uint val =:
-          tokens TokenType VALUE . fPos val  ValueToken new :<< tokens =
-          return
-          end-case
-        StringParseError ERR_OVERFLOW . case
-          "value does not fit in an unsigned int: \"" word :+ "\" " :+
-              fPos FilePosition.strAppend '\n' :<< eputs
-          1 exit
-          end-case
-        StringParseError ERR_BASE . StringParseError ERR_EMPTY . StringParseError ERR_ILLEGAL_CHAR . case
-          drop
-          end-case
-        end
-      else
-        word off word length [:] base false stringToInt switch
-        StringParseError ERR_NONE . case
-            sgn if -_ end int val =:
-            tokens TokenType VALUE . fPos val  ValueToken new :<< tokens =
-            return
-          end-case
-        StringParseError ERR_OVERFLOW . case
-          "value does not fit in a signed int: \"" word :+ "\" " :+
-              fPos FilePosition.strAppend '\n' :<< eputs
-          1 exit
-          end-case
-        StringParseError ERR_BASE . StringParseError ERR_EMPTY . StringParseError ERR_ILLEGAL_CHAR . case
-          drop
-          end-case
-        end
-        word off word length [:] base stringToFloat StringParseError ERR_NONE . == if
-          sgn if -_ end float val =:
-          tokens TokenType VALUE . fPos val  ValueToken new :<< tokens =
-          return
-        else
-          drop
-        end
-      end
-    end
-    ## end integer parsing
-
     ##keywords that consume one or more words
     word switch
     ## identifier - modifiers
@@ -289,7 +268,7 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
       end
       tokens tokens length 1 - tokens length [:] clear
       openBlocks OpenBlocks.currentMacro prev WordToken.value Macro.name=
-      openBlocks OpenBlocks.currentMacro prev Token.pos       Macro.pos=
+      openBlocks OpenBlocks.currentMacro prev Token.pos   Declarable.pos=
       end-case
     "#undef" case
       "unimplemented\n" eputs
@@ -318,7 +297,7 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         "invalid token for procedure name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
-      tokens TokenType PROCEDURE . fPos prev WordToken.value WordToken new tokens length 1 - [] =
+      tokens TokenType PROCEDURE_START . fPos prev WordToken.value WordToken new tokens length 1 - [] =
       end-case
     "enum" case
       tokens length 0 == if
@@ -330,10 +309,82 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         "invalid token for enum name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
-      tokens TokenType ENUM . fPos prev WordToken.value WordToken new tokens length 1 - [] =
+      tokens tokens length 1 - tokens length [:] clear
+      openBlocks OpenBlocks.blocks prev WordToken.value fPos tokens length newEnumBlock :<< drop
       end-case
     default
-      ##TODO resolve identifiers (if next is not .)
+      tokens length 0 > && next "." != end if
+        tokens tokens length 1 - [] Token prev =:
+        prev Token.type TokenType WORD . == if
+          ##TODO resolve identifiers
+          tokens TokenType IDENTIFIER . fPos
+            IdentifierType UNMODIFIED . prev WordToken.value IdentifierToken new tokens length 1 - [] =
+        end
+      end
+      ## try parsing as integer
+      0 int off =:
+      ## detect signs
+      false bool sgn =:
+           word 0 [] '-' ==  if
+        true sgn =
+        off 1 + off =
+      else word 0 [] '+' == _if
+        off 1 + off =
+      end
+      10 int base =:
+      ##detect base modifiers
+      word length off - 3 > if
+             word off off 2 + [:] "0b" ==  if
+          2 base =
+          off 2 + off =
+        else word off off 2 + [:] "0x" == _if
+          16 base =
+          off 2 + off =
+        end
+      end
+      off word length < && word off [] base valueOfDigit 0 >= end if ##number starts with digit after prefixes
+        word word length 1 - [] dup 'u' == || 'U' == end if ##unsigned
+          word off word length 1 - [:] base true stringToInt switch
+          StringParseError ERR_NONE . case
+            sgn if -_ end uint val =:
+            tokens TokenType VALUE . fPos val  ValueToken new :<< tokens =
+            return
+            end-case
+          StringParseError ERR_OVERFLOW . case
+            "value does not fit in an unsigned int: \"" word :+ "\" " :+
+                fPos FilePosition.strAppend '\n' :<< eputs
+            1 exit
+            end-case
+          StringParseError ERR_BASE . StringParseError ERR_EMPTY . StringParseError ERR_ILLEGAL_CHAR . case
+            drop
+            end-case
+          end
+        else
+          word off word length [:] base false stringToInt switch
+          StringParseError ERR_NONE . case
+              sgn if -_ end int val =:
+              tokens TokenType VALUE . fPos val  ValueToken new :<< tokens =
+              return
+            end-case
+          StringParseError ERR_OVERFLOW . case
+            "value does not fit in a signed int: \"" word :+ "\" " :+
+                fPos FilePosition.strAppend '\n' :<< eputs
+            1 exit
+            end-case
+          StringParseError ERR_BASE . StringParseError ERR_EMPTY . StringParseError ERR_ILLEGAL_CHAR . case
+            drop
+            end-case
+          end
+          word off word length [:] base stringToFloat StringParseError ERR_NONE . == if
+            sgn if -_ end float val =:
+            tokens TokenType VALUE . fPos val  ValueToken new :<< tokens =
+            return
+          else
+            drop
+          end
+        end
+      end
+      ## end integer parsing
       ##constants, operators and remaining keywords
       word switch
       ## detect true and false
@@ -367,8 +418,44 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         end-case
       ## control-flow key-words
       "lambda" "λ" "=>" ":"
-      "while" "if" "else" "if_" "switch" "case" "end-case" "default" "end" "&&" "||" "return" "exit" case
+      "while" "if" "else" "if_" "switch" "case" "end-case" "default" "&&" "||" "return" "exit" case
+        ## TODO handle different block-types
+        openBlocks OpenBlocks.blocks BlockType IF_BLOCK . fPos tokens length CodeBlock new :<< drop
         tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "end" case
+        openBlocks OpenBlocks.blocks length 0 == if
+          "unexpected end-statement " fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+        end
+        openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
+        openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - openBlocks OpenBlocks.blocks length [:] clear
+        ## TODO close block
+        block CodeBlock.type switch
+        BlockType IF_BLOCK . case
+          "Waring closing if-blocks is currently not implemented\n" eputs
+          end-case
+        BlockType &&_BLOCK . BlockType ||_BLOCK . case
+          "Waring closing &&-/||-blocks is currently not implemented\n" eputs
+          end-case
+        BlockType WHILE_BLOCK . case
+          "Waring closing while-blocks is currently not implemented\n" eputs
+          end-case
+        BlockType SWITCH_BLOCK . case
+          "Waring closing switch-blocks is currently not implemented\n" eputs
+          end-case
+        BlockType PROC_BLOCK . case
+          "Waring closing proc-blocks is currently not implemented\n" eputs
+          end-case
+        BlockType ENUM_BLOCK . case
+          tokens length block CodeBlock.start > if
+            "Invalid token in enum: " tokens block CodeBlock.start [] Token.strAppend ' '
+              :<< tokens block CodeBlock.start [] Token.pos FilePosition.strAppend '\n' :<< eputs
+            1 exit
+          end
+          ##TODO save enum
+          end-case
+        end
         end-case
       ## operators
       "+" case
@@ -438,7 +525,13 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         tokens TokenType OPERATOR . fPos OperatorType GT . OperatorToken new :<< tokens =
         end-case
       default
-        tokens TokenType WORD . fPos word WordToken new :<< tokens =
+        openBlocks OpenBlocks.blocks length 0 >
+          && openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock.type BlockType ENUM_BLOCK . == end
+          if
+          openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] EnumBlock.elements word fPos NameWithPos new :<< drop
+        else
+          tokens TokenType WORD . fPos word WordToken new :<< tokens =
+        end
       end
     end
   end
@@ -494,7 +587,7 @@ parseFile proc #_fileName_# string => Token list :
   fileName 1 1 FilePosition new       #_wordPos_#
   ParserReader new ParserReader reader =:
   ParseState STATE_WORD . ParseState state =:
-  "" 16 string list new reader ParserReader.pos Macro new OpenBlocks new OpenBlocks openBlocks =:
+  reader ParserReader.pos "" newMacro 16 CodeBlock list new OpenBlocks new OpenBlocks openBlocks =:
 
   "" string prevWord =:
   fileName 1 1 FilePosition new FilePosition prevPos =:
