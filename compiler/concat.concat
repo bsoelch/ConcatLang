@@ -298,6 +298,7 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         1 exit
       end
       tokens TokenType PROCEDURE_START . fPos prev WordToken.value WordToken new tokens length 1 - [] =
+      openBlocks OpenBlocks.blocks BlockType PROC_BLOCK . fPos tokens length CodeBlock new :<< drop
       end-case
     "enum" case
       tokens length 0 == if
@@ -417,10 +418,83 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         tokens TokenType VALUE . fPos var ValueToken new :<< tokens =
         end-case
       ## control-flow key-words
-      "lambda" "λ" "=>" ":"
-      "while" "if" "else" "if_" "switch" "case" "end-case" "default" "&&" "||" "return" "exit" case
-        ## TODO handle different block-types
+      "lambda" "λ" case
+        openBlocks OpenBlocks.blocks BlockType PROC_BLOCK . fPos tokens length CodeBlock new :<< drop
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "return" "exit" case
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "=>" ":" case
+        openBlocks OpenBlocks.blocks length 0 == if
+          word " can only be used in (lambda-)procedures " :+ fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+        end
+        openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
+        block CodeBlock.type BlockType PROC_BLOCK . != if
+          word " can only be used in (lambda-)procedures " :+ fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+        end
+        ##TODO update procedure-block
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "while" case
+        openBlocks OpenBlocks.blocks BlockType WHILE_BLOCK . fPos tokens length CodeBlock new :<< drop
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "do" case
+        openBlocks OpenBlocks.blocks length 0 == if
+          word " can only be used in while-statement " :+ fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+        end
+        openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
+        block CodeBlock.type BlockType PROC_BLOCK . != && block CodeBlock.type BlockType WHILE_BLOCK . != end if
+          word " can only be used in while-statement " :+ fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+        end
+        ##TODO update while/procedure-block
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "if" case
         openBlocks OpenBlocks.blocks BlockType IF_BLOCK . fPos tokens length CodeBlock new :<< drop
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "else" "_if" case
+        openBlocks OpenBlocks.blocks length 0 == if
+          word " can only be used in if-blocks " :+ fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+        end
+        openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
+        block CodeBlock.type BlockType IF_BLOCK . != if
+          word " can only be used in if-blocks " :+ fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+        end
+        ##TODO update if-block
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "&&" case
+        openBlocks OpenBlocks.blocks BlockType &&_BLOCK . fPos tokens length CodeBlock new :<< drop
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "||" case
+        openBlocks OpenBlocks.blocks BlockType ||_BLOCK . fPos tokens length CodeBlock new :<< drop
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "switch" case
+        openBlocks OpenBlocks.blocks BlockType SWITCH_BLOCK . fPos tokens length CodeBlock new :<< drop
+        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        end-case
+      "case" "end-case" "default" case
+        openBlocks OpenBlocks.blocks length 0 == if
+          word " can only be used in switch-blocks " :+ fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+        end
+        openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
+        block CodeBlock.type BlockType SWITCH_BLOCK . != if
+          word " can only be used in switch-blocks " :+  fPos FilePosition.strAppend '\n' :<< eputs
+          1 exit
+        end
+        ##TODO update switch-block
         tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
         end-case
       "end" case
@@ -592,7 +666,7 @@ parseFile proc #_fileName_# string => Token list :
   "" string prevWord =:
   fileName 1 1 FilePosition new FilePosition prevPos =:
 
-  while reader ParserReader.nextByte ?? :
+  while reader ParserReader.nextByte ?? do
     unwrap #_next-char_#
     state switch
       ParseState STATE_WORD . case
@@ -675,6 +749,7 @@ parseFile proc #_fileName_# string => Token list :
         next '"' == if
           prevWord length 0 > if
             prevWord "" prevPos openBlocks tokens parseWord
+            "" prevWord =
           end
           tokens
             TokenType VALUE . reader ParserReader.wordPos clone
@@ -697,6 +772,7 @@ parseFile proc #_fileName_# string => Token list :
         next '\'' == if
           prevWord length 0 > if
             prevWord "" prevPos openBlocks tokens parseWord
+            "" prevWord =
           end
           tokens
             TokenType VALUE . reader ParserReader.wordPos clone
@@ -750,6 +826,7 @@ parseFile proc #_fileName_# string => Token list :
       reader ParserReader.word clone string nextWord =:
       prevWord length 0 > if
         prevWord nextWord prevPos openBlocks tokens parseWord
+        "" prevWord =
       end
       nextWord "" reader ParserReader.wordPos clone openBlocks tokens parseWord
       reader ParserReader.nextWord
@@ -788,7 +865,7 @@ main proc string list => :
   path parseFile Token list tokens =:
 
   0 int i =:
-  while i tokens length < :
+  while i tokens length < do
     tokens i [] Token token =:
     "" token Token.strAppend " " :+ token Token.pos FilePosition.strAppend '\n' :<< puts
     i 1 + i =
