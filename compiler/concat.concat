@@ -115,6 +115,7 @@ BlockType enum
   SWITCH_BLOCK
   PROC_BLOCK
   ENUM_BLOCK
+  TUPLE_BLOCK
 end
 CodeBlock tuple #_type_# BlockType #_startPos_# FilePosition #_start_# int end
 CodeBlock.type     #define 0 [] #end
@@ -131,7 +132,14 @@ newEnumBlock proc #_name_# string #_startPos_# FilePosition #_start_# int => Enu
   string name =:
   BlockType ENUM_BLOCK . startPos start name 16 NameWithPos list new EnumBlock new return
 end
-
+TupleBlock tuple #_type_# BlockType #_startPos_# FilePosition #_start_# int #_name_# string end
+TupleBlock.name     #define 3 [] #end
+newTupleBlock proc #_name_# string #_startPos_# FilePosition #_start_# int => EnumBlock :
+  int start =:
+  FilePosition startPos =:
+  string name =:
+  BlockType TUPLE_BLOCK . startPos start name TupleBlock new return
+end
 
 ParserReader tuple BufferedInput FilePosition string FilePosition end
 ParserReader.in       #define 0 [] #end
@@ -324,10 +332,7 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         1 exit
       end
       tokens tokens length 1 - tokens length [:] clear
-      ##TODO TupleBlock
-      ## openBlocks OpenBlocks.blocks prev WordToken.value fPos tokens length newEnumBlock :<< drop
-      "tuples are currently unimplemented " fPos FilePosition.strAppend '\n' :<< eputs
-      1 exit
+      openBlocks OpenBlocks.blocks prev WordToken.value fPos tokens length newTupleBlock :<< drop
       end-case
     default
       tokens length 0 > && next "." != end if
@@ -468,7 +473,7 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
           word " can only be used in while-statement " :+ fPos FilePosition.strAppend '\n' :<< eputs
           1 exit
         end
-        ##TODO update while/procedure-block
+        ##TODO update while-block
         tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
         end-case
       "if" case
@@ -544,6 +549,12 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
             1 exit
           end
           ##TODO save enum
+          end-case
+        BlockType TUPLE_BLOCK . case
+          tokens block CodeBlock.start tokens length [:] Token list subList =:
+          ##TODO extract tuple signature
+          subList clear
+          ##TODO save tuple
           end-case
         end
         end-case
