@@ -2,6 +2,10 @@ package bsoelch.concat;
 
 import bsoelch.concat.streams.FileStream;
 
+import java.io.File;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -1795,7 +1799,34 @@ public abstract class Value {
             return Objects.hash(declaredAt, index);
         }
     }
-
+    public static Value loadNativeConstant(Type type, String name, Interpreter.FilePosition pos) throws SyntaxError {
+        if(type==Type.TYPE){
+            //TODO native Type
+            return ofType(Type.TYPE);
+        }
+        try {
+            String path=pos.path;
+            String dir=path.substring(0,path.lastIndexOf('/')+1);
+            String className=path.substring(path.lastIndexOf('/')+1);
+            className=className.substring(0,className.lastIndexOf('.'));
+            ClassLoader loader=new URLClassLoader(new URL[]{new File(dir).toURI().toURL()});
+            Class<?> cls=loader.loadClass(className);
+            Object val=cls.getField("nativeImpl_"+name).get(null);
+            if(type==Type.BOOL){
+                return ((Boolean)val)?TRUE:FALSE;
+            }else if(type==Type.BYTE){
+                return ofByte((Byte)val);
+            }else if(type==Type.INT||type==Type.UINT){
+                return ofInt((Long) val,type==Type.UINT);
+            }else if(type==Type.FLOAT){
+                return ofFloat((Double)val);
+            }
+            //TODO support all types for native Values
+        } catch (MalformedURLException | ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
+            throw new SyntaxError("Error while loading native value:"+e.getMessage(),pos);
+        }
+        throw new UnsupportedOperationException("type "+type+" is not supported for native values");
+    }
 
 
     private static Value cmpToValue(int c, OperatorType opType) {

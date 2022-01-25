@@ -41,6 +41,7 @@ Token.type  #define 0 [] #end
 Token.pos   #define 1 [] #end
 WordToken tuple TokenType FilePosition string end
 WordToken.value #define 2 [] #end
+##TODO wrap values
 ValueToken tuple TokenType FilePosition var end
 ValueToken.value #define 2 [] #end
 

@@ -134,7 +134,7 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE,CONST_DECLARE,UNMODIFIED,PROC_ID,VAR_WRITE
+        DECLARE,CONST_DECLARE,UNMODIFIED,PROC_ID,VAR_WRITE,NATIVE,NATIVE_DECLARE
     }
     static class IdentifierToken extends Token {
         final IdentifierType type;
@@ -323,11 +323,13 @@ public class Interpreter {
         final String name;
         final ProcedureContext context;
         Type[] inTypes=null,outTypes=null;
+        final boolean isNative;
 
-        ProcedureBlock(String name, int startToken, FilePosition pos, VariableContext parentContext) {
+        ProcedureBlock(String name, int startToken, FilePosition pos, VariableContext parentContext, boolean isNative) {
             super(startToken, BlockType.PROCEDURE,pos, parentContext);
             this.name = name;
             context=new ProcedureContext(parentContext);
+            this.isNative=isNative;
         }
         static Type[] getSignature(List<Token> tokens) throws SyntaxError {
             RandomAccessStack<ValueToken> stack=new RandomAccessStack<>(tokens.size());
@@ -1477,13 +1479,26 @@ public class Interpreter {
                         tokens.set(tokens.size()-1,prev);
                         return;
                     }
-                    case "=$"->{
+                    case "=$" -> {
                         if(prev==null){
                             throw new SyntaxError("not enough tokens tokens for '=$' modifier",pos);
                         }else if(prevId!=null){
                             prev=new IdentifierToken(IdentifierType.CONST_DECLARE,prevId,prev.pos);
+                        }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.NATIVE){
+                            prev=new IdentifierToken(IdentifierType.NATIVE_DECLARE,((IdentifierToken) prev).name,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '=$' modifier: "+prev,prev.pos);
+                        }
+                        tokens.set(tokens.size()-1,prev);
+                        return;
+                    }
+                    case "native" -> {
+                        if(prev==null){
+                            throw new SyntaxError("not enough tokens tokens for 'native' modifier",pos);
+                        }else if(prevId!=null){
+                            prev=new IdentifierToken(IdentifierType.NATIVE,prevId,prev.pos);
+                        }else{
+                            throw new SyntaxError("invalid token for 'native' modifier: "+prev,prev.pos);
                         }
                         tokens.set(tokens.size()-1,prev);
                         return;
@@ -1506,17 +1521,23 @@ public class Interpreter {
                         int index=tokens.size()-1;
                         //update variables
                         switch (identifier.type){
-                            case DECLARE,CONST_DECLARE -> {
+                            case NATIVE ->
+                                throw new RuntimeException("unreachable");
+                            case DECLARE,CONST_DECLARE,NATIVE_DECLARE -> {
                                 VariableId id=context.declareVariable(
-                                        identifier.name, identifier.type == IdentifierType.CONST_DECLARE,
+                                        identifier.name, identifier.type != IdentifierType.DECLARE,
                                         identifier.pos,ioContext);
-                                AccessType accessType = identifier.type == IdentifierType.CONST_DECLARE ?
-                                                AccessType.CONST_DECLARE : AccessType.DECLARE;
+                                AccessType accessType = identifier.type == IdentifierType.DECLARE ?
+                                                AccessType.DECLARE : AccessType.CONST_DECLARE;
                                 if(index>0&&(prev=tokens.get(index-1)) instanceof ValueToken){
                                     try {//remember constant declarations
                                         Type type=((ValueToken)prev).value.asType();
                                         //addLater remember variable types
-                                        if(id.isConstant&&id.context.procedureContext()==null&&//only remember root-level constants
+                                        if(identifier.type==IdentifierType.NATIVE_DECLARE){
+                                            tokens.subList(index-1,tokens.size()).clear();
+                                            program.globalConstants.put(id,Value.loadNativeConstant(type,identifier.name,pos));
+                                            break;
+                                        }else if(id.isConstant&&id.context.procedureContext()==null&&//only remember root-level constants
                                                 index>1&&(prev=tokens.get(index-2)) instanceof ValueToken){
                                             program.globalConstants.put(id,((ValueToken) prev).value.clone(true).castTo(type));
                                             tokens.subList(index-2, tokens.size()).clear();
@@ -1934,13 +1955,16 @@ public class Interpreter {
                     throw new SyntaxError("missing procedure name",pos);
                 }
                 prev=tokens.remove(tokens.size()-1);
+                boolean isNative=false;
                 if(!(prev instanceof IdentifierToken)){
                     throw new SyntaxError("token before 'proc' has to be an identifier",pos);
+                }else if(((IdentifierToken) prev).type==IdentifierType.NATIVE){
+                    isNative=true;
                 }else if(((IdentifierToken) prev).type!=IdentifierType.UNMODIFIED){
                     throw new SyntaxError("token before 'proc' has to be an unmodified identifier",pos);
                 }
                 String name = ((IdentifierToken) prev).name;
-                openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,rootContext));
+                openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,rootContext,isNative));
             }
             case "=>" ->{
                 CodeBlock block = openBlocks.peekLast();
@@ -1950,7 +1974,7 @@ public class Interpreter {
                 proc.addIns(tokens.subList(proc.start,tokens.size()),pos);
             }
             case "lambda","λ" ->
-                    openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
+                    openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext), false));
             case ":" -> {
                 CodeBlock block=openBlocks.peekLast();
                 if(block==null){
@@ -2081,18 +2105,29 @@ public class Interpreter {
                                 }
                                 procType=Type.GENERIC_PROCEDURE;
                             }
-                            Value.Procedure proc=Value.createProcedure(procType,block.startPos, content, context);
-                            if (context.curried.isEmpty()) {
-                                if(((ProcedureBlock) block).name!=null){
-                                    rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
-                                }else{
-                                    tokens.add(new ValueToken(proc, pos, false));
+                            if(((ProcedureBlock) block).isNative){
+                                assert ((ProcedureBlock) block).name!=null;
+                                if(content.size()>0){
+                                    throw new SyntaxError("unexpected token: "+subList.get(0)+
+                                            " (at "+subList.get(0).pos+") native procedures have to have an empty body",pos);
                                 }
-                            } else {
-                                if(((ProcedureBlock) block).name!=null){
-                                    throw new RuntimeException("named procedures cannot be curried");
+                                //TODO declare native procedure
+                                Value.Procedure proc=Value.createProcedure(procType,block.startPos, content, context);
+                                rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
+                            }else{
+                                Value.Procedure proc=Value.createProcedure(procType,block.startPos, content, context);
+                                if (context.curried.isEmpty()) {
+                                    if(((ProcedureBlock) block).name!=null){
+                                        rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
+                                    }else{
+                                        tokens.add(new ValueToken(proc, pos, false));
+                                    }
+                                } else {
+                                    if(((ProcedureBlock) block).name!=null){
+                                        throw new RuntimeException("named procedures cannot be curried");
+                                    }
+                                    tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,proc, pos, false));
                                 }
-                                tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,proc, pos, false));
                             }
                         }
                         case IF -> {
