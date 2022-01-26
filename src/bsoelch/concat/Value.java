@@ -1,7 +1,5 @@
 package bsoelch.concat;
 
-import bsoelch.concat.streams.FileStream;
-
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -53,9 +51,14 @@ public abstract class Value {
     public long id() {
         return System.identityHashCode(this);
     }
+
+    /*raw data of this Value as a standard java Object*/
     Object rawData() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to native value");
     }
+    /*updates mutable values form their raw data representation*/
+    void updateFrom(Object nativeArg) throws ConcatRuntimeError {}
+
     public boolean asBool() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to bool");
     }
@@ -71,14 +74,8 @@ public abstract class Value {
     public Type asType() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to type");
     }
-    public FileStream asStream() throws TypeError {
-        throw new TypeError("Cannot convert "+type+" to stream");
-    }
     public ByteList toByteList() throws ConcatRuntimeError {
         throw new TypeError("Converting "+type+" to raw-bytes is not supported");
-    }
-    public ByteList asByteList() throws ConcatRuntimeError {
-        throw new TypeError(type+" cannot be assigned to byte list");
     }
     /**checks if this and v are the same object (reference)
      * unlike equals this method distinguishes mutable objects with different ids but the same elements*/
@@ -663,15 +660,6 @@ public abstract class Value {
         }
 
         @Override
-        Object rawData() throws TypeError {
-            if(type==Type.UNICODE_STRING()){
-                return stringValue();//addLater? keep rawData linked with data
-            }else{
-                return super.rawData();
-            }
-        }
-
-        @Override
         boolean isEqualTo(Value v) {
             return v instanceof ListValue &&
                     ((ListValue) v).elements==elements;//check reference equality
@@ -887,15 +875,6 @@ public abstract class Value {
         }
 
         @Override
-        Object rawData() throws TypeError {
-            if(type==Type.UNICODE_STRING()){
-                return stringValue();//addLater? keep rawData linked with data
-            }else{
-                return super.rawData();
-            }
-        }
-
-        @Override
         public Value clone(boolean deep) {
             ArrayList<Value> newElements;
             if(deep){
@@ -1091,15 +1070,7 @@ public abstract class Value {
         }
         public abstract int length();
         @Override
-        Object rawData() {//addLater? keep rawData linked with data
-            return toByteArray();
-        }
-        @Override
         public ByteList toByteList(){
-            return this;
-        }
-        @Override
-        public ByteList asByteList() {
             return this;
         }
         @Override
@@ -1204,6 +1175,20 @@ public abstract class Value {
         @Override
         public int length() {
             return size;
+        }
+        //rawData: bytes,off,len,size
+        @Override
+        Object rawData() {
+            return new Object[]{elements,0,size,size};
+        }
+        @Override
+        void updateFrom(Object nativeValue) throws ConcatRuntimeError {
+            try {
+                this.elements = (byte[]) ((Object[])nativeValue)[0];
+                this.size     = (int) ((Object[])nativeValue)[3];
+            }catch (ClassCastException cce){
+                throw new ConcatRuntimeError(cce.toString());
+            }
         }
 
         @Override
@@ -1359,6 +1344,23 @@ public abstract class Value {
         @Override
         public int length() {
             return to-off;
+        }
+        //rawData: bytes,off,len,size
+        @Override
+        Object rawData() {
+            return new Object[]{list.elements,off,to-off,list.size};
+        }
+        @Override
+        void updateFrom(Object nativeArg) throws ConcatRuntimeError {
+            list.updateFrom(nativeArg);
+            try{
+                if(off==(int)((Object[])nativeArg)[1]){
+                    throw new ConcatRuntimeError("native procedure modified immutable value off");
+                }
+                to=off+(int)((Object[])nativeArg)[2];
+            }catch (ClassCastException cce){
+                throw new ConcatRuntimeError(cce.toString());
+            }
         }
 
         @Override
@@ -1688,55 +1690,6 @@ public abstract class Value {
         }
     }
 
-    public static Value ofFile(FileStream stream) {
-        return new FileValue(stream);
-    }
-    private static class FileValue extends Value{
-        final FileStream streamValue;
-        private FileValue(FileStream streamValue) {
-            super(Type.FILE);
-            this.streamValue = streamValue;
-        }
-
-
-        @Override
-        public long id() {
-            return System.identityHashCode(streamValue);
-        }
-
-        @Override
-        boolean isEqualTo(Value v) {
-            return v == this;
-        }
-
-        @Override
-        public Value clone(boolean deep) {
-            throw new UnsupportedOperationException("cloning of "+type+" is currently not supported");
-        }
-
-        @Override
-        public FileStream asStream(){
-            return streamValue;
-        }
-
-        @Override
-        public String stringValue() {
-            return "["+type+"]";
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FileValue that = (FileValue) o;
-            return Objects.equals(streamValue, that.streamValue);
-        }
-        @Override
-        public int hashCode() {
-            return Objects.hash(streamValue);
-        }
-    }
-
     public static Value wrap(Value v) throws ConcatRuntimeError {
         return new OptionalValue(v);
     }
@@ -1859,6 +1812,19 @@ public abstract class Value {
             return Objects.hash(declaredAt, index);
         }
     }
+
+    static final HashMap<String,URLClassLoader> classLoaders=new HashMap<>();
+    static URLClassLoader getLoader(String path) throws MalformedURLException {
+        File file = new File(path+"native.jar");
+        if(classLoaders.containsKey(file.getAbsolutePath())){
+            return classLoaders.get(file.getAbsolutePath());
+        }else {
+            URLClassLoader loader = new URLClassLoader(new URL[]{file.toURI().toURL()});
+            classLoaders.put(file.getAbsolutePath(),loader);
+            return loader;
+        }
+    }
+
     private static Value fromJValue(Type type,Object jValue) throws ConcatRuntimeError {
         try{
             if(jValue==null){
@@ -1878,9 +1844,12 @@ public abstract class Value {
             }else if(type==Type.FLOAT){
                 return ofFloat((Double)jValue);
             }else if(type==Type.RAW_STRING()){
-                return new ByteListImpl(((byte[])jValue).length,(byte[])jValue);
-            }else if(type==Type.UNICODE_STRING()){
-                return ofString(((String)jValue),true);
+                Object[] parts=(Object[])jValue;
+                byte[] bytes=(byte[])parts[0];
+                int off  = (int)parts[1];
+                int len  = (int)parts[2];
+                int init = (int)parts[3];
+                return new ByteListImpl(init,bytes).getSlice(off,off+len);
             }else if(type.isOptional()){
                 Optional<?> o=(Optional<?>)jValue;
                 if(o.isEmpty()){
@@ -1888,6 +1857,8 @@ public abstract class Value {
                 }else{
                     return wrap(fromJValue(type.content(),o.get()));
                 }
+            }else if(type instanceof Type.NativeType){
+                return new NativeValue((Type.NativeType)type,((Type.NativeType) type).jClass.cast(jValue));
             }else{
                 throw new ConcatRuntimeError("type "+type+" is not supported for native values");
             }
@@ -1898,43 +1869,42 @@ public abstract class Value {
     }
     private static Class<?> jClass(Type t) throws TypeError {
         if(t == Type.BOOL){
-            return Boolean.class;
+            return boolean.class;
         }else if(t == Type.BYTE){
-            return Byte.class;
+            return byte.class;
         }else if(t == Type.CODEPOINT){
-            return Integer.class;
+            return int.class;
         }else if(t == Type.INT||t == Type.UINT){
-            return Long.class;
+            return long.class;
         }else if(t == Type.FLOAT){
-            return Double.class;
+            return double.class;
         }else if(t == Type.ANY){
             return Object.class;
         }else if(t==Type.RAW_STRING()){
-            return byte[].class;
-        }else if(t==Type.UNICODE_STRING()){
-            return String.class;
+            return Object[].class;//bytes,off,len,init
         }else if(t.isOptional()){
             jClass(t.content());//check content Type
             return Optional.class;
-        }else{//TODO support native types
+        }else if(t instanceof Type.NativeType){
+            return ((Type.NativeType)t).jClass;
+        }else{
             throw new TypeError("type "+t+" is not supported for native procedures");
         }
     }
     public static Value loadNativeConstant(Type type, String name, Interpreter.FilePosition pos) throws SyntaxError {
-        if(type==Type.TYPE){
-            //TODO native Type
-            return ofType(Type.TYPE);
-        }
         try {
             String path=pos.path;
             String dir=path.substring(0,path.lastIndexOf('/')+1);
             String className=path.substring(path.lastIndexOf('/')+1);
             className=className.substring(0,className.lastIndexOf('.'));
-            //TODO cache ClassLoaders
-            ClassLoader loader=new URLClassLoader(new URL[]{new File(dir+"native.jar").toURI().toURL()});
+            ClassLoader loader=getLoader(dir);
             Class<?> cls=loader.loadClass(className);//TODO ensure names are valid identifiers
             Object val=cls.getField("nativeImpl_"+name).get(null);
-            return fromJValue(type,val);
+            if(type==Type.TYPE){
+                return ofType(new Type.NativeType(name, (Class<?>) val));
+            }else{
+                return fromJValue(type,val);
+            }
         } catch (MalformedURLException | ClassNotFoundException | NoSuchFieldException |
                 IllegalAccessException|ConcatRuntimeError e) {
             throw new SyntaxError("Error while loading native value "+name+": "+e,pos);
@@ -1947,7 +1917,7 @@ public abstract class Value {
             String dir = path.substring(0, path.lastIndexOf('/') + 1);
             String className = path.substring(path.lastIndexOf('/') + 1);
             className = className.substring(0, className.lastIndexOf('.'));
-            ClassLoader loader = new URLClassLoader(new URL[]{new File(dir + "native.jar").toURI().toURL()});
+            ClassLoader loader = getLoader(dir);
             Class<?> cls = loader.loadClass(className);
             Class<?> [] signature=new Class[procType.inTypes.length];
             for(int i=0;i<signature.length;i++){
@@ -1957,6 +1927,23 @@ public abstract class Value {
             return new NativeProcedure(procType,m,name,declaredAt);
         } catch (MalformedURLException | ClassNotFoundException | NoSuchMethodException | TypeError e) {
             throw new SyntaxError("Error while loading native procedure "+name+": "+e,declaredAt);
+        }
+    }
+    static class NativeValue extends Value{
+        final Object nativeValue;
+        protected NativeValue(Type.NativeType type, Object nativeValue) {
+            super(type);
+            this.nativeValue = nativeValue;
+        }
+
+        @Override
+        Object rawData(){
+            return nativeValue;
+        }
+
+        @Override
+        public String stringValue() {
+            return "native value @"+System.identityHashCode(nativeValue);
         }
     }
     static class NativeProcedure extends Value implements Interpreter.Declarable {
@@ -1990,17 +1977,21 @@ public abstract class Value {
             }
             try {
                 Object res=nativeMethod.invoke(null,nativeArgs);
-                //TODO updateFrom(rawData) for input arguments
+                for(int i=0;i<values.length;i++){
+                    values[i].updateFrom(nativeArgs[i]);
+                }
                 if(((Type.Procedure)type).outTypes.length==0){
                     return new Value[0];
                 }else if(((Type.Procedure)type).outTypes.length==1){
                     return new Value[]{Value.fromJValue(((Type.Procedure)type).outTypes[0],res)};
                 }else{
-                    //TODO implement handling of multiple output arguments
-                    throw new UnsupportedOperationException("unimplemented");
+                    //addLater implement handling of multiple output arguments
+                    throw new UnsupportedOperationException("native functions with multiple output arguments are not supported");
                 }
-            } catch (IllegalAccessException|InvocationTargetException e) {
+            } catch (IllegalAccessException e) {
                 throw new ConcatRuntimeError(e.toString());
+            } catch (InvocationTargetException e) {
+                throw new ConcatRuntimeError(e.getCause().toString());
             }
         }
 

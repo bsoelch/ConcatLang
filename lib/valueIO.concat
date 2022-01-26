@@ -1,7 +1,8 @@
 core #module
 
 stack #include
-stringIO #include
+io #include
+io #import
 numbers #include
 utf8 #include
 
@@ -93,8 +94,6 @@ stringValue proc var => string :
       value content stringValue " ..." :+ return
     else value isEnum _if
       value string cast return ## return enum-name
-    else value (file) == _if
-      "(file)" return
     else value type == _if
       "type" return
     else value bool == _if
@@ -134,9 +133,6 @@ stringValue proc var => string :
   else value typeof *->* <= _if
     ## procedure
     "*->*@" value refId  16 true true intToString +: return
-  else value typeof (file) == _if
-    ## procedure
-    "(file)@" value refId  16 true true intToString +: return
   else
     "unreachable\n" eputs
     1 exit
@@ -563,8 +559,8 @@ end
 end
 
 ## formats string file
-fprintf proc var ... string (file) => :
-  (file) file =:
+fprintf proc var ... string FILE => :
+  FILE file =:
   string format =:
   var {} ##convert var-args to list
   format formatString file fputs

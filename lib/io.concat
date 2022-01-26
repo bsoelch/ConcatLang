@@ -1,0 +1,31 @@
+io #module
+  type FILE native =$
+
+  FILE stdIn  native =$
+  FILE stdOut native =$
+  FILE stdErr native =$
+
+  open     native proc #_path_# string #_flags_#string => FILE optional : end
+  close    native proc FILE => bool : end
+  read     native proc FILE #_buff_# byte list #_off_# int #_count_# int => int  : end
+  write    native proc FILE #_buff_# byte list #_off_# int #_count_# int => bool : end
+  size     native proc FILE => int  : end
+  pos      native proc FILE => int  : end
+  truncate native proc FILE => bool : end
+  seekEnd  native proc FILE => bool : end
+  seek     native proc FILE int => bool : end
+#end
+core #module
+stack #include
+io #import
+fputs proc string FILE => bool :
+  FILE file =:
+  string str =:
+  file str 0 str length io write .
+end
+
+## specialized procedures for writing to stdout and stderr
+ puts #define io stdOut . core fputs . drop #end
+eputs #define io stdErr . core fputs . drop #end
+
+#end

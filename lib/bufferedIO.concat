@@ -1,15 +1,16 @@
 stack #include
 core #import
+io #include
 io #module
 
-BufferedInput tuple (file) byte list int end
+BufferedInput tuple FILE byte list int end
 BufferedInput.file   #define 0 [] #end
 BufferedInput.buffer #define 1 [] #end
 BufferedInput.cap    #define 2 [] #end
 
-createBufferedIn proc (file) #_ cap _# int => BufferedInput :
+createBufferedIn proc FILE #_ cap _# int => BufferedInput :
     int cap =:
-    (file) file =:
+    FILE file =:
     file cap byte list new cap BufferedInput new return
 end
 

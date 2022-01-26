@@ -2,10 +2,11 @@ bufferedIO:
 bytes:
 chars:
 hashMap:
+io:
 iterator:
 lists:
+math:
 numbers:
 stack:
-stringIO:
 utf8:
 valueIO:

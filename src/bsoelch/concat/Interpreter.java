@@ -1,8 +1,5 @@
 package bsoelch.concat;
 
-import bsoelch.concat.streams.FileStream;
-import bsoelch.concat.streams.RandomAccessFileStream;
-
 import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -14,29 +11,14 @@ public class Interpreter {
     //use ' as separator for modules, as it cannot be part of identifiers
     public static final String MODULE_SEPARATOR = "'";
 
-    /**Context for running the program*/
-    static class IOContext{
-        final InputStream stdIn;
-        final PrintStream stdOut;
-        final PrintStream stdErr;
-
-        final Value stdInValue;
-        final Value stdOutValue;
-        final Value stdErrValue;
-        IOContext(InputStream stdIn, PrintStream stdOut, PrintStream stdErr){
-            this.stdIn  = stdIn;
-            this.stdOut = stdOut;
-            this.stdErr = stdErr;
-            stdInValue = Value.ofFile(FileStream.of(stdIn,false));
-            stdOutValue = Value.ofFile(FileStream.of(stdOut,false));
-            stdErrValue = Value.ofFile(FileStream.of(stdErr,false));
-        }
-    }
+    /**
+     * Context for running the program
+     */
+    record IOContext(InputStream stdIn, PrintStream stdOut, PrintStream stdErr) {}
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
     enum TokenType {
         VALUE,CURRIED_PROCEDURE,OPERATOR,
-        STD_IN,STD_OUT,STD_ERR,
         DROP,DUP,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
@@ -346,6 +328,7 @@ public class Interpreter {
                 if(t instanceof ValueToken){
                     stack.push(((ValueToken) t));
                 }else{//list, optional, tuple, -> are evaluated in parser
+                    //TODO! report predeclared procedures as missing variables
                     throw new SyntaxError("Tokens of type "+t.tokenType+
                             " are not supported in procedure signatures",t.pos);
                 }
@@ -1573,12 +1556,12 @@ public class Interpreter {
                                 switch (type){
                                     case PROCEDURE -> {
                                         Value.Procedure proc=(Value.Procedure)d;
-                                        ProcedureToken token=new ProcedureToken(false,proc,pos);
+                                        ProcedureToken token=new ProcedureToken(false,proc,identifier.pos);
                                         tokens.set(index,token);
                                     }
                                     case NATIVE_PROC -> {
                                         Value.NativeProcedure proc=(Value.NativeProcedure)d;
-                                        NativeProcedureToken token=new NativeProcedureToken(false,proc,pos);
+                                        NativeProcedureToken token=new NativeProcedureToken(false,proc,identifier.pos);
                                         tokens.set(index,token);
                                     }
                                     case PREDECLARED_PROCEDURE -> {
@@ -1586,9 +1569,9 @@ public class Interpreter {
                                         if(d!=null){
                                             proc=(PredeclaredProc) d;
                                         }else{
-                                            proc=program.rootContext.predeclareProcedure(identifier.name,context,pos);
+                                            proc=program.rootContext.predeclareProcedure(identifier.name,context,identifier.pos);
                                         }
-                                        ProcedureToken token=new ProcedureToken(false,null,pos);
+                                        ProcedureToken token=new ProcedureToken(false,null,identifier.pos);
                                         proc.listeners.add(token);
                                         tokens.set(index,token);
                                     }
@@ -1751,7 +1734,6 @@ public class Interpreter {
             case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
             case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),      pos, false));
             case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_OPTIONAL),  pos, false));
-            case "(file)"     -> tokens.add(new ValueToken(Value.ofType(Type.FILE),              pos, false));
 
             case "list" -> {
                 if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
@@ -2145,13 +2127,13 @@ public class Interpreter {
                                     if(((ProcedureBlock) block).name!=null){
                                         rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
                                     }else{
-                                        tokens.add(new ValueToken(proc, pos, false));
+                                        tokens.add(new ValueToken(proc, block.startPos, false));
                                     }
                                 } else {
                                     if(((ProcedureBlock) block).name!=null){
                                         throw new RuntimeException("named procedures cannot be curried");
                                     }
-                                    tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,proc, pos, false));
+                                    tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,proc, block.startPos, false));
                                 }
                             }
                         }
@@ -2277,9 +2259,6 @@ public class Interpreter {
 
             //TODO make non-primitive floating-point operations to native functions
             case "**"    -> tokens.add(new OperatorToken(OperatorType.POW,   pos));
-            case "log"   -> tokens.add(new OperatorToken(OperatorType.LOG,   pos));
-            case "floor" -> tokens.add(new OperatorToken(OperatorType.FLOOR, pos));
-            case "ceil"  -> tokens.add(new OperatorToken(OperatorType.CEIL,  pos));
 
             case ">>:"   -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     pos));
             case ":<<"   -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
@@ -2335,21 +2314,6 @@ public class Interpreter {
             }
             case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
             case "fill"      -> tokens.add(new OperatorToken(OperatorType.FILL,       pos));
-
-            //TODO make IO operations native procedures
-            case "open"     -> tokens.add(new OperatorToken(OperatorType.OPEN,     pos));
-            case "close"    -> tokens.add(new OperatorToken(OperatorType.CLOSE,    pos));
-            case "size"     -> tokens.add(new OperatorToken(OperatorType.SIZE,     pos));
-            case "pos"      -> tokens.add(new OperatorToken(OperatorType.POS,      pos));
-            case "read"     -> tokens.add(new OperatorToken(OperatorType.READ,     pos));
-            case "seek"     -> tokens.add(new OperatorToken(OperatorType.SEEK,     pos));
-            case "seekEnd"  -> tokens.add(new OperatorToken(OperatorType.SEEK_END, pos));
-            case "write"    -> tokens.add(new OperatorToken(OperatorType.WRITE,    pos));
-            case "truncate" -> tokens.add(new OperatorToken(OperatorType.TRUNCATE, pos));
-
-            case "stdin"  -> tokens.add(new Token(TokenType.STD_IN,  pos));
-            case "stdout" -> tokens.add(new Token(TokenType.STD_OUT, pos));
-            case "stderr" -> tokens.add(new Token(TokenType.STD_ERR, pos));
 
             default -> {
                 CodeBlock last= openBlocks.peekLast();
@@ -2522,9 +2486,6 @@ public class Interpreter {
                 Value a = stack.pop();
                 stack.push(Value.logicOp(a, b, (x, y) -> x ^ y, (x, y) -> x ^ y));
             }
-            case LOG   -> stack.push(Value.ofFloat(Math.log(stack.pop().asDouble())));
-            case FLOOR -> stack.push(Value.ofFloat(Math.floor(stack.pop().asDouble())));
-            case CEIL  -> stack.push(Value.ofFloat(Math.ceil(stack.pop().asDouble())));
             case LSHIFT -> {
                 Value b = stack.pop();
                 Value a = stack.pop();
@@ -2655,52 +2616,7 @@ public class Interpreter {
             case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
             case FLOAT_AS_INT -> stack.push(
                     Value.ofInt(Double.doubleToRawLongBits(stack.pop().asDouble()),true));
-            case OPEN -> {
-                String options = stack.pop().stringValue();
-                String path    = stack.pop().stringValue();
-                stack.push(Value.ofFile(new RandomAccessFileStream(path,options)));
-                //FIXME don't crash on open failure
-            }
-            case CLOSE -> {
-                FileStream stream = stack.pop().asStream();
-                stack.push(stream.close()?Value.TRUE:Value.FALSE);
-                //??? keep stream
-            }
-            case READ -> {//<file> <buff> <off> <count> read => <nRead>
-                long count  = stack.pop().asLong();
-                long off    = stack.pop().asLong();
-                Value buff  = stack.pop();
-                FileStream stream = stack.pop().asStream();
-                stack.push(Value.ofInt(stream.read(buff.asByteList(),off,count),false));
-            }
-            case WRITE -> {//<file> <buff> <off> <count> write => <isOk>
-                long count  = stack.pop().asLong();
-                long off    = stack.pop().asLong();
-                Value buff  = stack.pop();
-                FileStream stream = stack.pop().asStream();
-                stack.push(stream.write(buff.toByteList(),off,count)?Value.TRUE:Value.FALSE);
-            }
-            case SIZE -> {
-                FileStream stream  = stack.pop().asStream();
-                stack.push(Value.ofInt(stream.size(),true));
-            }
-            case POS -> {
-                FileStream stream  = stack.pop().asStream();
-                stack.push(Value.ofInt(stream.pos(),true));
-            }
-            case TRUNCATE -> {
-                FileStream stream = stack.pop().asStream();
-                stack.push(stream.truncate()?Value.TRUE:Value.FALSE);
-            }
-            case SEEK -> {
-                long pos = stack.pop().asLong();
-                FileStream stream = stack.pop().asStream();
-                stack.push(stream.seek(pos)?Value.TRUE:Value.FALSE);
-            }
-            case SEEK_END -> {
-                FileStream stream = stack.pop().asStream();
-                stack.push(stream.seekEnd()?Value.TRUE:Value.FALSE);
-            }
+
             case NEW_PROC_TYPE -> {
                 long count= stack.pop().asLong();
                 checkElementCount(count);
@@ -2791,12 +2707,6 @@ public class Interpreter {
                     case OPERATOR ->
                         executeOperator((OperatorToken) next, stack);
                     case DEBUG_PRINT -> context.stdOut.println(stack.pop().stringValue());
-                    case STD_IN ->
-                        stack.push(context.stdInValue);
-                    case STD_OUT ->
-                        stack.push(context.stdOutValue);
-                    case STD_ERR ->
-                        stack.push(context.stdErrValue);
                     case DROP ->
                             stack.dropAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
                     case DUP ->
@@ -3030,7 +2940,16 @@ public class Interpreter {
             }
             return;
         }
+        PrintStream outTmp = System.out;
+        System.setOut(context.stdOut);
+        PrintStream errTmp = System.err;
+        System.setErr(context.stdErr);
+        InputStream inTmp  = System.in;
+        System.setIn(context.stdIn);
         RandomAccessStack<Value> stack = ip.run(program, arguments, context);
+        System.setIn(inTmp);
+        System.setOut(outTmp);
+        System.setErr(errTmp);
         context.stdOut.println("\nStack:");
         context.stdOut.println(stack);
     }

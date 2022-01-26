@@ -1,7 +1,4 @@
-package bsoelch.concat.streams;
-
-import bsoelch.concat.ConcatRuntimeError;
-import bsoelch.concat.Value;
+package streams;
 
 import java.io.*;
 
@@ -10,32 +7,23 @@ public class RandomAccessFileStream implements FileStream {
 
     final RandomAccessFile file;
 
-    public RandomAccessFileStream(String path, String options) throws ConcatRuntimeError {
-        try {
-            this.file = new RandomAccessFile(path,options);
-        } catch (FileNotFoundException e) {
-            throw new ConcatRuntimeError(e.getMessage());
-        }
+    public RandomAccessFileStream(String path, String options) throws FileNotFoundException {
+        this.file = new RandomAccessFile(path,options);
     }
 
     @Override
-    public long read(Value.ByteList buff, long off, long count) throws ConcatRuntimeError {
-        buff.ensureCap(count);
-        byte[] tmp=new byte[(int)count];
+    public long read(byte[] buff, long off, long count){
         try {
-            count=file.read(tmp);
-            if (count >= 0) {
-                buff.setSlice(off,Math.min(count,buff.length()),tmp);
-            }
+            count=file.read(buff,(int)off,(int)count);
             return count;
         } catch (IOException e) {
             return -2;
         }
     }
     @Override
-    public boolean write(Value.ByteList buff, long off, long count) throws ConcatRuntimeError {
+    public boolean write(byte[] buff, long off, long count){
         try {
-            file.write(buff.getSlice(off,count).toByteArray());
+            file.write(buff,(int)off,(int)count);
             return true;
         } catch (IOException e) {
             return false;

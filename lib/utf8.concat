@@ -1,7 +1,7 @@
 core #module
 
 stack #include
-stringIO #include
+io #include
 numbers  #include
 
 string<<codepoint proc string codepoint => string :

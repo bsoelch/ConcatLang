@@ -2,11 +2,12 @@ bufferedIO #include
 bytes #include
 chars #include
 hashMap #include
+io #include
 iterator #include
 lists #include
+math #include
 numbers #include
 stack #include
-stringIO #include
 utf8 #include
 valueIO #include
 main proc => : end

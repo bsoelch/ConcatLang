@@ -2,7 +2,10 @@ core #module
 
 stack #include
 chars #include
-stringIO #include
+io #include
+
+math #include
+math #import
 
 uint_MAX #define  0xffffffffffffffffu #end
 uint_MIN #define                   0u #end

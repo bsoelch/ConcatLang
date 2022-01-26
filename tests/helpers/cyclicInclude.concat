@@ -1,4 +1,4 @@
-stringIO #include
+io #include
 core #import
 "./tests/helpers/cyclicInclude2.concat" #include
 "including cyclicInclude\n" puts

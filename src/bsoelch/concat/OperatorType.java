@@ -6,7 +6,6 @@ public enum OperatorType {
     INVERT, MULTIPLY,DIV,MOD,
     POW,
     NOT,FLIP,AND,OR,XOR,
-    LOG,FLOOR,CEIL,
     LSHIFT,RSHIFT,
     GT,GE,EQ,NE,LE,LT,//value equality
     REF_EQ,REF_NE,//reference equality
@@ -20,5 +19,4 @@ public enum OperatorType {
     OPTIONAL_OF,WRAP,UNWRAP,HAS_VALUE,EMPTY_OPTIONAL,
     CLEAR,
     INT_AS_FLOAT,FLOAT_AS_INT,
-    OPEN,CLOSE,SIZE,POS,SEEK,SEEK_END,READ,WRITE,TRUNCATE
 }

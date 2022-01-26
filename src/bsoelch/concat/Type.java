@@ -1,6 +1,5 @@
 package bsoelch.concat;
 
-import java.text.FieldPosition;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
@@ -14,8 +13,6 @@ public class Type {
     public static final Type TYPE  = new Type("type", false);
     public static final Type BOOL  = new Type("bool", false);
     public static final Type BYTE  = new Type("byte", true);
-
-    public static final Type FILE = new Type("(file)", false);
 
     public static final Type GENERIC_LIST      = new Type("(list)", false);
     public static final Type GENERIC_OPTIONAL  = new Type("(optional)", false);
@@ -308,6 +305,14 @@ public class Type {
         @Override
         public Interpreter.FilePosition declaredAt() {
             return declaredAt;
+        }
+    }
+
+    public static class NativeType extends Type{
+        public final Class<?> jClass;
+        NativeType(String name, Class<?> jClass) {
+            super(name, false);
+            this.jClass = jClass;
         }
     }
 }

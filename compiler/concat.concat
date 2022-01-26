@@ -683,7 +683,13 @@ parseFile proc #_fileName_# string => Token list :
   string fileName =:
   16 Token list new Token list tokens =:
 
-  fileName "r" open 16 createBufferedIn #_input_#
+  fileName "r" open ?? ! if
+    "file \"" fileName "\" not found\n" :+ :+ eputs
+    1 exit
+  else
+    unwrap
+  end
+  16 createBufferedIn #_input_#
   fileName 1 1 FilePosition new       #_pos_#
   16 byte list new                    #_word_#
   fileName 1 1 FilePosition new       #_wordPos_#
