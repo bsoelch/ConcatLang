@@ -8,7 +8,7 @@ is a stack-based [Concatenative programming language](https://en.wikipedia.org/w
 Hello World:
 
 ```C
-stringIO #include
+io #include
 core #import ## to use puts in global scope
 
 "Hello World\n" puts
@@ -92,24 +92,29 @@ leaves the following values on the stack:
 #### Native IO
 - `debugPrint` prints the to value on the stack 
 (this operation will not be supported in compiled code)
+
+
+[//]: # (TODO file io)
+
+#### Standard Library
+in `io`
+in module `io`
 - `open` arguments: `<path> <options>`
-opens the file at `path`, `options` a string
-containing `r` for reading and `w` for writing
-- `stdin`,`stdout`,`stderr` standard input,output and error streams
-- `close` closes a file stream returns `true` 
-if the close operation was successful, `false` otherwise
-- `read` 
+  opens the file at `path`, `options` a string
+  containing `r` for reading and `w` for writing
+- `stdIn`,`stdOut`,`stdErr`
+  standard input, output and error streams
+- `close` closes a file stream returns `true`
+  if the close operation was successful, `false` otherwise
+- `read`
 - `write`
 - `size`
 - `pos`
 - `truncate`
 - `seek`
 - `seekEnd`
-
-[//]: # (TODO file io)
-
-#### Standard Library
-in `stringIO`
+- 
+in module `core`
 - `fputs` prints a string to a file
 (arguments `<string> <file>`)
 - `puts` prints a string to standard output
