@@ -3,6 +3,8 @@ package bsoelch.concat;
 import bsoelch.concat.streams.FileStream;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -22,6 +24,10 @@ public abstract class Value {
         public String stringValue() {
             return "false";
         }
+        @Override
+        Object rawData() {
+            return false;
+        }
     };
     public static final Value TRUE = new Value(Type.BOOL) {
         @Override
@@ -32,6 +38,10 @@ public abstract class Value {
         public String stringValue() {
             return "true";
         }
+        @Override
+        Object rawData() {
+            return true;
+        }
     };
 
     final Type type;
@@ -39,8 +49,12 @@ public abstract class Value {
         this.type = type;
     }
 
+
     public long id() {
         return System.identityHashCode(this);
+    }
+    Object rawData() throws TypeError {
+        throw new TypeError("Cannot convert "+type+" to native value");
     }
     public boolean asBool() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to bool");
@@ -217,6 +231,10 @@ public abstract class Value {
         public long asLong() {
             return intValue;
         }
+        @Override
+        Object rawData() {
+            return intValue;
+        }
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
@@ -341,6 +359,10 @@ public abstract class Value {
 
         @Override
         public double asDouble() {
+            return floatValue;
+        }
+        @Override
+        Object rawData() {
             return floatValue;
         }
 
@@ -490,6 +512,11 @@ public abstract class Value {
         }
 
         @Override
+        Object rawData() {
+            return codePoint;
+        }
+
+        @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type==Type.INT){
                 return ofInt(codePoint,false);
@@ -542,6 +569,11 @@ public abstract class Value {
         @Override
         public long asLong(){
             return byteValue&0xff;
+        }
+
+        @Override
+        Object rawData() {
+            return byteValue;
         }
 
         @Override
@@ -628,6 +660,15 @@ public abstract class Value {
         @Override
         public long id() {
             return System.identityHashCode(elements);
+        }
+
+        @Override
+        Object rawData() throws TypeError {
+            if(type==Type.UNICODE_STRING()){
+                return stringValue();//addLater? keep rawData linked with data
+            }else{
+                return super.rawData();
+            }
         }
 
         @Override
@@ -846,6 +887,15 @@ public abstract class Value {
         }
 
         @Override
+        Object rawData() throws TypeError {
+            if(type==Type.UNICODE_STRING()){
+                return stringValue();//addLater? keep rawData linked with data
+            }else{
+                return super.rawData();
+            }
+        }
+
+        @Override
         public Value clone(boolean deep) {
             ArrayList<Value> newElements;
             if(deep){
@@ -1040,6 +1090,10 @@ public abstract class Value {
             super(Type.RAW_STRING());
         }
         public abstract int length();
+        @Override
+        Object rawData() {//addLater? keep rawData linked with data
+            return toByteArray();
+        }
         @Override
         public ByteList toByteList(){
             return this;
@@ -1644,6 +1698,7 @@ public abstract class Value {
             this.streamValue = streamValue;
         }
 
+
         @Override
         public long id() {
             return System.identityHashCode(streamValue);
@@ -1697,6 +1752,11 @@ public abstract class Value {
         private OptionalValue(Type t) throws ConcatRuntimeError {
             super(Type.optionalOf(t));
             this.wrapped = null;
+        }
+        @Override
+        Object rawData() throws TypeError {
+            Value.jClass(type.content());//check type
+            return wrapped==null?Optional.empty():Optional.of(wrapped.rawData());
         }
 
         @Override
@@ -1799,6 +1859,67 @@ public abstract class Value {
             return Objects.hash(declaredAt, index);
         }
     }
+    private static Value fromJValue(Type type,Object jValue) throws ConcatRuntimeError {
+        try{
+            if(jValue==null){
+                if(type.isOptional()){
+                    return emptyOptional(type);
+                }else{
+                    throw new ConcatRuntimeError("null is not a valid native value of type "+type);
+                }
+            }else if(type==Type.BOOL){
+                return ((Boolean)jValue)?TRUE:FALSE;
+            }else if(type==Type.BYTE){
+                return ofByte((Byte)jValue);
+            }else if(type == Type.CODEPOINT){
+                return ofChar((Integer)jValue);
+            }else if(type==Type.INT||type==Type.UINT){
+                return ofInt((Long) jValue,type==Type.UINT);
+            }else if(type==Type.FLOAT){
+                return ofFloat((Double)jValue);
+            }else if(type==Type.RAW_STRING()){
+                return new ByteListImpl(((byte[])jValue).length,(byte[])jValue);
+            }else if(type==Type.UNICODE_STRING()){
+                return ofString(((String)jValue),true);
+            }else if(type.isOptional()){
+                Optional<?> o=(Optional<?>)jValue;
+                if(o.isEmpty()){
+                    return emptyOptional(type);
+                }else{
+                    return wrap(fromJValue(type.content(),o.get()));
+                }
+            }else{
+                throw new ConcatRuntimeError("type "+type+" is not supported for native values");
+            }
+        }catch (ClassCastException cce){
+            assert jValue!=null;
+            throw new ConcatRuntimeError(jValue.getClass()+":"+jValue+" is not a valid native value of type "+type);
+        }
+    }
+    private static Class<?> jClass(Type t) throws TypeError {
+        if(t == Type.BOOL){
+            return Boolean.class;
+        }else if(t == Type.BYTE){
+            return Byte.class;
+        }else if(t == Type.CODEPOINT){
+            return Integer.class;
+        }else if(t == Type.INT||t == Type.UINT){
+            return Long.class;
+        }else if(t == Type.FLOAT){
+            return Double.class;
+        }else if(t == Type.ANY){
+            return Object.class;
+        }else if(t==Type.RAW_STRING()){
+            return byte[].class;
+        }else if(t==Type.UNICODE_STRING()){
+            return String.class;
+        }else if(t.isOptional()){
+            jClass(t.content());//check content Type
+            return Optional.class;
+        }else{//TODO support native types
+            throw new TypeError("type "+t+" is not supported for native procedures");
+        }
+    }
     public static Value loadNativeConstant(Type type, String name, Interpreter.FilePosition pos) throws SyntaxError {
         if(type==Type.TYPE){
             //TODO native Type
@@ -1809,23 +1930,85 @@ public abstract class Value {
             String dir=path.substring(0,path.lastIndexOf('/')+1);
             String className=path.substring(path.lastIndexOf('/')+1);
             className=className.substring(0,className.lastIndexOf('.'));
-            ClassLoader loader=new URLClassLoader(new URL[]{new File(dir).toURI().toURL()});
-            Class<?> cls=loader.loadClass(className);
+            //TODO cache ClassLoaders
+            ClassLoader loader=new URLClassLoader(new URL[]{new File(dir+"native.jar").toURI().toURL()});
+            Class<?> cls=loader.loadClass(className);//TODO ensure names are valid identifiers
             Object val=cls.getField("nativeImpl_"+name).get(null);
-            if(type==Type.BOOL){
-                return ((Boolean)val)?TRUE:FALSE;
-            }else if(type==Type.BYTE){
-                return ofByte((Byte)val);
-            }else if(type==Type.INT||type==Type.UINT){
-                return ofInt((Long) val,type==Type.UINT);
-            }else if(type==Type.FLOAT){
-                return ofFloat((Double)val);
-            }
-            //TODO support all types for native Values
-        } catch (MalformedURLException | ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
-            throw new SyntaxError("Error while loading native value:"+e.getMessage(),pos);
+            return fromJValue(type,val);
+        } catch (MalformedURLException | ClassNotFoundException | NoSuchFieldException |
+                IllegalAccessException|ConcatRuntimeError e) {
+            throw new SyntaxError("Error while loading native value "+name+": "+e,pos);
         }
-        throw new UnsupportedOperationException("type "+type+" is not supported for native values");
+    }
+    public static NativeProcedure createNativeProcedure(Type.Procedure procType, Interpreter.FilePosition declaredAt,
+                                                  String name) throws SyntaxError {
+        try {
+            String path = declaredAt.path;
+            String dir = path.substring(0, path.lastIndexOf('/') + 1);
+            String className = path.substring(path.lastIndexOf('/') + 1);
+            className = className.substring(0, className.lastIndexOf('.'));
+            ClassLoader loader = new URLClassLoader(new URL[]{new File(dir + "native.jar").toURI().toURL()});
+            Class<?> cls = loader.loadClass(className);
+            Class<?> [] signature=new Class[procType.inTypes.length];
+            for(int i=0;i<signature.length;i++){
+                signature[i]=jClass(procType.inTypes[i]);
+            }
+            Method m=cls.getMethod("nativeImpl_"+name,signature);
+            return new NativeProcedure(procType,m,name,declaredAt);
+        } catch (MalformedURLException | ClassNotFoundException | NoSuchMethodException | TypeError e) {
+            throw new SyntaxError("Error while loading native procedure "+name+": "+e,declaredAt);
+        }
+    }
+    static class NativeProcedure extends Value implements Interpreter.Declarable {
+        final Method nativeMethod;
+        final String name;
+        final Interpreter.FilePosition declaredAt;
+
+        protected NativeProcedure(Type.Procedure type, Method nativeMethod, String name, Interpreter.FilePosition declaredAt) {
+            super(type);
+            this.nativeMethod = nativeMethod;
+            this.name = name;
+            this.declaredAt = declaredAt;
+        }
+        @Override
+        public Interpreter.DeclarableType declarableType() {
+            return Interpreter.DeclarableType.NATIVE_PROC;
+        }
+
+        @Override
+        public Interpreter.FilePosition declaredAt() {
+            return declaredAt;
+        }
+
+        int argCount(){
+            return ((Type.Procedure)type).inTypes.length;
+        }
+        Value[] callWith(Value[] values) throws ConcatRuntimeError {
+            Object[] nativeArgs=new Object[values.length];
+            for(int i=0;i<values.length;i++){
+                nativeArgs[i]=values[i].castTo( ((Type.Procedure)type).inTypes[i]).rawData();
+            }
+            try {
+                Object res=nativeMethod.invoke(null,nativeArgs);
+                //TODO updateFrom(rawData) for input arguments
+                if(((Type.Procedure)type).outTypes.length==0){
+                    return new Value[0];
+                }else if(((Type.Procedure)type).outTypes.length==1){
+                    return new Value[]{Value.fromJValue(((Type.Procedure)type).outTypes[0],res)};
+                }else{
+                    //TODO implement handling of multiple output arguments
+                    throw new UnsupportedOperationException("unimplemented");
+                }
+            } catch (IllegalAccessException|InvocationTargetException e) {
+                throw new ConcatRuntimeError(e.toString());
+            }
+        }
+
+        @Override
+        public String stringValue() {
+            return name+" native proc";
+        }
+
     }
 
 

@@ -1,0 +1,18 @@
+math #module
+
+exp native proc float => float : end
+log native proc float => float : end
+sin native proc float => float : end
+cos native proc float => float : end
+tan native proc float => float : end
+
+floor native proc float => float : end
+ciel  native proc float => float : end
+round native proc float => float : end
+
+pow native proc float float => float : end
+
+floatToBytes proc float => byte list : end
+BytesToFloat proc byte list => float : end
+
+#end

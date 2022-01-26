@@ -43,6 +43,7 @@ public class Interpreter {
         PLACEHOLDER,//placeholder token for jumps
         CONTEXT_OPEN,CONTEXT_CLOSE,
         CALL_PROC, PUSH_PROC_PTR,CALL_PTR,
+        CALL_NATIVE_PROC,PUSH_NATIVE_PROC_PTR,
         RETURN,
         DEBUG_PRINT,ASSERT,//debug time operations, may be replaced with drop in compiled code
         SHORT_AND_JMP, SHORT_OR_JMP,JEQ,JNE,JMP,//jump commands only for internal representation
@@ -223,26 +224,33 @@ public class Interpreter {
     }
     static class ProcedureToken extends Token {
         private Value.Procedure value;
-
         ProcedureToken(boolean isPtr,Value.Procedure value, FilePosition pos) {
             super(isPtr?TokenType.PUSH_PROC_PTR :TokenType.CALL_PROC, pos);
             this.value=value;
         }
-
         void declareProcedure(Value.Procedure value){
             if(this.value!=null){
                 throw new RuntimeException("procedure can only be initialized once");
             }
             this.value=value;
         }
-
         Value.Procedure getProcedure() throws ConcatRuntimeError {
             if(value==null){
                 throw new ConcatRuntimeError("missing procedure");
             }
             return value;
         }
-
+        @Override
+        public String toString() {
+            return tokenType.toString()+": "+value;
+        }
+    }
+    static class NativeProcedureToken extends Token {
+        final Value.NativeProcedure value;
+        NativeProcedureToken(boolean isPtr,Value.NativeProcedure value, FilePosition pos) {
+            super(isPtr?TokenType.PUSH_NATIVE_PROC_PTR :TokenType.CALL_NATIVE_PROC, pos);
+            this.value=value;
+        }
         @Override
         public String toString() {
             return tokenType.toString()+": "+value;
@@ -677,7 +685,7 @@ public class Interpreter {
     }
 
     enum DeclarableType{
-        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM, TUPLE, ENUM_ENTRY
+        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM, TUPLE, ENUM_ENTRY, NATIVE_PROC
     }
     static String declarableName(DeclarableType t, boolean a){
         switch (t){
@@ -707,6 +715,9 @@ public class Interpreter {
             }
             case TUPLE -> {
                 return a?"a tuple":"tuple";
+            }
+            case NATIVE_PROC -> {
+                return a?"a native procedure":"native procedure";
             }
         }
         throw new RuntimeException("unreachable");
@@ -1017,11 +1028,17 @@ public class Interpreter {
                 elements.put(path,entry);
             }
         }
-        public void declareTuple(Type.Tuple tuple, IOContext ioContext) throws SyntaxError {
+        void declareTuple(Type.Tuple tuple, IOContext ioContext) throws SyntaxError {
             String localName=inCurrentModule(tuple.name);
             checkExisting(localName,DeclarableType.TUPLE,tuple.declaredAt);
             checkShadowed(tuple,tuple.name,tuple.declaredAt,ioContext);
             elements.put(localName,tuple);
+        }
+        void declareNativeProcedure(Value.NativeProcedure proc, IOContext ioContext) throws SyntaxError {
+            String localName=inCurrentModule(proc.name);
+            checkExisting(localName,DeclarableType.NATIVE_PROC,proc.declaredAt);
+            checkShadowed(proc,proc.name,proc.declaredAt,ioContext);
+            elements.put(localName,proc);
         }
 
         @Override
@@ -1559,6 +1576,11 @@ public class Interpreter {
                                         ProcedureToken token=new ProcedureToken(false,proc,pos);
                                         tokens.set(index,token);
                                     }
+                                    case NATIVE_PROC -> {
+                                        Value.NativeProcedure proc=(Value.NativeProcedure)d;
+                                        NativeProcedureToken token=new NativeProcedureToken(false,proc,pos);
+                                        tokens.set(index,token);
+                                    }
                                     case PREDECLARED_PROCEDURE -> {
                                         PredeclaredProc proc;
                                         if(d!=null){
@@ -1621,7 +1643,10 @@ public class Interpreter {
                             }
                             case PROC_ID -> {
                                 Declarable d=context.getDeclarable(identifier.name);
-                                if(d instanceof Value.Procedure proc){
+                                if(d instanceof Value.NativeProcedure proc){
+                                    NativeProcedureToken token=new NativeProcedureToken(true,proc,pos);
+                                    tokens.set(index,token);
+                                }else if(d instanceof Value.Procedure proc){
                                     ProcedureToken token=new ProcedureToken(true,proc,pos);
                                     tokens.set(index,token);
                                 }else if(d==null||d instanceof PredeclaredProc){
@@ -2111,9 +2136,9 @@ public class Interpreter {
                                     throw new SyntaxError("unexpected token: "+subList.get(0)+
                                             " (at "+subList.get(0).pos+") native procedures have to have an empty body",pos);
                                 }
-                                //TODO declare native procedure
-                                Value.Procedure proc=Value.createProcedure(procType,block.startPos, content, context);
-                                rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
+                                Value.NativeProcedure proc=Value.createNativeProcedure((Type.Procedure) procType,block.startPos,
+                                        ((ProcedureBlock) block).name);
+                                rootContext.declareNativeProcedure(proc,ioContext);
                             }else{
                                 Value.Procedure proc=Value.createProcedure(procType,block.startPos, content, context);
                                 if (context.curried.isEmpty()) {
@@ -2872,14 +2897,30 @@ public class Interpreter {
                         ProcedureToken token=(ProcedureToken) next;
                         stack.push(token.getProcedure());
                     }
-                    case CALL_PROC, CALL_PTR -> {
+                    case PUSH_NATIVE_PROC_PTR -> {
+                        NativeProcedureToken token=(NativeProcedureToken) next;
+                        stack.push(token.value);
+                    }
+                    case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Value called;
                         if(next.tokenType==TokenType.CALL_PROC){
                             called=((ProcedureToken) next).getProcedure();
+                        }else if(next.tokenType==TokenType.CALL_NATIVE_PROC){
+                            called=((NativeProcedureToken) next).value;
                         }else{
                             called = stack.pop();
                         }
-                        if(called instanceof Value.Procedure procedure){
+                        if(called instanceof Value.NativeProcedure nativeProc){
+                            int count=nativeProc.argCount();
+                            Value[] args=new Value[count];
+                            for(int i=count-1;i>=0;i--){
+                                args[i]=stack.pop();
+                            }
+                            args=nativeProc.callWith(args);
+                            for (Value arg : args) {
+                                stack.push(arg);
+                            }
+                        }else if(called instanceof Value.Procedure procedure){
                             assert ((Value.Procedure) called).context.curried.isEmpty();
                             ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
                                     null,context);

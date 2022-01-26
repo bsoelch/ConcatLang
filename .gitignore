@@ -4,6 +4,5 @@
 .idea
 /examples/test.concat
 /compiler/test.concat
-/examples/test.java
-/examples/test.class
-/examples/test$FILE.class
+/examples/native.jar
+/examples/native/

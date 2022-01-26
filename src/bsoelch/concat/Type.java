@@ -51,6 +51,9 @@ public class Type {
     public boolean isList() {
         return false;
     }
+    public boolean isOptional() {
+        return false;
+    }
     public boolean isVarArg() {
         return false;
     }
@@ -104,10 +107,14 @@ public class Type {
             }
         }
 
+        @Override
         public boolean isList() {
             return wrapperName.equals(LIST);
         }
-
+        @Override
+        public boolean isOptional() {
+            return wrapperName.equals(OPTIONAL);
+        }
         @Override
         public boolean isVarArg() {
             return wrapperName.equals(VAR_ARG);
