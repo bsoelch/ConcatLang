@@ -22,7 +22,6 @@ remove:
 5 wrap
 int empty
 map:
-(int, int, [(0, 8, (4, 4, (false, false, ()))), (false, false, ()), (2, 2, (6, 6, (false, false, ()))), (7, 7, (false, false, ()))])
-
+(0,8) (4,4) (2,2) (6,6) (7,7) 
 Stack:
 []

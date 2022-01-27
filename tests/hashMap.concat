@@ -30,4 +30,9 @@ map 3 HashMap.remove println
 map 5 HashMap.remove println
 map 9 HashMap.remove println
 "map:" println
-map println
+
+map HashMap.itr
+while HashMapItr.next ?? do
+   unwrap MapEntry e =:
+   e MapEntry.key e MapEntry.value 2 "(%i,%i) " printf
+end drop drop

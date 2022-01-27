@@ -271,9 +271,7 @@ public class Interpreter {
                         "or part of the current context");
             }
             if(access==AccessType.WRITE){
-                if(id.predeclared){
-                    throw new SyntaxError("cannot write to predeclared variable "+name,pos);
-                }else if(id.isConstant){
+                if(id.isConstant){
                     throw new SyntaxError("cannot write to constant variable "+name,pos);
                 }
             }
@@ -482,7 +480,8 @@ public class Interpreter {
             }
             for (Token token : caseValues) {
                 if (!(token instanceof ValueToken)) {
-                    throw new SyntaxError("case values have to be constant values ", token.pos);
+                    throw new SyntaxError("case values have to be constant values (got "+
+                            token.tokenType+")", token.pos);
                 }
                 Value v = ((ValueToken) token).value;
                 if (!v.type.switchable) {
@@ -710,22 +709,17 @@ public class Interpreter {
         FilePosition declaredAt();
     }
     private static class VariableId implements Declarable{
-        final boolean predeclared;
         final VariableContext context;
         final int level;
         int id;
         final boolean isConstant;
         final FilePosition declaredAt;
-        FilePosition initializedAt;
-        VariableId(VariableContext context,int level,int id,boolean predeclared,boolean isConstant,
-                   FilePosition declaredAt,FilePosition initializedAt){
-            this.predeclared=predeclared;
+        VariableId(VariableContext context,int level,int id,boolean isConstant,FilePosition declaredAt){
             this.context=context;
             this.id=id;
             this.level=level;
             this.isConstant=isConstant;
             this.declaredAt=declaredAt;
-            this.initializedAt=initializedAt;
         }
         @Override
         public String toString() {
@@ -744,7 +738,7 @@ public class Interpreter {
     private static class CurriedVariable extends VariableId{
         final VariableId source;
         CurriedVariable(VariableId source,VariableContext context, int id, FilePosition declaredAt) {
-            super(context,0, id, false, true, declaredAt, declaredAt);
+            super(context,0, id,  true, declaredAt);
             this.source = source;
         }
         @Override
@@ -761,7 +755,7 @@ public class Interpreter {
     static abstract class VariableContext{
         final HashMap<String,Declarable> elements =new HashMap<>();
         int variables=0;
-        void checkExisting(String name,DeclarableType type,FilePosition pos) throws SyntaxError {
+        void ensureDeclarable(String name, DeclarableType type, FilePosition pos) throws SyntaxError {
             Declarable prev= elements.get(name);
             if(prev!=null){
                 throw new SyntaxError("cannot declare " + declarableName(type,false) + " "+name+
@@ -770,8 +764,8 @@ public class Interpreter {
             }
         }
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
-            checkExisting(name,isConstant?DeclarableType.CONSTANT:DeclarableType.VARIABLE,pos);
-            VariableId id = new VariableId(this,level(), variables++, false,isConstant, pos,pos);
+            ensureDeclarable(name,isConstant?DeclarableType.CONSTANT:DeclarableType.VARIABLE,pos);
+            VariableId id = new VariableId(this,level(), variables++, isConstant, pos);
             elements.put(name, id);
             return id;
         }
@@ -864,7 +858,7 @@ public class Interpreter {
             if(removed.predeclaredProcs.size()>0){
                 StringBuilder message=new StringBuilder("Syntax Error: missing variables/procedures");
                 for(Map.Entry<String, PredeclaredProc> p:removed.predeclaredProcs.entrySet()){
-                    message.append("\n- ").append(p.getKey()).append(" (called at ").append(p.getValue().pos).append(")");
+                    message.append("\n- ").append(p.getKey()).append(" (at ").append(p.getValue().pos).append(")");
                 }
                 throw new SyntaxError(message.toString(),pos);
             }
@@ -919,6 +913,7 @@ public class Interpreter {
             }
             return paths;
         }
+
         Declarable getDeclarable(String name){
             Declarable d;
             ArrayDeque<String> paths = currentPaths();
@@ -959,7 +954,7 @@ public class Interpreter {
                 Declarable prev=elements.remove(name);
                 assert prev==predeclared;
             }
-            checkExisting(name,DeclarableType.PROCEDURE,proc.declaredAt);
+            ensureDeclarable(name,DeclarableType.PROCEDURE,proc.declaredAt);
             elements.put(name,proc);
             checkShadowed(proc,name0,proc.declaredAt,ioContext);
         }
@@ -970,7 +965,7 @@ public class Interpreter {
                 if(callee.procedureContext()!=null){
                     predeclared = new PredeclaredProc(pos, new ArrayDeque<>());
                     predeclaredProcs().put(localName, predeclared);
-                    checkExisting(localName,DeclarableType.PREDECLARED_PROCEDURE,pos);
+                    ensureDeclarable(localName,DeclarableType.PREDECLARED_PROCEDURE,pos);
                     elements.put(localName,predeclared);//add to elements for better handling of shadowing
                 }else{
                     throw new SyntaxError("variable "+name+" does not exist",pos);
@@ -981,7 +976,7 @@ public class Interpreter {
 
         void declareMacro(Macro macro,IOContext ioContext) throws SyntaxError{
             String name=inCurrentModule(macro.name);
-            checkExisting(name,DeclarableType.MACRO,macro.pos);
+            ensureDeclarable(name,DeclarableType.MACRO,macro.pos);
             checkShadowed(macro,macro.name,macro.pos,ioContext);
             elements.put(name,macro);
         }
@@ -999,27 +994,27 @@ public class Interpreter {
             String localName=inCurrentModule(source.name);
             Type.Enum anEnum=new Type.Enum(source.name,source.elements.toArray(new String[0]),
                     source.elementPositions,source.startPos);
-            checkExisting(localName,DeclarableType.ENUM,anEnum.declaredAt);
+            ensureDeclarable(localName,DeclarableType.ENUM,anEnum.declaredAt);
             checkShadowed(anEnum,anEnum.name,anEnum.declaredAt,ioContext);
             elements.put(localName,anEnum);
             for(int i = 0; i<anEnum.entryNames.length; i++){
                 String fieldName = anEnum.entryNames[i];
                 String path = localName + MODULE_SEPARATOR + fieldName;
                 Value.EnumEntry entry = anEnum.entries[i];
-                checkExisting(path,DeclarableType.ENUM,entry.declaredAt);
+                ensureDeclarable(path,DeclarableType.ENUM,entry.declaredAt);
                 checkShadowed(entry, fieldName, entry.declaredAt,ioContext);
                 elements.put(path,entry);
             }
         }
         void declareTuple(Type.Tuple tuple, IOContext ioContext) throws SyntaxError {
             String localName=inCurrentModule(tuple.name);
-            checkExisting(localName,DeclarableType.TUPLE,tuple.declaredAt);
+            ensureDeclarable(localName,DeclarableType.TUPLE,tuple.declaredAt);
             checkShadowed(tuple,tuple.name,tuple.declaredAt,ioContext);
             elements.put(localName,tuple);
         }
         void declareNativeProcedure(Value.NativeProcedure proc, IOContext ioContext) throws SyntaxError {
             String localName=inCurrentModule(proc.name);
-            checkExisting(localName,DeclarableType.NATIVE_PROC,proc.declaredAt);
+            ensureDeclarable(localName,DeclarableType.NATIVE_PROC,proc.declaredAt);
             checkShadowed(proc,proc.name,proc.declaredAt,ioContext);
             elements.put(localName,proc);
         }

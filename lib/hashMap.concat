@@ -1,5 +1,8 @@
 hashMap #module
 
+stack #include
+core #import
+
 _Empty_Tuple tuple end
 
 hashCode proc var => int :
@@ -18,16 +21,24 @@ hashCode proc var => int :
   end
 end
 
+MapEntry tuple var var end
+MapEntry.key   #define 0 []   #end
+MapEntry.value #define 1 []   #end
+
 _Entry tuple var var _Empty_Tuple end
 _Entry.key   #define 0 []   #end
 _Entry.val   #define 1 []   #end
 _Entry.val=  #define 1 [] = #end
 _Entry.next  #define 2 []   #end
 _Entry.next= #define 2 [] = #end
-HashMap tuple type type _Entry list end
+
+HashMap tuple type type _Entry list int end
 _Map.keyType #define 0 [] #end
 _Map.valType #define 1 [] #end
 _Map.data    #define 2 [] #end
+HashMap.size #define 3 [] #end
+_Map.incSize #define dup 3 [] 1 + 3 [] = #end
+_Map.decSize #define dup 3 [] 1 - 3 [] = #end
 
 false false _Empty_Tuple new  _Entry new _Entry _Empty =$
 
@@ -37,7 +48,7 @@ newHashMap proc #_keyType_# type #_valType_# type #_cap_# int => HashMap :
   type valType =:
   cap _Entry list new _Entry list data =:
   data 0 cap _Empty fill
-  keyType valType data HashMap new
+  keyType valType data 0 HashMap new
 end
 
 HashMap.put proc #_map_# HashMap #_key_# var #_value_# var => #_prevVal_# var optional :
@@ -51,11 +62,13 @@ HashMap.put proc #_map_# HashMap #_key_# var #_value_# var => #_prevVal_# var op
   hash map _Map.data length % int i =:
   map _Map.data i [] _Empty === if
     map _Map.data  key value _Empty _Entry new  i [] =
+    map _Map.incSize
     map _Map.valType empty return
   else
     map _Map.data i [] _Entry entry =:
     while entry _Entry.next _Empty =!= do
       entry _Entry.key key == if
+        ##replace does not change size
         entry _Entry.val
         entry value _Entry.val=
         wrap return
@@ -63,14 +76,31 @@ HashMap.put proc #_map_# HashMap #_key_# var #_value_# var => #_prevVal_# var op
       entry _Entry.next entry =
     end
     entry _Entry.key key == if
+      ##replace does not change size
       entry _Entry.val
       entry value _Entry.val=
       wrap return
     else
       entry key value _Empty _Entry new _Entry.next=
+      map _Map.incSize
       map _Map.valType empty return
     end
   end
+end
+
+HashMap.contains proc #_map_# HashMap #_key_# var => bool :
+  var key =:
+  HashMap map =:
+  key hashCode int hash =:
+  hash map _Map.data length % int i =:
+  map _Map.data i [] _Entry entry =:
+  while entry _Empty =!= do
+    entry _Entry.key key == if
+      true return
+    end
+    entry _Entry.next entry =
+  end
+  false return
 end
 
 HashMap.get proc #_map_# HashMap #_key_# var => #_value_# var optional :
@@ -96,6 +126,7 @@ HashMap.remove proc #_map_# HashMap #_key_# var => #_prevVal_# var optional :
   map _Map.data i [] _Empty === if
     map _Map.valType empty return
   else map _Map.data i [] _Entry.key key == _if
+    map _Map.decSize
     map _Map.data i [] _Entry.val ## get previous value
     map _Map.data   map _Map.data i [] _Entry.next  i [] = ## remove entry
     wrap return
@@ -103,6 +134,7 @@ HashMap.remove proc #_map_# HashMap #_key_# var => #_prevVal_# var optional :
     map _Map.data i [] _Entry entry =:
     while entry _Entry.next _Empty =!= do
       entry _Entry.next _Entry.key key == if
+        map _Map.decSize
         entry _Entry.next _Entry.val ## get previous value
         entry   entry _Entry.next _Entry.next  _Entry.next= ## remove entry
         wrap return
@@ -113,7 +145,32 @@ HashMap.remove proc #_map_# HashMap #_key_# var => #_prevVal_# var optional :
   end
 end
 
+HashMapItr tuple HashMap #_index_# int #_next_# _Entry end
+_HashMapItr.map   #define 0 []   #end
+_HashMapItr.i     #define 1 []   #end
+_HashMapItr.incI  #define dup 1 [] 1 + 1 [] = #end
+_HashMapItr.next  #define 2 []   #end
+_HashMapItr.next= #define 2 [] = #end
+
+HashMap.itr proc HashMap => HashMapItr :
+  #_map_# -1 _Empty HashMapItr new return
+end
+HashMapItr.next proc HashMapItr => HashMapItr MapEntry optional :
+  HashMapItr itr =:
+  while itr _HashMapItr.next _Empty === do
+    itr _HashMapItr.incI
+    itr _HashMapItr.i itr _HashMapItr.map _Map.data length >= if
+      itr MapEntry empty return
+    end
+    itr  itr _HashMapItr.map _Map.data itr _HashMapItr.i []  _HashMapItr.next=
+  end
+  itr _HashMapItr.next wrap MapEntry optional res =:
+  itr  itr _HashMapItr.next _Entry.next  _HashMapItr.next=
+  itr res return
+end
+
 ## addLater? HashMap.listEntries
 ## addLater? HashMap.toString
+## addLater? (automatically) duplicate capacity
 
 #end ## hashMap
