@@ -28,7 +28,7 @@ public class Interpreter {
         CALL_NATIVE_PROC,PUSH_NATIVE_PROC_PTR,
         RETURN,
         DEBUG_PRINT,ASSERT,//debug time operations, may be replaced with drop in compiled code
-        SHORT_AND_JMP, SHORT_OR_JMP,JEQ,JNE,JMP,//jump commands only for internal representation
+        JEQ,JNE,JMP,//jump commands only for internal representation
         SWITCH,
         EXIT
     }
@@ -292,7 +292,7 @@ public class Interpreter {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SHORT_AND,SHORT_OR,SWITCH_CASE,ENUM,TUPLE,
+        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,
     }
     static abstract class CodeBlock{
         final int start;
@@ -404,18 +404,6 @@ public class Interpreter {
             return forkPos!=-1?ifContext:elseContext;
         }
     }
-    static class ShortCircuitBlock extends CodeBlock{
-        VariableContext context;
-        ShortCircuitBlock(int startToken,FilePosition pos,boolean isAnd, VariableContext parentContext) {
-            super(startToken, isAnd?BlockType.SHORT_AND:BlockType.SHORT_OR,pos, parentContext);
-            context=new BlockContext(parentContext);
-        }
-
-        @Override
-        VariableContext context() {
-            return context;
-        }
-    }
     static class WhileBlock extends CodeBlock{
         int forkPos=-1;
         VariableContext context;
@@ -426,12 +414,12 @@ public class Interpreter {
         void end(FilePosition pos) throws SyntaxError {
             if(forkPos==-1){
                 throw new SyntaxError("unexpected 'end' in while-statement " +
-                        "'end' can only appear after ':'",pos);
+                        "'end' can only appear after 'do'",pos);
             }
         }
         VariableContext fork(int tokenPos,FilePosition pos) throws SyntaxError {
             if(forkPos!=-1){
-                throw new SyntaxError("duplicate ':' in while-statement ':' " +
+                throw new SyntaxError("duplicate 'do' in while-statement 'do' " +
                         "can only appear after 'while'",pos);
             }
             forkPos=tokenPos;
@@ -955,8 +943,8 @@ public class Interpreter {
                 assert prev==predeclared;
             }
             ensureDeclarable(name,DeclarableType.PROCEDURE,proc.declaredAt);
-            elements.put(name,proc);
             checkShadowed(proc,name0,proc.declaredAt,ioContext);
+            elements.put(name,proc);
         }
         PredeclaredProc predeclareProcedure(String name,VariableContext callee,FilePosition pos) throws SyntaxError {
             String localName=inCurrentModule(name);
@@ -2013,13 +2001,6 @@ public class Interpreter {
                 tokens.add(new SwitchToken(switchBlock,pos));
                 switchBlock.newSection(tokens.size(),pos);
             }
-            case "&&","||" -> {
-                ShortCircuitBlock shortCircuitBlock = new ShortCircuitBlock(tokens.size(), pos, str.equals("&&"),
-                        getContext(openBlocks.peekLast(), rootContext));
-                openBlocks.addLast(shortCircuitBlock);
-                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
-                tokens.add(new ContextOpen(shortCircuitBlock.context(),pos));
-            }
             case "if" ->{
                 IfBlock ifBlock = new IfBlock(tokens.size(), pos, getContext(openBlocks.peekLast(), rootContext));
                 openBlocks.addLast(ifBlock);
@@ -2172,20 +2153,6 @@ public class Interpreter {
                                 tokens.set(((WhileBlock) block).forkPos,new RelativeJump(TokenType.JNE,tmp.pos,
                                         tokens.size()-((WhileBlock) block).forkPos));
                             }
-                        }
-                        case SHORT_AND -> {
-                            tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            tmp=tokens.get(block.start);
-                            assert tmp.tokenType==TokenType.PLACEHOLDER;
-                            tokens.set(block.start,new RelativeJump(TokenType.SHORT_AND_JMP,tmp.pos,
-                                    tokens.size()- block.start));
-                        }
-                        case SHORT_OR -> {
-                            tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            tmp=tokens.get(block.start);
-                            assert tmp.tokenType==TokenType.PLACEHOLDER;
-                            tokens.set(block.start,new RelativeJump(TokenType.SHORT_OR_JMP,tmp.pos,
-                                    tokens.size()- block.start));
                         }
                         case SWITCH_CASE -> {
                             if(((SwitchCaseBlock)block).defaultJump!=-1){
@@ -2767,24 +2734,6 @@ public class Interpreter {
                     case ASSERT -> {
                         if(!stack.pop().asBool()){
                             throw new ConcatRuntimeError("assertion failed: "+((AssertToken)next).message);
-                        }
-                    }
-                    case SHORT_AND_JMP -> {
-                        Value c = stack.peek();
-                        if (c.asBool()) {
-                            stack.pop();// remove and evaluate branch
-                        }else{
-                            ip+=((RelativeJump) next).delta;
-                            incIp = false;
-                        }
-                    }
-                    case SHORT_OR_JMP -> {
-                        Value c = stack.peek();
-                        if (c.asBool()) {//  remove and evaluate branch
-                            ip+=((RelativeJump) next).delta;
-                            incIp = false;
-                        }else{
-                            stack.pop();// remove token
                         }
                     }
                     case IDENTIFIER, PLACEHOLDER ->

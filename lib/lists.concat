@@ -1,4 +1,7 @@
 lists #module
+codeblocks #include
+core #import
+
 ## TODO binary search
 
 reverse proc (list) => :

@@ -1,6 +1,7 @@
 core #module
 
 stack #include
+codeblocks #include
 chars #include
 io #include
 
