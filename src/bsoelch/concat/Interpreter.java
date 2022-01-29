@@ -1579,7 +1579,7 @@ public class Interpreter {
                                                     program,ioContext);
                                         }
                                         //update identifiers at end of macro
-                                        finishWord("##",next,tokens, openBlocks, currentMacroPtr, identifier.pos, program,ioContext);
+                                        finishWord(END_OF_FILE,next,tokens, openBlocks, currentMacroPtr, identifier.pos, program,ioContext);
                                     }
                                     case ENUM ->
                                         tokens.set(index,
@@ -2289,13 +2289,11 @@ public class Interpreter {
     }
 
     static class Variable{
-        final boolean isConst;
         final Type type;
         private Value value;
 
-        Variable(Type type, boolean isConst, Value value) throws ConcatRuntimeError {
+        Variable(Type type, Value value) throws ConcatRuntimeError {
             this.type = type;
-            this.isConst = isConst;
             setValue(value);
         }
 
@@ -2496,7 +2494,7 @@ public class Interpreter {
             }
             case LENGTH -> {
                 Value val = stack.pop();
-                stack.push(Value.ofInt(val.length(),false));
+                stack.push(Value.ofInt(val.length(),true));
             }
             case CLEAR ->
                     stack.pop().clear();
@@ -2712,15 +2710,14 @@ public class Interpreter {
                             case CONST_DECLARE,DECLARE -> {
                                 Type  type=stack.pop().asType();
                                 Value initValue=stack.pop();
-                                boolean isConst=asVar.accessType==AccessType.CONST_DECLARE;
                                 switch (asVar.variableType){
                                     case GLOBAL ->
                                             (globalVariables==null?variables:globalVariables).get(asVar.id.level)
-                                                    [asVar.id.id] = new Variable(type, isConst, initValue);
+                                                    [asVar.id.id] = new Variable(type, initValue);
                                     case LOCAL ->{
                                         if (globalVariables != null) {
                                             variables.get(asVar.id.level)[asVar.id.id]
-                                                    = new Variable(type, isConst, initValue);
+                                                    = new Variable(type, initValue);
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }

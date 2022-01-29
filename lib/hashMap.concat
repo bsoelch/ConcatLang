@@ -107,8 +107,8 @@ end
 HashMap.get proc #_map_# HashMap #_key_# var => #_value_# var optional :
   var key =:
   HashMap map =:
-  key hashCode int hash =:
-  hash map _Map.data length % int i =:
+  key hashCode uint hash =:
+  hash map _Map.data length % uint i =:
   map _Map.data i [] _Entry entry =:
   while entry _Empty =!= do
     entry _Entry.key key == if
