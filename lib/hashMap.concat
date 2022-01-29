@@ -45,8 +45,8 @@ false false _Empty_Tuple new  _Entry new _Entry _Empty =$
 
 newHashMap proc #_keyType_# type #_valType_# type #_cap_# int => HashMap :
   int cap =:
-  type keyType =:
   type valType =:
+  type keyType =:
   cap _Entry list new _Entry list data =:
   data 0 cap _Empty fill
   keyType valType data 0 HashMap new

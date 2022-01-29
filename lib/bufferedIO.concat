@@ -8,13 +8,13 @@ BufferedInput.file   #define 0 [] #end
 BufferedInput.buffer #define 1 [] #end
 BufferedInput.cap    #define 2 [] #end
 
-createBufferedIn proc FILE #_ cap _# int => BufferedInput :
+newBufferedInput proc FILE #_ cap _# int => BufferedInput :
     int cap =:
     FILE file =:
     file cap byte list new cap BufferedInput new return
 end
 
-bufferedReadTo proc BufferedInput #_buffer_# byte list #_amount_# int => #_n-read_#int :
+BufferedInput.readTo proc BufferedInput #_buffer_# byte list #_amount_# int => #_n-read_#int :
   BufferedInput in =:
   byte list buffer =:
   int count =:
@@ -42,7 +42,7 @@ bufferedReadTo proc BufferedInput #_buffer_# byte list #_amount_# int => #_n-rea
   nRead return
 end
 
-nextByte proc BufferedInput => byte optional :
+BufferedInput.nextByte proc BufferedInput => byte optional :
   BufferedInput in =:
   in BufferedInput.buffer byte list inBuf =:
   inBuf length 0 == if

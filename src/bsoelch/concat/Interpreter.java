@@ -82,14 +82,14 @@ public class Interpreter {
         }
     }
     record Macro(FilePosition pos, String name,
-                 ArrayList<StringWithPos> content) implements Declarable{
+                 ArrayList<StringWithPos> content) implements Declareable{
         @Override
         public String toString() {
             return "macro " +name+":"+content;
         }
         @Override
-        public DeclarableType declarableType() {
-            return DeclarableType.MACRO;
+        public DeclareableType declarableType() {
+            return DeclareableType.MACRO;
         }
         @Override
         public FilePosition declaredAt() {
@@ -654,10 +654,10 @@ public class Interpreter {
         }
     }
 
-    enum DeclarableType{
+    enum DeclareableType{
         VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM, TUPLE, ENUM_ENTRY, NATIVE_PROC
     }
-    static String declarableName(DeclarableType t, boolean a){
+    static String declarableName(DeclareableType t, boolean a){
         switch (t){
             case VARIABLE -> {
                 return a?"a variable":"variable";
@@ -692,11 +692,11 @@ public class Interpreter {
         }
         throw new RuntimeException("unreachable");
     }
-    interface Declarable{
-        DeclarableType declarableType();
+    interface Declareable{
+        DeclareableType declarableType();
         FilePosition declaredAt();
     }
-    private static class VariableId implements Declarable{
+    private static class VariableId implements Declareable{
         final VariableContext context;
         final int level;
         int id;
@@ -719,8 +719,8 @@ public class Interpreter {
             return declaredAt;
         }
         @Override
-        public DeclarableType declarableType() {
-            return isConstant?DeclarableType.CONSTANT:DeclarableType.VARIABLE;
+        public DeclareableType declarableType() {
+            return isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE;
         }
     }
     private static class CurriedVariable extends VariableId{
@@ -735,16 +735,16 @@ public class Interpreter {
         }
 
         @Override
-        public DeclarableType declarableType() {
-            return DeclarableType.CURRIED_VARIABLE;
+        public DeclareableType declarableType() {
+            return DeclareableType.CURRIED_VARIABLE;
         }
     }
 
     static abstract class VariableContext{
-        final HashMap<String,Declarable> elements =new HashMap<>();
+        final HashMap<String,Declareable> elements =new HashMap<>();
         int variables=0;
-        void ensureDeclarable(String name, DeclarableType type, FilePosition pos) throws SyntaxError {
-            Declarable prev= elements.get(name);
+        void ensureDeclareable(String name, DeclareableType type, FilePosition pos) throws SyntaxError {
+            Declareable prev= elements.get(name);
             if(prev!=null){
                 throw new SyntaxError("cannot declare " + declarableName(type,false) + " "+name+
                         ", the identifier is already used by " + declarableName(prev.declarableType(), true)
@@ -752,14 +752,14 @@ public class Interpreter {
             }
         }
         VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
-            ensureDeclarable(name,isConstant?DeclarableType.CONSTANT:DeclarableType.VARIABLE,pos);
+            ensureDeclareable(name,isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE,pos);
             VariableId id = new VariableId(this,level(), variables++, isConstant, pos);
             elements.put(name, id);
             return id;
         }
         abstract VariableId wrapCurried(String name,VariableId id,FilePosition pos) throws SyntaxError;
-        abstract Declarable getDeclarable(String name);
-        abstract Declarable unsafeGetDeclared(String name);
+        abstract Declareable getDeclareable(String name);
+        abstract Declareable unsafeGetDeclared(String name);
         /**returns the enclosing procedure or null if this variable is not enclosed in a procedure*/
         abstract ProcedureContext procedureContext();
         /**number of blocks (excluding procedures) this variable is contained in*/
@@ -778,12 +778,12 @@ public class Interpreter {
         final ArrayList<String> globalImports=new ArrayList<>();
         final HashMap<String,PredeclaredProc> globalPredeclared = new HashMap<>();
         final ArrayList<ModuleBlock> openModules=new ArrayList<>();
-        final HashMap<String,Declarable> declared =new HashMap<>();
+        final HashMap<String,Declareable> declared =new HashMap<>();
     }
-    record PredeclaredProc(FilePosition pos,ArrayDeque<ProcedureToken> listeners) implements Declarable{
+    record PredeclaredProc(FilePosition pos,ArrayDeque<ProcedureToken> listeners) implements Declareable{
         @Override
-        public DeclarableType declarableType() {
-            return DeclarableType.PREDECLARED_PROCEDURE;
+        public DeclareableType declarableType() {
+            return DeclareableType.PREDECLARED_PROCEDURE;
         }
         @Override
         public FilePosition declaredAt() {
@@ -802,7 +802,7 @@ public class Interpreter {
             openFiles.addLast(new FileContext());
         }
         void startModule(String moduleName,FilePosition declaredAt) throws SyntaxError {
-            Declarable d=elements.get(inCurrentModule(moduleName));
+            Declareable d=elements.get(inCurrentModule(moduleName));
             if(d!=null){
                 throw new SyntaxError("cannot declare module "+moduleName+
                         ", the identifier is already used by " + declarableName(d.declarableType(), true)
@@ -902,8 +902,8 @@ public class Interpreter {
             return paths;
         }
 
-        Declarable getDeclarable(String name){
-            Declarable d;
+        Declareable getDeclareable(String name){
+            Declareable d;
             ArrayDeque<String> paths = currentPaths();
             while(paths.size()>0){//go through all modules
                 d=elements.get(paths.removeLast()+name);
@@ -913,8 +913,8 @@ public class Interpreter {
             }
             return elements.get(name);
         }
-        void checkShadowed(Declarable declared,String name,FilePosition pos,IOContext ioContext){
-            Declarable shadowed = file().declared.get(name);
+        void checkShadowed(Declareable declared,String name,FilePosition pos,IOContext ioContext){
+            Declareable shadowed = file().declared.get(name);
             if(shadowed!=null){
                 ioContext.stdErr.println("Warning: "+declarableName(declared.declarableType(),false)+" " + name
                         + " declared at " + pos +"\n     shadows existing " +
@@ -939,10 +939,10 @@ public class Interpreter {
                 for(ProcedureToken token:predeclared.listeners){
                     token.declareProcedure(proc);
                 }
-                Declarable prev=elements.remove(name);
+                Declareable prev=elements.remove(name);
                 assert prev==predeclared;
             }
-            ensureDeclarable(name,DeclarableType.PROCEDURE,proc.declaredAt);
+            ensureDeclareable(name,DeclareableType.PROCEDURE,proc.declaredAt);
             checkShadowed(proc,name0,proc.declaredAt,ioContext);
             elements.put(name,proc);
         }
@@ -953,7 +953,7 @@ public class Interpreter {
                 if(callee.procedureContext()!=null){
                     predeclared = new PredeclaredProc(pos, new ArrayDeque<>());
                     predeclaredProcs().put(localName, predeclared);
-                    ensureDeclarable(localName,DeclarableType.PREDECLARED_PROCEDURE,pos);
+                    ensureDeclareable(localName,DeclareableType.PREDECLARED_PROCEDURE,pos);
                     elements.put(localName,predeclared);//add to elements for better handling of shadowing
                 }else{
                     throw new SyntaxError("variable "+name+" does not exist",pos);
@@ -964,15 +964,15 @@ public class Interpreter {
 
         void declareMacro(Macro macro,IOContext ioContext) throws SyntaxError{
             String name=inCurrentModule(macro.name);
-            ensureDeclarable(name,DeclarableType.MACRO,macro.pos);
+            ensureDeclareable(name,DeclareableType.MACRO,macro.pos);
             checkShadowed(macro,macro.name,macro.pos,ioContext);
             elements.put(name,macro);
         }
         void removeMacro(String name, FilePosition pos) throws SyntaxError {
-            Declarable removed=elements.remove(inCurrentModule(name));
+            Declareable removed=elements.remove(inCurrentModule(name));
             if(removed==null){
                 throw new SyntaxError("macro "+name+" does not exists in the current module",pos);
-            }else if(removed.declarableType()!=DeclarableType.MACRO){
+            }else if(removed.declarableType()!=DeclareableType.MACRO){
                 throw new SyntaxError("macro "+name+" does not exists, or is" +
                         " shadowed by "+declarableName(removed.declarableType(),false)
                         +" (declared at "+removed.declaredAt()+")",pos);
@@ -982,27 +982,27 @@ public class Interpreter {
             String localName=inCurrentModule(source.name);
             Type.Enum anEnum=new Type.Enum(source.name,source.elements.toArray(new String[0]),
                     source.elementPositions,source.startPos);
-            ensureDeclarable(localName,DeclarableType.ENUM,anEnum.declaredAt);
+            ensureDeclareable(localName,DeclareableType.ENUM,anEnum.declaredAt);
             checkShadowed(anEnum,anEnum.name,anEnum.declaredAt,ioContext);
             elements.put(localName,anEnum);
             for(int i = 0; i<anEnum.entryNames.length; i++){
                 String fieldName = anEnum.entryNames[i];
                 String path = localName + MODULE_SEPARATOR + fieldName;
                 Value.EnumEntry entry = anEnum.entries[i];
-                ensureDeclarable(path,DeclarableType.ENUM,entry.declaredAt);
+                ensureDeclareable(path,DeclareableType.ENUM,entry.declaredAt);
                 checkShadowed(entry, fieldName, entry.declaredAt,ioContext);
                 elements.put(path,entry);
             }
         }
         void declareTuple(Type.Tuple tuple, IOContext ioContext) throws SyntaxError {
             String localName=inCurrentModule(tuple.name);
-            ensureDeclarable(localName,DeclarableType.TUPLE,tuple.declaredAt);
+            ensureDeclareable(localName,DeclareableType.TUPLE,tuple.declaredAt);
             checkShadowed(tuple,tuple.name,tuple.declaredAt,ioContext);
             elements.put(localName,tuple);
         }
         void declareNativeProcedure(Value.NativeProcedure proc, IOContext ioContext) throws SyntaxError {
             String localName=inCurrentModule(proc.name);
-            ensureDeclarable(localName,DeclarableType.NATIVE_PROC,proc.declaredAt);
+            ensureDeclareable(localName,DeclareableType.NATIVE_PROC,proc.declaredAt);
             checkShadowed(proc,proc.name,proc.declaredAt,ioContext);
             elements.put(localName,proc);
         }
@@ -1021,10 +1021,10 @@ public class Interpreter {
         }
 
         @Override
-        Declarable unsafeGetDeclared(String name) {
+        Declareable unsafeGetDeclared(String name) {
             String name0=name;
             name=inCurrentModule(name);
-            Declarable id= elements.get(name);
+            Declareable id= elements.get(name);
             if(id==null){
                 id= file().declared.get(name0);
             }
@@ -1051,7 +1051,7 @@ public class Interpreter {
         @Override
         VariableId declareVariable(String name, boolean isConstant, FilePosition pos,IOContext ioContext) throws SyntaxError {
             VariableId id = super.declareVariable(name, isConstant, pos,ioContext);
-            Declarable shadowed = parent.unsafeGetDeclared(name);
+            Declareable shadowed = parent.unsafeGetDeclared(name);
             if (shadowed != null) {//check for shadowing
                 ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
                         "\n     shadows existing " + declarableName(shadowed.declarableType(),false)
@@ -1061,13 +1061,13 @@ public class Interpreter {
         }
 
         @Override
-        Declarable getDeclarable(String name) {
-            Declarable id = elements.get(name);
-            return id == null ? parent.getDeclarable(name) : id;
+        Declareable getDeclareable(String name) {
+            Declareable id = elements.get(name);
+            return id == null ? parent.getDeclareable(name) : id;
         }
         @Override
-        Declarable unsafeGetDeclared(String name) {
-            Declarable id = elements.get(name);
+        Declareable unsafeGetDeclared(String name) {
+            Declareable id = elements.get(name);
             return id == null ? parent.unsafeGetDeclared(name) : id;
         }
         @Override
@@ -1382,7 +1382,7 @@ public class Interpreter {
                             tokens.remove(tokens.size()-1);
                             program.rootContext.addImport(prevId,pos);
                         }else{
-                            throw new SyntaxError("module name has to be an identifier",pos);
+                            throw new SyntaxError("imported module name has to be an identifier",pos);
                         }
                         return;
                     }
@@ -1534,8 +1534,8 @@ public class Interpreter {
                                         accessType,context));
                             }
                             case UNMODIFIED -> {
-                                Declarable d=context.getDeclarable(identifier.name);
-                                DeclarableType type=d==null?DeclarableType.PREDECLARED_PROCEDURE:d.declarableType();
+                                Declareable d=context.getDeclareable(identifier.name);
+                                DeclareableType type=d==null?DeclareableType.PREDECLARED_PROCEDURE:d.declarableType();
                                 switch (type){
                                     case PROCEDURE -> {
                                         Value.Procedure proc=(Value.Procedure)d;
@@ -1593,10 +1593,10 @@ public class Interpreter {
                                 }
                             }
                             case VAR_WRITE -> {
-                                Declarable d=context.getDeclarable(identifier.name);
+                                Declareable d=context.getDeclareable(identifier.name);
                                 if(d==null){
                                     throw new SyntaxError("variable "+identifier.name+" does not exist",pos);
-                                }else if(d.declarableType()==DeclarableType.VARIABLE){
+                                }else if(d.declarableType()==DeclareableType.VARIABLE){
                                     VariableId id=(VariableId) d;
                                     context.wrapCurried(identifier.name,id,identifier.pos);
                                     assert !program.globalConstants.containsKey(id);
@@ -1608,7 +1608,7 @@ public class Interpreter {
                                 }
                             }
                             case PROC_ID -> {
-                                Declarable d=context.getDeclarable(identifier.name);
+                                Declareable d=context.getDeclareable(identifier.name);
                                 if(d instanceof Value.NativeProcedure proc){
                                     NativeProcedureToken token=new NativeProcedureToken(true,proc,pos);
                                     tokens.set(index,token);
@@ -2315,7 +2315,7 @@ public class Interpreter {
 
     public RandomAccessStack<Value> run(Program program, String[] arguments,IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
-        Declarable main=program.rootContext.elements.get("main");
+        Declareable main=program.rootContext.elements.get("main");
         if(main==null){
             recursiveRun(stack,program,null,null,context);
         }else{
@@ -2323,7 +2323,7 @@ public class Interpreter {
                 context.stdErr.println("programs with main procedure cannot contain code at top level "+
                         program.tokens.get(0).pos);
             }
-            if(main.declarableType()!=DeclarableType.PROCEDURE){
+            if(main.declarableType()!=DeclareableType.PROCEDURE){
                 context.stdErr.println("main is not a procedure but "+
                         declarableName(main.declarableType(),true)+" declared at "+main.declaredAt());
             }else{

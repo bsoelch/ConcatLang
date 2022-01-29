@@ -37,10 +37,24 @@ public class io{
             System.arraycopy(bytes,bytes_off+bytes_len,bytes,(int)(bytes_off+off+count),
                     bytes_init-(bytes_off+bytes_len));
             buff[0]=bytes;
-            buff[2]=(int)(off+count);
-            buff[3]=(int)(off+count+bytes_init-bytes_len);
+            bytes_init=(int)(off+count+bytes_init-bytes_len);
+            bytes_len=(int)(off+count);
+            buff[2]=bytes_len;
+            buff[3]=bytes_init;
         }
-        return file.read(bytes, bytes_off+off, count);
+        long r=file.read(bytes, bytes_off+off, count);
+        if(r<count){
+            long del=count-Math.max(r,0);
+            if(bytes_off+bytes_len<bytes_init){
+                System.arraycopy(bytes,bytes_off+(int)count,bytes,bytes_off+(int)Math.max(r,0),
+                        bytes_init-(int)(bytes_off+count));
+            }
+            bytes_len-=del;
+            buff[2]=bytes_len;
+            bytes_init-=del;
+            buff[3]=bytes_init;
+        }
+        return r;
     }
     public static boolean nativeImpl_write(FileStream file,Object[] buff,long off,long count){
         byte[] bytes = (byte[])buff[0];

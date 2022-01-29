@@ -1582,7 +1582,7 @@ public abstract class Value {
             throw new IllegalArgumentException(procType+" is no valid procedure Type");
         }
     }
-    static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Declarable {
+    static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Declareable {
         final Interpreter.FilePosition declaredAt;
 
         final Interpreter.ProcedureContext context;
@@ -1641,8 +1641,8 @@ public abstract class Value {
         }
 
         @Override
-        public Interpreter.DeclarableType declarableType() {
-            return Interpreter.DeclarableType.PROCEDURE;
+        public Interpreter.DeclareableType declarableType() {
+            return Interpreter.DeclareableType.PROCEDURE;
         }
         @Override
         public Interpreter.FilePosition declaredAt() {
@@ -1757,7 +1757,7 @@ public abstract class Value {
             return Objects.hash(wrapped);
         }
     }
-    static class EnumEntry extends Value implements Interpreter.Declarable {
+    static class EnumEntry extends Value implements Interpreter.Declareable {
         final Interpreter.FilePosition declaredAt;
         final int index;
         EnumEntry(Type.Enum type, int index, Interpreter.FilePosition declaredAt) {
@@ -1792,8 +1792,8 @@ public abstract class Value {
         }
 
         @Override
-        public Interpreter.DeclarableType declarableType() {
-            return Interpreter.DeclarableType.ENUM_ENTRY;
+        public Interpreter.DeclareableType declarableType() {
+            return Interpreter.DeclareableType.ENUM_ENTRY;
         }
         @Override
         public Interpreter.FilePosition declaredAt() {
@@ -1946,7 +1946,7 @@ public abstract class Value {
             return "native value @"+System.identityHashCode(nativeValue);
         }
     }
-    static class NativeProcedure extends Value implements Interpreter.Declarable {
+    static class NativeProcedure extends Value implements Interpreter.Declareable {
         final Method nativeMethod;
         final String name;
         final Interpreter.FilePosition declaredAt;
@@ -1958,8 +1958,8 @@ public abstract class Value {
             this.declaredAt = declaredAt;
         }
         @Override
-        public Interpreter.DeclarableType declarableType() {
-            return Interpreter.DeclarableType.NATIVE_PROC;
+        public Interpreter.DeclareableType declarableType() {
+            return Interpreter.DeclareableType.NATIVE_PROC;
         }
 
         @Override

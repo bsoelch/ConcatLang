@@ -145,7 +145,7 @@ public class Type {
         }
     }
 
-    public static class Tuple extends Type implements Interpreter.Declarable{
+    public static class Tuple extends Type implements Interpreter.Declareable{
         final Interpreter.FilePosition declaredAt;
         final Type[] elements;
         public Tuple(String name, Type[] elements, Interpreter.FilePosition declaredAt) throws ConcatRuntimeError {
@@ -193,8 +193,8 @@ public class Type {
         }
 
         @Override
-        public Interpreter.DeclarableType declarableType() {
-            return Interpreter.DeclarableType.TUPLE;
+        public Interpreter.DeclareableType declarableType() {
+            return Interpreter.DeclareableType.TUPLE;
         }
         @Override
         public Interpreter.FilePosition declaredAt() {
@@ -277,7 +277,8 @@ public class Type {
         }
     }
 
-    public static class Enum extends Type implements Interpreter.Declarable {
+
+    public static class Enum extends Type implements Interpreter.Declareable {
         final Interpreter.FilePosition declaredAt;
         final String[] entryNames;
         final Value.EnumEntry[] entries;
@@ -299,8 +300,8 @@ public class Type {
         }
 
         @Override
-        public Interpreter.DeclarableType declarableType() {
-            return Interpreter.DeclarableType.ENUM;
+        public Interpreter.DeclareableType declarableType() {
+            return Interpreter.DeclareableType.ENUM;
         }
         @Override
         public Interpreter.FilePosition declaredAt() {

@@ -87,315 +87,9 @@ Token.strAppend proc string Token => string :
   end
 end
 
-DeclarableType enum
-  MACRO
-  ENUM
-  VARIABLE
-  CONSTANT
-  PROCEDURE
-end
-DeclarableType.strAppend proc #_str_# string #_a_# bool #_type_# DeclarableType => string :
-   #_type_# switch
-   DeclarableType MACRO . case
-     #_a_# if "a macro" else "macro" end :+ return
-     end-case
-   DeclarableType ENUM . case
-     #_a_# if "an enum" else "enum" end :+ return
-     end-case
-   DeclarableType VARIABLE . case
-     #_a_# if "a variable" else "variable" end :+ return
-     end-case
-   DeclarableType CONSTANT . case
-     #_a_# if "a constant" else "constant" end :+ return
-     end-case
-   DeclarableType PROCEDURE . case
-     #_a_# if "a procedure" else "procedure" end :+ return
-     end-case
-   end
-end
-
-Declarable tuple #_type_# DeclarableType #_pos_# FilePosition end
-
-Declarable.type #define 0 []   #end
-Declarable.pos  #define 1 []   #end
-Declarable.pos= #define 1 [] = #end
-
-Macro tuple #_type_# DeclarableType #_pos_# FilePosition #_name_# string #_words_# string list end
-Macro.name  #define 2 []   #end
-Macro.name= #define 2 [] = #end
-Macro.words #define 3 []   #end
-newMacro proc FilePosition string => Macro :
-  string name =:
-  FilePosition mPos =:
-  DeclarableType MACRO . mPos name 16 byte list new Macro new return
-end
-
-VariableId tuple #_type_# DeclarableType #_pos_# FilePosition end ##TODO variable
-CurriedVariable tuple #_type_# DeclarableType #_pos_# FilePosition end ##TODO curried variable
-PredeclaredProc tuple #_type_# DeclarableType #_pos_# FilePosition end ##TODO predeclared proc
-
-ContextType enum ROOT_CONTEXT PROC_CONTEXT BLOCK_CONTEXT end
-
-Context tuple #_elements_# HashMap #_varCount_# int #_contextType_# ContextType end
-Context.elements    #define 0 [] #end
-Context.varCount    #define 1 [] #end
-Context.type        #define 2 [] #end
-Context.incVarCount #define dup 1 [] 1 + 1 [] = #end
-
-OpenModule tuple #_path_# string list #_declaredAt_# FilePosition #_imports_# string list #_predeclared_# HashMap end
-OpenModule.path        #define 0 [] #end
-OpenModule.declaredAt  #define 1 [] #end
-OpenModule.imports     #define 2 [] #end
-OpenModule.predeclared #define 3 [] #end
-newOpenModule proc #_path_# string list #_declaredAt_# FilePosition => OpenModule :
-  16 string list new string PredeclaredProc 16 newHashMap OpenModule new return
-end
-OpenModule.strAppend proc string OpenModule => string :
-  string str =:
-  OpenModule m =:
-  0 int i =:
-  while i m OpenModule.path length < do
-     str m OpenModule.path i [] :+ "'" :+
-  end
-  str " declared at " :+ m OpenModule.declaredAt FilePosition.strAppend return
-end
-
-OpenFile tuple #_global imports _# string list #_global predeclared_# HashMap
-    #_openModules_# OpenModule list #_declared_#HashMap list end
-OpenFile.globalImports     #define 0 [] #end
-OpenFile.globalPredeclared #define 1 [] #end
-OpenFile.openModules       #define 2 [] #end
-OpenFile.declared          #define 3 [] #end
-newOpenFile proc => OpenFile :
-  16 string list new
-  string PredeclaredProc 16 newHashMap
-  16 OpenModule list new
-  string Declarable newHashMap OpenFile new return
-end
-
-RootContext tuple #_elements_# HashMap #_varCount_# int #_contextType_# ContextType
-    #_openFiles_# OpenFile list #_modules_# HashMap end
-RootContext.openFiles #define 3 [] #end
-RootContext.modules   #define 4 [] #end
-
-BlockContext tuple #_elements_# HashMap #_varCount_# int #_contextType_# ContextType #_parent_# Context end
-BlockContext.parent #define 3 [] #end
-
-ProcContext tuple #_elements_# HashMap #_varCount_# int #_contextType_# ContextType #_parent_# Context
-   #_curried_# CurriedVariable list end
-ProcContext.curried #define 4 [] #end
-
-Context.ensureDeclarable proc #_context_# Context #_name_#string #_type_# DeclarableType #_pos_# FilePosition => :
-  FilePosition fPos =:
-  DeclarableType dType =:
-  string name =:
-  Context context =:
-  context Context.elements name HashMap.get ?? if
-    unwrap Declarable prev =:
-    "cannot declare " false dType DeclarableType.strAppend :+ ' ' :<< name :+
-    ", the identifier is already used by " :+ true prev Declarable.type DeclarableType.strAppend :+
-    " (declared at " prev Declarable.pos FilePosition.strAppend ") at " :+ fPos FilePosition.strAppend '\n' :<< eputs
-    1 exit
-  else drop end
-end
-Context.checkShadowed proc #_context_# Context #_declared_# Declarable #_name_#string #_pos_# FilePosition => :
-  ##TODO check shadowed
-  "unimplemented\n" eputs
-  1 exit
-end
-Context.level proc Context => int :
-  Context context =:
-  context Context.type switch
-  ContextType ROOT_CONTEXT . ContextType PROC_CONTEXT . case
-    0 return
-    end-case
-  ContextType BLOCK_CONTEXT . case
-    context BlockContext.parent Context.level 1 + return
-    end-case
-  end
-end
-Context.getDeclarable proc #_context_# Context #_name_# string => Declarable optional :
-    string name =:
-    Context context =:
-    context Context.type switch
-    ContextType ROOT_CONTEXT . case
-      context RootContext.currentPaths string list paths =:
-      paths length 1 - int i =:
-      while i 0 >= do ##go through all modules
-        context Context.elements paths i [] clone name :+ HashMap.get ?? if
-          return
-        else drop end
-      end
-      context Context.elements name HashMap.get return
-      end-case
-    ContextType PROC_CONTEXT . ContextType BLOCK_CONTEXT . case
-      context Context.elements name HashMap.get ?? if
-        #_element_# return
-      else drop
-        context BlockContext.parent name Context.getDeclarable return
-      end
-      end-case
-    end
-end
-MODULE_SEPARATOR #define '\'' #end
-RootContext.startFile proc RootContext => :
-  RootContext.openFiles OpenFile new :<< drop
-end
-RootContext.file proc RootContext => OpenFile :
-  RootContext.openFiles RootContext.openFiles length 1 - [] return
-end
-
-RootContext.inCurrentModule proc RootContext  #_name_# string => string :
-   string name =:
-   #_context_# RootContext.file OpenFile.openModules OpenModule list modules =:
-   modules length 0 > if
-    "" string path =:
-     0 int i =:
-     while i modules length < do
-        modules i [] OpenModule.path string list paths =:
-        0 int j =:
-        while j paths length < do
-          path paths j [] :+ MODULE_SEPARATOR :<< path =
-          j 1 + j =
-        end
-        i 1 + i =
-     end
-     path name :+ return
-   end
-   name return
-end
-RootContext.startModule proc RootContext #_name_# string #_declaredAt_# FilePosition => :
-  FilePosition fPos =:
-  string name =:
-  RootContext context =:
-  context Context.elements context name RootContext.inCurrentModule HashMap.get ?? if
-    unwrap Declarable d =:
-    "cannot declare module " name :+ ", the identifier is already used by " :+
-    true d Declarable.type DeclarableType.strAppend :+
-    " (declared at " d Declarable.pos FilePosition.strAppend ")\n" :+
-    " at " fPos  FilePosition.strAppend '\n' :<< eputs
-    1 exit
-  else drop end
-  context "" RootContext.inCurrentModule string fullPath =:
-  16 string list new string list path =:
-  "" string tmp =:
-  0 int i =:
-  while i name length < do
-    fullPath name i [] :<< fullPath =
-    tmp name i [] :<< tmp =
-    name i [] MODULE_SEPARATOR == if
-      context RootContext.modules fullPath clone true HashMap.put drop
-      path tmp :<< path =
-      "" tmp =
-    end
-  end
-  fullPath MODULE_SEPARATOR :<< fullPath =
-  context RootContext.modules fullPath clone true HashMap.put drop
-  context RootContext.file OpenFile.openModules path fPos newOpenModule :<< drop
-end
-RootContext.addImport proc RootContext #_name_# string #_declaredAt_# FilePosition => :
-  FilePosition fPos =:
-  string name =:
-  RootContext context =:
-  context RootContext.modules name HashMap.contains if
-     name clone "'" :<< name =
-     context RootContext.file OpenFile file =:
-     file OpenFile.openModules length 0 > if
-         file OpenFile.openModules file OpenFile.openModules length 1 - [] OpenModule.imports name :<< drop
-     else
-         file OpenFile.globalImports name :<< drop
-     end
-  else context Context.elements name HashMap.get ?? _if
-    unwrap
-    ##addLater static imports
-    drop
-    "static imports are currently unimplemented"
-    1 exit
-  else drop
-    ##addLater formatted printing of module paths
-    "module " name :+ " does not exist" :+ pos FilePosition.strAppend '\n' :<< eputs
-    1 exit
-  end
-end
-RootContext.endModule proc RootContext FilePosition => :
-  FilePosition fPos =:
-  RootContext context =:
-  context RootContext.file OpenFile file =:
-  file OpenFile.openModules length 0 == if
-    "Unexpected End of module" fPos FilePosition.strAppend '\n' :<< eputs
-    1 exit
-  end
-  file OpenFile.openModules file OpenFile.openModules length 1 - [] OpenModule removed =:
-  file OpenFile.openModules file OpenFile.openModules length 1 - file OpenFile.openModules length [:] clear
-  removed OpenModule.predeclared HashMap.size 0 > if
-    "Syntax Error: missing variables/procedures" string message =:
-    removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
-       unwrap MapEntry e =:
-       message "\n- " :+ e MapEntry.key :+ " (at " :+ e MapEntry.value Declarable.pos FilePosition.strAppend ')' :<<
-    end drop drop
-    message fPos FilePosition.strAppend '\n' :<< eputs
-    1 exit
-  end
-end
-RootContext.endFile proc RootContext FilePosition => :
-  FilePosition fPos =:
-  RootContext context =:
-  context RootContext.openFiles context RootContext.openFiles length 1 - [] OpenFile closed =:
-  context RootContext.openFiles context RootContext.openFiles length 1 - context RootContext.openFiles length [:] clear
-  closed OpenFile.openModules length 0 > if
-    "unclosed modules at end of File:\n" eputs
-    closed OpenFile.openModules length 1 - int i =:
-    while i 0 >= do
-      closed OpenFile.openModules i [] OpenModule removed =:
-      removed OpenModule.predeclared HashMap.size 0 > if
-        "Syntax Error: missing variables/procedures" string message =:
-        removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
-           unwrap MapEntry e =:
-           message "\n- " :+ e MapEntry.key :+ " (at " :+ e MapEntry.value Declarable.pos FilePosition.strAppend ')' :<<
-        end drop drop
-        message fPos FilePosition.strAppend '\n' :<< eputs
-        1 exit
-      end
-      closed OpenFile.openModules clear
-      " - " removed OpenModule.strAppend '\n' :<< eputs
-    end
-  end
-  closed OpenFile.globalPredeclared HashMap.size 0 > if
-    "Syntax Error: missing variables/procedures" string message =:
-    closed OpenFile.globalPredeclared HashMap.itr while HashMapItr.next ?? do
-       unwrap MapEntry e =:
-       message "\n- " :+ e MapEntry.key :+ " (at " :+ e MapEntry.value Declarable.pos FilePosition.strAppend ')' :<<
-    end drop drop
-    message fPos FilePosition.strAppend '\n' :<< eputs
-    1 exit
-  end
-end
-
-RootContext.currentPaths proc RootContext => string list :
-  #_context_# RootContext.file OpenFile file =:
-  file OpenFile.globalImports clone string list paths =:
-  16 string new string path =:
-  file OpenFile.openModules OpenModule list modules =:
-  0 int i =:
-  while i modules length < do
-    modules i [] OpenModule.path string list mPath =:
-    0 int j =:
-    while j mPath length < do
-      path mPath j [] :+ MODULE_SEPARATOR :<< path =
-      j 1 + j =
-      paths path clone :<< paths =
-    end
-    paths  modules i [] OpenModule.imports  paths length 2 - paths length 2 - [:] =
-    i 1 + i =
-  end
-  paths return
-end
-
 
 BlockType enum
   IF_BLOCK
-  &&_BLOCK
-  ||_BLOCK
   WHILE_BLOCK
   SWITCH_BLOCK
   PROC_BLOCK
@@ -426,6 +120,417 @@ newTupleBlock proc #_name_# string #_startPos_# FilePosition #_start_# int => En
   BlockType TUPLE_BLOCK . startPos start name TupleBlock new return
 end
 
+DeclareableType enum
+  MACRO
+  ENUM
+  TUPLE
+  VARIABLE
+  CONSTANT
+  PREDECLARED_PROCEDURE
+  PROCEDURE
+end
+DeclareableType.strAppend proc #_str_# string #_a_# bool #_type_# DeclareableType => string :
+   #_type_# switch
+   DeclareableType MACRO . case
+     #_a_# if "a macro" else "macro" end :+ return
+     end-case
+   DeclareableType ENUM . case
+     #_a_# if "an enum" else "enum" end :+ return
+     end-case
+   DeclareableType TUPLE . case
+     #_a_# if "a tuple" else "tuple" end :+ return
+     end-case
+   DeclareableType VARIABLE . case
+     #_a_# if "a variable" else "variable" end :+ return
+     end-case
+   DeclareableType CONSTANT . case
+     #_a_# if "a constant" else "constant" end :+ return
+     end-case
+   DeclareableType PREDECLARED_PROCEDURE . case
+     #_a_# if "a predeclared procedure" else "predeclared procedure" end :+ return
+     end-case
+   DeclareableType PROCEDURE . case
+     #_a_# if "a procedure" else "procedure" end :+ return
+     end-case
+   end
+end
+
+Declareable tuple #_type_# DeclareableType #_pos_# FilePosition end
+
+Declareable.type #define 0 []   #end
+Declareable.pos  #define 1 []   #end
+Declareable.pos= #define 1 [] = #end
+
+Macro tuple #_type_# DeclareableType #_pos_# FilePosition #_name_# string #_words_# string list end
+Macro.name  #define 2 []   #end
+Macro.name= #define 2 [] = #end
+Macro.words #define 3 []   #end
+newMacro proc FilePosition string => Macro :
+  string name =:
+  FilePosition mPos =:
+  DeclareableType MACRO . mPos name 16 byte list new Macro new return
+end
+
+VariableId tuple #_type_# DeclareableType #_pos_# FilePosition end ##TODO variable
+CurriedVariable tuple #_type_# DeclareableType #_pos_# FilePosition end ##TODO curried variable
+PredeclaredProc tuple #_type_# DeclareableType #_pos_# FilePosition end ##TODO predeclared proc
+Procedure tuple #_type_# DeclareableType #_pos_# FilePosition end ##TODO proc
+Enum tuple #_type_# DeclareableType #_pos_# FilePosition #_name_# string end ##TODO enum
+Enum.name  #define 2 []   #end
+Tuple tuple #_type_# DeclareableType #_pos_# FilePosition #_name_# string end ##TODO tuple
+Tuple.name  #define 2 []   #end
+
+ContextType enum ROOT_CONTEXT PROC_CONTEXT BLOCK_CONTEXT end
+
+Context tuple #_elements_# HashMap #_varCount_# int #_contextType_# ContextType end
+Context.elements    #define 0 [] #end
+Context.varCount    #define 1 [] #end
+Context.type        #define 2 [] #end
+Context.incVarCount #define dup 1 [] 1 + 1 [] = #end
+
+OpenModule tuple #_path_# string list #_declaredAt_# FilePosition #_imports_# string list #_predeclared_# HashMap end
+OpenModule.path        #define 0 [] #end
+OpenModule.declaredAt  #define 1 [] #end
+OpenModule.imports     #define 2 [] #end
+OpenModule.predeclared #define 3 [] #end
+newOpenModule proc #_path_# string list #_declaredAt_# FilePosition => OpenModule :
+  16 string list new string PredeclaredProc 16 newHashMap OpenModule new return
+end
+OpenModule.strAppend proc string OpenModule => string :
+  OpenModule m =:
+  string str =:
+  0 int i =:
+  while i m OpenModule.path length < do
+     str m OpenModule.path i [] :+ "'" :+
+  end
+  str " declared at " :+ m OpenModule.declaredAt FilePosition.strAppend return
+end
+
+OpenFile tuple #_global imports _# string list #_global predeclared_# HashMap
+    #_openModules_# OpenModule list end
+OpenFile.globalImports     #define 0 [] #end
+OpenFile.globalPredeclared #define 1 [] #end
+OpenFile.openModules       #define 2 [] #end
+
+newOpenFile proc => OpenFile :
+  16 string list new
+  string PredeclaredProc 16 newHashMap
+  16 OpenModule list new
+  OpenFile new return
+end
+
+RootContext tuple #_elements_# HashMap #_varCount_# int #_contextType_# ContextType
+    #_openFiles_# OpenFile list #_modules_# HashMap end
+RootContext.openFiles #define 3 [] #end
+RootContext.modules   #define 4 [] #end
+newRootContext proc => RootContext :
+  string Declareable 16 newHashMap
+  0
+  ContextType ROOT_CONTEXT .
+  16 OpenFile list new
+  string bool 16 newHashMap
+  RootContext new return
+end
+
+BlockContext tuple #_elements_# HashMap #_varCount_# int #_contextType_# ContextType #_parent_# Context end
+BlockContext.parent #define 3 [] #end
+
+ProcContext tuple #_elements_# HashMap #_varCount_# int #_contextType_# ContextType #_parent_# Context
+   #_curried_# CurriedVariable list end
+ProcContext.curried #define 4 [] #end
+
+Context.ensureDeclareable proc #_context_# Context #_name_#string #_type_# DeclareableType #_pos_# FilePosition
+  => #_localName_# string :
+  FilePosition fPos =:
+  DeclareableType dType =:
+  string name =:
+  Context context =:
+  context Context.type ContextType ROOT_CONTEXT . == if context name RootContext.inCurrentModule else name end  string localName =:
+  context Context.elements localName HashMap.get ?? if
+    unwrap Declareable prev =:
+    ## procedures can overwrite predeclared procedures
+    prev Declareable.type DeclareableType PREDECLARED_PROCEDURE . != || dType Declareable.type DeclareableType PROCEDURE . != end if
+      "cannot declare " false dType DeclareableType.strAppend :+ ' ' :<< name :+
+      ", the identifier is already used by " :+ true prev Declareable.type DeclareableType.strAppend :+
+      " (declared at " prev Declareable.pos FilePosition.strAppend ") at " :+ fPos FilePosition.strAppend '\n' :<< eputs
+      1 exit
+    end
+  else drop end
+  context name Context.getDeclareable ?? if
+    unwrap Declareable shadowed =:
+    "Warning: " false dType DeclareableType.strAppend " " :+ name :+
+     " declared at " :+ fPos FilePosition.strAppend "\n     shadows existing " :+
+     false shadowed Declareable.type DeclareableType.strAppend " declared at " :+
+     shadowed Declareable.pos FilePosition.strAppend '\n' :<< eputs
+  else drop end
+  localName return
+end
+
+Context.level proc Context => int :
+  Context context =:
+  context Context.type switch
+  ContextType ROOT_CONTEXT . ContextType PROC_CONTEXT . case
+    0 return
+    end-case
+  ContextType BLOCK_CONTEXT . case
+    context BlockContext.parent Context.level 1 + return
+    end-case
+  end
+end
+Context.getDeclareable proc #_context_# Context #_name_# string => Declareable optional :
+    string name =:
+    Context context =:
+    context Context.type switch
+    ContextType ROOT_CONTEXT . case
+      context RootContext.currentPaths string list paths =:
+      paths length 1 - int i =:
+      while i 0 >= do ##go through all modules
+        context Context.elements paths i [] clone name :+ HashMap.get ?? if
+          return
+        else drop end
+        i 1 - i =
+      end
+      context Context.elements name HashMap.get return
+      end-case
+    ContextType PROC_CONTEXT . ContextType BLOCK_CONTEXT . case
+      context Context.elements name HashMap.get ?? if
+        #_element_# return
+      else drop
+        context BlockContext.parent name Context.getDeclareable return
+      end
+      end-case
+    end
+end
+MODULE_SEPARATOR #define '\'' #end
+##token that signals the compiler, that there will be no more statements in the current code-section
+END_OF_SECTION #define "##" #end
+RootContext.startFile proc RootContext => :
+  RootContext.openFiles newOpenFile :<< drop
+end
+RootContext.file proc RootContext => OpenFile :
+  RootContext context =:
+  context RootContext.openFiles context RootContext.openFiles length 1 - [] return
+end
+
+RootContext.inCurrentModule proc RootContext  #_name_# string => string :
+   string name =:
+   #_context_# RootContext.file OpenFile.openModules OpenModule list modules =:
+   modules length 0 > if
+    "" string path =:
+     0 int i =:
+     while i modules length < do
+        modules i [] OpenModule.path string list paths =:
+        0 int j =:
+        while j paths length < do
+          path paths j [] :+ MODULE_SEPARATOR :<< path =
+          j 1 + j =
+        end
+        i 1 + i =
+     end
+     path name :+ return
+   end
+   name return
+end
+RootContext.startModule proc RootContext #_name_# string #_declaredAt_# FilePosition => :
+  FilePosition fPos =:
+  string name =:
+  RootContext context =:
+  context Context.elements context name RootContext.inCurrentModule HashMap.get ?? if
+    unwrap Declareable d =:
+    "cannot declare module " name :+ ", the identifier is already used by " :+
+    true d Declareable.type DeclareableType.strAppend :+
+    " (declared at " d Declareable.pos FilePosition.strAppend ")\n" :+
+    " at " fPos  FilePosition.strAppend '\n' :<< eputs
+    1 exit
+  else drop end
+  context "" RootContext.inCurrentModule string fullPath =:
+  16 string list new string list path =:
+  "" string tmp =:
+  0 int i =:
+  while i name length < do
+    fullPath name i [] :<< fullPath =
+    name i [] MODULE_SEPARATOR == if
+      context RootContext.modules fullPath clone true HashMap.put drop
+      path tmp :<< path =
+      "" tmp =
+    else
+      tmp name i [] :<< tmp =
+    end
+    i 1 + i =
+  end
+  path tmp :<< path =
+  fullPath MODULE_SEPARATOR :<< fullPath =
+  context RootContext.modules fullPath clone true HashMap.put drop
+  context RootContext.file OpenFile.openModules path fPos newOpenModule :<< drop
+end
+RootContext.addImport proc RootContext #_name_# string #_declaredAt_# FilePosition => :
+  FilePosition fPos =:
+  string name0 =:
+  name0 clone '\'' :<< string name =:
+  RootContext context =:
+  context RootContext.modules name HashMap.contains if
+     context RootContext.file OpenFile file =:
+     file OpenFile.openModules length 0 > if
+         file OpenFile.openModules file OpenFile.openModules length 1 - [] OpenModule.imports name :<< drop
+     else
+         file OpenFile.globalImports name :<< drop
+     end
+  else context Context.elements name HashMap.get ?? _if
+    unwrap
+    ##addLater static imports
+    drop
+    "static imports are currently unimplemented"
+    1 exit
+  else drop
+  context RootContext.modules
+    "module " name0 :+ " does not exist " :+ fPos FilePosition.strAppend '\n' :<< eputs
+    1 exit
+  end
+end
+RootContext.endModule proc RootContext FilePosition => :
+  FilePosition fPos =:
+  RootContext context =:
+  context RootContext.file OpenFile file =:
+  file OpenFile.openModules length 0 == if
+    "Unexpected End of module " fPos FilePosition.strAppend '\n' :<< eputs
+    1 exit
+  end
+  file OpenFile.openModules file OpenFile.openModules length 1 - [] OpenModule removed =:
+  file OpenFile.openModules file OpenFile.openModules length 1 - file OpenFile.openModules length [:] clear
+  removed OpenModule.predeclared HashMap.size 0 > if
+    "Syntax Error: missing variables/procedures" string message =:
+    removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
+       unwrap MapEntry e =:
+       message "\n- " :+ e MapEntry.key :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<<
+    end drop drop
+    message fPos FilePosition.strAppend '\n' :<< eputs
+    1 exit
+  end
+end
+RootContext.endFile proc RootContext FilePosition => :
+  FilePosition fPos =:
+  RootContext context =:
+  context RootContext.openFiles context RootContext.openFiles length 1 - [] OpenFile closed =:
+  context RootContext.openFiles context RootContext.openFiles length 1 - context RootContext.openFiles length [:] clear
+  closed OpenFile.openModules length 0 > if
+    "unclosed modules at end of File:\n" eputs
+    closed OpenFile.openModules length 1 - int i =:
+    while i 0 >= do
+      closed OpenFile.openModules i [] OpenModule removed =:
+      removed OpenModule.predeclared HashMap.size 0 > if
+        "Syntax Error: missing variables/procedures" string message =:
+        removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
+           unwrap MapEntry e =:
+           message "\n- " :+ e MapEntry.key :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<<
+        end drop drop
+        message fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      " - " removed OpenModule.strAppend '\n' :<< eputs
+      i 1 - i =
+    end
+    closed OpenFile.openModules clear
+  end
+  closed OpenFile.globalPredeclared HashMap.size 0 > if
+    "Syntax Error: missing variables/procedures" string message =:
+    closed OpenFile.globalPredeclared HashMap.itr while HashMapItr.next ?? do
+       unwrap MapEntry e =:
+       message "\n- " :+ e MapEntry.key :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<<
+    end drop drop
+    message fPos FilePosition.strAppend '\n' :<< eputs
+    1 exit
+  end
+end
+
+RootContext.currentPaths proc RootContext => string list :
+  #_context_# RootContext.file OpenFile file =:
+  file OpenFile.globalImports clone string list paths =:
+  16 string new string path =:
+  file OpenFile.openModules OpenModule list modules =:
+  0 int i =:
+  while i modules length < do
+    modules i [] OpenModule.path string list mPath =:
+    0 int j =:
+    while j mPath length < do
+      path mPath j [] :+ MODULE_SEPARATOR :<< path =
+      j 1 + j =
+      paths path clone :<< paths =
+    end
+    paths  modules i [] OpenModule.imports  paths length 1 - paths length 1 - [:] =
+    i 1 + i =
+  end
+  paths return
+end
+RootContext.predeclared proc RootContext => HashMap :
+  #_context_# RootContext.file OpenFile file =:
+  file OpenFile.openModules length 0 > if
+    file OpenFile.openModules file OpenFile.openModules length 1 - [] OpenModule.predeclared return
+  else
+    file OpenFile.globalPredeclared return
+  end
+end
+
+RootContext.declareProcedure proc #_context_# RootContext #_name_# string #_proc_# Procedure => :
+  Procedure aProc =:
+  string name =:
+  RootContext context =:
+  context name DeclareableType PROCEDURE . aProc Declareable.pos Context.ensureDeclareable name =
+  context RootContext.predeclared name HashMap.remove ?? if
+    ##TODO handle predeclared procedure
+    drop
+  else drop end
+  context Context.elements name aProc HashMap.put drop
+end
+##addLater predeclareProcedure
+
+RootContext.declareMacro proc #_context_# RootContext #_macro_# Macro => :
+  Macro macro =:
+  macro Macro.name string name =:
+  RootContext context =:
+  context name DeclareableType MACRO . macro Declareable.pos Context.ensureDeclareable name =
+  context Context.elements name macro HashMap.put drop
+end
+RootContext.removeMacro proc #_context_# RootContext #_name_# string #_pos_# FilePosition => :
+  FilePosition fPos =:
+  string name =:
+  RootContext context =:
+  context Context.elements context name RootContext.inCurrentModule HashMap.remove ?? if
+    unwrap Declareable removed =:
+    removed Declareable.type DeclareableType MACRO . != if
+      "macro " name :+ " does not exists, or is shadowed by " :+
+      false removed Declareable.type DeclareableType.strAppend
+      " (declared at " :+ removed Declareable.pos FilePosition.strAppend ") "
+      fPos FilePosition.strAppend '\n' :<< eputs
+      1 exit
+    end
+  else drop
+    "macro " name :+ " does not exists in the current module " :+ fPos FilePosition.strAppend '\n' :<< eputs
+    1 exit
+  end
+end
+RootContext.declareEnum proc #_context_# RootContext #_source_# EnumBlock => :
+  EnumBlock source =:
+  source EnumBlock.name string name =:
+  RootContext context =:
+  ## TODO store enum entries in enum
+  DeclareableType ENUM . source CodeBlock.startPos name Enum new  Enum anEnum =:
+  context name DeclareableType ENUM . anEnum Declareable.pos Context.ensureDeclareable name =
+  context Context.elements name anEnum HashMap.put drop
+  ##TODO declare enum entries
+end
+RootContext.declareTuple proc #_context_# RootContext #_tuple_# Tuple => :
+  Tuple aTuple =:
+  aTuple Tuple.name string name =:
+  RootContext context =:
+  context name DeclareableType TUPLE . aTuple Declareable.pos Context.ensureDeclareable name =
+  context Context.elements name aTuple HashMap.put drop
+end
+##TODO RootContext.declareNativeProc
+##TODO Context.declareVariable
+##TODO Context.getProcContext
+##TODO Context.wrapCurried
+
+
 ParserReader tuple BufferedInput FilePosition string FilePosition end
 ParserReader.in       #define 0 [] #end
 ParserReader.pos      #define 1 [] #end
@@ -439,7 +544,7 @@ ParserReader.nextWord proc ParserReader => :
 end
 ParserReader.nextByte proc ParserReader => byte optional :
   ParserReader reader =:
-  reader ParserReader.in nextByte byte optional next =:
+  reader ParserReader.in BufferedInput.nextByte byte optional next =:
   next ?? if
     unwrap '\n' == if
       reader ParserReader.pos FilePosition.newLine
@@ -467,7 +572,9 @@ OpenBlocks.currentMacro  #define 0 []   #end
 OpenBlocks.currentMacro= #define 0 [] = #end
 OpenBlocks.blocks        #define 1 []   #end
 
-parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_blocks_# OpenBlocks #_tokens_# Token list => :
+parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_blocks_# OpenBlocks
+  #_tokens_# Token list #_context_# Context => :
+  Context context =:
   Token list tokens =:
   OpenBlocks openBlocks =:
   FilePosition fPos =:
@@ -477,7 +584,7 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
     openBlocks OpenBlocks.currentMacro Macro.name length 0 > if
       word switch
       "#end" case
-        ##TODO save macro
+        context openBlocks OpenBlocks.currentMacro RootContext.declareMacro
         openBlocks fPos "" newMacro OpenBlocks.currentMacro=
         end-case
       "#define" "#undef" "#module" "#include" "#import" "proc" "procedure" "enum" "tuple" case
@@ -557,23 +664,56 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
       end
       tokens tokens length 1 - tokens length [:] clear
       openBlocks OpenBlocks.currentMacro prev WordToken.value Macro.name=
-      openBlocks OpenBlocks.currentMacro prev Token.pos   Declarable.pos=
+      openBlocks OpenBlocks.currentMacro prev Token.pos   Declareable.pos=
       end-case
     "#undef" case
-      "unimplemented\n" eputs
-      1 exit
+      openBlocks OpenBlocks.blocks length 0 > if
+        "macros can only be undefined at root-level " fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token preceding #undef: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend
+        " expected macro-name \n" :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - tokens length [:] clear
+      context prev WordToken.value fPos RootContext.removeMacro
       end-case
     "#module" case
-      "unimplemented\n" eputs
-      1 exit
+      openBlocks OpenBlocks.blocks length 0 > if
+        "modules can only be declared at root-level " fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "invalid token for module name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - tokens length [:] clear
+      context prev WordToken.value fPos RootContext.startModule
       end-case
     "#end" case
-      "unimplemented\n" eputs
-      1 exit
+      openBlocks OpenBlocks.blocks length 0 > if
+        "modules can only be closed at root-level " fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      END_OF_SECTION "" fPos openBlocks tokens context parseWord
+      context fPos RootContext.endModule
       end-case
     "#import" case
-      "unimplemented\n" eputs
-      1 exit
+      openBlocks OpenBlocks.blocks length 0 > if
+        "imports  are can only allowed at root-level " fPos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - [] Token prev =:
+      prev Token.type TokenType WORD . != if
+        "imported module name has to be an identifier, got "
+           prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end
+      tokens tokens length 1 - tokens length [:] clear
+      context prev WordToken.value fPos RootContext.addImport
       end-case
     "#include" case
       "unimplemented\n" eputs
@@ -694,6 +834,9 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
       ## end integer parsing
       ##constants, operators and remaining keywords
       word switch
+      END_OF_SECTION case
+        ##do nothing
+        end-case
       ## detect true and false
       "true" case
         tokens TokenType VALUE . fPos true  ValueToken new :<< tokens =
@@ -778,14 +921,6 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         ##TODO update if-block
         tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
         end-case
-      "&&" case
-        openBlocks OpenBlocks.blocks BlockType &&_BLOCK . fPos tokens length CodeBlock new :<< drop
-        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
-        end-case
-      "||" case
-        openBlocks OpenBlocks.blocks BlockType ||_BLOCK . fPos tokens length CodeBlock new :<< drop
-        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
-        end-case
       "switch" case
         openBlocks OpenBlocks.blocks BlockType SWITCH_BLOCK . fPos tokens length CodeBlock new :<< drop
         tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
@@ -815,9 +950,6 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
         BlockType IF_BLOCK . case
           "Waring closing if-blocks is currently not implemented\n" eputs
           end-case
-        BlockType &&_BLOCK . BlockType ||_BLOCK . case
-          "Waring closing &&-/||-blocks is currently not implemented\n" eputs
-          end-case
         BlockType WHILE_BLOCK . case
           "Waring closing while-blocks is currently not implemented\n" eputs
           end-case
@@ -833,7 +965,7 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
               :<< tokens block CodeBlock.start [] Token.pos FilePosition.strAppend '\n' :<< eputs
             1 exit
           end
-          ##TODO save enum
+          context block RootContext.declareEnum
           end-case
         BlockType TUPLE_BLOCK . case
           tokens block CodeBlock.start tokens length [:] Token list subList =:
@@ -963,17 +1095,19 @@ readEscapeChar proc ParserReader => :
   end
 end
 
-parseFile proc #_fileName_# string => Token list :
+parseFile proc #_fileName_# string #_tokens_# Token list #_context_# RootContext =>  :
+  Context context =:
+  Token list tokens =:
   string fileName =:
-  16 Token list new Token list tokens =:
-
   fileName "r" open ?? ! if
     "file \"" fileName "\" not found\n" :+ :+ eputs
     1 exit
   else
     unwrap
   end
-  16 createBufferedIn #_input_#
+  context RootContext.startFile
+
+  16 newBufferedInput #_input_#
   fileName 1 1 FilePosition new       #_pos_#
   16 byte list new                    #_word_#
   fileName 1 1 FilePosition new       #_wordPos_#
@@ -993,7 +1127,7 @@ parseFile proc #_fileName_# string => Token list :
           reader ParserReader.word clone string nextWord =:
           nextWord length 0 > if
             prevWord length 0 > if
-              prevWord nextWord prevPos openBlocks tokens parseWord
+              prevWord nextWord prevPos openBlocks tokens context parseWord
             end
             nextWord prevWord =
             reader ParserReader.wordPos clone prevPos =
@@ -1032,7 +1166,7 @@ parseFile proc #_fileName_# string => Token list :
                   reader ParserReader.word clone string nextWord =:
                   nextWord length 0 > if
                     prevWord length 0 > if
-                      prevWord nextWord prevPos openBlocks tokens parseWord
+                      prevWord nextWord prevPos openBlocks tokens context parseWord
                     end
                     nextWord prevWord =
                     reader ParserReader.wordPos clone prevPos =
@@ -1043,7 +1177,7 @@ parseFile proc #_fileName_# string => Token list :
                   reader ParserReader.word clone string nextWord =:
                   nextWord length 0 > if
                     prevWord length 0 > if
-                      prevWord nextWord prevPos openBlocks tokens parseWord
+                      prevWord nextWord prevPos openBlocks tokens context parseWord
                     end
                     nextWord prevWord =
                     reader ParserReader.wordPos clone prevPos =
@@ -1066,7 +1200,7 @@ parseFile proc #_fileName_# string => Token list :
         byte next =:
         next '"' == if
           prevWord length 0 > if
-            prevWord "" prevPos openBlocks tokens parseWord
+            prevWord "" prevPos openBlocks tokens context parseWord
             "" prevWord =
           end
           tokens
@@ -1089,7 +1223,7 @@ parseFile proc #_fileName_# string => Token list :
         byte next =:
         next '\'' == if
           prevWord length 0 > if
-            prevWord "" prevPos openBlocks tokens parseWord
+            prevWord "" prevPos openBlocks tokens context parseWord
             "" prevWord =
           end
           tokens
@@ -1143,10 +1277,11 @@ parseFile proc #_fileName_# string => Token list :
     ParseState STATE_WORD . case
       reader ParserReader.word clone string nextWord =:
       prevWord length 0 > if
-        prevWord nextWord prevPos openBlocks tokens parseWord
+        prevWord nextWord prevPos openBlocks tokens context parseWord
         "" prevWord =
       end
-      nextWord "" reader ParserReader.wordPos clone openBlocks tokens parseWord
+      nextWord "" reader ParserReader.wordPos clone openBlocks tokens context parseWord
+      END_OF_SECTION "" reader ParserReader.wordPos clone openBlocks tokens context parseWord
       reader ParserReader.nextWord
       end-case
     ParseState STATE_CHAR . ParseState STATE_UCHAR . case
@@ -1159,13 +1294,16 @@ parseFile proc #_fileName_# string => Token list :
       eputs
       1 exit
       end-case
-    ParseState STATE_COMMENT . ParseState STATE_LINE_COMMENT . case
+    ParseState STATE_COMMENT . case
      "unfinished comment " reader ParserReader.wordPos FilePosition.strAppend '\n' :<<
       eputs
       1 exit
       end-case
+    ParseState STATE_LINE_COMMENT . case
+      ##do nothing
+      end-case
   end
-  tokens return
+  context reader ParserReader.wordPos RootContext.endFile
 end
 
 ##addLater parseTokens
@@ -1180,7 +1318,10 @@ main proc string list => :
   path length 0 > && path 0 [] '.' == end if ##local path
     args 0 [] clone path 1 path length [:] :+ path =
   end
-  path parseFile Token list tokens =:
+
+  16 Token list new Token list tokens =:
+  newRootContext RootContext context =:
+  path tokens context  parseFile
 
   0 int i =:
   while i tokens length < do
@@ -1188,4 +1329,11 @@ main proc string list => :
     "" token Token.strAppend " " :+ token Token.pos FilePosition.strAppend '\n' :<< puts
     i 1 + i =
   end
+  "\n" puts
+  "declared values:\n" puts
+  context Context.elements HashMap.itr while HashMapItr.next ?? do
+      unwrap MapEntry e =:
+      ##addLater formatted printing of Declareable
+      e MapEntry.key print ": " puts e MapEntry.value println
+   end drop drop
 end
