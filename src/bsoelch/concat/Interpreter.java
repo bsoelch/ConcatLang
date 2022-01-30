@@ -1158,13 +1158,15 @@ public class Interpreter {
             switch(state){
                 case ROOT:
                     if(Character.isWhitespace(c)){
-                        current=next;
-                        next=reader.buffer.toString();
-                        if(current!=null){
-                            finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
-                                    program,ioContext);
+                        if(reader.buffer.length()>0){
+                            current=next;
+                            next=reader.buffer.toString();
+                            if(current!=null){
+                                finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
+                                        program,ioContext);
+                            }
+                            reader.nextToken();
                         }
-                        reader.nextToken();
                     }else{
                         switch (c) {
                             case '"', '\'' -> {
