@@ -59,8 +59,8 @@ HashMap.put proc #_map_# HashMap #_key_# var #_value_# var => #_prevVal_# var op
   ## cast elements to correct types
   value map _Map.valType cast value =
   key   map _Map.keyType cast key =
-  key hashCode int hash =:
-  hash map _Map.data length % int i =:
+  key hashCode uint hash =:
+  hash map _Map.data length % uint i =:
   map _Map.data i [] _Empty === if
     map _Map.data  key value _Empty _Entry new  i [] =
     map _Map.incSize
@@ -92,8 +92,8 @@ end
 HashMap.contains proc #_map_# HashMap #_key_# var => bool :
   var key =:
   HashMap map =:
-  key hashCode int hash =:
-  hash map _Map.data length % int i =:
+  key hashCode uint hash =:
+  hash map _Map.data length % uint i =:
   map _Map.data i [] _Entry entry =:
   while entry _Empty =!= do
     entry _Entry.key key == if
@@ -122,8 +122,8 @@ end
 HashMap.remove proc #_map_# HashMap #_key_# var => #_prevVal_# var optional :
   var key =:
   HashMap map =:
-  key hashCode int hash =:
-  hash map _Map.data length % int i =:
+  key hashCode uint hash =:
+  hash map _Map.data length % uint i =:
   map _Map.data i [] _Empty === if
     map _Map.valType empty return
   else map _Map.data i [] _Entry.key key == _if
