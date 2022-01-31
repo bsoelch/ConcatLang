@@ -25,7 +25,7 @@ fputs proc string FILE => bool :
 end
 
 ## specialized procedures for writing to stdout and stderr
- puts #define io stdOut . core fputs . drop #end
-eputs #define io stdErr . core fputs . drop #end
+ puts proc string => : io stdOut . core fputs . drop end
+eputs proc string => : io stdErr . core fputs . drop end
 
 #end

@@ -14,7 +14,7 @@ uint_MIN #define                   0u #end
  int_MIN #define -0x8000000000000000  #end
 
 #_ addLater float_MIN, float_MAX _#
-float_NaN #define 0 0.0 / #end ##? make constants when 1. float is a system-independent type, 2. pre-evaluation supports /
+float_NaN #define 0 0.0 / #end ##addLater move to native constants
 float_Positive_Infinity #define 1 0.0 / #end
 float_Negative_Infinity #define -1 0.0 / #end
 

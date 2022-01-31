@@ -11,6 +11,9 @@ int empty
 int empty
 0 wrap
 3 wrap
+contains:
+true
+false
 get:
 8 wrap
 2 wrap

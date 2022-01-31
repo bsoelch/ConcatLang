@@ -1,9 +1,10 @@
 core #module
 
+stack #include
 ## files are parsed only once => defines can be at top level
-+char      #define int cast + byte      cast #end
-+codepoint #define int cast + codepoint cast #end
-charDiff   #define swap int cast swap int cast - #end
++char      proc int byte      => byte      : int cast + byte      cast end
++codepoint proc int codepoint => codepoint : int cast + codepoint cast end
+charDiff   proc byte byte => int : swap int cast swap int cast - end
 
 ?WhiteSpace proc byte => bool :
   #_input_# switch

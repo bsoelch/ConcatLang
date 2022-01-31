@@ -19,6 +19,9 @@ map 6 6 HashMap.put println
 map 7 7 HashMap.put println
 map 0 8 HashMap.put println
 map 3 9 HashMap.put println
+"contains:" println
+map 1 HashMap.contains println
+map 9 HashMap.contains println
 "get:" println
 map 0 HashMap.get println
 map 2 HashMap.get println
