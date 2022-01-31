@@ -45,10 +45,20 @@ PrimitiveType.wrapped #define 1 [] #end
 TupleType tuple TypeType #_name_# string #_types_# Type list end
 TupleType.name  #define 1 [] #end
 TupleType.types #define 2 [] #end
+newTupleType proc #_name_# string #_types_# Type list => TupleType :
+  Type list elements =:
+  string name =:
+  TypeType TUPLE_TYPE . name elements TupleType new return
+end
 
 EnumType tuple TypeType #_name_# string #_fields_# NameWithPos list end
 EnumType.name   #define 1 [] #end
 EnumType.fields #define 2 [] #end
+newEnumType proc #_name_# string #_fields_# NameWithPos list => EnumType :
+  NameWithPos list fields =:
+  string name =:
+  TypeType ENUM_TYPE . name fields EnumType new return
+end
 
 WrapperTypeType enum LIST OPTIONAL VAR_ARGS end
 WrapperType tuple TypeType WrapperTypeType Type end
@@ -70,14 +80,24 @@ Type.strAppend proc string Type => string :
     end
     end-case
   TypeType TUPLE_TYPE . case
-    ## TODO tuple type
-    "unimplemented\n" eputs
-    1 exit
+    t TupleType.name :+ '[' :<<
+    0 int i =:
+    while i t TupleType.types length < do
+      i 0 > if ", " :+ end
+      t TupleType.types i [] Type.strAppend
+      i 1 + i =
+    end
+    ']' :<<
     end-case
   TypeType ENUM_TYPE . case
-    ## TODO enum type
-    "unimplemented\n" eputs
-    1 exit
+    t EnumType.name :+ '[' :<<
+    0 int i =:
+    while i t EnumType.fields length < do
+      i 0 > if ", " :+ end
+      t EnumType.fields i [] NameWithPos.name :+
+      i 1 + i =
+    end
+    ']' :<<
     end-case
   end
 end
@@ -99,13 +119,30 @@ Value.type #define 0 [] #end
 Value.data #define 1 [] #end
 
 Value.strAppend proc string Value => string :
- Value v =:
- v Value.type Type.strAppend ": " :+
- v Value.type Type.TYPE == if
-   v Value.data Type.strAppend
- else ##addLater more type specific handling of value.data to string
-   v Value.data stringValue :+
- end
+  Value v =:
+  v Value.type Type.strAppend ": " :+
+  v Value.type Type.type switch
+  TypeType PRIMITIVE_TYPE . case
+    v Value.type Type.TYPE == if
+      v Value.data Type.strAppend
+    else
+      v Value.data stringValue :+
+    end
+    end-case
+  TypeType ENUM_TYPE . case
+   '[' :<< v Value.data EnumEntry.index stringValue :+ ']' :<<
+   end-case
+  TypeType TUPLE_TYPE . case
+    "tuple-type unimplemented\n" eputs 1 exit
+  end-case
+  TypeType WRAPPER_TYPE . case
+    v Value.type Type.STRING == || v Value.type Type.USTRING == end if
+      v Value.data stringValue :+
+    else
+      "wrapper-type unimplemented\n" eputs 1 exit
+    end
+  end-case
+  end
 end
 
 Type.BOOL true  Value new Value Value.TRUE  =$
@@ -116,7 +153,7 @@ Value.ofInt       proc int        => Value : Type.INT       swap Value new retur
 Value.ofUInt      proc uint       => Value : Type.UINT      swap Value new return end
 Value.ofFloat     proc float      => Value : Type.FLOAT     swap Value new return end
 Value.ofType      proc Type       => Value : Type.TYPE      swap Value new return end
-Value.ofString     proc string     => Value : Type.STRING    swap Value new return end
+Value.ofString    proc string     => Value : Type.STRING    swap Value new return end
 Value.ofUString   proc ustring    => Value : Type.USTRING   swap Value new return end
 
 BlockType enum
@@ -162,7 +199,7 @@ newEnumBlock proc #_name_# string #_startPos_# FilePosition #_start_# int => Enu
   BlockType ENUM_BLOCK . startPos start name 16 NameWithPos list new EnumBlock new return
 end
 TupleBlock tuple #_type_# BlockType #_startPos_# FilePosition #_start_# int #_name_# string end
-TupleBlock.name     #define 3 [] #end
+TupleBlock.name #define 3 [] #end
 newTupleBlock proc #_name_# string #_startPos_# FilePosition #_start_# int => EnumBlock :
   int start =:
   FilePosition startPos =:
@@ -170,9 +207,12 @@ newTupleBlock proc #_name_# string #_startPos_# FilePosition #_start_# int => En
   BlockType TUPLE_BLOCK . startPos start name TupleBlock new return
 end
 
+
+
 DeclareableType enum
   MACRO
   ENUM
+  ENUM_ENTRY
   TUPLE
   VARIABLE_ID
   FINAL_VARIABLE
@@ -186,6 +226,9 @@ DeclareableType.strAppend proc #_str_# string #_a_# bool #_type_# DeclareableTyp
      end-case
    DeclareableType ENUM . case
      #_a_# if "an enum" else "enum" end :+ return
+     end-case
+   DeclareableType ENUM_ENTRY . case
+     #_a_# if "an enum entry" else "enum entry" end :+ return
      end-case
    DeclareableType TUPLE . case
      #_a_# if "a tuple" else "tuple" end :+ return
@@ -239,11 +282,25 @@ end
 CurriedVariable tuple #_type_# DeclareableType #_pos_# FilePosition end ##TODO curried variable
 PredeclaredProc tuple #_type_# DeclareableType #_pos_# FilePosition end ##TODO predeclared proc
 Procedure tuple #_type_# DeclareableType #_pos_# FilePosition end ##TODO proc
-Enum tuple #_type_# DeclareableType #_pos_# FilePosition #_name_# string #_fields_# NameWithPos list end
-Enum.name   #define 2 []   #end
-Enum.fields #define 3 []   #end
-Tuple tuple #_type_# DeclareableType #_pos_# FilePosition #_name_# string end ##TODO tuple
-Tuple.name  #define 2 []   #end
+
+Enum tuple #_type_# DeclareableType #_pos_# FilePosition #_enum-type_# EnumType end
+Enum.enumType #define 2 [] #end
+newEnum proc #_pos_# FilePosition #_name_# string #_fields_# NameWithPos list => Enum :
+  #_fields_# #_name_# newEnumType EnumType enumType =:
+  FilePosition fPos =:
+  DeclareableType ENUM . fPos enumType Enum new return
+end
+EnumEntry tuple #_type_# DeclareableType #_pos_# FilePosition #_enum-type_# EnumType #_index_# int end
+EnumEntry.enumType  #define 2 [] #end
+EnumEntry.index proc EnumEntry => int : 3 [] end
+newEnumEntry proc #_enumType_# EnumType #_index_# int => EnumEntry :
+  int index =:
+  EnumType enumType =:
+  DeclareableType ENUM_ENTRY . enumType EnumType.fields index [] NameWithPos.pos enumType index EnumEntry new return
+end
+
+Tuple tuple #_type_# DeclareableType #_pos_# FilePosition #_tupleType_# TupleType end
+Tuple.tupleType #define 2 [] #end
 
 VariableId.strAppend proc string VariableId => string :
   Declareable d =:
@@ -260,17 +317,15 @@ Declareable.strAppend proc string Declareable => string :
     d Macro.name :+
     end-case
   DeclareableType ENUM . case
-    d Enum.name :+ '[' :<<
-    0 int i =:
-    while i d Enum.fields length < do
-      i 0 > if ", " :+ end
-      d Enum.fields i [] NameWithPos.name :+
-      i 1 + i =
-    end
+    d Enum.enumType Type.strAppend
+    end-case
+  DeclareableType ENUM_ENTRY . case
+    d EnumEntry.enumType EnumType.name :+ '[' :<<
+    d EnumEntry.index stringValue :+
     ']' :<<
     end-case
   DeclareableType TUPLE . case
-    d Tuple.name :+
+    d Tuple.tupleType Type.strAppend
     end-case
   DeclareableType FINAL_VARIABLE . DeclareableType VARIABLE_ID . case
     d VariableId.strAppend
@@ -652,14 +707,22 @@ RootContext.declareEnum proc #_context_# RootContext #_source_# EnumBlock => :
   EnumBlock source =:
   source EnumBlock.name string name =:
   RootContext context =:
-  DeclareableType ENUM . source CodeBlock.startPos name source EnumBlock.elements Enum new Enum anEnum =:
+  source CodeBlock.startPos name source EnumBlock.elements newEnum Enum anEnum =:
   context name DeclareableType ENUM . anEnum Declareable.pos Context.ensureDeclareable name =
   context Context.elements name anEnum HashMap.put drop
-  ##TODO declare enum entries
+  ##declare enum entries
+  0 int i =:
+  anEnum Enum.enumType EnumType.fields NameWithPos list fields =:
+  while i fields length < do
+    source EnumBlock.name clone MODULE_SEPARATOR :<< fields i [] NameWithPos.name :+ string fieldName =:
+    context fieldName DeclareableType ENUM_ENTRY . fields i [] NameWithPos.pos Context.ensureDeclareable fieldName =
+    context Context.elements fieldName anEnum Enum.enumType i newEnumEntry HashMap.put drop
+    i 1 + i =
+  end
 end
 RootContext.declareTuple proc #_context_# RootContext #_tuple_# Tuple => :
   Tuple aTuple =:
-  aTuple Tuple.name string name =:
+  aTuple Tuple.tupleType TupleType.name string name =:
   RootContext context =:
   context name DeclareableType TUPLE . aTuple Declareable.pos Context.ensureDeclareable name =
   context Context.elements name aTuple HashMap.put drop
@@ -1052,14 +1115,19 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
               END_OF_SECTION next prev Token.pos openBlocks program parseWord
               end-case
             DeclareableType ENUM . case
-              ##TODO resolve enum
-              "resolving enums is currently unimplemented\n" eputs
-              1 exit
+              tokens
+              TokenType VALUE . fPos d Enum.enumType Value.ofType ValueToken new
+              tokens length 1 - [] =
+              end-case
+            DeclareableType ENUM_ENTRY . case
+              tokens
+              TokenType VALUE . fPos d EnumEntry.enumType d Value new ValueToken new
+              tokens length 1 - [] =
               end-case
             DeclareableType TUPLE . case
-              ##TODO resolve tuple
-              drop "resolving tuples is currently unimplemented\n" eputs
-              1 exit
+              tokens
+              TokenType VALUE . fPos d Tuple.tupleType Value.ofType ValueToken new
+              tokens length 1 - [] =
               end-case
             DeclareableType FINAL_VARIABLE . DeclareableType VARIABLE_ID . case
               ##addLater wrap curried variables
@@ -1166,14 +1234,17 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
       "byte" case
         tokens TokenType VALUE . fPos Type.BYTE Value.ofType ValueToken new :<< tokens =
         end-case
+      "codepoint" case
+        tokens TokenType VALUE . fPos Type.CODEPOINT Value.ofType ValueToken new :<< tokens =
+        end-case
       "int" case
         tokens TokenType VALUE . fPos Type.INT  Value.ofType ValueToken new :<< tokens =
         end-case
       "uint" case
         tokens TokenType VALUE . fPos Type.UINT Value.ofType ValueToken new :<< tokens =
         end-case
-      "codepoint" case
-        tokens TokenType VALUE . fPos Type.CODEPOINT Value.ofType ValueToken new :<< tokens =
+      "float" case
+        tokens TokenType VALUE . fPos Type.FLOAT Value.ofType ValueToken new :<< tokens =
         end-case
       "type" case
         tokens TokenType VALUE . fPos Type.TYPE Value.ofType ValueToken new :<< tokens =
@@ -1392,9 +1463,27 @@ parseWord proc #_word_# string #_next_# string #_pos_# FilePosition #_open_block
           end-case
         BlockType TUPLE_BLOCK . case
           tokens block CodeBlock.start tokens length [:] Token list subList =:
-          ##TODO extract tuple signature
+          subList constEvaluate Token list values =:
           subList clear
-          ##TODO save tuple
+          values length Type list new Type list types =:
+          0 int i =:
+          while i values length < do
+            values i [] Token.type TokenType VALUE . != if
+              "tokens of type:" TokenType values i [] Token.type [] :+ " are not allowed in tuple signatures " :+
+              values i [] Token.pos FilePosition.strAppend '\n' :<< eputs
+              1 exit
+            else values i [] ValueToken.value Value.type Type.TYPE != _if
+              "values of type:" values i [] ValueToken.value Value.type Type.strAppend " are not allowed in tuple signatures " :+
+              values i [] Token.pos FilePosition.strAppend '\n' :<< eputs
+              1 exit
+            end
+             types values i [] ValueToken.value Value.data :<< types =
+             i 1 + i =
+          end
+          values clear
+          context
+          DeclareableType TUPLE .  block CodeBlock.startPos   block TupleBlock.name  types newTupleType   Tuple new
+          RootContext.declareTuple
           end-case
         end
         end-case
@@ -1736,7 +1825,70 @@ parseFile proc #_fileName_# string #_program_# Program =>  :
   context reader ParserReader.wordPos RootContext.endFile
 end
 
-##addLater parseTokens
+constEvaluate proc Token list => Token list :
+  Token list tokens =:
+  tokens length Token list new Token list res =:
+  0 int i =:
+  while i tokens length < do
+    tokens i [] Token.type switch
+      TokenType VALUE . case
+        res tokens i [] :<< res =
+        end-case
+      TokenType OPERATOR . case
+        tokens i [] OperatorToken.opType switch
+          OperatorType PLUS .
+          OperatorType MINUS .
+          OperatorType NEGATE .
+          OperatorType INVERT .
+          OperatorType MULTIPLY .
+          OperatorType DIVIDE .
+          OperatorType MOD .
+
+          OperatorType NOT .
+          OperatorType FLIP .
+          OperatorType AND .
+          OperatorType OR .
+          OperatorType XOR .
+
+          OperatorType SHIFT_L .
+          OperatorType SHIFT_R .
+
+          OperatorType LT .
+          OperatorType LE .
+          OperatorType EQ .
+          OperatorType REF_EQ .
+          OperatorType REF_NE .
+          OperatorType NE .
+          OperatorType GE .
+          OperatorType GT . case
+            "operators of type:" OperatorType tokens i [] OperatorToken.opType [] :+
+            " are currently not supported in constant evaluation " :+
+            tokens i [] Token.pos FilePosition.strAppend '\n' :<< eputs
+            1 exit
+            end-case
+        end
+        end-case
+      TokenType WORD .
+      TokenType KEY_WORD .
+      TokenType PROCEDURE_START .
+      TokenType ENUM_START .
+      TokenType IDENTIFIER .
+      TokenType VARIABLE .
+      TokenType BLOCK_TOKEN .
+      TokenType CONTEXT_OPEN .
+      TokenType CONTEXT_CLOSE . case
+        "tokens of type:" TokenType tokens i [] Token.type [] :+ " are currently not supported in constant evaluation " :+
+        tokens i [] Token.pos FilePosition.strAppend '\n' :<< eputs
+        1 exit
+      end-case
+    end
+    i 1 + i =
+  end
+  res return
+end
+
+##addLater typeCheckProgram
+##addLater compileProgram
 
 main proc string list => :
   string list args =:
