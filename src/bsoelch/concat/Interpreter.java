@@ -18,7 +18,7 @@ public class Interpreter {
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
     enum TokenType {
-        VALUE,CURRIED_PROCEDURE,OPERATOR,
+        VALUE,CURRIED_PROCEDURE,OPERATOR,CAST,NEW,NEW_LIST,
         DROP,DUP,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
@@ -236,6 +236,17 @@ public class Interpreter {
         @Override
         public String toString() {
             return tokenType.toString()+": "+value;
+        }
+    }
+    static class TypedToken extends Token {
+        final Type target;
+        TypedToken(TokenType tokenType,Type target, FilePosition pos) {
+            super(tokenType, pos);
+            this.target=target;
+        }
+        @Override
+        public String toString() {
+            return tokenType.toString()+": "+target;
         }
     }
 
@@ -699,13 +710,15 @@ public class Interpreter {
     private static class VariableId implements Declareable{
         final VariableContext context;
         final int level;
+        final Type type;
         int id;
         final boolean isConstant;
         final FilePosition declaredAt;
-        VariableId(VariableContext context,int level,int id,boolean isConstant,FilePosition declaredAt){
+        VariableId(VariableContext context, int level, int id, Type type, boolean isConstant, FilePosition declaredAt){
             this.context=context;
             this.id=id;
             this.level=level;
+            this.type=type;
             this.isConstant=isConstant;
             this.declaredAt=declaredAt;
         }
@@ -726,7 +739,7 @@ public class Interpreter {
     private static class CurriedVariable extends VariableId{
         final VariableId source;
         CurriedVariable(VariableId source,VariableContext context, int id, FilePosition declaredAt) {
-            super(context,0, id,  true, declaredAt);
+            super(context,0, id, source.type, true, declaredAt);
             this.source = source;
         }
         @Override
@@ -751,9 +764,9 @@ public class Interpreter {
                         + " (declared at " + prev.declaredAt() + ")",pos);
             }
         }
-        VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
+        VariableId declareVariable(String name, Type type, boolean isConstant, FilePosition pos, IOContext ioContext) throws SyntaxError {
             ensureDeclareable(name,isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE,pos);
-            VariableId id = new VariableId(this,level(), variables++, isConstant, pos);
+            VariableId id = new VariableId(this,level(), variables++, type,isConstant, pos);
             elements.put(name, id);
             return id;
         }
@@ -1008,10 +1021,10 @@ public class Interpreter {
         }
 
         @Override
-        VariableId declareVariable(String name,boolean isConstant,FilePosition pos,IOContext ioContext) throws SyntaxError {
+        VariableId declareVariable(String name, Type type, boolean isConstant, FilePosition pos, IOContext ioContext) throws SyntaxError {
             String name0=name;
             name=inCurrentModule(name);
-            VariableId id = super.declareVariable(name, isConstant, pos,ioContext);
+            VariableId id = super.declareVariable(name, type, isConstant, pos,ioContext);
             checkShadowed(id,name0,pos,ioContext);
             return id;
         }
@@ -1049,8 +1062,8 @@ public class Interpreter {
             assert parent!=null;
         }
         @Override
-        VariableId declareVariable(String name, boolean isConstant, FilePosition pos,IOContext ioContext) throws SyntaxError {
-            VariableId id = super.declareVariable(name, isConstant, pos,ioContext);
+        VariableId declareVariable(String name, Type type, boolean isConstant, FilePosition pos, IOContext ioContext) throws SyntaxError {
+            VariableId id = super.declareVariable(name, type, isConstant, pos,ioContext);
             Declareable shadowed = parent.unsafeGetDeclared(name);
             if (shadowed != null) {//check for shadowing
                 ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
@@ -1509,31 +1522,33 @@ public class Interpreter {
                             case NATIVE ->
                                 throw new RuntimeException("unreachable");
                             case DECLARE,CONST_DECLARE,NATIVE_DECLARE -> {
-                                VariableId id=context.declareVariable(
-                                        identifier.name, identifier.type != IdentifierType.DECLARE,
-                                        identifier.pos,ioContext);
-                                AccessType accessType = identifier.type == IdentifierType.DECLARE ?
-                                                AccessType.DECLARE : AccessType.CONST_DECLARE;
-                                if(index>0&&(prev=tokens.get(index-1)) instanceof ValueToken){
+                                if(index>=1&&(prev=tokens.get(index-1)) instanceof ValueToken){
                                     try {//remember constant declarations
                                         Type type=((ValueToken)prev).value.asType();
-                                        //addLater remember variable types
+                                        VariableId id=context.declareVariable(
+                                                identifier.name,type, identifier.type != IdentifierType.DECLARE,
+                                                identifier.pos,ioContext);
+                                        AccessType accessType = identifier.type == IdentifierType.DECLARE ?
+                                                AccessType.DECLARE : AccessType.CONST_DECLARE;
+                                        //only remember root-level constants
                                         if(identifier.type==IdentifierType.NATIVE_DECLARE){
                                             tokens.subList(index-1,tokens.size()).clear();
                                             program.globalConstants.put(id,Value.loadNativeConstant(type,identifier.name,pos));
                                             break;
-                                        }else if(id.isConstant&&id.context.procedureContext()==null&&//only remember root-level constants
-                                                index>1&&(prev=tokens.get(index-2)) instanceof ValueToken){
+                                        }else if(id.isConstant && id.context.procedureContext() == null
+                                                && (prev = tokens.get(index - 2)) instanceof ValueToken){
                                             program.globalConstants.put(id,((ValueToken) prev).value.clone(true).castTo(type));
                                             tokens.subList(index-2, tokens.size()).clear();
                                             break;//don't add token to code
                                         }
+                                        tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
+                                                accessType,context));
                                     } catch (ConcatRuntimeError e) {
                                         throw new SyntaxError(e.getMessage(),prev.pos);
                                     }
+                                }else{
+                                    throw new SyntaxError("Token before declaration has to be a type",identifier.pos);
                                 }
-                                tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                        accessType,context));
                             }
                             case UNMODIFIED -> {
                                 Declareable d=context.getDeclareable(identifier.name);
@@ -1809,35 +1824,42 @@ public class Interpreter {
                                 if(prev instanceof ValueToken){
                                     outTypes[i]=((ValueToken) prev).value.asType();
                                 }else{
-                                    break;
+                                    throw new SyntaxError("illegal token in proc signature "+prev,prev.pos);
                                 }
                             }
-                            if(outCount==0||outTypes[outTypes.length-1]!=null){//all out-types resolved successfully
-                                Type[] inTypes=new Type[(int)inCount];
-                                iMin=iMin-1-(int)inCount;
-                                for(int i=(int)inCount-1;i>=0;i--){
-                                    prev=tokens.get(iMin+i);
-                                    if(prev instanceof ValueToken){
-                                        inTypes[i]=((ValueToken) prev).value.asType();
-                                    }else{
-                                        break;
-                                    }
-                                }
-                                if(inCount==0||inTypes[inTypes.length-1]!=null){
-                                    tokens.subList(iMin, tokens.size()).clear();
-                                    tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),pos, false));
-                                    break;
+                            Type[] inTypes=new Type[(int)inCount];
+                            iMin=iMin-1-(int)inCount;
+                            for(int i=(int)inCount-1;i>=0;i--){
+                                prev=tokens.get(iMin+i);
+                                if(prev instanceof ValueToken){
+                                    inTypes[i]=((ValueToken) prev).value.asType();
+                                }else{
+                                    throw new SyntaxError("illegal token in proc signature "+prev,prev.pos);
                                 }
                             }
+                            tokens.subList(iMin, tokens.size()).clear();
+                            tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),pos, false));
                         }
                     } catch (ConcatRuntimeError e) {
                         throw new SyntaxError(e.getMessage(), prev.pos);
                     }
+                }else{
+                    throw new SyntaxError("not enough arguments for operator '->'",pos);
                 }
-                tokens.add(new OperatorToken(OperatorType.NEW_PROC_TYPE, pos));
             }
 
-            case "cast"   ->  tokens.add(new OperatorToken(OperatorType.CAST,    pos));
+            case "cast"   ->  {
+                if(tokens.size()<1||!(tokens.get(tokens.size()-1) instanceof ValueToken)){
+                    tokens.add(new TypedToken(TokenType.CAST,null,pos));
+                }else{
+                    try {
+                        Type type= ((ValueToken) tokens.remove(tokens.size()-1)).value.asType();
+                        tokens.add(new TypedToken(TokenType.CAST,type,pos));
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }
+            }
             case "typeof" ->  {
                 if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
                     tokens.set(tokens.size()-1,
@@ -1901,10 +1923,6 @@ public class Interpreter {
                     tokens.add(new AssertToken(message, pos));
                 }
             }
-
-            //addLater? change to float To/from bytes
-            case "intAsFloat"   -> tokens.add(new OperatorToken(OperatorType.INT_AS_FLOAT, pos));
-            case "floatAsInt"   -> tokens.add(new OperatorToken(OperatorType.FLOAT_AS_INT, pos));
 
             case "tuple" -> {
                 String name;
@@ -2235,7 +2253,18 @@ public class Interpreter {
             case "[:]"   -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,      pos));
 
             //<e0> ... <eN> <N> {}
-            case "{}"     -> tokens.add(new OperatorToken(OperatorType.NEW_LIST, pos));
+            case "{}"   ->  {
+                if(tokens.size()<1||!(tokens.get(tokens.size()-1) instanceof ValueToken)){
+                    tokens.add(new TypedToken(TokenType.NEW_LIST,null,pos));
+                }else{
+                    try {
+                        Type type= ((ValueToken) tokens.remove(tokens.size()-1)).value.asType();
+                        tokens.add(new TypedToken(TokenType.NEW_LIST,type,pos));
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }
+            }
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   pos));
 
             case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
@@ -2243,16 +2272,30 @@ public class Interpreter {
             case "wrap"   -> tokens.add(new OperatorToken(OperatorType.WRAP,          pos));
             case "unwrap" -> tokens.add(new OperatorToken(OperatorType.UNWRAP,         pos));
             case "??"     -> tokens.add(new OperatorToken(OperatorType.HAS_VALUE,      pos));
-            case "empty"  -> tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL, pos));
+            case "empty"  ->  {
+                if(tokens.size()<1||!(tokens.get(tokens.size()-1) instanceof ValueToken)){
+                    tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL,pos));
+                }else{
+                    try {
+                        Type type= ((ValueToken) tokens.remove(tokens.size()-1)).value.asType();
+                        tokens.add(new ValueToken(Value.emptyOptional(type), pos, false));
+                    } catch (ConcatRuntimeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }
+            }
 
             case "new"       -> {
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken) {
+                if(tokens.size()<1||!(tokens.get(tokens.size()-1) instanceof ValueToken)){
+                    tokens.add(new TypedToken(TokenType.NEW,null, pos));
+                }else{
+                    prev=tokens.remove(tokens.size()-1);
                     try {
                         Type t = ((ValueToken)prev).value.asType();
                         if(t instanceof Type.Tuple){
                             int c=((Type.Tuple) t).elementCount();
                             checkElementCount(c);
-                            int iMin=tokens.size()-1-c;
+                            int iMin=tokens.size()-c;
                             if(iMin>=0){
                                 Value[] values=new Value[c];
                                 for(int i=c-1;i>=0;i--){
@@ -2270,11 +2313,11 @@ public class Interpreter {
                                 }
                             }
                         }//TODO support list in pre-evaluation
+                        tokens.add(new TypedToken(TokenType.NEW,t, pos));
                     } catch (ConcatRuntimeError e) {
                         throw new SyntaxError(e.getMessage(), prev.pos);
                     }
                 }
-                tokens.add(new OperatorToken(OperatorType.NEW, pos));
             }
             case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
             case "fill"      -> tokens.add(new OperatorToken(OperatorType.FILL,       pos));
@@ -2312,6 +2355,472 @@ public class Interpreter {
         NORMAL,FORCED,ERROR
     }
 
+    @SuppressWarnings("unused")
+    public RandomAccessStack<Type> typeCheckProgram(Program program, IOContext context) throws SyntaxError {
+        RandomAccessStack<Type> stack=new RandomAccessStack<>(16);
+        Declareable main=program.rootContext.elements.get("main");
+        if(main==null){
+            recursiveTypeCheck(stack,program,context);
+        }else{
+            if(program.tokens.size()>0){
+                context.stdErr.println("programs with main procedure cannot contain code at top level "+
+                        program.tokens.get(0).pos);
+            }
+            if(main.declarableType()!=DeclareableType.PROCEDURE){
+                context.stdErr.println("main is not a procedure but "+
+                        declarableName(main.declarableType(),true)+" declared at "+main.declaredAt());
+            }else{
+                Type.Procedure type=(Type.Procedure) ((Value.Procedure)main).type;
+                if(type.outTypes.length>0){
+                    context.stdErr.println("illegal signature for main "+type+", main procedure cannot return values at "
+                            +main.declaredAt());
+                }else if(type.inTypes.length>0){
+                    if(type.inTypes.length>1){
+                        context.stdErr.println("illegal signature for main "+type+
+                                ", main procedure can accept at most one argument"+main.declaredAt());
+                    }else if(type.inTypes[0].isList()&&type.inTypes[0].content().equals(Type.RAW_STRING())){//string list
+                        try {
+                            stack.push(Type.listOf(Type.RAW_STRING()));
+                        } catch (ConcatRuntimeError e) {
+                            throw new RuntimeException(e);
+                        }
+                    }else if(type.inTypes[0].isVarArg()&&type.inTypes[0].content().equals(Type.RAW_STRING())){//string list
+                        try {
+                            stack.push(Type.varArg(Type.RAW_STRING()));
+                        } catch (ConcatRuntimeError e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+                recursiveTypeCheck(stack,(Value.Procedure)main,context);
+            }
+        }
+        return stack;
+    }
+
+    String opName(OperatorType type){
+        switch (type){
+            case REF_ID -> { return "refId"; }
+            case CLONE -> {  return "clone";}
+            case DEEP_CLONE -> {return "clone!";}
+            case NEGATE -> {return "-_"; }
+            case PLUS -> { return "+";}
+            case MINUS -> { return "-";}
+            case INVERT -> {return "/_";}
+            case MULTIPLY -> {return "*"; }
+            case DIV -> { return "/"; }
+            case MOD -> {return "%"; }
+            case POW -> { return "**"; }
+            case NOT -> { return "!"; }
+            case FLIP -> { return "~"; }
+            case AND -> { return "&"; }
+            case OR -> { return "|"; }
+            case XOR -> { return "xor";}
+            case LSHIFT -> { return "<<"; }
+            case RSHIFT -> { return ">>";}
+            case GT -> { return ">"; }
+            case GE -> { return ">="; }
+            case EQ -> { return "==";}
+            case NE -> { return "!=";}
+            case LE -> { return "<=";}
+            case LT -> { return "<";}
+            case REF_EQ -> { return "===";}
+            case REF_NE -> { return "!=";}
+            case TYPE_OF -> { return "typeOf";}
+            case LIST_OF -> { return "list";}
+            case CONTENT -> { return "content";}
+            case LENGTH -> { return "length";}
+            case ENSURE_CAP -> { return "ensureCap";}
+            case FILL -> { return "fill";}
+            case GET_INDEX -> { return "[]";}
+            case SET_INDEX -> { return "[] =";}
+            case GET_SLICE -> { return "[:]";}
+            case SET_SLICE -> { return "[:] =";}
+            case PUSH_FIRST -> { return ">>:";}
+            case PUSH_ALL_FIRST -> { return "+:";}
+            case PUSH_LAST -> { return ":<<";}
+            case PUSH_ALL_LAST -> { return ":+";}
+            case VAR_ARG -> { return "...";}
+            case IS_VAR_ARG -> { return "isVarArg";}
+            case IS_ENUM -> { return "isEnum";}
+            case OPTIONAL_OF -> { return "optional";}
+            case WRAP -> { return "wrap"; }
+            case UNWRAP -> { return "unwrap";}
+            case HAS_VALUE -> { return "??";}
+            case EMPTY_OPTIONAL -> { return "empty"; }
+            case CLEAR -> { return "clear";}
+        }
+        throw new RuntimeException("unreachable");
+    }
+
+    private void typeCheckOperator(OperatorToken op, RandomAccessStack<Type> stack,IOContext ioContext)
+            throws RandomAccessStack.StackUnderflow, SyntaxError {
+        switch (op.opType) {
+            case REF_ID ->{
+                    stack.pop();
+                    stack.push(Type.UINT);
+            }
+            case CLONE,DEEP_CLONE -> {}
+            case NEGATE -> {
+                Type t = stack.peek();
+                if(t!=Type.INT&&t!=Type.FLOAT){
+                    if(t==Type.UINT){
+                        ioContext.stdErr.println("Waring: negation of unsigned int (at "+op.pos+")");
+                    }else{
+                        throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
+                    }
+                }
+            }
+            case INVERT -> {
+                Type t = stack.peek();
+                if(t!=Type.FLOAT){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
+                }
+            }
+            case NOT -> {
+                Type t = stack.peek();
+                if(t!=Type.BOOL){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
+                }
+            }
+            case FLIP -> {
+                Type t = stack.peek();
+                if(t!=Type.INT&&t!=Type.UINT){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
+                }
+            }
+            case PLUS,MINUS,MULTIPLY,DIV,MOD,POW -> {
+                Type b = stack.pop();
+                Type a = stack.pop();
+                if(a ==Type.UINT&& b ==Type.UINT){
+                    stack.push(Type.UINT);
+                }else if(a ==Type.INT|| a ==Type.UINT || a ==Type.BYTE){//addLater? isInt/isUInt functions
+                    if(b ==Type.INT|| b ==Type.UINT || b ==Type.BYTE){
+                        stack.push(Type.INT);
+                    }else if(b ==Type.FLOAT){
+                        stack.push(Type.FLOAT);
+                    }else{
+                        throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
+                    }
+                }else if(a ==Type.FLOAT){
+                    if(b ==Type.FLOAT|| b ==Type.INT|| b ==Type.UINT || b ==Type.BYTE){
+                        stack.push(Type.FLOAT);
+                    }else{
+                        throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
+                    }
+                }else{
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
+                }
+            }
+            case EQ,NE,REF_EQ,REF_NE ->{
+                Type b = stack.pop();
+                Type a = stack.pop();
+                if(!(a.isSubtype(b)||b.isSubtype(a))){
+                    ioContext.stdErr.println("Warning: equality check for incompatible types:"+a+" and "+b+" (at "+op.pos+")");
+                }
+                stack.push(Type.BOOL);
+            }
+            case GT, GE, LE, LT -> {
+                Type b = stack.pop();
+                Type a = stack.pop();
+                if((a.equals(Type.RAW_STRING())||a.equals(Type.UNICODE_STRING()))&&
+                        (b.equals(Type.RAW_STRING())||b.equals(Type.UNICODE_STRING()))){
+                    stack.push(Type.BOOL);
+                }else if(a==Type.BYTE&&b==Type.BYTE){
+                    stack.push(Type.BOOL);
+                }else if(a==Type.CODEPOINT&&b==Type.CODEPOINT){
+                    stack.push(Type.BOOL);
+                }else if((a==Type.INT||a==Type.UINT||a==Type.FLOAT)&&(b==Type.INT||b==Type.UINT||b==Type.FLOAT)){
+                    stack.push(Type.BOOL);
+                }else if(a==Type.TYPE&&b==Type.TYPE&&(op.opType==OperatorType.LE||op.opType==OperatorType.GE)){
+                    stack.push(Type.BOOL);
+                }else{
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
+                }
+            }
+            case AND,OR,XOR -> {
+                Type b = stack.pop();
+                Type a = stack.pop();
+                if(a==Type.BOOL&&b==Type.BOOL){
+                    stack.push(Type.BOOL);
+                }else if(a==Type.UINT&&b==Type.UINT){
+                    stack.push(Type.UINT);
+                }else if((a==Type.INT||a==Type.UINT||a==Type.BYTE)&&(b==Type.INT||b==Type.UINT||b==Type.BYTE)){
+                    stack.push(Type.INT);
+                }else{
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
+                }
+            }
+            case LSHIFT,RSHIFT -> {
+                Type b = stack.pop();
+                Type a = stack.pop();
+                if((a==Type.UINT||a==Type.INT)&&(b==Type.UINT||b==Type.INT)){
+                    stack.push(a);
+                }else{
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
+                }
+            }
+            case LIST_OF, CONTENT, OPTIONAL_OF,VAR_ARG -> {
+                Type t = stack.peek();
+                if(t!=Type.TYPE){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
+                }
+            }
+            case TYPE_OF -> {
+                stack.pop();
+                stack.push(Type.TYPE);
+            }
+            case LENGTH -> {
+                Type t = stack.pop();//TODO distinguish between (tuple/enum (index-able) and other types)
+                if(!(t.isSubtype(Type.GENERIC_LIST)||t instanceof Type.Tuple||t==Type.TYPE)){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
+                }
+                stack.push(Type.UINT);
+            }
+            case EMPTY_OPTIONAL ->
+                    //TODO find solution for dynamically typed values (?generics)
+                throw new UnsupportedOperationException("dynamic-empty-optional unimplemented");
+            case CLEAR ->{
+                Type t = stack.pop();
+                if(!t.isSubtype(Type.GENERIC_LIST)){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
+                }
+            }
+            case ENSURE_CAP -> {
+                Type t = stack.peek();
+                if(!t.isSubtype(Type.GENERIC_LIST)){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
+                }
+            }
+            case FILL -> {
+                Type val   = stack.pop();
+                Type count = stack.pop();
+                Type off   = stack.pop();
+                Type list  = stack.pop();
+                if((count!=Type.INT&&count!=Type.UINT)||(off!=Type.INT&&off!=Type.UINT)||
+                        !list.isSubtype(Type.GENERIC_LIST)||!val.isSubtype(list.content())){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+off+" "+count+" "+val,op.pos);
+                }
+            }
+            case GET_INDEX -> {
+                Type index = stack.pop();
+                Type list = stack.pop();
+                if((index!=Type.INT&&index!=Type.UINT)||
+                        (!(list.isSubtype(Type.GENERIC_LIST)||list instanceof Type.Tuple||list==Type.TYPE))){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+index,op.pos);
+                }
+                stack.push(list.content());
+            }
+            case SET_INDEX -> {
+                Type index = stack.pop();
+                Type val = stack.pop();
+                Type list = stack.pop();
+                if((index!=Type.INT&&index!=Type.UINT)||
+                        (!(list.isSubtype(Type.GENERIC_LIST)||list instanceof Type.Tuple||list==Type.TYPE))||
+                        !val.isSubtype(list.content())){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+val+" "+index,op.pos);
+                }
+            }
+            case GET_SLICE -> {
+                Type to = stack.pop();
+                Type off   = stack.pop();
+                Type list  = stack.pop();
+                if((off!=Type.INT&&off!=Type.UINT)||(to!=Type.INT&&to!=Type.UINT)||
+                        !list.isSubtype(Type.GENERIC_LIST)){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+off+" "+to,op.pos);
+                }
+                stack.push(list);
+            }
+            case SET_SLICE -> {
+                Type to = stack.pop();
+                Type off   = stack.pop();
+                Type val  = stack.pop();
+                Type list  = stack.pop();
+                if((off!=Type.INT&&off!=Type.UINT)||(to!=Type.INT&&to!=Type.UINT)||
+                        !list.isSubtype(Type.GENERIC_LIST)||!val.isSubtype(list)){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+val+" "+off+" "+to,op.pos);
+                }
+            }
+            case PUSH_FIRST -> {
+                Type b = stack.pop();
+                Type a = stack.pop();
+                if(!b.isSubtype(Type.GENERIC_LIST)||!a.isSubtype(b.content())){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
+                }
+                stack.push(b);
+            }
+            case PUSH_LAST -> {
+                Type b = stack.pop();
+                Type a = stack.pop();
+                if(!a.isSubtype(Type.GENERIC_LIST)||!b.isSubtype(a.content())){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
+                }
+                stack.push(a);
+            }
+            case PUSH_ALL_FIRST -> {
+                Type b = stack.pop();
+                Type a = stack.pop();
+                if(!b.isSubtype(Type.GENERIC_LIST)||!a.isSubtype(b)){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
+                }
+                stack.push(b);
+            }
+            case PUSH_ALL_LAST -> {
+                Type b = stack.pop();
+                Type a = stack.pop();
+                if(!a.isSubtype(Type.GENERIC_LIST)||!b.isSubtype(a)){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
+                }
+                stack.push(a);
+            }
+            case IS_VAR_ARG,IS_ENUM -> {
+                Type type = stack.pop();
+                if(type!=Type.TYPE){
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+type,op.pos);
+                }
+                stack.push(Type.BOOL);
+            }
+            case WRAP -> {
+                Type value= stack.pop();
+                try {
+                    stack.push(Type.optionalOf(value));
+                } catch (ConcatRuntimeError e) {
+                    throw new SyntaxError(e,op.pos);
+                }
+            }
+            case UNWRAP -> {
+                Type value= stack.pop();
+                if(value.isOptional()){
+                    stack.push(value.content());
+                }else{
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+value,op.pos);
+                }
+            }
+            case HAS_VALUE -> {
+                Type value= stack.peek();
+                if(value.isOptional()){
+                    stack.push(Type.BOOL);
+                }else{
+                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+value,op.pos);
+                }
+            }
+        }
+    }
+
+    private void recursiveTypeCheck(RandomAccessStack<Type> stack,CodeSection program,IOContext ioContext) throws SyntaxError {
+        int ip=0;
+        ArrayList<Token> tokens=program.tokens();
+        while(ip<tokens.size()){
+            Token next=tokens.get(ip);
+            try {
+                switch (next.tokenType) {
+                    case VALUE -> {
+                        ValueToken value = (ValueToken) next;
+                        stack.push(value.value.type);
+                    }
+                    case CURRIED_PROCEDURE -> {
+                        if(program instanceof Program){
+                            throw new RuntimeException("curried procedures should only exist inside of procedures");
+                        }
+                        throw new UnsupportedOperationException("unimplemented");
+                    }
+                    case OPERATOR ->
+                            typeCheckOperator((OperatorToken) next, stack,ioContext);
+                    case DEBUG_PRINT -> stack.pop();
+                    case CAST -> {
+                        Type target=((TypedToken)next).target;
+                        if(target==null){
+                            throw new UnsupportedOperationException("unimplemented");
+                        }
+                        stack.pop();
+                        //TODO check if cast-able
+                        stack.push(target);
+                    }
+                    case NEW ->
+                            //TODO new
+                        throw new UnsupportedOperationException("new unimplemented");
+
+                    case NEW_LIST ->
+                            //TODO newList
+                        throw new UnsupportedOperationException("new-list unimplemented");
+                    case DROP ->
+                            stack.dropAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
+                    case DUP ->
+                            stack.dupAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
+                    case VARIABLE -> {
+                        VariableToken asVar=(VariableToken) next;
+                        switch (asVar.accessType){
+                            case READ ->
+                                stack.push(asVar.id.type);
+                            case WRITE,CONST_DECLARE,DECLARE -> {
+                                Type newValue=stack.pop();
+                                if(!newValue.isSubtype(asVar.id.type)){
+                                    throw new SyntaxError("cannot assign "+newValue+" to variable of type "+
+                                            asVar.id.type,next.pos);
+                                }
+                            }
+                        }
+                    }
+                    case ASSERT -> {
+                        Type t=stack.pop();
+                        if(t!=Type.BOOL){
+                            throw new SyntaxError("parameter of assertion has to be a bool ",next.pos);
+                        }
+                    }
+                    case IDENTIFIER, PLACEHOLDER ->
+                            throw new RuntimeException("Tokens of type " + next.tokenType +
+                                    " should be eliminated at compile time");
+                    case CONTEXT_OPEN,CONTEXT_CLOSE -> {
+
+                    }
+                    case PUSH_PROC_PTR -> {
+                        ProcedureToken token=(ProcedureToken) next;
+                        stack.push(token.getProcedure().type);
+                    }
+                    case PUSH_NATIVE_PROC_PTR -> {
+                        NativeProcedureToken token=(NativeProcedureToken) next;
+                        stack.push(token.value.type);
+                    }
+                    case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
+                        Type called;
+                        if(next.tokenType==TokenType.CALL_PROC){
+                            called=((ProcedureToken) next).getProcedure().type;
+                        }else if(next.tokenType==TokenType.CALL_NATIVE_PROC){
+                            called=((NativeProcedureToken) next).value.type;
+                        }else{
+                            called = stack.pop();
+                            //TODO!! handle lambda-signatures
+                        }
+                        if(called instanceof Type.Procedure){
+                            //TODO procedure
+                            throw new UnsupportedOperationException("unimplemented");
+                        }else{
+                            throw new ConcatRuntimeError("cannot call objects of type "+called);
+                        }
+                    }
+                    case RETURN,EXIT ->
+                        //TODO return
+                        throw new UnsupportedOperationException("return unimplemented");
+
+                    case JMP ->
+                        //TODO jump
+                        throw new UnsupportedOperationException("jump unimplemented");
+
+                    case JEQ,JNE ->
+                        //TODO cond-jump
+                        throw new UnsupportedOperationException("conditional jump unimplemented");
+
+                    case SWITCH ->
+                        //TODO switch
+                        throw new UnsupportedOperationException("switch unimplemented");
+
+                }
+            }catch(ConcatRuntimeError|RandomAccessStack.StackUnderflow  e){
+                throw new SyntaxError(e.getMessage(),next.pos);
+            }
+            ip++;
+        }
+    }
 
     public RandomAccessStack<Value> run(Program program, String[] arguments,IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
@@ -2466,30 +2975,6 @@ public class Interpreter {
                 Type wrappedType = stack.pop().asType();
                 stack.push(Value.ofType(wrappedType.content()));
             }
-            case NEW_LIST -> {//e1 e2 ... eN count type {}
-                Type type = stack.pop().asType();
-                //count after type to make signature consistent with var-args procedures
-                long count;
-                Value top= stack.pop();
-                if(top.type==Type.TYPE&&top.asType() instanceof Type.Enum){
-                    count=((Type.Enum) top.asType()).elementCount();
-                }else {
-                    count = top.asLong();
-                }
-                checkElementCount(count);
-                ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
-                while (count > 0) {
-                    tmp.addFirst(stack.pop().castTo(type));
-                    count--;
-                }
-                ArrayList<Value> list = new ArrayList<>(tmp);
-                stack.push(Value.createList(Type.listOf(type), list));
-            }
-            case CAST -> {
-                Type type = stack.pop().asType();
-                Value val = stack.pop();
-                stack.push(val.castTo(type));
-            }
             case TYPE_OF -> {
                 Value val = stack.pop();
                 stack.push(Value.ofType(val.type));
@@ -2558,41 +3043,6 @@ public class Interpreter {
                 Value a = stack.pop();
                 a.pushAll(b,false);
                 stack.push(a);
-            }
-            case NEW -> {
-                Type type= stack.pop().asType();
-                if(type instanceof Type.Tuple){
-                    int count=((Type.Tuple)type).elementCount();
-                    Value[] values=new Value[count];
-                    for(int i=1;i<= values.length;i++){
-                        values[count-i]= stack.pop().castTo(((Type.Tuple) type).get(count-i));
-                    }
-                    stack.push(Value.createTuple((Type.Tuple)type,values));
-                }else if(type.isList()){
-                    long initCap= stack.pop().asLong();
-                    stack.push(Value.createList(type,initCap));
-                }else{
-                    throw new ConcatRuntimeError("new only supports tuples and lists");
-                }
-            }
-            case INT_AS_FLOAT -> stack.push(Value.ofFloat(Double.longBitsToDouble(stack.pop().asLong())));
-            case FLOAT_AS_INT -> stack.push(
-                    Value.ofInt(Double.doubleToRawLongBits(stack.pop().asDouble()),true));
-
-            case NEW_PROC_TYPE -> {
-                long count= stack.pop().asLong();
-                checkElementCount(count);
-                Type[] outTypes=new Type[(int)count];
-                for(int i=1;i<=count;i++){
-                    outTypes[outTypes.length-i]= stack.pop().asType();
-                }
-                count= stack.pop().asLong();
-                checkElementCount(count);
-                Type[] inTypes=new Type[(int)count];
-                for(int i=1;i<=count;i++){
-                    inTypes[inTypes.length-i]= stack.pop().asType();
-                }
-                stack.push(Value.ofType(Type.Procedure.create(inTypes,outTypes)));
             }
             case IS_VAR_ARG -> {
                 Type type = stack.pop().asType();
@@ -2668,6 +3118,55 @@ public class Interpreter {
                     }
                     case OPERATOR ->
                         executeOperator((OperatorToken) next, stack);
+                    case NEW_LIST -> {//e1 e2 ... eN count type {}
+                        Type type=((TypedToken)next).target;
+                        if(type==null){//dynamic operation
+                            type=stack.pop().asType();
+                        }
+                        //count after type to make signature consistent with var-args procedures
+                        long count;
+                        Value top= stack.pop();
+                        if(top.type==Type.TYPE&&top.asType() instanceof Type.Enum){
+                            count=((Type.Enum) top.asType()).elementCount();
+                        }else {
+                            count = top.asLong();
+                        }
+                        checkElementCount(count);
+                        ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
+                        while (count > 0) {
+                            tmp.addFirst(stack.pop().castTo(type));
+                            count--;
+                        }
+                        ArrayList<Value> list = new ArrayList<>(tmp);
+                        stack.push(Value.createList(Type.listOf(type), list));
+                    }
+                    case CAST -> {
+                        Type type=((TypedToken)next).target;
+                        if(type==null){//dynamic operation
+                            type=stack.pop().asType();
+                        }
+                        Value val = stack.pop();
+                        stack.push(val.castTo(type));
+                    }
+                    case NEW -> {
+                        Type type=((TypedToken)next).target;
+                        if(type==null){//dynamic operation
+                            type=stack.pop().asType();
+                        }
+                        if(type instanceof Type.Tuple){
+                            int count=((Type.Tuple)type).elementCount();
+                            Value[] values=new Value[count];
+                            for(int i=1;i<= values.length;i++){
+                                values[count-i]= stack.pop().castTo(((Type.Tuple) type).get(count-i));
+                            }
+                            stack.push(Value.createTuple((Type.Tuple)type,values));
+                        }else if(type.isList()){
+                            long initCap= stack.pop().asLong();
+                            stack.push(Value.createList(type,initCap));
+                        }else{
+                            throw new ConcatRuntimeError("new only supports tuples and lists");
+                        }
+                    }
                     case DEBUG_PRINT -> context.stdOut.println(stack.pop().stringValue());
                     case DROP ->
                             stack.dropAll(((StackModifierToken)next).off,((StackModifierToken)next).count);

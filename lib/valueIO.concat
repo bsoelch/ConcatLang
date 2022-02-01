@@ -210,9 +210,9 @@ __IO_printValue proc __IO_FormatValue var list => string :
     ' ' plusSgn =
   end
   format __IO.format  'b' == if
-    values format __IO.index [] cast bool if "true" else "false" end
+    values format __IO.index [] bool cast if "true" else "false" end
   else format __IO.format  'B' == _if
-    values format __IO.index [] cast bool if "TRUE" else "FALSE" end
+    values format __IO.index [] bool cast if "TRUE" else "FALSE" end
   else format __IO.format  'i' == _if
     values format __IO.index []  base false false intToString
     plusSgn '\0' != if

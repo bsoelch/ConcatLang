@@ -12,7 +12,7 @@ round native proc float => float : end
 
 pow native proc float float => float : end
 
-floatToBytes proc float => byte list : end
-bytesToFloat proc byte list => float : end
+floatToBytes native proc float => byte list : end
+bytesToFloat native proc byte list => float : end
 
 #end

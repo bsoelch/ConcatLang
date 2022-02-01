@@ -2063,7 +2063,7 @@ public abstract class Value {
     public static Value mathOp(Value a, Value b, BiFunction<Long,Long,Value> intOp,  BiFunction<Long,Long,Value> uintOp,
                                BiFunction<Double,Double,Value> floatOp) throws TypeError {
         if(a instanceof IntValue||a.type==Type.BYTE){//addLater? isInt/isUInt functions
-            if(b instanceof IntValue||a.type==Type.BYTE){
+            if(b instanceof IntValue||b.type==Type.BYTE){
                 return (uintOp!=null&&a.type==Type.UINT&&b.type==Type.UINT?uintOp:intOp)
                             .apply(a.asLong(), b.asLong());
             }else if(b instanceof FloatValue){

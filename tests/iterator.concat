@@ -6,7 +6,7 @@ core #import
 reverse proc (list) => (list) :
   (list) toReverse =:
   ## store type and length of the list
-  toReverse length toReverse typeof new toReverse typeof res =:
+  toReverse length toReverse typeof new (list) res =:
   ## Iterate though the elements in reverse order
   toReverse ..^ while <^ ?? do
     unwrap res swap :<< res =
