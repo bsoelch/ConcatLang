@@ -36,6 +36,26 @@ public class Type {
     final String name;
     final boolean switchable;
 
+    public static Type commonSuperType(Type a, Type b) {
+        if(a==ANY||b==null){
+            return a;
+        }else if(a==null||b==ANY){
+            return b;
+        }else {
+            if(a.isSubtype(b)){
+                return b;
+            }else if(b.isSubtype(a)){
+                return a;
+            }else if((a==UINT||a==INT)&&(b==UINT||b==INT)){
+                return a;
+            }else if((a==FLOAT&&(b==UINT||b==INT))||(b==FLOAT&&(a==UINT||a==INT))){
+                return FLOAT;
+            }else{
+                return ANY;
+            }
+        }
+    }
+
     /**@return true if values of this type can be assigned to type t*/
     public boolean isSubtype(Type t){
         return (t==this)||t==ANY;
@@ -49,9 +69,6 @@ public class Type {
         return false;
     }
     public boolean isOptional() {
-        return false;
-    }
-    public boolean isVarArg() {
         return false;
     }
     public Type content() {
@@ -68,40 +85,26 @@ public class Type {
             return new WrapperType(WrapperType.LIST,contentType);
         }
     }
-    public static Type varArg(Type contentType) throws ConcatRuntimeError {
-        return new WrapperType(WrapperType.VAR_ARG,contentType);
-    }
+
     public static Type optionalOf(Type contentType) throws ConcatRuntimeError {
         return new WrapperType(WrapperType.OPTIONAL,contentType);
     }
 
     private static class WrapperType extends Type {
         static final String LIST = "list";
-        static final String VAR_ARG = "...";
         static final String OPTIONAL = "optional";
 
-        static final Type BYTES;
-        static final Type UNICODE_STRING;
-        static {
-            try {
-                BYTES  = new WrapperType(LIST,Type.BYTE);
-                UNICODE_STRING = new WrapperType(LIST,Type.CODEPOINT);
-            } catch (ConcatRuntimeError e) {
-                throw new RuntimeException(e);
-            }
-        }
+        static final Type BYTES= new WrapperType(LIST,Type.BYTE);
+        static final Type UNICODE_STRING= new WrapperType(LIST,Type.CODEPOINT);
 
         final Type contentType;
         final String wrapperName;
 
-        private WrapperType(String wrapperName, Type contentType) throws ConcatRuntimeError {
+        private WrapperType(String wrapperName, Type contentType){
             super(contentType.name+" "+ wrapperName, LIST.equals(wrapperName)&&
                     (contentType==BYTE||contentType==CODEPOINT));
             this.wrapperName = wrapperName;
             this.contentType = contentType;
-            if(contentType.isVarArg()){
-                throw new ConcatRuntimeError(contentType+" cannot be part of "+wrapperName);
-            }
         }
 
         @Override
@@ -111,10 +114,6 @@ public class Type {
         @Override
         public boolean isOptional() {
             return wrapperName.equals(OPTIONAL);
-        }
-        @Override
-        public boolean isVarArg() {
-            return wrapperName.equals(VAR_ARG);
         }
 
         @Override
@@ -148,13 +147,16 @@ public class Type {
     public static class Tuple extends Type implements Interpreter.Declareable{
         final Interpreter.FilePosition declaredAt;
         final Type[] elements;
-        public Tuple(String name, Type[] elements, Interpreter.FilePosition declaredAt) throws ConcatRuntimeError {
-            super(name, false);
+
+        private static String getName(Type[] elements){
+            StringBuilder sb=new StringBuilder("( ");
             for(Type t:elements){
-                if(t.isVarArg()){
-                    throw new ConcatRuntimeError(t+" cannot be part of tuples");
-                }
+                sb.append(t).append(" ");
             }
+            return sb.append(")").toString();
+        }
+        public Tuple(String name, Type[] elements, Interpreter.FilePosition declaredAt){
+            super(name==null?getName(elements):name, false);
             this.elements=elements;
             this.declaredAt = declaredAt;
         }
@@ -208,15 +210,15 @@ public class Type {
         private final Value insValue,outsValue;
 
         public static Type create(Type[] inTypes,Type[] outTypes){
-            StringBuilder name=new StringBuilder();
+            StringBuilder name=new StringBuilder("( ");
             for(Type t:inTypes){
                 name.append(t.name).append(' ');
             }
-            name.append(inTypes.length).append(' ');
+            name.append("=> ");
             for(Type t:outTypes){
                 name.append(t.name).append(' ');
             }
-            name.append(outTypes.length).append(" ->");
+            name.append(")");
             return new Procedure(name.toString(),inTypes,outTypes);
         }
         private Procedure(String name,Type[] inTypes,Type[] outTypes) {

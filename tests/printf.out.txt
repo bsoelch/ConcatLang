@@ -5,7 +5,7 @@ test
 (float,int,byte):(1.3, 7, c)
 a°💻
 💻
-var ... string 2 string 1 ->
+( var list string => string )
 
 Stack:
 []

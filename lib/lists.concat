@@ -59,7 +59,9 @@ end
 
 mergesort proc (list) => :
   (list) input =:
-  #_list:_#input  #_off:_#0  #_to:_#input length 1 -  #_buffer:_#input length 2 / input typeof new __LISTS_mergesort_helper
+  #_list:_#input  #_off:_#0  #_to:_#input length 1 -  #_buffer:_#input length 2 /
+  var list #_ TODO replace when generics are implemented _#
+  new __LISTS_mergesort_helper
 end
 ## addLater sort with comparator (needs generic signatures)
 

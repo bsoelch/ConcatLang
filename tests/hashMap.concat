@@ -4,8 +4,8 @@ core #import
 hashMap #include
 hashMap #import
 
-1 2 3  3 int {} hashCode println
-1 2 3  3 int {} hashCode println
+{ 1 2 3 } hashCode println
+{ 1 2 3 } hashCode println
 
 int int 4 newHashMap HashMap map =:
 "put:" println
@@ -37,5 +37,5 @@ map 9 HashMap.remove println
 map HashMap.itr
 while HashMapItr.next ?? do
    unwrap MapEntry e =:
-   e MapEntry.key e MapEntry.value 2 "(%i,%i) " printf
+   { e MapEntry.key e MapEntry.value } "(%i,%i) " printf
 end drop drop

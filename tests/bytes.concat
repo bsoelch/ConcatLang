@@ -4,11 +4,11 @@ math    #include
 core #import
 math #import
 
-255 byte cast dup typeof swap byteToString 2 "%s: %s\n" printf
+{ 255 byte cast dup typeof swap byteToString } "%s: %s\n" printf
 0x123456789abcdef uintToBytes byteListToString println
 0x123456789abcdef uintToBytes bytesToFloat println
-3.14159263358979 floatToBytes uintFromBytes 1 "%x\n" printf
+{ 3.14159263358979 floatToBytes uintFromBytes } "%x\n" printf
 3.14159263358979 floatToBytes uintFromBytes uintToBytes bytesToFloat println
 -1 uintToBytes dup uintFromBytes int cast println byteListToString println
 11001001 uintToBytes dup uintFromBytes println byteListToString println
-0xfe  1 byte {} uintFromBytes int cast println
+{ 0xfe } uintFromBytes int cast println

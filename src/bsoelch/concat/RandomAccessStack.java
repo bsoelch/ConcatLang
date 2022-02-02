@@ -1,6 +1,8 @@
 package bsoelch.concat;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**Stack that supports random access of elements*/
 public class RandomAccessStack<T> {
@@ -70,6 +72,11 @@ public class RandomAccessStack<T> {
         ensureCap((int)(size+count));
         System.arraycopy(data,size-(int)(off+count),data,size,(int)count);
         size+=count;
+    }
+
+    public List<T> asList() {
+        //noinspection unchecked
+        return (List<T>) Arrays.asList(Arrays.copyOf(data,size));
     }
 
     public static class StackUnderflow extends Exception {

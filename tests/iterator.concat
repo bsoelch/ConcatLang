@@ -3,10 +3,10 @@ iterator #include
 valueIO #include
 core #import
 
-reverse proc (list) => (list) :
-  (list) toReverse =:
+reverse proc string => string :
+  string toReverse =:
   ## store type and length of the list
-  toReverse length toReverse typeof new (list) res =:
+  toReverse length string new (list) res =:
   ## Iterate though the elements in reverse order
   toReverse ..^ while <^ ?? do
     unwrap res swap :<< res =
@@ -25,8 +25,8 @@ sum proc var list => var :
   tmp ## load the total sum onto the stack
 end
 
-1 2 3 4 5 6 7 8 9   9 int {} sum println
-1.5 2.5 3.5 4.5   4 float {} sum println
+{ 1 2 3 4 5 6 7 8 9 } sum println
+{ 1.5 2.5 3.5 4.5   } sum println
 
 "Hello" ^..
 while ^> ?? do

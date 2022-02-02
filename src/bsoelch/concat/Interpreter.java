@@ -249,6 +249,27 @@ public class Interpreter {
             return tokenType.toString()+": "+target;
         }
     }
+    static class ListCreatorToken extends Token implements CodeSection {
+        final ArrayList<Token> tokens;
+        ListCreatorToken(ArrayList<Token> tokens, FilePosition pos) {
+            super(TokenType.NEW_LIST, pos);
+            this.tokens=tokens;
+        }
+        @Override
+        public String toString() {
+            return tokenType.toString()+": "+tokens;
+        }
+
+        @Override
+        public ArrayList<Token> tokens() {
+            return tokens;
+        }
+
+        @Override
+        public VariableContext context() {
+            return null;
+        }
+    }
 
     static class VariableToken extends Token{
         final VariableType variableType;
@@ -303,7 +324,7 @@ public class Interpreter {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,
+        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST
     }
     static abstract class CodeBlock{
         final int start;
@@ -330,7 +351,7 @@ public class Interpreter {
             context=new ProcedureContext(parentContext);
             this.isNative=isNative;
         }
-        static Type[] getSignature(List<Token> tokens) throws SyntaxError {
+        static Type[] getSignature(List<Token> tokens,boolean tupleMode) throws SyntaxError {
             RandomAccessStack<ValueToken> stack=new RandomAccessStack<>(tokens.size());
             for(Token t:tokens){
                 //addLater generics
@@ -339,7 +360,7 @@ public class Interpreter {
                 }else{//list, optional, tuple, -> are evaluated in parser
                     //TODO! report predeclared procedures as missing variables
                     throw new SyntaxError("Tokens of type "+t.tokenType+
-                            " are not supported in procedure signatures",t.pos);
+                            " are not supported in "+(tupleMode?"tuple":"procedure")+" signatures",t.pos);
                 }
             }
             Type[] types=new Type[stack.size()];
@@ -350,7 +371,7 @@ public class Interpreter {
                     if(v.value.type.isSubtype(Type.TYPE)){
                         types[--i]=v.value.asType();
                     }else{
-                        throw new SyntaxError("Elements in procedure signature have to evaluate to types",v.pos);
+                        throw new SyntaxError("Elements in "+(tupleMode?"tuple":"procedure")+" signature have to evaluate to types",v.pos);
                     }
                 }
             } catch (TypeError|RandomAccessStack.StackUnderflow e) {
@@ -362,7 +383,7 @@ public class Interpreter {
             if(inTypes!=null){
                 throw new SyntaxError("Procedure already has input arguments",pos);
             }
-            inTypes = getSignature(ins);
+            inTypes = getSignature(ins,false);
             ins.clear();
         }
         void addOuts(List<Token> outs,FilePosition pos) throws SyntaxError {
@@ -371,7 +392,7 @@ public class Interpreter {
             }else if(outTypes!=null){
                 throw new SyntaxError("Procedure already has output arguments",pos);
             }
-            outTypes = getSignature(outs);
+            outTypes = getSignature(outs,false);
             outs.clear();
         }
         @Override
@@ -575,6 +596,26 @@ public class Interpreter {
             this.name=name;
         }
 
+        @Override
+        VariableContext context() {
+            return parentContext;
+        }
+    }
+    private static class ListBlock extends CodeBlock{
+        ListBlock(int start, BlockType type, FilePosition startPos, VariableContext parentContext) {
+            super(start, type, startPos, parentContext);
+        }
+        @Override
+        VariableContext context() {
+            return parentContext;
+        }
+    }
+    private static class ProcTypeBlock extends CodeBlock{
+        final int separatorPos;
+        ProcTypeBlock(ListBlock start,int separatorPos) {
+            super(start.start,BlockType.PROC_TYPE,start.startPos, start.parentContext);
+            this.separatorPos=separatorPos;
+        }
         @Override
         VariableContext context() {
             return parentContext;
@@ -1759,18 +1800,6 @@ public class Interpreter {
                     tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF, pos));
                 }
             }
-            case "..."->{
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
-                    try {
-                        tokens.set(tokens.size()-1,
-                                new ValueToken(Value.ofType(Type.varArg(((ValueToken)prev).value.asType())),pos, false));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e,pos);
-                    }
-                }else{
-                    tokens.add(new OperatorToken(OperatorType.VAR_ARG, pos));
-                }
-            }
             case "content" -> {
                 if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
                     try {
@@ -1781,19 +1810,6 @@ public class Interpreter {
                     }
                 }else{
                     tokens.add(new OperatorToken(OperatorType.CONTENT, pos));
-                }
-            }
-            case "isVarArg"->{
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
-                    try {
-                        tokens.set(tokens.size()-1,
-                                new ValueToken(((ValueToken)prev).value.asType().isVarArg()?Value.TRUE:Value.FALSE,
-                                        pos, false));
-                    } catch (TypeError e) {
-                        throw new SyntaxError(e,pos);
-                    }
-                }else{
-                    tokens.add(new OperatorToken(OperatorType.IS_VAR_ARG,pos));
                 }
             }
             case "isEnum"->{
@@ -1978,10 +1994,14 @@ public class Interpreter {
             }
             case "=>" ->{
                 CodeBlock block = openBlocks.peekLast();
-                if(!(block instanceof ProcedureBlock proc)){
-                    throw new SyntaxError("elif can only be used in if-blocks",pos);
+                if(block instanceof ProcedureBlock proc) {
+                    proc.addIns(tokens.subList(proc.start,tokens.size()),pos);
+                }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
+                    openBlocks.removeLast();
+                    openBlocks.addLast(new ProcTypeBlock((ListBlock)block,tokens.size()));
+                }else{
+                    throw new SyntaxError("'=>' can only be used in proc- or proc-type blocks ",pos);
                 }
-                proc.addIns(tokens.subList(proc.start,tokens.size()),pos);
             }
             case "lambda","λ" ->
                     openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext), false));
@@ -2193,20 +2213,18 @@ public class Interpreter {
                             rootContext.declareEnum(((EnumBlock) block),ioContext);
                         }
                         case TUPLE -> {
-                            try {
-                                List<Token> subList = tokens.subList(block.start, tokens.size());
-                                Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name,
-                                        ProcedureBlock.getSignature(subList),block.startPos);
-                                subList.clear();
-                                if(((TupleBlock)block).name!=null){
-                                    rootContext.declareTuple(tuple,ioContext);
-                                }else{
-                                    tokens.add(new ValueToken(Value.ofType(tuple),block.startPos,false));
-                                }
-                            } catch (ConcatRuntimeError e) {
-                                throw new SyntaxError(e,pos);
+                            List<Token> subList = tokens.subList(block.start, tokens.size());
+                            Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name,
+                                    ProcedureBlock.getSignature(subList, true),block.startPos);
+                            subList.clear();
+                            if(((TupleBlock)block).name!=null){
+                                rootContext.declareTuple(tuple,ioContext);
+                            }else{
+                                tokens.add(new ValueToken(Value.ofType(tuple),block.startPos,false));
                             }
                         }
+                        case ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST ->
+                            throw new SyntaxError("unexpected end-statement",pos);
                     }
                 }
             }
@@ -2252,17 +2270,65 @@ public class Interpreter {
             //<array> <off> <to> [:]
             case "[:]"   -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,      pos));
 
-            //<e0> ... <eN> <N> {}
-            case "{}"   ->  {
-                if(tokens.size()<1||!(tokens.get(tokens.size()-1) instanceof ValueToken)){
-                    tokens.add(new TypedToken(TokenType.NEW_LIST,null,pos));
-                }else{
+            case "(" ->
+                    openBlocks.add(new ListBlock(tokens.size(),BlockType.ANONYMOUS_TUPLE,pos,
+                            getContext(openBlocks.peekLast(),rootContext)));
+            case ")" -> {
+                CodeBlock block=openBlocks.pollLast();
+                if(block==null||(block.type!=BlockType.ANONYMOUS_TUPLE&&block.type!=BlockType.PROC_TYPE)){
+                    throw new SyntaxError("unexpected ')' statement ",pos);
+                }
+                if(block.type==BlockType.PROC_TYPE){
+                    List<Token> subList=tokens.subList(block.start, ((ProcTypeBlock)block).separatorPos);
+                    Type[] inTypes=ProcedureBlock.getSignature(subList,false);
+                    subList=tokens.subList(((ProcTypeBlock)block).separatorPos, tokens.size());
+                    Type[] outTypes=ProcedureBlock.getSignature(subList,false);
+                    subList=tokens.subList(block.start,tokens.size());
+                    subList.clear();
+                    tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),pos,false));
+                }else {
+                    List<Token> subList=tokens.subList(block.start, tokens.size());
+                    Type[] tupleTypes=ProcedureBlock.getSignature(subList,true);
+                    subList.clear();
+                    tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null,tupleTypes,pos)),pos,false));
+                }
+            }
+            case "{" ->
+                    openBlocks.add(new ListBlock(tokens.size(),BlockType.CONST_LIST,pos,
+                            getContext(openBlocks.peekLast(),rootContext)));
+            case "}" -> {
+                CodeBlock block=openBlocks.pollLast();
+                if(block==null||block.type!=BlockType.CONST_LIST){
+                    throw new SyntaxError("unexpected '}' statement ",pos);
+                }
+                List<Token> subList = tokens.subList(block.start, tokens.size());
+                ArrayList<Value> values=new ArrayList<>(subList.size());
+                boolean constant=true;
+                Type type=null;
+                for(Token t:subList){
+                    if(t instanceof ValueToken){
+                        type=Type.commonSuperType(type,((ValueToken) t).value.type);
+                        values.add(((ValueToken) t).value);
+                    }else{
+                        values.clear();
+                        constant=false;
+                        break;
+                    }
+                }
+                if(constant){
+                    subList.clear();
                     try {
-                        Type type= ((ValueToken) tokens.remove(tokens.size()-1)).value.asType();
-                        tokens.add(new TypedToken(TokenType.NEW_LIST,type,pos));
-                    } catch (TypeError e) {
+                        for(int i=0;i< values.size();i++){
+                            values.set(i,values.get(i).castTo(type));
+                        }
+                        tokens.add(new ValueToken(Value.createList(Type.listOf(type),values),block.startPos,true));
+                    } catch (ConcatRuntimeError e) {
                         throw new SyntaxError(e,pos);
                     }
+                }else{
+                    ArrayList<Token> listTokens=new ArrayList<>(subList);
+                    subList.clear();
+                    tokens.add(new ListCreatorToken(listTokens,pos));
                 }
             }
             case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   pos));
@@ -2287,36 +2353,35 @@ public class Interpreter {
 
             case "new"       -> {
                 if(tokens.size()<1||!(tokens.get(tokens.size()-1) instanceof ValueToken)){
-                    tokens.add(new TypedToken(TokenType.NEW,null, pos));
-                }else{
-                    prev=tokens.remove(tokens.size()-1);
-                    try {
-                        Type t = ((ValueToken)prev).value.asType();
-                        if(t instanceof Type.Tuple){
-                            int c=((Type.Tuple) t).elementCount();
-                            checkElementCount(c);
-                            int iMin=tokens.size()-c;
-                            if(iMin>=0){
-                                Value[] values=new Value[c];
-                                for(int i=c-1;i>=0;i--){
-                                    prev=tokens.get(iMin+i);
-                                    if(prev instanceof ValueToken){
-                                        values[i]=((ValueToken) prev).value.castTo(((Type.Tuple) t).get(i));
-                                    }else{
-                                        break;
-                                    }
-                                }
-                                if(c==0||values[0]!=null){//all types resolved successfully
-                                    tokens.subList(iMin, tokens.size()).clear();
-                                    tokens.add(new ValueToken(Value.createTuple((Type.Tuple)t,values),pos, false));
+                    throw new SyntaxError("token before of new has to be a type",pos);
+                }
+                prev=tokens.remove(tokens.size()-1);
+                try {
+                    Type t = ((ValueToken)prev).value.asType();
+                    if(t instanceof Type.Tuple){
+                        int c=((Type.Tuple) t).elementCount();
+                        checkElementCount(c);
+                        int iMin=tokens.size()-c;
+                        if(iMin>=0){
+                            Value[] values=new Value[c];
+                            for(int i=c-1;i>=0;i--){
+                                prev=tokens.get(iMin+i);
+                                if(prev instanceof ValueToken){
+                                    values[i]=((ValueToken) prev).value.castTo(((Type.Tuple) t).get(i));
+                                }else{
                                     break;
                                 }
                             }
-                        }//TODO support list in pre-evaluation
-                        tokens.add(new TypedToken(TokenType.NEW,t, pos));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e.getMessage(), prev.pos);
-                    }
+                            if(c==0||values[0]!=null){//all types resolved successfully
+                                tokens.subList(iMin, tokens.size()).clear();
+                                tokens.add(new ValueToken(Value.createTuple((Type.Tuple)t,values),pos, false));
+                                break;
+                            }
+                        }
+                    }//TODO support list in pre-evaluation
+                    tokens.add(new TypedToken(TokenType.NEW,t, pos));
+                } catch (ConcatRuntimeError e) {
+                    throw new SyntaxError(e.getMessage(), prev.pos);
                 }
             }
             case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
@@ -2384,12 +2449,6 @@ public class Interpreter {
                         } catch (ConcatRuntimeError e) {
                             throw new RuntimeException(e);
                         }
-                    }else if(type.inTypes[0].isVarArg()&&type.inTypes[0].content().equals(Type.RAW_STRING())){//string list
-                        try {
-                            stack.push(Type.varArg(Type.RAW_STRING()));
-                        } catch (ConcatRuntimeError e) {
-                            throw new RuntimeException(e);
-                        }
                     }
                 }
                 recursiveTypeCheck(stack,(Value.Procedure)main,context);
@@ -2440,8 +2499,6 @@ public class Interpreter {
             case PUSH_ALL_FIRST -> { return "+:";}
             case PUSH_LAST -> { return ":<<";}
             case PUSH_ALL_LAST -> { return ":+";}
-            case VAR_ARG -> { return "...";}
-            case IS_VAR_ARG -> { return "isVarArg";}
             case IS_ENUM -> { return "isEnum";}
             case OPTIONAL_OF -> { return "optional";}
             case WRAP -> { return "wrap"; }
@@ -2560,7 +2617,7 @@ public class Interpreter {
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
                 }
             }
-            case LIST_OF, CONTENT, OPTIONAL_OF,VAR_ARG -> {
+            case LIST_OF, CONTENT, OPTIONAL_OF -> {
                 Type t = stack.peek();
                 if(t!=Type.TYPE){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
@@ -2673,7 +2730,7 @@ public class Interpreter {
                 }
                 stack.push(a);
             }
-            case IS_VAR_ARG,IS_ENUM -> {
+            case IS_ENUM -> {
                 Type type = stack.pop();
                 if(type!=Type.TYPE){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+type,op.pos);
@@ -2826,7 +2883,7 @@ public class Interpreter {
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
         Declareable main=program.rootContext.elements.get("main");
         if(main==null){
-            recursiveRun(stack,program,null,null,context);
+            recursiveRun(stack,program,null,null,null,context);
         }else{
             if(program.tokens.size()>0){
                 context.stdErr.println("programs with main procedure cannot contain code at top level "+
@@ -2854,14 +2911,9 @@ public class Interpreter {
                         } catch (ConcatRuntimeError e) {
                             throw new RuntimeException(e);
                         }
-                    }else if(type.inTypes[0].isVarArg()&&type.inTypes[0].content().equals(Type.RAW_STRING())){//string list
-                        for(int i=arguments.length-1;i>=0;i--){
-                            stack.push(Value.ofString(arguments[i],false));
-                        }
-                        stack.push(Value.ofInt(arguments.length,true));
                     }
                 }
-                recursiveRun(stack,(Value.Procedure)main,new ArrayList<>(),null,context);
+                recursiveRun(stack,(Value.Procedure)main,new ArrayList<>(),null,null,context);
             }
         }
         return stack;
@@ -3044,10 +3096,6 @@ public class Interpreter {
                 a.pushAll(b,false);
                 stack.push(a);
             }
-            case IS_VAR_ARG -> {
-                Type type = stack.pop().asType();
-                stack.push(type.isVarArg()?Value.TRUE:Value.FALSE);
-            }
             case IS_ENUM -> {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.Enum?Value.TRUE:Value.FALSE);
@@ -3055,10 +3103,6 @@ public class Interpreter {
             case OPTIONAL_OF -> {
                 Type contentType = stack.pop().asType();
                 stack.push(Value.ofType(Type.optionalOf(contentType)));
-            }
-            case VAR_ARG ->{
-                Type contentType = stack.pop().asType();
-                stack.push(Value.ofType(Type.varArg(contentType)));
             }
             case EMPTY_OPTIONAL -> {
                 Type t= stack.pop().asType();
@@ -3080,9 +3124,12 @@ public class Interpreter {
     }
 
     private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,
-                                  ArrayList<Variable[]> globalVariables, Value[] curried, IOContext context){
-        ArrayList<Variable[]> variables=new ArrayList<>();
-        variables.add(new Variable[program.context().elements.size()]);
+                                  ArrayList<Variable[]> globalVariables,ArrayList<Variable[]> variables,
+                                  Value[] curried, IOContext context){
+        if(variables==null){
+            variables=new ArrayList<>();
+            variables.add(new Variable[program.context().elements.size()]);
+        }
         int ip=0;
         ArrayList<Token> tokens=program.tokens();
         while(ip<tokens.size()){
@@ -3118,27 +3165,21 @@ public class Interpreter {
                     }
                     case OPERATOR ->
                         executeOperator((OperatorToken) next, stack);
-                    case NEW_LIST -> {//e1 e2 ... eN count type {}
-                        Type type=((TypedToken)next).target;
-                        if(type==null){//dynamic operation
-                            type=stack.pop().asType();
+                    case NEW_LIST -> {//{ e1 e2 ... eN }
+                        RandomAccessStack<Value> listStack=new RandomAccessStack<>(((ListCreatorToken)next).tokens.size());
+                        ExitType res=recursiveRun(listStack,((ListCreatorToken)next),globalVariables,variables,curried,context);
+                        if(res!=ExitType.NORMAL){
+                            if(res==ExitType.ERROR) {
+                                context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                            }
+                            return res;
                         }
-                        //count after type to make signature consistent with var-args procedures
-                        long count;
-                        Value top= stack.pop();
-                        if(top.type==Type.TYPE&&top.asType() instanceof Type.Enum){
-                            count=((Type.Enum) top.asType()).elementCount();
-                        }else {
-                            count = top.asLong();
+                        ArrayList<Value> values=new ArrayList<>(listStack.asList());
+                        Type type=values.stream().map(v->v.type).reduce(null, Type::commonSuperType);
+                        for(int i=0;i< values.size();i++){
+                            values.set(i,values.get(i).castTo(type));
                         }
-                        checkElementCount(count);
-                        ArrayDeque<Value> tmp = new ArrayDeque<>((int) count);
-                        while (count > 0) {
-                            tmp.addFirst(stack.pop().castTo(type));
-                            count--;
-                        }
-                        ArrayList<Value> list = new ArrayList<>(tmp);
-                        stack.push(Value.createList(Type.listOf(type), list));
+                        stack.push(Value.createList(Type.listOf(type), values));
                     }
                     case CAST -> {
                         Type type=((TypedToken)next).target;
@@ -3275,7 +3316,7 @@ public class Interpreter {
                         }else if(called instanceof Value.Procedure procedure){
                             assert ((Value.Procedure) called).context.curried.isEmpty();
                             ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                    null,context);
+                                    null,null,context);
                             if(e!=ExitType.NORMAL){
                                 if(e==ExitType.ERROR) {
                                     context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
@@ -3284,7 +3325,7 @@ public class Interpreter {
                             }
                         }else if(called instanceof Value.CurriedProcedure procedure){
                             ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                    procedure.curried,context);
+                                    null,procedure.curried,context);
                             if(e!=ExitType.NORMAL){
                                 if(e==ExitType.ERROR) {
                                     context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);

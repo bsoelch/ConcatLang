@@ -55,28 +55,21 @@ stringValue proc var => string :
       value *->* == if
         "*->*" return
       else
-        "" string res =:
+        "( " string res =:
         value 0 [] type list args =:
         0 int i =:
         while i args length < do
-          i 0 > if
-            res " " :+ res =
-          end
-          res args i [] stringValue :+ res =
+          res args i [] stringValue :+ " " :+ res =
           i 1 + i =
         end
-        res " " :+ i  10 false false intToString :+ " " :+ res =
+        res "=> " :+ res =
         value 1 [] args =
         0 i =
         while i args length < do
-          i 0 > if
-            res " " :+ res =
-          end
-          res args i [] stringValue :+ res =
+          res args i [] stringValue :+ " " :+ res =
           i 1 + i =
         end
-        res " " :+ i  10 false false intToString :+
-        " ->" :+ return
+        res ")" :+ return
       end
     else value (list) <= _if
       value (list) == if
@@ -90,8 +83,6 @@ stringValue proc var => string :
       else
         value content stringValue " optional" :+ return
       end
-    else value isVarArg _if
-      value content stringValue " ..." :+ return
     else value isEnum _if
       value string cast return ## return enum-name
     else value type == _if
@@ -118,7 +109,7 @@ stringValue proc var => string :
     value if "true" else "false" end return
   else value typeof byte == _if
     value 0x80 byte cast < if
-      value 1 byte {}  return ## print valid ascii-characters as character
+      { value byte cast } return ## print valid ascii-characters as character
     else
       value byteToString return ## print all other bytes as their byte-code
     end
@@ -132,7 +123,7 @@ stringValue proc var => string :
     value codepointToString return
   else value typeof *->* <= _if
     ## procedure
-    "*->*@" value refId  16 true true intToString +: return
+    value typeof stringValue "@" :+ value refId  16 true true intToString :+ return
   else
     "unreachable\n" eputs
     1 exit
@@ -283,7 +274,7 @@ __IO_printValue proc __IO_FormatValue var list => string :
       end
     end
   else format __IO.format  'c' == _if
-    values format __IO.index [] 1 byte {}
+    { values format __IO.index [] byte cast }
   else format __IO.format  's' == _if
     values format __IO.index [] stringValue
   else format __IO.format  'S' == _if
@@ -321,7 +312,7 @@ isFormatChar proc #_char_# byte => bool :
   false
 end
 
-formatString proc #_args_# var list #_format_# string => string :
+sprintf proc #_args_# var list #_format_# string => string :
   string format =:
   var list args =:
 
@@ -546,24 +537,14 @@ end
 
 ## variadic  wrappers
 
-sprintf proc var ... string => string :
-  string format =:
-  var {} ##convert var-args to list
-  format formatString return
-end
-
- printf proc var ... string => :
-  string format =:
-  var {} ##convert var-args to list
-  format formatString puts
+printf proc var list string => :
+  sprintf puts
 end
 
 ## formats string file
-fprintf proc var ... string FILE => :
+fprintf proc var list string FILE => :
   FILE file =:
-  string format =:
-  var {} ##convert var-args to list
-  format formatString file fputs
+  sprintf file fputs
 end
 
 #end ##std

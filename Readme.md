@@ -432,33 +432,6 @@ all appearances of the name of a procedure
 will be resolved as a procedure call, even 
 if that procedure is declared later in the same file
 
-##### Var-Args
-If an Input of Output type is followed by `...` it
-is treated as a var-args parameter, which will consist
-of an integer on the stack followed by exactly that 
-number of elements of the given type.
-
-Examples:
-```Rust
-sum proc int ... => int :
-  int count =: ## save Number of arguments
-  0 int res =:
-  while count 0 > do
-    res + res = ## add top-element on the stack to res
-    count 1 - count = ##reduce count by 1
-  end
-  res return
-end
-1 2 3 4 5 6 7 8  8 sum println ## sum 8 integers
-2 4 6 8 10 12    3 sum println ## sum 3 integers
-```
-prints 
-```C
-36
-30
-```
-and leaves `2` `4` `6` on the stack
-
 #### Lambda-Procedures and Procedure-Pointers
 Lambda procedures don't have a name and use `lambda` or `λ` 
 instead of proc, unlike normal procedures lambda-procedures

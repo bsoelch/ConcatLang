@@ -8,7 +8,7 @@ a enum
   enumeration
 end
 
-"list" "indexed" "by" "enumeration" a string {} string list table =:
+{ "list" "indexed" "by" "enumeration" } string list table =:
 
 table a this . [] println
 table a enumeration . [] println
