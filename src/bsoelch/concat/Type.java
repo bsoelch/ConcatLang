@@ -14,9 +14,10 @@ public class Type {
     public static final Type BOOL  = new Type("bool", false);
     public static final Type BYTE  = new Type("byte", true);
 
-    public static final Type GENERIC_LIST      = new Type("(list)", false);
-    public static final Type GENERIC_OPTIONAL  = new Type("(optional)", false);
-    public static final Type GENERIC_PROCEDURE = new Type("*->*", false);
+    //addLater remove untyped ... types
+    public static final Type UNTYPED_LIST      = new Type("(list)", false);
+    public static final Type UNTYPED_OPTIONAL = new Type("(optional)", false);
+    public static final Type UNTYPED_PROCEDURE = new Type("*->*", false);
 
     /**blank type that could contain any value*/
     public static final Type ANY = new Type("var", false) {};
@@ -74,37 +75,51 @@ public class Type {
     public Type content() {
         throw new UnsupportedOperationException();
     }
+    Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
+        return this;
+    }
+
 
     public static Type listOf(Type contentType) throws ConcatRuntimeError {
-        //addLater? caching
-        if (contentType == CODEPOINT) {
-            return WrapperType.UNICODE_STRING;
-        } else if (contentType == BYTE) {
-            return WrapperType.BYTES;
-        } else {
-            return new WrapperType(WrapperType.LIST,contentType);
-        }
+        return WrapperType.create(WrapperType.LIST,contentType);
     }
 
     public static Type optionalOf(Type contentType) throws ConcatRuntimeError {
-        return new WrapperType(WrapperType.OPTIONAL,contentType);
+        return WrapperType.create(WrapperType.OPTIONAL,contentType);
     }
 
     private static class WrapperType extends Type {
         static final String LIST = "list";
         static final String OPTIONAL = "optional";
 
-        static final Type BYTES= new WrapperType(LIST,Type.BYTE);
-        static final Type UNICODE_STRING= new WrapperType(LIST,Type.CODEPOINT);
+        static final WrapperType BYTES= new WrapperType(LIST,Type.BYTE);
+        static final WrapperType UNICODE_STRING= new WrapperType(LIST,Type.CODEPOINT);
 
         final Type contentType;
         final String wrapperName;
 
+        private static WrapperType create(String wrapperName, Type contentType) {
+            if(LIST.equals(wrapperName)) {
+                if (contentType == CODEPOINT) {
+                    return UNICODE_STRING;
+                } else if (contentType == BYTE) {
+                    return BYTES;
+                }
+            }
+            //addLater? caching
+            return new WrapperType(wrapperName,contentType);
+        }
         private WrapperType(String wrapperName, Type contentType){
             super(contentType.name+" "+ wrapperName, LIST.equals(wrapperName)&&
                     (contentType==BYTE||contentType==CODEPOINT));
             this.wrapperName = wrapperName;
             this.contentType = contentType;
+        }
+
+        @Override
+        WrapperType replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
+            Type newContent = contentType.replaceGenerics(genericParams, genericArgs);
+            return contentType==newContent?this:create(wrapperName, newContent);
         }
 
         @Override
@@ -121,7 +136,7 @@ public class Type {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
                 return content().isSubtype(t.content());
             }else{
-                return (wrapperName.equals(LIST)&&t==GENERIC_LIST)||(wrapperName.equals(OPTIONAL)&&t==GENERIC_OPTIONAL)||
+                return (wrapperName.equals(LIST)&&t==UNTYPED_LIST)||(wrapperName.equals(OPTIONAL)&&t== UNTYPED_OPTIONAL)||
                         super.isSubtype(t);
             }
         }
@@ -144,9 +159,10 @@ public class Type {
         }
     }
 
-    public static class Tuple extends Type implements Interpreter.Declareable{
+    public static class Tuple extends Type implements Interpreter.NamedDeclareable{
         final Interpreter.FilePosition declaredAt;
         final Type[] elements;
+        final boolean named;
 
         private static String getName(Type[] elements){
             StringBuilder sb=new StringBuilder("( ");
@@ -159,6 +175,20 @@ public class Type {
             super(name==null?getName(elements):name, false);
             this.elements=elements;
             this.declaredAt = declaredAt;
+            named=name!=null;
+        }
+
+        @Override
+        Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
+            Type[] newElements=new Type[elements.length];
+            boolean isGeneric=false;
+            for(int i=0;i<elements.length;i++){
+                newElements[i]=elements[i].replaceGenerics(genericParams, genericArgs);
+                if(newElements[i]!=elements[i]){
+                    isGeneric=true;
+                }
+            }
+            return isGeneric?new Tuple(named?name:null,newElements,declaredAt):this;
         }
 
         @Override
@@ -195,12 +225,55 @@ public class Type {
         }
 
         @Override
+        public String name() {
+            return name;
+        }
+        @Override
         public Interpreter.DeclareableType declarableType() {
             return Interpreter.DeclareableType.TUPLE;
         }
         @Override
         public Interpreter.FilePosition declaredAt() {
             return declaredAt;
+        }
+    }
+    public static class GenericTuple extends Tuple{
+        final Type[] genericArgs;
+
+        public static GenericTuple create(String name,GenericParameter[] genericParams,Type[] genericArgs,Type[] elements, Interpreter.FilePosition declaredAt) {
+            //Unwrap generic arguments
+            for(int i=0;i< elements.length;i++){
+                elements[i]=elements[i].replaceGenerics(genericParams,genericArgs);
+            }
+            StringBuilder sb=new StringBuilder();
+            for(Type t:genericArgs){
+                sb.append(t.name).append(" ");
+            }
+            return new GenericTuple(sb.append(name).toString(), genericParams, elements, declaredAt);
+        }
+        private GenericTuple(String name, Type[] genericArgs,Type[] elements, Interpreter.FilePosition declaredAt) {
+            super(name, elements, declaredAt);
+            this.genericArgs=genericArgs;
+        }
+
+        @Override
+        Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
+            Type[] newElements=new Type[elements.length];
+            boolean isGeneric=false;
+            for(int i=0;i<elements.length;i++){
+                newElements[i]=elements[i].replaceGenerics(genericParams, genericArgs);
+                if(newElements[i]!=elements[i]){
+                    isGeneric=true;
+                }
+            }
+            Type[] newArgs=new Type[this.genericArgs.length];
+            for(int i=0;i<this.genericArgs.length;i++){
+                newArgs[i]=this.genericArgs[i].replaceGenerics(genericParams, genericArgs);
+                if(newArgs[i]!=this.genericArgs[i]){
+                    isGeneric=true;
+                }
+            }
+            return isGeneric?new GenericTuple(name,newArgs,newElements,declaredAt):this;
         }
     }
 
@@ -243,6 +316,26 @@ public class Type {
         }
 
         @Override
+        Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
+            Type[] newIns=new Type[inTypes.length];
+            boolean isGeneric=false;
+            for(int i=0;i<inTypes.length;i++){
+                newIns[i]=inTypes[i].replaceGenerics(genericParams, genericArgs);
+                if(newIns[i]!=inTypes[i]){
+                    isGeneric=true;
+                }
+            }
+            Type[] newOuts=new Type[outTypes.length];
+            for(int i=0;i<this.outTypes.length;i++){
+                newOuts[i]=this.outTypes[i].replaceGenerics(genericParams, genericArgs);
+                if(newOuts[i]!=this.outTypes[i]){
+                    isGeneric=true;
+                }
+            }
+            return isGeneric?Procedure.create(inTypes,outTypes):this;
+        }
+
+        @Override
         public boolean isSubtype(Type t) {
             if(t instanceof Procedure proc){
                 if(proc.inTypes.length== inTypes.length&&proc.outTypes.length==outTypes.length){
@@ -260,7 +353,7 @@ public class Type {
                 }
                 return false;
             }
-            return t== GENERIC_PROCEDURE ||super.isSubtype(t);
+            return t== UNTYPED_PROCEDURE ||super.isSubtype(t);
         }
 
         @Override
@@ -280,7 +373,7 @@ public class Type {
     }
 
 
-    public static class Enum extends Type implements Interpreter.Declareable {
+    public static class Enum extends Type implements Interpreter.NamedDeclareable {
         final Interpreter.FilePosition declaredAt;
         final String[] entryNames;
         final Value.EnumEntry[] entries;
@@ -302,6 +395,10 @@ public class Type {
         }
 
         @Override
+        public String name() {
+            return name;
+        }
+        @Override
         public Interpreter.DeclareableType declarableType() {
             return Interpreter.DeclareableType.ENUM;
         }
@@ -316,6 +413,35 @@ public class Type {
         NativeType(String name, Class<?> jClass) {
             super(name, false);
             this.jClass = jClass;
+        }
+    }
+
+    public static class GenericParameter extends Type implements Interpreter.Declareable {
+        final int id;
+        final Interpreter.FilePosition declaredAt;
+        public GenericParameter(int id , Interpreter.FilePosition pos) {
+            super("'"+id,false);
+            this.id=id;
+            this.declaredAt=pos;
+        }
+
+        @Override
+        Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
+            for(int i=0;i<genericParams.length;i++){
+                if(this==genericParams[i])
+                    return genericArgs[i];
+            }
+            return this;
+        }
+
+        @Override
+        public Interpreter.DeclareableType declarableType() {
+            return Interpreter.DeclareableType.GENERIC;
+        }
+
+        @Override
+        public Interpreter.FilePosition declaredAt() {
+            return declaredAt;
         }
     }
 }

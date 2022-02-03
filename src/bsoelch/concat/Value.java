@@ -804,7 +804,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.GENERIC_LIST||this.type.equals(type)){
+            if(type==Type.UNTYPED_LIST||this.type.equals(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1014,7 +1014,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.GENERIC_LIST||this.type.equals(type)){
+            if(type==Type.UNTYPED_LIST||this.type.equals(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1303,7 +1303,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.GENERIC_LIST||this.type.equals(type)){
+            if(type==Type.UNTYPED_LIST||this.type.equals(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1466,7 +1466,7 @@ public abstract class Value {
         }
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.GENERIC_LIST||this.type.equals(type)){
+            if(type==Type.UNTYPED_LIST||this.type.equals(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1482,7 +1482,7 @@ public abstract class Value {
         }
     }
 
-    public static Value createTuple(Type.Tuple type,Value[] elements) throws ConcatRuntimeError {
+    public static Value createTuple(Type.Tuple type, Value[] elements) throws ConcatRuntimeError {
         if(elements.length!=type.elementCount()){
             throw new IllegalArgumentException("elements has to have the same length as types");
         }
@@ -1574,10 +1574,10 @@ public abstract class Value {
         }
     }
 
-    public static Procedure createProcedure(Type procType,Interpreter.FilePosition declaredAt,
-                                            ArrayList<Interpreter.Token> tokens, Interpreter.ProcedureContext variableContext) {
-        if(procType instanceof Type.Procedure||procType==Type.GENERIC_PROCEDURE){
-            return new Procedure(procType,declaredAt,tokens,variableContext);
+    public static Procedure createProcedure(Type procType, ArrayList<Interpreter.Token> tokens, Type.GenericParameter[] generics, Interpreter.FilePosition declaredAt,
+                                            Interpreter.ProcedureContext variableContext) {
+        if(procType instanceof Type.Procedure||procType==Type.UNTYPED_PROCEDURE){
+            return new Procedure(procType, tokens, generics, declaredAt, variableContext);
         }else{
             throw new IllegalArgumentException(procType+" is no valid procedure Type");
         }
@@ -1587,9 +1587,11 @@ public abstract class Value {
 
         final Interpreter.ProcedureContext context;
         final ArrayList<Interpreter.Token> tokens;
-        private Procedure(Type procType, Interpreter.FilePosition declaredAt, ArrayList<Interpreter.Token> tokens,
+        final Type.GenericParameter[] generics;
+        private Procedure(Type procType, ArrayList<Interpreter.Token> tokens, Type.GenericParameter[] generics, Interpreter.FilePosition declaredAt,
                           Interpreter.ProcedureContext context) {
             super(procType);
+            this.generics = generics;
             this.declaredAt = declaredAt;
             this.tokens=tokens;
             this.context=context;
@@ -1602,9 +1604,9 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type==Type.GENERIC_PROCEDURE&&(type instanceof Type.Procedure)){
+            if(this.type==Type.UNTYPED_PROCEDURE &&(type instanceof Type.Procedure)){
                 //addLater type-check body
-                return new Procedure(type, declaredAt,tokens,context);
+                return new Procedure(type, tokens, generics, declaredAt, context);
             }
             return super.castTo(type);
         }
@@ -1946,7 +1948,7 @@ public abstract class Value {
             return "native value @"+System.identityHashCode(nativeValue);
         }
     }
-    static class NativeProcedure extends Value implements Interpreter.Declareable {
+    static class NativeProcedure extends Value implements Interpreter.NamedDeclareable {
         final Method nativeMethod;
         final String name;
         final Interpreter.FilePosition declaredAt;
@@ -1957,6 +1959,12 @@ public abstract class Value {
             this.name = name;
             this.declaredAt = declaredAt;
         }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
         @Override
         public Interpreter.DeclareableType declarableType() {
             return Interpreter.DeclareableType.NATIVE_PROC;

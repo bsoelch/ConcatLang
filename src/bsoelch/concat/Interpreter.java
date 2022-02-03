@@ -81,21 +81,6 @@ public class Interpreter {
             return str + "at "+ start;
         }
     }
-    record Macro(FilePosition pos, String name,
-                 ArrayList<StringWithPos> content) implements Declareable{
-        @Override
-        public String toString() {
-            return "macro " +name+":"+content;
-        }
-        @Override
-        public DeclareableType declarableType() {
-            return DeclareableType.MACRO;
-        }
-        @Override
-        public FilePosition declaredAt() {
-            return pos;
-        }
-    }
 
     enum VariableType{
         GLOBAL,LOCAL,CURRIED
@@ -117,7 +102,7 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE,CONST_DECLARE,UNMODIFIED,PROC_ID,VAR_WRITE,NATIVE,NATIVE_DECLARE
+        DECLARE,CONST_DECLARE,UNMODIFIED,PROC_ID,VAR_WRITE,NATIVE, NEW_GENERIC, NATIVE_DECLARE
     }
     static class IdentifierToken extends Token {
         final IdentifierType type;
@@ -354,7 +339,6 @@ public class Interpreter {
         static Type[] getSignature(List<Token> tokens,boolean tupleMode) throws SyntaxError {
             RandomAccessStack<ValueToken> stack=new RandomAccessStack<>(tokens.size());
             for(Token t:tokens){
-                //addLater generics
                 if(t instanceof ValueToken){
                     stack.push(((ValueToken) t));
                 }else{//list, optional, tuple, -> are evaluated in parser
@@ -590,15 +574,17 @@ public class Interpreter {
     }
     private static class TupleBlock extends CodeBlock{
         final String name;
+        final GenericContext context;
 
         TupleBlock(String name,int start, FilePosition startPos, VariableContext parentContext) {
             super(start, BlockType.TUPLE, startPos, parentContext);
             this.name=name;
+            context=new GenericContext(parentContext);
         }
 
         @Override
         VariableContext context() {
-            return parentContext;
+            return context;
         }
     }
     private static class ListBlock extends CodeBlock{
@@ -702,12 +688,16 @@ public class Interpreter {
         void nextToken() {
             currentPos=nextPos;
             buffer.setLength(0);
+            updateNextPos();
+        }
+        void updateNextPos() {
             nextPos=new FilePosition(path, line, posInLine);
         }
     }
 
     enum DeclareableType{
-        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM, TUPLE, ENUM_ENTRY, NATIVE_PROC
+        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM, TUPLE, ENUM_ENTRY, GENERIC, NATIVE_PROC,
+        GENERIC_TUPLE,
     }
     static String declarableName(DeclareableType t, boolean a){
         switch (t){
@@ -735,8 +725,11 @@ public class Interpreter {
             case ENUM_ENTRY -> {
                 return a?"an enum entry":"enum entry";
             }
-            case TUPLE -> {
+            case GENERIC_TUPLE, TUPLE -> {
                 return a?"a tuple":"tuple";
+            }
+            case GENERIC -> {
+                return a?"a generic type":"generic type";
             }
             case NATIVE_PROC -> {
                 return a?"a native procedure":"native procedure";
@@ -747,6 +740,24 @@ public class Interpreter {
     interface Declareable{
         DeclareableType declarableType();
         FilePosition declaredAt();
+    }
+    interface NamedDeclareable extends Declareable{
+        String name();
+    }
+    record Macro(FilePosition pos, String name,
+                 ArrayList<StringWithPos> content) implements NamedDeclareable{
+        @Override
+        public String toString() {
+            return "macro " +name+":"+content;
+        }
+        @Override
+        public DeclareableType declarableType() {
+            return DeclareableType.MACRO;
+        }
+        @Override
+        public FilePosition declaredAt() {
+            return pos;
+        }
     }
     private static class VariableId implements Declareable{
         final VariableContext context;
@@ -791,6 +802,15 @@ public class Interpreter {
         @Override
         public DeclareableType declarableType() {
             return DeclareableType.CURRIED_VARIABLE;
+        }
+    }
+
+    private record GenericTuple(String name, Type.GenericParameter[] params,
+                                Type[] types,
+                                FilePosition declaredAt) implements NamedDeclareable {
+        @Override
+        public DeclareableType declarableType() {
+            return DeclareableType.GENERIC_TUPLE;
         }
     }
 
@@ -1016,12 +1036,6 @@ public class Interpreter {
             return predeclared;
         }
 
-        void declareMacro(Macro macro,IOContext ioContext) throws SyntaxError{
-            String name=inCurrentModule(macro.name);
-            ensureDeclareable(name,DeclareableType.MACRO,macro.pos);
-            checkShadowed(macro,macro.name,macro.pos,ioContext);
-            elements.put(name,macro);
-        }
         void removeMacro(String name, FilePosition pos) throws SyntaxError {
             Declareable removed=elements.remove(inCurrentModule(name));
             if(removed==null){
@@ -1048,17 +1062,11 @@ public class Interpreter {
                 elements.put(path,entry);
             }
         }
-        void declareTuple(Type.Tuple tuple, IOContext ioContext) throws SyntaxError {
-            String localName=inCurrentModule(tuple.name);
-            ensureDeclareable(localName,DeclareableType.TUPLE,tuple.declaredAt);
-            checkShadowed(tuple,tuple.name,tuple.declaredAt,ioContext);
-            elements.put(localName,tuple);
-        }
-        void declareNativeProcedure(Value.NativeProcedure proc, IOContext ioContext) throws SyntaxError {
-            String localName=inCurrentModule(proc.name);
-            ensureDeclareable(localName,DeclareableType.NATIVE_PROC,proc.declaredAt);
-            checkShadowed(proc,proc.name,proc.declaredAt,ioContext);
-            elements.put(localName,proc);
+        void declareNamedDeclareable(NamedDeclareable declareable, IOContext ioContext) throws SyntaxError {
+            String localName=inCurrentModule(declareable.name());
+            ensureDeclareable(localName,declareable.declarableType(),declareable.declaredAt());
+            checkShadowed(declareable,declareable.name(),declareable.declaredAt(),ioContext);
+            elements.put(localName,declareable);
         }
 
         @Override
@@ -1139,8 +1147,29 @@ public class Interpreter {
             return parent.level()+1;
         }
     }
+    static class GenericContext extends BlockContext{
+        ArrayList<Type.GenericParameter> generics=new ArrayList<>();
 
-    static class ProcedureContext extends BlockContext {
+        public GenericContext(VariableContext parent) {
+            super(parent);
+        }
+        void declareGeneric(String name, FilePosition pos, IOContext ioContext) throws SyntaxError {
+            Type.GenericParameter generic;
+            ensureDeclareable(name,DeclareableType.GENERIC,pos);
+            generic = new Type.GenericParameter(generics.size(), pos);
+            generics.add(generic);
+            elements.put(name, generic);
+            Declareable shadowed = parent.unsafeGetDeclared(name);
+            if (shadowed != null) {//check for shadowing
+                ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
+                        "\n     shadows existing " + declarableName(shadowed.declarableType(),false)
+                        + " declared at "  + shadowed.declaredAt());
+            }
+        }
+    }
+
+    //addLater only allow generics in in-signature
+    static class ProcedureContext extends GenericContext {
         ArrayList<CurriedVariable> curried=new ArrayList<>();
         ProcedureContext(VariableContext parent){
             super(parent);
@@ -1221,6 +1250,7 @@ public class Interpreter {
                             }
                             reader.nextToken();
                         }
+                        reader.updateNextPos();
                     }else{
                         switch (c) {
                             case '"', '\'' -> {
@@ -1244,7 +1274,7 @@ public class Interpreter {
                                                 program,ioContext);
                                     }
                                     reader.nextToken();
-                                } else if (c == '_') {
+                                } else if (c == '+') {
                                     state = WordState.COMMENT;
                                     current=next;
                                     next=reader.buffer.toString();
@@ -1299,7 +1329,7 @@ public class Interpreter {
                     }
                     break;
                 case COMMENT:
-                    if(c=='_'){
+                    if(c=='+'){
                         c = reader.forceNextChar();
                         if(c=='#'){
                             state=WordState.ROOT;
@@ -1369,7 +1399,7 @@ public class Interpreter {
         if (str.length() > 0) {
             if(currentMacroPtr[0]!=null){//handle macros
                 if(str.equals("#end")){
-                    program.rootContext.declareMacro(currentMacroPtr[0],ioContext);
+                    program.rootContext.declareNamedDeclareable(currentMacroPtr[0],ioContext);
                     currentMacroPtr[0]=null;
                 }else if(str.startsWith("#")){
                     throw new SyntaxError(str+" is not allowed in macros",pos);
@@ -1552,6 +1582,16 @@ public class Interpreter {
                         }
                         return;
                     }
+                    case "<>" ->{
+                        if(prev==null){
+                            throw new SyntaxError("not enough tokens tokens for '<>' modifier",pos);
+                        }else if(prevId!=null){
+                            tokens.set(tokens.size()-1,new IdentifierToken(IdentifierType.NEW_GENERIC,prevId,prev.pos));
+                        }else{
+                            throw new SyntaxError("invalid token for '<>' modifier: "+prev,prev.pos);
+                        }
+                        return;
+                    }
                 }
                 if(prev!=null){
                     if((!(next.equals(".")||str.equals("proc")||str.equals("procedure")||str.equals("enum")
@@ -1562,6 +1602,13 @@ public class Interpreter {
                         switch (identifier.type){
                             case NATIVE ->
                                 throw new RuntimeException("unreachable");
+                            case NEW_GENERIC -> {
+                                if(!(context instanceof GenericContext)){
+                                    throw new SyntaxError("generics can only be declared in tuple and procedure signatures",prev.pos);
+                                }
+                                ((GenericContext) context).declareGeneric( identifier.name,identifier.pos,ioContext);
+                                tokens.remove(index);
+                            }
                             case DECLARE,CONST_DECLARE,NATIVE_DECLARE -> {
                                 if(index>=1&&(prev=tokens.get(index-1)) instanceof ValueToken){
                                     try {//remember constant declarations
@@ -1639,15 +1686,35 @@ public class Interpreter {
                                         //update identifiers at end of macro
                                         finishWord(END_OF_FILE,next,tokens, openBlocks, currentMacroPtr, identifier.pos, program,ioContext);
                                     }
-                                    case ENUM ->
+                                    case TUPLE,ENUM,GENERIC ->
                                         tokens.set(index,
-                                                new ValueToken(Value.ofType((Type.Enum)d), identifier.pos, false));
+                                                new ValueToken(Value.ofType((Type)d), identifier.pos, false));
                                     case ENUM_ENTRY ->
                                         tokens.set(index,
                                                 new ValueToken((Value.EnumEntry)d, identifier.pos, false));
-                                    case TUPLE ->
-                                            tokens.set(index,
-                                                    new ValueToken(Value.ofType((Type.Tuple)d), identifier.pos, false));
+                                    case GENERIC_TUPLE ->{
+                                        tokens.remove(index);
+                                        GenericTuple g = (GenericTuple) d;
+                                        Type[] genArgs=new Type[g.params.length];
+                                        for(int i= genArgs.length-1;i>=0;i--){
+                                            if(index<=0){
+                                                throw new SyntaxError("Not enough arguments for "+
+                                                        declarableName(DeclareableType.GENERIC_TUPLE,false)+" "+((GenericTuple) d).name,pos);
+                                            }
+                                            prev=tokens.remove(--index);
+                                            if(!(prev instanceof ValueToken)){
+                                                throw new SyntaxError("invalid token for type-parameter:"+prev,prev.pos);
+                                            }
+                                            try {
+                                                genArgs[i]=((ValueToken)prev).value.asType();
+                                            } catch (TypeError e) {
+                                                throw new SyntaxError(e.getMessage(),prev.pos);
+                                            }
+                                        }
+                                        tokens.add(new ValueToken(Value.ofType(
+                                                Type.GenericTuple.create(g.name,g.params.clone(),genArgs,g.types.clone(),g.declaredAt)),
+                                                identifier.pos, false));
+                                    }
                                 }
                             }
                             case VAR_WRITE -> {
@@ -1771,10 +1838,10 @@ public class Interpreter {
             case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos, false));
             case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
             case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
-            case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_PROCEDURE), pos, false));
+            case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_PROCEDURE), pos, false));
             case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
-            case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_LIST),      pos, false));
-            case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.GENERIC_OPTIONAL),  pos, false));
+            case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_LIST),      pos, false));
+            case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_OPTIONAL),  pos, false));
 
             case "list" -> {
                 if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
@@ -2113,6 +2180,10 @@ public class Interpreter {
                             ProcedureContext context = ((ProcedureBlock) block).context();
                             Type[] ins=((ProcedureBlock) block).inTypes;
                             Type[] outs=((ProcedureBlock) block).outTypes;
+                            ArrayList<Type.GenericParameter> generics=((ProcedureBlock) block).context.generics;
+                            if(generics.size()>0){
+                                throw new UnsupportedOperationException("generic procedures are currently not supported");
+                            }
                             Type procType;
                             if(ins!=null) {
                                 if (outs == null) {
@@ -2126,7 +2197,7 @@ public class Interpreter {
                                     throw new SyntaxError("named procedure "+((ProcedureBlock) block).name+
                                             " does not have a signature",block.startPos);
                                 }
-                                procType=Type.GENERIC_PROCEDURE;
+                                procType=Type.UNTYPED_PROCEDURE;
                             }
                             if(((ProcedureBlock) block).isNative){
                                 assert ((ProcedureBlock) block).name!=null;
@@ -2136,9 +2207,10 @@ public class Interpreter {
                                 }
                                 Value.NativeProcedure proc=Value.createNativeProcedure((Type.Procedure) procType,block.startPos,
                                         ((ProcedureBlock) block).name);
-                                rootContext.declareNativeProcedure(proc,ioContext);
+                                rootContext.declareNamedDeclareable(proc,ioContext);
                             }else{
-                                Value.Procedure proc=Value.createProcedure(procType,block.startPos, content, context);
+                                Value.Procedure proc=Value.createProcedure(procType, content,
+                                        generics.toArray(Type.GenericParameter[]::new), block.startPos, context);
                                 if (context.curried.isEmpty()) {
                                     if(((ProcedureBlock) block).name!=null){
                                         rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
@@ -2213,14 +2285,17 @@ public class Interpreter {
                             rootContext.declareEnum(((EnumBlock) block),ioContext);
                         }
                         case TUPLE -> {
+                            ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
                             List<Token> subList = tokens.subList(block.start, tokens.size());
-                            Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name,
-                                    ProcedureBlock.getSignature(subList, true),block.startPos);
+                            Type[] types=ProcedureBlock.getSignature(subList, true);
                             subList.clear();
-                            if(((TupleBlock)block).name!=null){
-                                rootContext.declareTuple(tuple,ioContext);
+                            if(generics.size()>0){
+                                GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,
+                                        generics.toArray(Type.GenericParameter[]::new),types,block.startPos);
+                                rootContext.declareNamedDeclareable(tuple,ioContext);
                             }else{
-                                tokens.add(new ValueToken(Value.ofType(tuple),block.startPos,false));
+                                Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name,types,block.startPos);
+                                rootContext.declareNamedDeclareable(tuple,ioContext);
                             }
                         }
                         case ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST ->
@@ -2629,7 +2704,7 @@ public class Interpreter {
             }
             case LENGTH -> {
                 Type t = stack.pop();//TODO distinguish between (tuple/enum (index-able) and other types)
-                if(!(t.isSubtype(Type.GENERIC_LIST)||t instanceof Type.Tuple||t==Type.TYPE)){
+                if(!(t.isSubtype(Type.UNTYPED_LIST)||t instanceof Type.Tuple||t==Type.TYPE)){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
                 }
                 stack.push(Type.UINT);
@@ -2639,13 +2714,13 @@ public class Interpreter {
                 throw new UnsupportedOperationException("dynamic-empty-optional unimplemented");
             case CLEAR ->{
                 Type t = stack.pop();
-                if(!t.isSubtype(Type.GENERIC_LIST)){
+                if(!t.isSubtype(Type.UNTYPED_LIST)){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
                 }
             }
             case ENSURE_CAP -> {
                 Type t = stack.peek();
-                if(!t.isSubtype(Type.GENERIC_LIST)){
+                if(!t.isSubtype(Type.UNTYPED_LIST)){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+t,op.pos);
                 }
             }
@@ -2655,7 +2730,7 @@ public class Interpreter {
                 Type off   = stack.pop();
                 Type list  = stack.pop();
                 if((count!=Type.INT&&count!=Type.UINT)||(off!=Type.INT&&off!=Type.UINT)||
-                        !list.isSubtype(Type.GENERIC_LIST)||!val.isSubtype(list.content())){
+                        !list.isSubtype(Type.UNTYPED_LIST)||!val.isSubtype(list.content())){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+off+" "+count+" "+val,op.pos);
                 }
             }
@@ -2663,7 +2738,7 @@ public class Interpreter {
                 Type index = stack.pop();
                 Type list = stack.pop();
                 if((index!=Type.INT&&index!=Type.UINT)||
-                        (!(list.isSubtype(Type.GENERIC_LIST)||list instanceof Type.Tuple||list==Type.TYPE))){
+                        (!(list.isSubtype(Type.UNTYPED_LIST)||list instanceof Type.Tuple||list==Type.TYPE))){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+index,op.pos);
                 }
                 stack.push(list.content());
@@ -2673,7 +2748,7 @@ public class Interpreter {
                 Type val = stack.pop();
                 Type list = stack.pop();
                 if((index!=Type.INT&&index!=Type.UINT)||
-                        (!(list.isSubtype(Type.GENERIC_LIST)||list instanceof Type.Tuple||list==Type.TYPE))||
+                        (!(list.isSubtype(Type.UNTYPED_LIST)||list instanceof Type.Tuple||list==Type.TYPE))||
                         !val.isSubtype(list.content())){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+val+" "+index,op.pos);
                 }
@@ -2683,7 +2758,7 @@ public class Interpreter {
                 Type off   = stack.pop();
                 Type list  = stack.pop();
                 if((off!=Type.INT&&off!=Type.UINT)||(to!=Type.INT&&to!=Type.UINT)||
-                        !list.isSubtype(Type.GENERIC_LIST)){
+                        !list.isSubtype(Type.UNTYPED_LIST)){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+off+" "+to,op.pos);
                 }
                 stack.push(list);
@@ -2694,14 +2769,14 @@ public class Interpreter {
                 Type val  = stack.pop();
                 Type list  = stack.pop();
                 if((off!=Type.INT&&off!=Type.UINT)||(to!=Type.INT&&to!=Type.UINT)||
-                        !list.isSubtype(Type.GENERIC_LIST)||!val.isSubtype(list)){
+                        !list.isSubtype(Type.UNTYPED_LIST)||!val.isSubtype(list)){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+val+" "+off+" "+to,op.pos);
                 }
             }
             case PUSH_FIRST -> {
                 Type b = stack.pop();
                 Type a = stack.pop();
-                if(!b.isSubtype(Type.GENERIC_LIST)||!a.isSubtype(b.content())){
+                if(!b.isSubtype(Type.UNTYPED_LIST)||!a.isSubtype(b.content())){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
                 }
                 stack.push(b);
@@ -2709,7 +2784,7 @@ public class Interpreter {
             case PUSH_LAST -> {
                 Type b = stack.pop();
                 Type a = stack.pop();
-                if(!a.isSubtype(Type.GENERIC_LIST)||!b.isSubtype(a.content())){
+                if(!a.isSubtype(Type.UNTYPED_LIST)||!b.isSubtype(a.content())){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
                 }
                 stack.push(a);
@@ -2717,7 +2792,7 @@ public class Interpreter {
             case PUSH_ALL_FIRST -> {
                 Type b = stack.pop();
                 Type a = stack.pop();
-                if(!b.isSubtype(Type.GENERIC_LIST)||!a.isSubtype(b)){
+                if(!b.isSubtype(Type.UNTYPED_LIST)||!a.isSubtype(b)){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
                 }
                 stack.push(b);
@@ -2725,7 +2800,7 @@ public class Interpreter {
             case PUSH_ALL_LAST -> {
                 Type b = stack.pop();
                 Type a = stack.pop();
-                if(!a.isSubtype(Type.GENERIC_LIST)||!b.isSubtype(a)){
+                if(!a.isSubtype(Type.UNTYPED_LIST)||!b.isSubtype(a)){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
                 }
                 stack.push(a);
@@ -2773,6 +2848,12 @@ public class Interpreter {
                 switch (next.tokenType) {
                     case VALUE -> {
                         ValueToken value = (ValueToken) next;
+                        if(value.value.type==Type.TYPE){
+                            Type type = value.value.asType();
+                            if(type instanceof Type.GenericParameter){
+                                throw new UnsupportedOperationException("type-checking generics is currently unimplemented");
+                            }
+                        }
                         stack.push(value.value.type);
                     }
                     case CURRIED_PROCEDURE -> {
@@ -3139,7 +3220,10 @@ public class Interpreter {
                 switch (next.tokenType) {
                     case VALUE -> {
                         ValueToken value = (ValueToken) next;
-                        if(value.cloneOnCreate){
+                        if(value.value.type==Type.TYPE&&value.value.type instanceof Type.GenericParameter){
+                            //TODO resolve generic types in procedure signatures
+                            throw new ConcatRuntimeError("unresolved generic type");
+                        }else if(value.cloneOnCreate){
                             stack.push(value.value.clone(true));
                         }else{
                             stack.push(value.value);
