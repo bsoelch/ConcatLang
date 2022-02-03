@@ -7,7 +7,7 @@ stack #include
 charDiff   proc byte byte => int : swap int cast swap int cast - end
 
 ?WhiteSpace proc byte => bool :
-  #_input_# switch
+  #+input+# switch
   ' ' '\r' '\t' '\n' case
     true return
   end-case

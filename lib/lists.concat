@@ -16,7 +16,7 @@ reverse proc (list) => :
   end
 end
 
-__LISTS_mergesort_helper proc (list) #_off_# int  #_to_# int #_buffer_# (list) => :
+__LISTS_mergesort_helper proc (list) #+off+# int  #+to+# int #+buffer+# (list) => :
   (list) buffer =:
   int to =:
   int off =:
@@ -59,8 +59,8 @@ end
 
 mergesort proc (list) => :
   (list) input =:
-  #_list:_#input  #_off:_#0  #_to:_#input length 1 -  #_buffer:_#input length 2 /
-  var list #_ TODO replace when generics are implemented _#
+  #+list:+#input  #+off:+#0  #+to:+#input length 1 -  #+buffer:+#input length 2 /
+  var list #+ TODO replace when generics are implemented +#
   new __LISTS_mergesort_helper
 end
 ## addLater sort with comparator (needs generic signatures)

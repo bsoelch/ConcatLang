@@ -2,7 +2,7 @@ valueIO #include
 core #import
 
 test proc int => string :
-  #_input _# switch
+  #+input+# switch
   1 case
     "1st case" return
     end-case
@@ -20,7 +20,7 @@ test proc int => string :
 end
 testDefault proc int => string :
   9 swap -
-  #_input _# switch
+  #+input+# switch
   1 case
     "1st case" return
     end-case

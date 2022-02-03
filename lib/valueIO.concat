@@ -299,7 +299,7 @@ __IO_printValue proc __IO_FormatValue var list => string :
   res
 end
 
-isFormatChar proc #_char_# byte => bool :
+isFormatChar proc #+char+# byte => bool :
   byte c =:
   "bBiIuUdxXfFeEcsS%" string formats =: ## addLater? formatted printing of lists
   0 int i =:
@@ -312,7 +312,7 @@ isFormatChar proc #_char_# byte => bool :
   false
 end
 
-sprintf proc #_args_# var list #_format_# string => string :
+sprintf proc #+args+# var list #+format+# string => string :
   string format =:
   var list args =:
 
@@ -386,7 +386,7 @@ sprintf proc #_args_# var list #_format_# string => string :
         end
         tmp 0 i1 [:] clear
         tmp length 0 == if
-          true while #_ loop condition on stack _#&& i _formatString length < end do
+          true while #+ loop condition (on stack) +#&& i _formatString length < end do
             _formatString i [] tmpC =
             tmpC '-' == if
               flags __IO_FLAG_ALIGN_LEFT | flags =

@@ -84,13 +84,13 @@ codepointsToString proc ustring => string :
   "" source string:+ustring return
 end
 
-#_
+#+
 gets the first full codepoint in the given string that starts at or after index,
 returns true/false depending of if there was a next codepoint
 the value of the read codepoint (of 0 if the end of the string was reached)
 followed by the index after the next codepoint and the string
-_#
-nextCodepoint proc string #_index_# int => string #_end_# int #_next_# codepoint #_has next_# bool :
++#
+nextCodepoint proc string #+index+# int => string #+end+# int #+next+# codepoint #+has next+# bool :
   int    index =:
   string value =:
   while index value length < && value index [] int cast 0xc0 & 0x80 == end do

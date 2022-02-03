@@ -6,7 +6,7 @@ core #import
 file IO_Buff 0 64 io read . int n =:
 n 0 > if
   file IO_Buff 0 n io write .
-  #_return value of write_# if
+  #+return value of write+# if
     "copied " puts n print " bytes\n" puts
   end
   file io truncate . drop

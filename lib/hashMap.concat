@@ -39,7 +39,7 @@ HashMap.size proc HashMap => int                  : 3 [] end
 _Map.incSize proc HashMap => : dup 3 [] 1 + 3 [] = end
 _Map.decSize proc HashMap => : dup 3 [] 1 - 3 [] = end
 
-newHashMap proc #_keyType_# type #_valType_# type #_cap_# int => HashMap :
+newHashMap proc #+keyType+# type #+valType+# type #+cap+# int => HashMap :
   int cap =:
   type valType =:
   type keyType =:
@@ -48,7 +48,7 @@ newHashMap proc #_keyType_# type #_valType_# type #_cap_# int => HashMap :
   keyType valType data 0 HashMap new
 end
 
-HashMap.put proc #_map_# HashMap #_key_# var #_value_# var => #_prevVal_# var optional :
+HashMap.put proc #+map+# HashMap #+key+# var #+value+# var => #+prevVal+# var optional :
   var value =:
   var key =:
   HashMap map =:
@@ -85,7 +85,7 @@ HashMap.put proc #_map_# HashMap #_key_# var #_value_# var => #_prevVal_# var op
   end
 end
 
-HashMap.contains proc #_map_# HashMap #_key_# var => bool :
+HashMap.contains proc #+map+# HashMap #+key+# var => bool :
   var key =:
   HashMap map =:
   key hashCode uint hash =:
@@ -101,7 +101,7 @@ HashMap.contains proc #_map_# HashMap #_key_# var => bool :
   false return
 end
 
-HashMap.get proc #_map_# HashMap #_key_# var => #_value_# var optional :
+HashMap.get proc #+map+# HashMap #+key+# var => #+value+# var optional :
   var key =:
   HashMap map =:
   key hashCode uint hash =:
@@ -117,7 +117,7 @@ HashMap.get proc #_map_# HashMap #_key_# var => #_value_# var optional :
   map _Map.valType empty return
 end
 
-HashMap.remove proc #_map_# HashMap #_key_# var => #_prevVal_# var optional :
+HashMap.remove proc #+map+# HashMap #+key+# var => #+prevVal+# var optional :
   var key =:
   HashMap map =:
   key hashCode uint hash =:
@@ -147,7 +147,7 @@ HashMap.remove proc #_map_# HashMap #_key_# var => #_prevVal_# var optional :
   end
 end
 
-HashMapItr tuple HashMap #_index_# int #_next_# _Entry optional end
+HashMapItr tuple HashMap #+index+# int #+next+# _Entry optional end
 _HashMapItr.map   proc HashMapItr => HashMap         : 0 []   end
 _HashMapItr.i     proc HashMapItr => int             : 1 []   end
 _HashMapItr.next  proc HashMapItr => _Entry optional : 2 []   end
@@ -155,7 +155,7 @@ _HashMapItr.next= proc HashMapItr _Entry optional => : 2 [] = end
 _HashMapItr.incI  proc HashMapItr => :    dup 1 [] 1 + 1 [] = end
 
 HashMap.itr proc HashMap => HashMapItr :
-  #_map_# -1 _Entry empty HashMapItr new return
+  #+map+# -1 _Entry empty HashMapItr new return
 end
 HashMapItr.next proc HashMapItr => HashMapItr MapEntry optional :
   HashMapItr itr =:
@@ -166,7 +166,7 @@ HashMapItr.next proc HashMapItr => HashMapItr MapEntry optional :
     end
     itr  itr _HashMapItr.map _Map.data itr _HashMapItr.i []  _HashMapItr.next=
   end
-  #_ itr _HashMapItr.next _# MapEntry optional res =:
+  #+ itr _HashMapItr.next +# MapEntry optional res =:
   itr  itr _HashMapItr.next unwrap _Entry.next  _HashMapItr.next=
   itr res return
 end

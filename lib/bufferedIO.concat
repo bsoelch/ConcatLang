@@ -8,13 +8,13 @@ BufferedInput.file   proc BufferedInput => FILE      : 0 [] end
 BufferedInput.buffer proc BufferedInput => byte list : 1 [] end
 BufferedInput.cap    proc BufferedInput => int       : 2 [] end
 
-newBufferedInput proc FILE #_ cap _# int => BufferedInput :
+newBufferedInput proc FILE #+ cap +# int => BufferedInput :
     int cap =:
     FILE file =:
     file cap byte list new cap BufferedInput new return
 end
 
-BufferedInput.readTo proc BufferedInput #_buffer_# byte list #_amount_# int => #_n-read_#int :
+BufferedInput.readTo proc BufferedInput #+buffer+# byte list #+amount+# int => #+n-read+#int :
   BufferedInput in =:
   byte list buffer =:
   int count =:

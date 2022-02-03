@@ -13,7 +13,7 @@ uint_MIN #define                   0u #end
  int_MAX #define  0x7fffffffffffffff  #end
  int_MIN #define -0x8000000000000000  #end
 
-#_ addLater float_MIN, float_MAX _#
+#+ addLater float_MIN, float_MAX +#
 float_NaN #define 0 0.0 / #end ##addLater move to native constants
 float_Positive_Infinity #define 1 0.0 / #end
 float_Negative_Infinity #define -1 0.0 / #end
@@ -27,7 +27,7 @@ float_isFinite proc float => bool :
   val float_Positive_Infinity < && val float_Negative_Infinity > end return
 end
 
-__NUMBERS_getDigit proc #_value_# int #_base_# int #_big_# bool => #_ char _# byte :
+__NUMBERS_getDigit proc #+value+# int #+base+# int #+big+# bool => #+ char +# byte :
     bool big =:
     int base =:
     int value =:
@@ -48,7 +48,7 @@ __NUMBERS_getDigit proc #_value_# int #_base_# int #_big_# bool => #_ char _# by
     end
 end
 
-intToString proc #_value_# int #_base_# int #_unsigned_# bool #_big_# bool => string :
+intToString proc #+value+# int #+base+# int #+unsigned+# bool #+big+# bool => string :
   bool big =:
   bool unsigned =:
   int base =:
@@ -86,7 +86,7 @@ intToString proc #_value_# int #_base_# int #_unsigned_# bool #_big_# bool => st
   end
 end
 
-floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #_sci_# bool => string :
+floatToString proc #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string :
   bool  sci =:
   bool  big =:
   int   base =:
@@ -112,7 +112,7 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
     '-' :<<
     value -_ value =
   end
-  0b1e-110100 #_2^-52_# value * float eps =: ##? better implementation of eps
+  0b1e-110100 #+2^-52+# value * float eps =: ##? better implementation of eps
   value log base log / floor int e =:
   e int e_max =:
   base e float cast ** float p =:
@@ -188,7 +188,7 @@ floatToString proc #_value_# float #_precision_# int #_base_# int #_big_# bool #
   end
 end
 
-valueOfDigit proc #_digit _# byte #_base_# int => #_value_# int :
+valueOfDigit proc #+digit +# byte #+base+# int => #+value+# int :
   int  base =:
   byte digit =:
   digit '0' >= && digit '9' <= end if
@@ -216,7 +216,7 @@ StringParseError enum
   ERR_ILLEGAL_CHAR
 end
 
-stringToInt proc #_source_# string #_base_# int #_unsigned_# bool => #_val_# int #_err-code_# StringParseError :
+stringToInt proc #+source+# string #+base+# int #+unsigned+# bool => #+val+# int #+err-code+# StringParseError :
   bool unsigned =:
   int  base =:
   string source =:
@@ -250,10 +250,10 @@ stringToInt proc #_source_# string #_base_# int #_unsigned_# bool => #_val_# int
   res  sgn if -_ end StringParseError ERR_NONE . return
 end
 
-checkErrCode proc #_err-code_# StringParseError #_type-name_# string #_source_# string => :
+checkErrCode proc #+err-code+# StringParseError #+type-name+# string #+source+# string => :
   string source =:
   string typeName =:
-  #_err-code_# switch
+  #+err-code+# switch
   StringParseError ERR_NONE . case end-case
   StringParseError ERR_BASE . case
       "invalid string-format for " typeName :+ " \"" +: source :+ "\" (base outside of allowed rage)\n" :+ eputs
@@ -284,7 +284,7 @@ parseUInt proc string => int :
   "uint" source checkErrCode
 end
 
-_isExpChar proc #_char_# byte #_base_# int => bool :
+_isExpChar proc #+char+# byte #+base+# int => bool :
   int base =:
   byte c =:
   c 'e' == || c 'E' == end if
@@ -300,7 +300,7 @@ _isExpChar proc #_char_# byte #_base_# int => bool :
   end
 end
 
-stringToFloat proc #_str_# string #_base_# int => #_val_# float #_err-code_# StringParseError :
+stringToFloat proc #+str+# string #+base+# int => #+val+# float #+err-code+# StringParseError :
   int base =:
   string str =:
   base 2 < || base 62 > end if

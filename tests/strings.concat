@@ -4,8 +4,8 @@ core #import
 
  "Hello World" println
 u"Hello World" println
- "💻" 0 [] dup int cast print "(" print #_char-value_# print ")" println
-u"💻" 0 [] dup int cast print "(" print #_char-value_# print ")" println
+ "💻" 0 [] dup int cast print "(" print #+char-value+# print ")" println
+u"💻" 0 [] dup int cast print "(" print #+char-value+# print ")" println
 utf8 #include
  "a°💻" length println
  "a°💻" codepoints         dup typeof print "[" print dup length print "]:" print println

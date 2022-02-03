@@ -30,7 +30,7 @@ fib proc int => int :
  end
 end
 
-#_ print 10th Fibonacci Number: _#
+#+ print 10th Fibonacci Number: +#
 10 fib println
 ```
 !!! `#include` and `#import` are not part of the comments !!!
@@ -45,7 +45,7 @@ pulling a given number of values, preforming
 an operation on that values and then pushing the result
 ### Comments
 - `##` comments out the rest of the list
-- Inline comments are surrounded by `#_` and `_#`
+- Inline comments are surrounded by `#+` and `+#`
 ### Values
 Writing a Value in the source code simply pushes that value
 on the stack, the natively supported value types are
@@ -309,8 +309,8 @@ int list list drop ## list of list of ints
 1 2 3   3 float {} dup println
 1 [] println
 "Hello" ' ' "World" >>: ++ '!' :<< println
-4 fib () #_ call procedure at the procedure-pointer fib 
-with argument 4 _#
+4 fib () #+ call procedure at the procedure-pointer fib 
+with argument 4 +#
 "Hello World!" 7 9 [:] println
 "Hello World?" '!' 11 [] = println
 "Hello World!" "Programmer" 6 11 [:] = println
@@ -420,7 +420,7 @@ the name of the procedure, followed by
 followed by `=>` then the output arguments
 followed by `:` then the body of the procedure 
 followed by end `end`.
-```Rust
+```
 <Name> proc <In1> <In...> <InN> => <Out1> <Out...> <OutN> :
  <body>
 end
@@ -446,7 +446,7 @@ Procedure pointers can be called with the call-operator `()`
 
 #### procedure Examples
 Examples:
-```Rust
+```
 ## procedure for recursivly printing the fibonacci numbers
 fib proc int => int :
    dup 1 >  if 
@@ -509,11 +509,11 @@ placed directly after the corresponding variable
 
 Examples:
 ```Python
-1 int a =: #_ declare a as integer with value 1 _#
-42 a = #_ store 42 in a _#
-a println  #_ print the value of a _#
-3.14 float a =: #_ redeclare a as float _#
-2.718281828 float e =$ #_ declare a constant with the name e_#
+1 int a =: #+ declare a as integer with value 1 +#
+42 a = #+ store 42 in a +#
+a println  #+ print the value of a +#
+3.14 float a =: #+ redeclare a as float +#
+2.718281828 float e =$ #+ declare a constant with the name e+#
 ```
 
 #### Scopes
