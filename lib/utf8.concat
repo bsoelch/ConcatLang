@@ -23,7 +23,7 @@ string<<codepoint proc string codepoint => string :
         cp        0x3f & 0x80 | byte cast :<< return
   else
     ## don't exit on invalid codepoints, only display waring message
-    "Codepoint out of range: " cp int cast  16 true false intToString :+ '\n' :<< eputs
+    "Codepoint out of range: 0x" cp int cast <<X '\n' :<< eputs
   end
 end
 

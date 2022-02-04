@@ -2072,8 +2072,7 @@ public abstract class Value {
                                BiFunction<Double,Double,Value> floatOp) throws TypeError {
         if(a instanceof IntValue||a.type==Type.BYTE){//addLater? isInt/isUInt functions
             if(b instanceof IntValue||b.type==Type.BYTE){
-                return (uintOp!=null&&a.type==Type.UINT&&b.type==Type.UINT?uintOp:intOp)
-                            .apply(a.asLong(), b.asLong());
+                return (a.type==Type.UINT?uintOp:intOp).apply(a.asLong(), b.asLong());
             }else if(b instanceof FloatValue){
                 return floatOp.apply(a.asDouble(), b.asDouble());
             }
@@ -2091,7 +2090,7 @@ public abstract class Value {
             return boolOp.apply(a.asBool(),b.asBool())?TRUE:FALSE;
         }else{
             if((a instanceof IntValue||a.type==Type.BYTE)&&(b instanceof IntValue||b.type==Type.BYTE)){
-                return ofInt(intOp.apply(a.asLong(), b.asLong()),a.type==Type.UINT&&b.type==Type.UINT);
+                return ofInt(intOp.apply(a.asLong(), b.asLong()),a.type==Type.UINT);
             }
             throw new TypeError("invalid parameters for int operator:"+a.type+" "+b.type);
         }

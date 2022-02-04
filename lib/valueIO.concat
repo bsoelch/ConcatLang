@@ -8,131 +8,135 @@ utf8 #include
 
 _EMPTY_TUPLE tuple end
 
-stringValue proc var => string :
+<<s proc string var => string :
   var value =:
   value typeof string == if
-    value clone return
+    value :+ return
   else value typeof ustring == _if
-    value codepointsToString return
+    value string:+ustring return
   else value typeof _EMPTY_TUPLE <= _if
-    "(" string res =:
+    '(' :<< string res =:
     0 int i =:
     while i value length < do
       i 0 > if
         res ", " :+ res =
       end
-      res value i [] stringValue :+ res =
+      res value i [] <<s res =
       i 1 + i =
     end
-    res ")" :+ return
+    res ')' :<< return
   else value typeof (list) <= _if
-    "[" string res =:
+    '[' :<< string res =:
     0 int i =:
     while i value length < do
       i 0 > if
         res ", " :+ res =
       end
-      res value i [] stringValue :+ res =
+      res value i [] <<s res =
       i 1 + i =
     end
-    res "]" :+ return
+    res ']' :<< return
   else value typeof (optional) <= _if
     value ?? if
-      unwrap stringValue " wrap" +: return
+      unwrap <<s " wrap" :+ return
     else
-      typeof content stringValue " empty" +: return
+      typeof content <<s " empty" :+ return
     end
   else value typeof isEnum _if
-    value typeof string cast " " :+ value typeof value [] :+ " ." :+ return
+    value typeof string cast :+ ' ' :<< value typeof value [] :+ " ." :+ return
   else value typeof type == _if
     value string == if
-      "string" return
+      "string" :+ return
     else value ustring == _if
-      "ustring" return
+      "ustring" :+ return
     else value _EMPTY_TUPLE <= _if
-      value string cast return ## return tuple-name
+      value string cast :+ return ## return tuple-name
     else value *->* <= _if
       value *->* == if
-        "*->*" return
+        "*->*" :+ return
       else
-        "( " string res =:
+        "( " :+ string res =:
         value 0 [] type list args =:
         0 int i =:
         while i args length < do
-          res args i [] stringValue :+ " " :+ res =
+          res args i [] <<s " " :+ res =
           i 1 + i =
         end
         res "=> " :+ res =
         value 1 [] args =
         0 i =
         while i args length < do
-          res args i [] stringValue :+ " " :+ res =
+          res args i [] <<s " " :+ res =
           i 1 + i =
         end
         res ")" :+ return
       end
     else value (list) <= _if
       value (list) == if
-        "(list)" return
+        "(list)" :+ return
       else
-        value content stringValue " list" :+ return
+        value content <<s " list" :+ return
       end
     else value (optional) <= _if
       value (optional) == if
-        "(optional)" return
+        "(optional)" :+ return
       else
-        value content stringValue " optional" :+ return
+        value content <<s " optional" :+ return
       end
     else value isEnum _if
-      value string cast return ## return enum-name
+      value string cast :+ return ## return enum-name
     else value type == _if
-      "type" return
+      "type"  :+ return
     else value bool == _if
-      "bool" return
+      "bool"  :+ return
     else value byte == _if
-      "byte" return
+      "byte"  :+ return
     else value  int == _if
-      "int" return
+      "int"   :+ return
     else value uint == _if
-      "uint" return
+      "uint"  :+ return
     else value float == _if
-      "float" return
+      "float" :+ return
     else value codepoint == _if
-      "codepoint" return
+      "codepoint" :+ return
     else value var == _if
-      "var" return
+      "var" :+ return
     else
       "unreachable\n" eputs
       1 exit
     end
   else value typeof bool == _if
-    value if "true" else "false" end return
+    value if "true" else "false" end :+ return
   else value typeof byte == _if
     value 0x80 byte cast < if
-      { value byte cast } return ## print valid ascii-characters as character
+      value byte cast :<< return ## print valid ascii-characters as character
     else
-      value byteToString return ## print all other bytes as their byte-code
+      value byteToString :+ return ## print all other bytes as their byte-code
     end
   else value typeof  int == _if
-    value   10 false false intToString return
+    value <<i return
   else value typeof uint == _if
-    value   10  true false intToString return
+    value  <<u return
   else value typeof float == _if
-    value 0 10 false false floatToString return
+    value <<f return
   else value typeof codepoint == _if
-    value codepointToString return
+    value string<<codepoint return
   else value typeof *->* <= _if
     ## procedure
-    value typeof stringValue "@" :+ value refId  16 true true intToString :+ return
+    value typeof <<s "@" :+ value refId <<X return
   else
     "unreachable\n" eputs
     1 exit
   end
 end
+stringValue proc var => string :
+  var val =:
+  "" val <<s return
+end
 
 byteToString proc byte => string :
   byte value =:
-  "0x" value int cast  16 true false intToString :+ return
+  "0x" value int cast  <<x return
 end
 
 byteListToString proc byte list => string :
@@ -151,7 +155,7 @@ byteListToString proc byte list => string :
 end
 
 print   proc var      => : core stringValue .           core puts .  end
-println proc var      => : core stringValue . "\n" :+   core puts .  end
+println proc var      => : core stringValue . '\n' :<<  core puts .  end
 fprint  proc var FILE => : swap core stringValue . swap core fputs . end
 
 1 int __IO_FLAG_PAD_0 =$
@@ -200,88 +204,114 @@ __IO_printValue proc __IO_FormatValue var list => string :
   else format __IO.flags __IO_FLAG_SGN_SPACE & 0 != _if
     ' ' plusSgn =
   end
-  format __IO.format  'b' == if
+  format __IO.format  switch
+  'b' case
     values format __IO.index [] bool cast if "true" else "false" end
-  else format __IO.format  'B' == _if
+    end-case
+  'B' case
     values format __IO.index [] bool cast if "TRUE" else "FALSE" end
-  else format __IO.format  'i' == _if
-    values format __IO.index []  base false false intToString
+    end-case
+  'i' case
+    ""
     plusSgn '\0' != if
       values format __IO.index [] 0 >= if
-        plusSgn swap >>:
+        plusSgn :<<
       end
     end
-  else format __IO.format  'I' == _if
-    values format __IO.index []  base false true intToString
+    values format __IO.index [] base <<?i
+    end-case
+  'I' case
+    ""
     plusSgn '\0' != if
       values format __IO.index [] 0 >= if
-        plusSgn swap >>:
+        plusSgn :<<
       end
     end
-  else format __IO.format  'u' == _if
-    values format __IO.index []   base true false intToString
+    values format __IO.index [] base <<?I
+    end-case
+  'u' case
+    ""
     plusSgn '\0' != if
-        plusSgn swap >>:
+      plusSgn :<<
     end
-  else format __IO.format  'U' == _if
-    values format __IO.index []   base true true intToString
+    values format __IO.index [] base <<?u
+    end-case
+  'U' case
+    ""
     plusSgn '\0' != if
-      plusSgn swap >>:
+      plusSgn :<<
     end
-  else format __IO.format  'd' == _if
-    values format __IO.index []   10 false false intToString
+    values format __IO.index [] base <<?U
+    end-case
+  'd' case
+    ""
     plusSgn '\0' != if
       values format __IO.index [] 0 >= if
-        plusSgn swap >>:
+        plusSgn :<<
       end
     end
-  else format __IO.format  'x' == _if
-    values format __IO.index []  16 true false intToString
+    values format __IO.index [] <<i
+    end-case
+  'x' case
+    ""
     plusSgn '\0' != if
-      plusSgn swap >>:
+      plusSgn :<<
     end
-  else format __IO.format  'X' == _if
-    values format __IO.index []  16 true true intToString
+    values format __IO.index [] <<x
+   end-case
+  'X' case
+    ""
     plusSgn '\0' != if
-      plusSgn swap >>:
+      plusSgn :<<
     end
-  else format __IO.format  'e' == _if
-    values format __IO.index [] precision base false true  floatToString
+    values format __IO.index []  <<X
+    end-case
+  'e' case
+    ""
     plusSgn '\0' != if
       values format __IO.index [] 0 >= if
-        plusSgn swap >>:
+        plusSgn :<<
       end
     end
-  else format __IO.format  'E' == _if
-    values format __IO.index [] precision base true  true  floatToString
+    values format __IO.index [] precision base <<??e
+    end-case
+  'E' case
+    ""
     plusSgn '\0' != if
       values format __IO.index [] 0 >= if
-        plusSgn swap >>:
+        plusSgn :<<
       end
     end
-  else format __IO.format  'f' == _if
-    values format __IO.index [] precision base false false floatToString
+    values format __IO.index [] precision base <<??E
+    end-case
+  'f' case
+    ""
     plusSgn '\0' != if
       values format __IO.index [] 0 >= if
-        plusSgn swap >>:
+        plusSgn :<<
       end
     end
-  else format __IO.format  'F' == _if
-    values format __IO.index [] precision base true  false floatToString
+    values format __IO.index [] precision base <<??f
+    end-case
+  'F' case
+    ""
     plusSgn '\0' != if
       values format __IO.index [] 0 >= if
-        plusSgn swap >>:
+        plusSgn :<<
       end
     end
-  else format __IO.format  'c' == _if
+    values format __IO.index [] precision base <<??F
+    end-case
+  'c' case
     { values format __IO.index [] byte cast }
-  else format __IO.format  's' == _if
+    end-case
+  's' 'S' case
     values format __IO.index [] stringValue
-  else format __IO.format  'S' == _if
-    values format __IO.index [] stringValue
-  else format __IO.format  '%' == _if
+    end-case
+  '%' case
     "%"
-  else
+    end-case
+  default
     format __IO.format  " is no valid format specifier\n" >>: eputs
     1 exit
   end string res =:
@@ -517,7 +547,7 @@ sprintf proc #+args+# var list #+format+# string => string :
   end
   maxFormat 1 + count =
   count args length != if
-    "wrong number of arguments: " args length 10 false false intToString :+ " expected " :+ count 10 false false intToString :+
+    "wrong number of arguments: " args length <<i " expected " :+ count <<i
     '\n' :<< eputs
     1 exit
   end

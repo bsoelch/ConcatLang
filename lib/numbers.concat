@@ -27,15 +27,14 @@ float_isFinite proc float => bool :
   val float_Positive_Infinity < && val float_Negative_Infinity > end return
 end
 
-__NUMBERS_getDigit proc #+value+# int #+base+# int #+big+# bool => #+ char +# byte :
+__NUMBERS_getDigit proc #+value+# int #+base+# int #+big+# bool => #+char+# byte :
     bool big =:
     int base =:
     int value =:
     value 0 < || value base >= end if
-        ## even though intToString calls this function
-        ## this error check should not be activated when intToString is called normally
-        "Digit out of range: " value  10 false false intToString :+ " base: "
-        :+ base  10 false false intToString '\n' :<< eputs
+        ## even though <<i calls this function
+        ## this error check should not be activated when <<i is called normally
+        "Digit out of range: " value <<i " base: " :+ base <<i '\n' :<< eputs
         1 exit
     end
     value 10 < if
@@ -48,52 +47,73 @@ __NUMBERS_getDigit proc #+value+# int #+base+# int #+big+# bool => #+ char +# by
     end
 end
 
-intToString proc #+value+# int #+base+# int #+unsigned+# bool #+big+# bool => string :
+<<???i proc #+buffer+#string #+value+# uint #+base+# int #+signed+# bool #+big+# bool => string :
   bool big =:
-  bool unsigned =:
+  bool signed =:
   int base =:
-  int value =:
+  uint value =:
   base 2 < || base 62 > end if
     ## even though printing recursively calls this function
-    ## this error check should not be activated when intToString is called normally
-    "Base out of range: " base 10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
+    ## this error check should not be activated when <<i is called normally
+    "Base out of range: " base <<i ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   value 0 == if
-    "0" return
+    '0' :<< return
   end
-  false bool neg =:
-  "" ## result
-  value 0 < if
-    unsigned if
-      value uint cast base uint cast % base big __NUMBERS_getDigit :<<
-      value uint cast base uint cast / value =
-    else
-      true neg =
+  signed && value int cast 0 < end if
+      '-' :<<
       value -_ value =
-      value 0 < if  ## int_MIN
-        value uint cast base uint cast % base big __NUMBERS_getDigit :<<
-        value uint cast base uint cast / value =
-      end
-    end
   end
-  while value 0 > do
-      value base % base big __NUMBERS_getDigit swap >>:
-      value base / value =
-  end
-  neg if
-    "-" swap +:
+  1u uint p =:
+  while value p / base >= do p base * p = end
+  while p 0 > do
+      value p /  base big __NUMBERS_getDigit :<<
+      value p % value =
+      p base / p =
   end
 end
+intToString proc #+buffer+#string #+value+# int #+base+# int #+signed+# bool #+big+# bool => string :
+  bool big =:
+  bool signed =:
+  int base =:
+  int value =:
+  "" value base signed big <<???i return
+end
 
-floatToString proc #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string :
+<<?i proc #+buffer+#string #+value+# int #+base+# int => string :
+  #+signed+# true  #+big+# false <<???i return
+end
+<<?I proc #+buffer+#string #+value+# int #+base+# int => string :
+  #+signed+# true  #+big+# true  <<???i return
+end
+<<?u proc #+buffer+#string #+value+# int #+base+# int => string :
+  #+signed+# false #+big+# false <<???i return
+end
+<<?U proc #+buffer+#string #+value+# int #+base+# int => string :
+  #+signed+# false #+big+# true  <<???i return
+end
+<<i proc #+buffer+#string #+value+# int => string :
+  #+base+# 10 #+signed+# true  #+big+# false <<???i
+end
+<<u proc #+buffer+#string #+value+# int => string :
+  #+base+# 10 #+signed+# false #+big+# false <<???i
+end
+<<x proc #+buffer+#string #+value+# int => string :
+  #+base+# 16 #+signed+# false #+big+# false <<???i
+end
+<<X proc #+buffer+#string #+value+# int => string :
+  #+base+# 16 #+signed+# false #+big+# true  <<???i
+end
+
+<<????f proc #+buffer+# string #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string :
   bool  sci =:
   bool  big =:
   int   base =:
   int   precision =:
   float value =:
   base 2 < || base 62 > end if
-    "Base out of range: " base 10 false false intToString :+ ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base <<i ", base has to be between 2 and 62\n" :+ eputs
     1 exit
   end
   value float_isFinite ! if
@@ -103,11 +123,10 @@ floatToString proc #+value+# float #+precision+# int #+base+# int #+big+# bool #
       "[Infinity]"
     else
       "-[Infinity]"
-    end return
+    end :+ return
   else value 0.0 == || value -0.0 == end _if
-    "0" return
+    "0" :+ return
   end
-  "" ## result
   value 0 < if
     '-' :<<
     value -_ value =
@@ -166,7 +185,7 @@ floatToString proc #+value+# float #+precision+# int #+base+# int #+big+# bool #
     end
     base 10 <= if 'E' else base 30 <= _if 'X' else '#' end :<<
     e_max 0 >= if '+' :<< end
-    e_max  base false big intToString :+
+    e_max  base true big <<???i
   else e_max 0 >= _if
     0 while dup n < do
       swap over buff swap [] base big __NUMBERS_getDigit :<<
@@ -186,6 +205,40 @@ floatToString proc #+value+# float #+precision+# int #+base+# int #+big+# bool #
       swap 1 +
     end drop
   end
+  return
+end
+<<??f proc #+buffer+# string #+value+# float #+precision+# int #+base+# int => string :
+  #+big+# false #+sci+# false <<????f
+end
+<<??F proc #+buffer+# string #+value+# float #+precision+# int #+base+# int => string :
+  #+big+# true  #+sci+# false <<????f
+end
+<<??e proc #+buffer+# string #+value+# float #+precision+# int #+base+# int => string :
+  #+big+# false #+sci+# true  <<????f
+end
+<<??E proc #+buffer+# string #+value+# float #+precision+# int #+base+# int => string :
+  #+big+# true  #+sci+# true  <<????f
+end
+<<?f proc #+buffer+# string #+value+# float #+precision+# int => string :
+  #+base+# 10 #+big+# false #+sci+# false <<????f
+end
+<<?e proc #+buffer+# string #+value+# float #+precision+# int => string :
+  #+base+# 10 #+big+# false #+sci+# true  <<????f
+end
+<<f proc #+buffer+# string #+value+# float => string :
+  #+precision+# 0 #+base+# 10 #+big+# false #+sci+# false <<????f
+end
+<<e proc #+buffer+# string #+value+# float => string :
+  #+precision+# 0 #+base+# 10 #+big+# false #+sci+# true  <<????f
+end
+
+floatToString proc #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string :
+  bool  sci =:
+  bool  big =:
+  int   base =:
+  int   precision =:
+  float value =:
+  "" value precision base big sci <<????f return
 end
 
 valueOfDigit proc #+digit +# byte #+base+# int => #+value+# int :
@@ -216,8 +269,8 @@ StringParseError enum
   ERR_ILLEGAL_CHAR
 end
 
-stringToInt proc #+source+# string #+base+# int #+unsigned+# bool => #+val+# int #+err-code+# StringParseError :
-  bool unsigned =:
+stringToInt proc #+source+# string #+base+# int #+signed+# bool => #+val+# int #+err-code+# StringParseError :
+  bool signed =:
   int  base =:
   string source =:
   base 2 < || base 62 > end if
@@ -235,7 +288,7 @@ stringToInt proc #+source+# string #+base+# int #+unsigned+# bool => #+val+# int
   else source 0 [] '+' == _if
     1 i =
   end
-  unsigned if uint_MAX else int_MAX end base uint cast / int max =:
+  signed if int_MAX else uint_MAX end base uint cast / int max =:
   while i source length < do
     res max > if
       res  sgn if -_ end StringParseError ERR_OVERFLOW . return
@@ -273,14 +326,19 @@ checkErrCode proc #+err-code+# StringParseError #+type-name+# string #+source+# 
   end-case
   end
 end
-parseInt proc string => int :
+parseInt  proc string => int :
   string source =:
-  source 10 false core stringToInt .
+  source 10 true stringToInt
   "int" source checkErrCode
 end
 parseUInt proc string => int :
   string source =:
-  source 10 true core stringToInt .
+  source 10 false stringToInt
+  "uint" source checkErrCode
+end
+parseHex  proc string => uint :
+  string source =:
+  source 16 true stringToInt
   "uint" source checkErrCode
 end
 
@@ -346,7 +404,7 @@ stringToFloat proc #+str+# string #+base+# int => #+val+# float #+err-code+# Str
     i 1 + i =
   end
   e 0 > if
-    str e str length [:] base false stringToInt
+    str e str length [:] base true stringToInt
     StringParseError err_code =:
     int exponent =:
     err_code StringParseError ERR_NONE . != if

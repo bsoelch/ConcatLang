@@ -2,7 +2,7 @@
 test
 42
 [1, 2.5, 3]
-(float,int,byte):(1.3, 7, c)
+( float int byte ):(1.3, 7, c)
 a°💻
 💻
 ( var list string => string )

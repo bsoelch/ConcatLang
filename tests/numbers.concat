@@ -2,15 +2,15 @@ numbers #include
 valueIO #include
 core #import
 
--123456  36 false true intToString println
+-123456  36 true true intToString println
 3.141592653589793238 0 16 false false floatToString println
 3.141592653589793238 println
 "3.141592653589793238" parseFloat println
-"11001001" 2 false stringToInt drop println
+"11001001" 2 true stringToInt drop println
 0.0 0 16 false false floatToString println
  1 0.0 / 0 16 false false floatToString println
 -1 0.0 / 0 16 false false floatToString println
  0 0.0 / 0 16 false false floatToString println
-"ffffffffffffffff" 16 true stringToInt drop uint cast println
-"123456789abcdefg" 16 false stringToInt print " " puts println
-"ffffffffffffffff" 16 false stringToInt print " " puts println
+"ffffffffffffffff" 16 false stringToInt drop uint cast println
+"123456789abcdefg" 16 true  stringToInt print " " puts println
+"ffffffffffffffff" 16 true  stringToInt print " " puts println

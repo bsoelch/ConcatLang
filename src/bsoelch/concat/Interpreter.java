@@ -3032,19 +3032,22 @@ public class Interpreter {
             case PLUS -> {
                 Value b = stack.pop();
                 Value a = stack.pop();
-                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y,false), null,
+                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y,false),
+                        (x, y) -> Value.ofInt(x + y,true),
                         (x, y) -> Value.ofFloat(x + y)));
             }
             case MINUS -> {
                 Value b = stack.pop();
                 Value a = stack.pop();
-                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y,false), null,
+                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y,false),
+                        (x, y) -> Value.ofInt(x - y,true),
                         (x, y) -> Value.ofFloat(x - y)));
             }
             case MULTIPLY -> {
                 Value b = stack.pop();
                 Value a = stack.pop();
-                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y,false), null,
+                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y,false),
+                        (x, y) -> Value.ofInt(x * y,true),
                         (x, y) -> Value.ofFloat(x * y)));
             }
             case DIV -> {
@@ -3067,7 +3070,8 @@ public class Interpreter {
                 Value b = stack.pop();
                 Value a = stack.pop();
                 stack.push(Value.mathOp(a, b,
-                        (x, y) -> Value.ofInt(longPow(x, y),false), null,
+                        (x, y) -> Value.ofInt(longPow(x, y),false),
+                        (x, y) -> Value.ofInt(longPow(x, y),true),
                         (x, y) -> Value.ofFloat(Math.pow(x, y))));
             }
             case EQ, NE, GT, GE, LE, LT,REF_EQ,REF_NE -> {
