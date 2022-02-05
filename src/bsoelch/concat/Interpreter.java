@@ -1223,19 +1223,39 @@ public class Interpreter {
     }
 
     public Program parse(File file, Program program, IOContext ioContext) throws IOException, SyntaxError {
-        String fileName=file.getAbsolutePath();
+        ParserReader reader=new ParserReader(file.getAbsolutePath());
+        int c;
+        String fileId=null;
+        while((c=reader.nextChar())>=0){
+            if(Character.isWhitespace(c)){
+                if(fileId==null){
+                    fileId=reader.buffer.toString();
+                    reader.nextToken();
+                }else if(reader.buffer.toString().equals(":")){
+                    break;
+                }else{
+                    throw new SyntaxError("invalid start of file, all concat files have to start with \"<file-id> :\"",
+                            reader.currentPos());
+                }
+            }else{
+                reader.buffer.append((char) c);
+            }
+        }
+        reader.nextToken();
+        if(fileId==null){
+            throw new SyntaxError("invalid start of file, all concat files have to start with \"<file-id> :\"",
+                    reader.currentPos());
+        }
         if(program==null){
             program=new Program(new ArrayList<>(),new HashSet<>(),new RootContext(),new HashMap<>());
-        }else if(program.files.contains(file.getAbsolutePath())){
+        }else if(program.files.contains(fileId)){
             return program;
         }else{//ensure that each file is included only once
-            program.files.add(file.getAbsolutePath());
+            program.files.add(fileId);
         }
         program.rootContext.startFile();
-        ParserReader reader=new ParserReader(fileName);
         ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
         Macro[] currentMacroPtr=new Macro[1];
-        int c;
         reader.nextToken();
         WordState state=WordState.ROOT;
         String current,next=null;

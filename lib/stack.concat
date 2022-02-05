@@ -1,3 +1,5 @@
+lib/stack :
+
 core #module
 ## file with macros for elementary stack-manipulation
 drop #define 0 1 $drop          #end

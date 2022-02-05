@@ -13,6 +13,8 @@ public class Test {
         PrintStream err;
         Interpreter.IOContext context;
         BufferedWriter includeAll = new BufferedWriter(new FileWriter(testPath+"autoGen.includeAll.concat"));
+        includeAll.write("test/includeAll :");
+        includeAll.newLine();
         out=new PrintStream(new FileOutputStream(testPath+"/autoGen.libFiles.out.txt"));
         err=new PrintStream(new FileOutputStream(testPath+"/autoGen.libFiles.err.txt"));
         if(files!=null){

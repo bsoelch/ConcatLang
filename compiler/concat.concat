@@ -1,3 +1,4 @@
+concat.concat :
 ## concat compiler written in concat
 
 ## currently in early development phase
@@ -1627,13 +1628,13 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
   else
     unwrap
   end
-  context RootContext.startFile
-
   16 newBufferedInput #+input+#
   fileName 1 1 FilePosition new       #+pos+#
   16 byte list new                    #+word+#
   fileName 1 1 FilePosition new       #+wordPos+#
   ParserReader new ParserReader reader =:
+  ## TODO detect file header
+  context RootContext.startFile
   ParseState STATE_WORD . ParseState state =:
   reader ParserReader.pos "" newMacro 16 CodeBlock list new OpenBlocks new OpenBlocks openBlocks =:
 

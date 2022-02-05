@@ -1,3 +1,5 @@
+test/hashMap :
+
 stack #include
 valueIO #include
 core #import

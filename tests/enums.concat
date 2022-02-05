@@ -1,3 +1,5 @@
+test/enums :
+
 valueIO #include
 core #import
 

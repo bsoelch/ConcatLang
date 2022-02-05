@@ -1,4 +1,7 @@
+test/include :
+
 "./tests/helpers/include.concat" #include
 "./tests/helpers/include.concat" #include
+"./tests/helpers/include2.concat" #include
 
 "./tests/helpers/cyclicInclude.concat" #include

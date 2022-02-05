@@ -1,3 +1,5 @@
+test/helpers/cyclicInclude2 :
+
 io #include
 core #import
 "./tests/helpers/cyclicInclude.concat" #include
