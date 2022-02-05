@@ -1330,6 +1330,10 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         context BlockContext.parent context =
         program context Program.context=
         tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+        block IfBlock.else_positions length 0 > if
+          ##close else-context
+          tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+        end
         block IfBlock.else_positions tokens length :<< drop
         tokens TokenType BLOCK_TOKEN . fPos BlockTokenType ELSE . -1 BlockToken new :<< tokens =
         tokens block IfBlock.prevIf [] Token tmp =:
@@ -1398,6 +1402,18 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             context BlockContext.parent context =
             program context Program.context=
             tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+            tokens block IfBlock.prevIf [] Token tmp =:
+            tmp Token.type TokenType BLOCK_TOKEN . == &&
+              tmp BlockToken.type BlockTokenType IF . == || tmp BlockToken.type BlockTokenType _IF . == end end
+              "token at fork-pos of If-statement has to be BlockToken:'if' or BlockToken:'_if'" assert
+            tmp tokens length block IfBlock.prevIf - BlockToken.target=
+            block IfBlock.else_positions length 0 > if
+              ## close-else context
+              tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+            end
+          else
+            ## close-else context
+            tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
           end
           0 int i =:
           while i block IfBlock.else_positions length < do
@@ -1407,21 +1423,10 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             tmp tokens length block IfBlock.else_positions i [] - BlockToken.target=
             i 1 + i =
           end
-          block IfBlock.prevIf -1 != if
-            tokens block IfBlock.prevIf [] Token tmp =:
-            tmp Token.type TokenType BLOCK_TOKEN . == &&
-              tmp BlockToken.type BlockTokenType IF . == || tmp BlockToken.type BlockTokenType _IF . == end end
-              "token at fork-pos of If-statement has to be BlockToken:'if' or BlockToken:'_if'" assert
-            tmp tokens length block IfBlock.prevIf - BlockToken.target=
-          end
           block IfBlock.else_positions length 0 > if
             ##close-else context
             context BlockContext.parent context =
             program context Program.context=
-            tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
-            ##update jump of first else
-            tokens block IfBlock.else_positions 0 [] []
-              tokens length block IfBlock.else_positions 0 [] - BlockToken.target=
           end
           tokens TokenType BLOCK_TOKEN . fPos BlockTokenType END-IF . 0 BlockToken new :<< tokens =
           end-case
@@ -1692,7 +1697,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
                   end
                   reader ParserReader.nextWord
                   ParseState STATE_LINE_COMMENT . state =
-                else next '_' == _if
+                else next '+' == _if
                   reader ParserReader.word clone string nextWord =:
                   nextWord length 0 > if
                     prevWord length 0 > if
@@ -1778,7 +1783,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
         end
       end-case
       ParseState STATE_COMMENT . case
-        #+input-char+# '_' == if
+        #+input-char+# '+' == if
           reader ParserReader.nextByte ?? if
             unwrap '#' == if
               ParseState STATE_WORD . state =

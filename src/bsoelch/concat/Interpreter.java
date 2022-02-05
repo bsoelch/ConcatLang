@@ -22,13 +22,12 @@ public class Interpreter {
         DROP,DUP,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
-        PLACEHOLDER,//placeholder token for jumps
         CONTEXT_OPEN,CONTEXT_CLOSE,
         CALL_PROC, PUSH_PROC_PTR,CALL_PTR,
         CALL_NATIVE_PROC,PUSH_NATIVE_PROC_PTR,
         RETURN,
         DEBUG_PRINT,ASSERT,//debug time operations, may be replaced with drop in compiled code
-        JEQ,JNE,JMP,//jump commands only for internal representation
+        BLOCK_TOKEN,//jump commands only for internal representation
         SWITCH,
         EXIT
     }
@@ -157,15 +156,18 @@ public class Interpreter {
             this.count = count;
         }
     }
-    static class RelativeJump extends Token{
-        final int delta;
-        RelativeJump(TokenType tokenType, FilePosition pos, int delta) {
-            super(tokenType, pos);
+    enum BlockTokenType{IF, ELSE, _IF, END_CASE, END_WHILE, DO_WHILE, WHILE, END_IF, DO}
+    static class BlockToken extends Token{
+        final BlockTokenType blockType;
+        int delta;
+        BlockToken(BlockTokenType blockType, FilePosition pos, int delta) {
+            super(TokenType.BLOCK_TOKEN, pos);
+            this.blockType=blockType;
             this.delta = delta;
         }
         @Override
         public String toString() {
-            return tokenType.toString()+": "+(delta>0?"+":"")+delta;
+            return blockType.toString()+": "+(delta>0?"+":"")+delta;
         }
     }
     static class ContextOpen extends Token{
@@ -2084,14 +2086,17 @@ public class Interpreter {
                     throw new SyntaxError(": can only be used in proc- and lambda- blocks", pos);
                 }
             }
-            case "while" -> openBlocks.add(new WhileBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
+            case "while" -> {
+                openBlocks.add(new WhileBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
+                tokens.add(new BlockToken(BlockTokenType.WHILE,pos,-1));
+            }
             case "do" -> {
                 CodeBlock block=openBlocks.peekLast();
                 if(block==null){
                     throw new SyntaxError("do can only be used in while- blocks",pos);
                 }else{
                     int forkPos=tokens.size();
-                    tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                    tokens.add(new BlockToken(BlockTokenType.DO, pos, -1));
                     VariableContext newContext;
                     if (block.type == BlockType.WHILE) {
                         newContext = ((WhileBlock) block).fork(forkPos, pos);
@@ -2111,7 +2116,7 @@ public class Interpreter {
             case "if" ->{
                 IfBlock ifBlock = new IfBlock(tokens.size(), pos, getContext(openBlocks.peekLast(), rootContext));
                 openBlocks.addLast(ifBlock);
-                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                tokens.add(new BlockToken(BlockTokenType.IF, pos, -1));
                 tokens.add(new ContextOpen(ifBlock.context(),pos));
             }
             case "_if" -> {
@@ -2120,7 +2125,7 @@ public class Interpreter {
                     throw new SyntaxError("_if can only be used in if-blocks",pos);
                 }
                 VariableContext context=ifBlock.newBranch(tokens.size(),pos);
-                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                tokens.add(new BlockToken(BlockTokenType._IF, pos, -1));
                 tokens.add(new ContextOpen(context,pos));
             }
             case "else" -> {
@@ -2129,8 +2134,11 @@ public class Interpreter {
                     throw new SyntaxError("elif can only be used in if-blocks",pos);
                 }
                 tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                if(ifBlock.branches.size()>0){//end else-context
+                    tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                }
                 VariableContext context=ifBlock.elseBranch(tokens.size(),pos);
-                tokens.add(new Token(TokenType.PLACEHOLDER, pos));
+                tokens.add(new BlockToken(BlockTokenType.ELSE, pos, -1));
                 if(ifBlock.branches.size()<2){//start else-context after first else
                     tokens.add(new ContextOpen(context,pos));
                 }
@@ -2163,7 +2171,7 @@ public class Interpreter {
                     throw new SyntaxError("end-case can only be used in switch-case-blocks",pos);
                 }
                 tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                tokens.add(new Token(TokenType.PLACEHOLDER,pos));
+                tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
                 switchBlock.newSection(tokens.size(),pos);
             }
             case "end" ->{
@@ -2228,42 +2236,35 @@ public class Interpreter {
                         case IF -> {
                             if(((IfBlock) block).forkPos!=-1){
                                 tmp=tokens.get(((IfBlock) block).forkPos);
-                                assert tmp.tokenType==TokenType.PLACEHOLDER;
                                 tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                                tokens.set(((IfBlock) block).forkPos,new RelativeJump(TokenType.JNE,tmp.pos,
-                                        (tokens.size())-((IfBlock) block).forkPos));
                                 //when there is no else then the last branch has to jump onto the close operation
+                                ((BlockToken)tmp).delta=tokens.size()-((IfBlock) block).forkPos;
+                                if(((IfBlock) block).branches.size()>0){//close-else context
+                                    tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                                }
+                            }else{//close else context
+                                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                             }
                             for(IfBranch branch:((IfBlock) block).branches){
                                 tmp=tokens.get(branch.fork);
-                                assert tmp.tokenType==TokenType.PLACEHOLDER;
-                                tokens.set(branch.fork,new RelativeJump(TokenType.JNE,tmp.pos,branch.end-branch.fork+1));
+                                ((BlockToken)tmp).delta=branch.end-branch.fork+1;
                                 tmp=tokens.get(branch.end);
-                                assert tmp.tokenType==TokenType.PLACEHOLDER;
-                                tokens.set(branch.end,new RelativeJump(TokenType.JMP,tmp.pos,tokens.size()-branch.end));
+                                ((BlockToken)tmp).delta=tokens.size()-branch.end;
                             }
-                            if(((IfBlock) block).branches.size()>0){
-                                //add close context for elseContext (root context for all branches after the first if)
-                                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                                //update jump on (first) if-branch to skip the close
-                                IfBranch branch=((IfBlock) block).branches.get(0);
-                                tmp=tokens.get(branch.end);
-                                tokens.set(branch.end,new RelativeJump(TokenType.JMP,tmp.pos,tokens.size()-branch.end));
-                            }
+                            tokens.add(new BlockToken(BlockTokenType.END_IF,pos,-1));
                         }
                         case WHILE -> {
                             ((WhileBlock)block).end(pos);
                             tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                             tmp=tokens.get(((WhileBlock) block).forkPos);
-                            assert tmp.tokenType==TokenType.PLACEHOLDER;
-                            if(((WhileBlock) block).forkPos==tokens.size()-1){
+                            if(((WhileBlock) block).forkPos==tokens.size()-3){
+                                tokens.subList(tokens.size()-2,tokens.size()).clear();
                                 //empty body => the jumps can be merged
-                                tokens.set(((WhileBlock) block).forkPos,new RelativeJump(TokenType.JEQ,tmp.pos,
-                                        block.start - tokens.size()));
+                                tokens.set(((WhileBlock) block).forkPos,new BlockToken(BlockTokenType.DO_WHILE,tmp.pos,
+                                        block.start - (tokens.size()-1)));
                             }else{
-                                tokens.add(new RelativeJump(TokenType.JMP,pos, block.start - tokens.size()));
-                                tokens.set(((WhileBlock) block).forkPos,new RelativeJump(TokenType.JNE,tmp.pos,
-                                        tokens.size()-((WhileBlock) block).forkPos));
+                                tokens.add(new BlockToken(BlockTokenType.END_WHILE,pos, block.start - tokens.size()));
+                                ((BlockToken)tmp).delta=tokens.size()-((WhileBlock) block).forkPos;
                             }
                         }
                         case SWITCH_CASE -> {
@@ -2273,8 +2274,7 @@ public class Interpreter {
                             ((SwitchCaseBlock)block).end(tokens.size(),pos,ioContext);
                             for(Integer i:((SwitchCaseBlock) block).blockEnds){
                                 tmp=tokens.get(i);
-                                assert tmp.tokenType==TokenType.PLACEHOLDER;
-                                tokens.set(i,new RelativeJump(TokenType.JMP,tmp.pos,tokens.size()-i));
+                                ((BlockToken)tmp).delta=tokens.size()-i;
                             }
                         }
                         case ENUM -> {
@@ -2905,7 +2905,7 @@ public class Interpreter {
                             throw new SyntaxError("parameter of assertion has to be a bool ",next.pos);
                         }
                     }
-                    case IDENTIFIER, PLACEHOLDER ->
+                    case IDENTIFIER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN,CONTEXT_CLOSE -> {
@@ -2939,15 +2939,9 @@ public class Interpreter {
                     case RETURN,EXIT ->
                         //TODO return
                         throw new UnsupportedOperationException("return unimplemented");
-
-                    case JMP ->
-                        //TODO jump
-                        throw new UnsupportedOperationException("jump unimplemented");
-
-                    case JEQ,JNE ->
-                        //TODO cond-jump
-                        throw new UnsupportedOperationException("conditional jump unimplemented");
-
+                    case BLOCK_TOKEN ->
+                        //TODO blocks
+                        throw new UnsupportedOperationException("blocks unimplemented");
                     case SWITCH ->
                         //TODO switch
                         throw new UnsupportedOperationException("switch unimplemented");
@@ -3363,7 +3357,7 @@ public class Interpreter {
                             throw new ConcatRuntimeError("assertion failed: "+((AssertToken)next).message);
                         }
                     }
-                    case IDENTIFIER, PLACEHOLDER ->
+                    case IDENTIFIER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN ->
@@ -3427,22 +3421,29 @@ public class Interpreter {
                     case RETURN -> {
                         return ExitType.NORMAL;
                     }
-                    case JMP -> {
-                        ip+=((RelativeJump) next).delta;
-                        incIp = false;
-                    }
-                    case JEQ -> {
-                        Value c = stack.pop();
-                        if (c.asBool()) {
-                            ip+=((RelativeJump) next).delta;
-                            incIp = false;
-                        }
-                    }
-                    case JNE -> {
-                        Value c = stack.pop();
-                        if (!c.asBool()) {
-                            ip+=((RelativeJump) next).delta;
-                            incIp = false;
+                    case BLOCK_TOKEN -> {
+                        switch(((BlockToken)next).blockType){
+                            case IF,_IF,DO -> {
+                                Value c = stack.pop();
+                                if (!c.asBool()) {
+                                    ip+=((BlockToken) next).delta;
+                                    incIp = false;
+                                }
+                            }
+                            case DO_WHILE -> {
+                                Value c = stack.pop();
+                                if (c.asBool()) {
+                                    ip+=((BlockToken) next).delta;
+                                    incIp = false;
+                                }
+                            }
+                            case ELSE,END_WHILE,END_CASE -> {
+                                ip+=((BlockToken) next).delta;
+                                incIp = false;
+                            }
+                            case WHILE,END_IF -> {
+                                //do nothing
+                            }
                         }
                     }
                     case SWITCH -> {
