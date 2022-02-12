@@ -1574,7 +1574,7 @@ public abstract class Value {
         }
     }
 
-    public static Procedure createProcedure(Type procType, ArrayList<Interpreter.Token> tokens, Type.GenericParameter[] generics, Interpreter.FilePosition declaredAt,
+    public static Procedure createProcedure(Type procType, ArrayList<Interpreter.Token> tokens, Type.GenericParameter[] generics, FilePosition declaredAt,
                                             Interpreter.ProcedureContext variableContext) {
         if(procType instanceof Type.Procedure||procType==Type.UNTYPED_PROCEDURE){
             return new Procedure(procType, tokens, generics, declaredAt, variableContext);
@@ -1583,12 +1583,12 @@ public abstract class Value {
         }
     }
     static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Declareable {
-        final Interpreter.FilePosition declaredAt;
+        final FilePosition declaredAt;
 
         final Interpreter.ProcedureContext context;
         final ArrayList<Interpreter.Token> tokens;
         final Type.GenericParameter[] generics;
-        private Procedure(Type procType, ArrayList<Interpreter.Token> tokens, Type.GenericParameter[] generics, Interpreter.FilePosition declaredAt,
+        private Procedure(Type procType, ArrayList<Interpreter.Token> tokens, Type.GenericParameter[] generics, FilePosition declaredAt,
                           Interpreter.ProcedureContext context) {
             super(procType);
             this.generics = generics;
@@ -1647,7 +1647,7 @@ public abstract class Value {
             return Interpreter.DeclareableType.PROCEDURE;
         }
         @Override
-        public Interpreter.FilePosition declaredAt() {
+        public FilePosition declaredAt() {
             return declaredAt;
         }
     }
@@ -1760,9 +1760,9 @@ public abstract class Value {
         }
     }
     static class EnumEntry extends Value implements Interpreter.Declareable {
-        final Interpreter.FilePosition declaredAt;
+        final FilePosition declaredAt;
         final int index;
-        EnumEntry(Type.Enum type, int index, Interpreter.FilePosition declaredAt) {
+        EnumEntry(Type.Enum type, int index, FilePosition declaredAt) {
             super(type);
             this.index = index;
             this.declaredAt = declaredAt;
@@ -1798,7 +1798,7 @@ public abstract class Value {
             return Interpreter.DeclareableType.ENUM_ENTRY;
         }
         @Override
-        public Interpreter.FilePosition declaredAt() {
+        public FilePosition declaredAt() {
             return declaredAt;
         }
 
@@ -1893,7 +1893,7 @@ public abstract class Value {
             throw new TypeError("type "+t+" is not supported for native procedures");
         }
     }
-    public static Value loadNativeConstant(Type type, String name, Interpreter.FilePosition pos) throws SyntaxError {
+    public static Value loadNativeConstant(Type type, String name, FilePosition pos) throws SyntaxError {
         try {
             String path=pos.path;
             String dir=path.substring(0,path.lastIndexOf('/')+1);
@@ -1912,7 +1912,7 @@ public abstract class Value {
             throw new SyntaxError("Error while loading native value "+name+": "+e,pos);
         }
     }
-    public static NativeProcedure createNativeProcedure(Type.Procedure procType, Interpreter.FilePosition declaredAt,
+    public static NativeProcedure createNativeProcedure(Type.Procedure procType, FilePosition declaredAt,
                                                   String name) throws SyntaxError {
         try {
             String path = declaredAt.path;
@@ -1951,9 +1951,9 @@ public abstract class Value {
     static class NativeProcedure extends Value implements Interpreter.NamedDeclareable {
         final Method nativeMethod;
         final String name;
-        final Interpreter.FilePosition declaredAt;
+        final FilePosition declaredAt;
 
-        protected NativeProcedure(Type.Procedure type, Method nativeMethod, String name, Interpreter.FilePosition declaredAt) {
+        protected NativeProcedure(Type.Procedure type, Method nativeMethod, String name, FilePosition declaredAt) {
             super(type);
             this.nativeMethod = nativeMethod;
             this.name = name;
@@ -1971,7 +1971,7 @@ public abstract class Value {
         }
 
         @Override
-        public Interpreter.FilePosition declaredAt() {
+        public FilePosition declaredAt() {
             return declaredAt;
         }
 

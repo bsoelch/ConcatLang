@@ -160,7 +160,7 @@ public class Type {
     }
 
     public static class Tuple extends Type implements Interpreter.NamedDeclareable{
-        final Interpreter.FilePosition declaredAt;
+        final FilePosition declaredAt;
         final Type[] elements;
         final boolean named;
 
@@ -171,7 +171,7 @@ public class Type {
             }
             return sb.append(")").toString();
         }
-        public Tuple(String name, Type[] elements, Interpreter.FilePosition declaredAt){
+        public Tuple(String name, Type[] elements, FilePosition declaredAt){
             super(name==null?getName(elements):name, false);
             this.elements=elements;
             this.declaredAt = declaredAt;
@@ -233,14 +233,14 @@ public class Type {
             return Interpreter.DeclareableType.TUPLE;
         }
         @Override
-        public Interpreter.FilePosition declaredAt() {
+        public FilePosition declaredAt() {
             return declaredAt;
         }
     }
     public static class GenericTuple extends Tuple{
         final Type[] genericArgs;
 
-        public static GenericTuple create(String name,GenericParameter[] genericParams,Type[] genericArgs,Type[] elements, Interpreter.FilePosition declaredAt) {
+        public static GenericTuple create(String name,GenericParameter[] genericParams,Type[] genericArgs,Type[] elements, FilePosition declaredAt) {
             //Unwrap generic arguments
             for(int i=0;i< elements.length;i++){
                 elements[i]=elements[i].replaceGenerics(genericParams,genericArgs);
@@ -251,7 +251,7 @@ public class Type {
             }
             return new GenericTuple(sb.append(name).toString(), genericParams, elements, declaredAt);
         }
-        private GenericTuple(String name, Type[] genericArgs,Type[] elements, Interpreter.FilePosition declaredAt) {
+        private GenericTuple(String name, Type[] genericArgs,Type[] elements, FilePosition declaredAt) {
             super(name, elements, declaredAt);
             this.genericArgs=genericArgs;
         }
@@ -374,11 +374,11 @@ public class Type {
 
 
     public static class Enum extends Type implements Interpreter.NamedDeclareable {
-        final Interpreter.FilePosition declaredAt;
+        final FilePosition declaredAt;
         final String[] entryNames;
         final Value.EnumEntry[] entries;
-        public Enum(String name, String[] entryNames, ArrayList<Interpreter.FilePosition> entryPositions,
-                    Interpreter.FilePosition declaredAt) {
+        public Enum(String name, String[] entryNames, ArrayList<FilePosition> entryPositions,
+                    FilePosition declaredAt) {
             super(name, true);
             this.entryNames =entryNames;
             entries=new Value.EnumEntry[entryNames.length];
@@ -403,7 +403,7 @@ public class Type {
             return Interpreter.DeclareableType.ENUM;
         }
         @Override
-        public Interpreter.FilePosition declaredAt() {
+        public FilePosition declaredAt() {
             return declaredAt;
         }
     }
@@ -418,8 +418,8 @@ public class Type {
 
     public static class GenericParameter extends Type implements Interpreter.Declareable {
         final int id;
-        final Interpreter.FilePosition declaredAt;
-        public GenericParameter(int id , Interpreter.FilePosition pos) {
+        final FilePosition declaredAt;
+        public GenericParameter(int id , FilePosition pos) {
             super("'"+id,false);
             this.id=id;
             this.declaredAt=pos;
@@ -440,7 +440,7 @@ public class Type {
         }
 
         @Override
-        public Interpreter.FilePosition declaredAt() {
+        public FilePosition declaredAt() {
             return declaredAt;
         }
     }

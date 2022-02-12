@@ -32,48 +32,6 @@ public class Interpreter {
         EXIT
     }
 
-    static class FilePosition{
-        final String path;
-        final long line;
-        final int posInLine;
-        final FilePosition expandedAt;
-        FilePosition(String path, long line, int posInLine) {
-            this.path=path;
-            this.line=line;
-            this.posInLine=posInLine;
-            expandedAt=null;
-        }
-        FilePosition(FilePosition at,FilePosition expandedAt) {
-            this.path=at.path;
-            this.line=at.line;
-            this.posInLine=at.posInLine;
-            this.expandedAt=expandedAt;
-        }
-
-        @Override
-        public String toString() {
-            if(expandedAt!=null){
-                return path+":"+line + ":" + posInLine+
-                "\nexpanded at "+expandedAt;
-            }else{
-                return path+":"+line + ":" + posInLine;
-            }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FilePosition that = (FilePosition) o;
-            return line == that.line && posInLine == that.posInLine &&
-                    Objects.equals(path, that.path) && Objects.equals(expandedAt, that.expandedAt);
-        }
-        @Override
-        public int hashCode() {
-            return Objects.hash(path, line, posInLine, expandedAt);
-        }
-    }
-
     record StringWithPos(String str,FilePosition start){
         @Override
         public String toString() {
@@ -1207,8 +1165,7 @@ public class Interpreter {
         ArrayList<Token> tokens();
         VariableContext context();
     }
-    record Program(ArrayList<Token> tokens, HashSet<String> files,RootContext rootContext,
-                   HashMap<VariableId,Value> globalConstants) implements CodeSection{
+    record Program(ArrayList<Token> tokens, HashSet<String> files,RootContext rootContext) implements CodeSection{
         @Override
         public String toString() {
             return "Program{" +
@@ -1222,7 +1179,54 @@ public class Interpreter {
         }
     }
 
-    public Program parse(File file, Program program, IOContext ioContext) throws IOException, SyntaxError {
+    /**@return false if the value was an integer otherwise true*/
+    private boolean tryParseInt(ArrayList<Token> tokens, String str0,FilePosition pos) throws SyntaxError {
+        try {
+            String str=str0;
+            boolean unsigned=false;
+            if(str.toLowerCase(Locale.ROOT).endsWith("u")){//unsigned
+                str=str.substring(0,str.length()-1);
+                unsigned=true;
+            }
+            if(intDec.matcher(str).matches()){//dez-Int
+                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,10,unsigned), unsigned), pos, false));
+                return false;
+            }else if(intBin.matcher(str).matches()){//bin-Int
+                str=str.replaceAll(BIN_PREFIX,"");//remove header
+                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,2,unsigned), unsigned), pos, false));
+                return false;
+            }else if(intHex.matcher(str).matches()){ //hex-Int
+                str=str.replaceAll(HEX_PREFIX,"");//remove header
+                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,16,unsigned), unsigned), pos, false));
+                return false;
+            }
+        } catch (ConcatRuntimeError nfeL) {
+            throw new SyntaxError("Number out of Range: "+str0,pos);
+        }
+        return true;
+    }
+
+    static class ParserState {
+        final ArrayList<Token> globalCode =new ArrayList<>();
+
+        final ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
+        final RootContext rootContext;
+        final HashSet<String> files=new HashSet<>();
+        final HashMap<VariableId,Value> globalConstants=new HashMap<>();
+
+        Macro currentMacro;//max be null
+        ProcedureBlock currentProc;//may be null
+        ArrayList<Token> procTokens;//may be null
+
+        ParserState(RootContext rootContext) {
+            this.rootContext = rootContext;
+        }
+
+        VariableContext getContext(){
+            return openBlocks.size()>0?openBlocks.peekLast().context() : currentProc==null?rootContext:currentProc.context();
+        }
+    }
+    public Program parse(File file, ParserState pState, IOContext ioContext) throws IOException, SyntaxError {
         ParserReader reader=new ParserReader(file.getAbsolutePath());
         int c;
         String fileId=null;
@@ -1246,16 +1250,15 @@ public class Interpreter {
             throw new SyntaxError("invalid start of file, all concat files have to start with \"<file-id> :\"",
                     reader.currentPos());
         }
-        if(program==null){
-            program=new Program(new ArrayList<>(),new HashSet<>(),new RootContext(),new HashMap<>());
-        }else if(program.files.contains(fileId)){
-            return program;
+        if(pState==null){
+            pState=new ParserState(new RootContext());
+        }else if(pState.files.contains(fileId)){
+            //TODO detect if file was already included through different path
+            return new Program(pState.globalCode,pState.files,pState.rootContext);
         }else{//ensure that each file is included only once
-            program.files.add(fileId);
+            pState.files.add(fileId);
         }
-        program.rootContext.startFile();
-        ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
-        Macro[] currentMacroPtr=new Macro[1];
+        pState.rootContext.startFile();
         reader.nextToken();
         WordState state=WordState.ROOT;
         String current,next=null;
@@ -1267,8 +1270,7 @@ public class Interpreter {
                             current=next;
                             next=reader.buffer.toString();
                             if(current!=null){
-                                finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
-                                        program,ioContext);
+                                finishWord(current,next,pState,reader.currentPos(),ioContext);
                             }
                             reader.nextToken();
                         }
@@ -1292,8 +1294,7 @@ public class Interpreter {
                                     current=next;
                                     next=reader.buffer.toString();
                                     if(current!=null){
-                                        finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
-                                                program,ioContext);
+                                        finishWord(current,next,pState,reader.currentPos(),ioContext);
                                     }
                                     reader.nextToken();
                                 } else if (c == '+') {
@@ -1301,8 +1302,7 @@ public class Interpreter {
                                     current=next;
                                     next=reader.buffer.toString();
                                     if(current!=null){
-                                        finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
-                                                program,ioContext);
+                                        finishWord(current,next,pState,reader.currentPos(),ioContext);
                                     }
                                     reader.nextToken();
                                 } else {
@@ -1318,8 +1318,7 @@ public class Interpreter {
                         current=next;
                         next=reader.buffer.toString();
                         if(current!=null){
-                            finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),
-                                    program,ioContext);
+                            finishWord(current,next,pState,reader.currentPos(),ioContext);
                         }
                         reader.nextToken();
                         state=WordState.ROOT;
@@ -1370,7 +1369,7 @@ public class Interpreter {
                 current=next;
                 next=reader.buffer.toString();
                 if(current!=null){
-                    finishWord(current,next,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program,ioContext);
+                    finishWord(current,next,pState,reader.currentPos(),ioContext);
                 }
                 reader.nextToken();
             }
@@ -1379,123 +1378,96 @@ public class Interpreter {
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
         //finish parsing of all elements
-        finishWord(next,END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program,ioContext);
-        finishWord(END_OF_FILE,END_OF_FILE,program.tokens,openBlocks,currentMacroPtr,reader.currentPos(),program,ioContext);
+        finishWord(next,        END_OF_FILE, pState, reader.currentPos(), ioContext);
+        finishWord(END_OF_FILE, END_OF_FILE, pState, reader.currentPos(), ioContext);
 
-        if(openBlocks.size()>0){
-            throw new SyntaxError("unclosed block: "+openBlocks.getLast(),openBlocks.getLast().startPos);
+        if(pState.openBlocks.size()>0){
+            throw new SyntaxError("unclosed block: "+pState.openBlocks.getLast(),pState.openBlocks.getLast().startPos);
         }
-        program.rootContext.endFile(reader.currentPos,ioContext);
-        return program;
+        pState.rootContext.endFile(reader.currentPos,ioContext);
+        return new Program(pState.globalCode,pState.files,pState.rootContext);
     }
 
-    /**@return false if the value was an integer otherwise true*/
-    private boolean tryParseInt(ArrayList<Token> tokens, String str0,FilePosition pos) throws SyntaxError {
-        try {
-            String str=str0;
-            boolean unsigned=false;
-            if(str.toLowerCase(Locale.ROOT).endsWith("u")){//unsigned
-                str=str.substring(0,str.length()-1);
-                unsigned=true;
-            }
-            if(intDec.matcher(str).matches()){//dez-Int
-                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,10,unsigned), unsigned), pos, false));
-                return false;
-            }else if(intBin.matcher(str).matches()){//bin-Int
-                str=str.replaceAll(BIN_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,2,unsigned), unsigned), pos, false));
-                return false;
-            }else if(intHex.matcher(str).matches()){ //hex-Int
-                str=str.replaceAll(HEX_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,16,unsigned), unsigned), pos, false));
-                return false;
-            }
-        } catch (ConcatRuntimeError nfeL) {
-            throw new SyntaxError("Number out of Range: "+str0,pos);
-        }
-        return true;
-    }
-
-    private void finishWord(String str,String next, ArrayList<Token> tokens, ArrayDeque<CodeBlock> openBlocks,
-                            Macro[] currentMacroPtr, FilePosition pos, Program program,IOContext ioContext) throws SyntaxError, IOException {
+    private void finishWord(String str, String next, ParserState tState, FilePosition pos, IOContext ioContext) throws SyntaxError, IOException {
         if (str.length() > 0) {
-            if(currentMacroPtr[0]!=null){//handle macros
+            if(tState.currentMacro!=null){//handle macros
                 if(str.equals("#end")){
-                    program.rootContext.declareNamedDeclareable(currentMacroPtr[0],ioContext);
-                    currentMacroPtr[0]=null;
+                    tState.rootContext.declareNamedDeclareable(tState.currentMacro,ioContext);
+                    tState.currentMacro=null;
                 }else if(str.startsWith("#")){
                     throw new SyntaxError(str+" is not allowed in macros",pos);
                 }else{
-                    currentMacroPtr[0].content.add(new StringWithPos(str,pos));
+                    tState.currentMacro.content.add(new StringWithPos(str,pos));
                 }
                 return;
             }
+            ArrayList<Token> tokens = tState.globalCode;
             {//preprocessor
-                Token prev=tokens.size()>0?tokens.get(tokens.size()-1):null;
+                Token prev= tokens.size()>0? tokens.get(tokens.size()-1):null;
                 String prevId=(prev instanceof IdentifierToken &&((IdentifierToken) prev).type == IdentifierType.UNMODIFIED)?
                         ((IdentifierToken)prev).name:null;
-                VariableContext context=getContext(openBlocks.peekLast(),program.rootContext);
+                VariableContext context=tState.getContext();
                 switch (str){
                     case "#define"->{
-                        if(openBlocks.size()>0){
+                        if(tState.currentProc==null&&tState.openBlocks.size()>0){
                             throw new SyntaxError("macros can only be defined at root-level",pos);
                         }
                         if(prevId!=null){
                             tokens.remove(tokens.size()-1);
-                            currentMacroPtr[0]=new Macro(pos,prevId,new ArrayList<>());
+                            tState.currentMacro=new Macro(pos,prevId,new ArrayList<>());
                         }else{
                             throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
                         }
                         return;
                     }
                     case "#undef"->{
-                        if(openBlocks.size()>0){
+                        if(tState.currentProc==null&&tState.openBlocks.size()>0){
                             throw new SyntaxError("macros can only be undefined at root-level",pos);
                         }
                         if(prevId!=null){
                             tokens.remove(tokens.size()-1);
-                            program.rootContext.removeMacro(prevId,pos);
+                            tState.rootContext.removeMacro(prevId,pos);
                         }else{
                             throw new SyntaxError("invalid token preceding #undef: "+prev+" expected macro-name",pos);
                         }
                         return;
                     }
                     case "#module"-> {
-                        if(openBlocks.size()>0){
+                        if(tState.openBlocks.size()>0){
                             throw new SyntaxError("modules can only be declared at root-level",pos);
                         }
                         if(prevId != null){
                             tokens.remove(tokens.size()-1);
-                            program.rootContext.startModule(prevId,pos);
+                            tState.rootContext.startModule(prevId,pos);
                         }else{
                             throw new SyntaxError("module name has to be an identifier",pos);
                         }
                         return;
                     }
                     case "#end"-> {
-                        if(openBlocks.size()>0){
+                        if(tState.openBlocks.size()>0){
                             throw new SyntaxError("modules can only be closed at root-level",pos);
                         }else{
                             //finish all words
-                            finishWord("##","##",tokens,openBlocks,currentMacroPtr,pos,program,ioContext);
-                            program.rootContext.endModule(pos);
+                            finishWord("##","##",tState,pos,ioContext);
+                            tState.rootContext.endModule(pos);
                         }
                         return;
                     }
                     case "#import"-> {
-                        if(openBlocks.size()>0){
+                        if(tState.openBlocks.size()>0){
                             throw new SyntaxError("imports are can only allowed at root-level",pos);
                         }
                         if(prevId != null){
                             tokens.remove(tokens.size()-1);
-                            program.rootContext.addImport(prevId,pos);
+                            tState.rootContext.addImport(prevId,pos);
                         }else{
                             throw new SyntaxError("imported module name has to be an identifier",pos);
                         }
                         return;
                     }
                     case "#include" -> {
-                        if(openBlocks.size()>0){
+                        if(tState.openBlocks.size()>0){
                             throw new SyntaxError("includes are can only allowed at root-level",pos);
                         }
                         if(prev instanceof ValueToken){
@@ -1503,7 +1475,7 @@ public class Interpreter {
                             String name=((ValueToken) prev).value.stringValue();
                             File file=new File(name);
                             if(file.exists()){
-                                parse(file,program,ioContext);
+                                parse(file,tState,ioContext);
                             }else{
                                 throw new SyntaxError("File "+name+" does not exist",pos);
                             }
@@ -1512,7 +1484,7 @@ public class Interpreter {
                             String path=libPath+File.separator+ prevId +DEFAULT_FILE_EXTENSION;
                             File file=new File(path);
                             if(file.exists()){
-                                parse(file,program,ioContext);
+                                parse(file,tState,ioContext);
                             }else{
                                 throw new SyntaxError(prevId+" is not part of the standard library",pos);
                             }
@@ -1617,13 +1589,13 @@ public class Interpreter {
                 }
                 if(prev!=null){
                     if((!(next.equals(".")||str.equals("proc")||str.equals("procedure")||str.equals("enum")
-                            ||(str.equals("tuple")&&openBlocks.size()==0)))&&
+                            ||(str.equals("tuple")&&tState.openBlocks.size()==0)))&&
                             prev instanceof IdentifierToken identifier){
                         int index=tokens.size()-1;
                         //update variables
                         switch (identifier.type){
                             case NATIVE ->
-                                throw new RuntimeException("unreachable");
+                                    throw new RuntimeException("unreachable");
                             case NEW_GENERIC -> {
                                 if(!(context instanceof GenericContext)){
                                     throw new SyntaxError("generics can only be declared in tuple and procedure signatures",prev.pos);
@@ -1643,11 +1615,11 @@ public class Interpreter {
                                         //only remember root-level constants
                                         if(identifier.type==IdentifierType.NATIVE_DECLARE){
                                             tokens.subList(index-1,tokens.size()).clear();
-                                            program.globalConstants.put(id,Value.loadNativeConstant(type,identifier.name,pos));
+                                            tState.globalConstants.put(id,Value.loadNativeConstant(type,identifier.name,pos));
                                             break;
                                         }else if(id.isConstant && id.context.procedureContext() == null
                                                 && (prev = tokens.get(index - 2)) instanceof ValueToken){
-                                            program.globalConstants.put(id,((ValueToken) prev).value.clone(true).castTo(type));
+                                            tState.globalConstants.put(id,((ValueToken) prev).value.clone(true).castTo(type));
                                             tokens.subList(index-2, tokens.size()).clear();
                                             break;//don't add token to code
                                         }
@@ -1679,7 +1651,7 @@ public class Interpreter {
                                         if(d!=null){
                                             proc=(PredeclaredProc) d;
                                         }else{
-                                            proc=program.rootContext.predeclareProcedure(identifier.name,context,identifier.pos);
+                                            proc=tState.rootContext.predeclareProcedure(identifier.name,context,identifier.pos);
                                         }
                                         ProcedureToken token=new ProcedureToken(false,null,identifier.pos);
                                         proc.listeners.add(token);
@@ -1688,7 +1660,7 @@ public class Interpreter {
                                     case VARIABLE,CONSTANT,CURRIED_VARIABLE -> {
                                         VariableId id=(VariableId)d;
                                         id=context.wrapCurried(identifier.name,id,identifier.pos);
-                                        Value constValue=program.globalConstants.get(id);
+                                        Value constValue=tState.globalConstants.get(id);
                                         if(constValue!=null){
                                             tokens.set(index,new ValueToken(constValue,identifier.pos, false));
                                         }else{
@@ -1702,11 +1674,10 @@ public class Interpreter {
                                         for(int i=0;i<m.content.size();i++){
                                             StringWithPos s=m.content.get(i);
                                             finishWord(s.str,i+1<m.content.size()?m.content.get(i+1).str:"##",
-                                                    tokens, openBlocks, currentMacroPtr, new FilePosition(s.start, identifier.pos),
-                                                    program,ioContext);
+                                                    tState, new FilePosition(s.start, identifier.pos),ioContext);
                                         }
                                         //update identifiers at end of macro
-                                        finishWord(END_OF_FILE,next,tokens, openBlocks, currentMacroPtr, identifier.pos, program,ioContext);
+                                        finishWord(END_OF_FILE,next,tState, identifier.pos, ioContext);
                                     }
                                     case TUPLE,ENUM,GENERIC ->
                                         tokens.set(index,
@@ -1746,7 +1717,7 @@ public class Interpreter {
                                 }else if(d.declarableType()==DeclareableType.VARIABLE){
                                     VariableId id=(VariableId) d;
                                     context.wrapCurried(identifier.name,id,identifier.pos);
-                                    assert !program.globalConstants.containsKey(id);
+                                    assert !tState.globalConstants.containsKey(id);
                                     tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
                                             AccessType.WRITE,context));
                                 }else{
@@ -1768,7 +1739,7 @@ public class Interpreter {
                                     if(d!=null){
                                         proc=(PredeclaredProc) d;
                                     }else{
-                                        proc=program.rootContext.predeclareProcedure(identifier.name,context,pos);
+                                        proc=tState.rootContext.predeclareProcedure(identifier.name,context,pos);
                                     }
                                     proc.listeners.add(token);
                                     tokens.set(index,token);
@@ -1829,7 +1800,7 @@ public class Interpreter {
                         double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
                         tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
                     }else {
-                        addWord(str,tokens,openBlocks,pos,program.rootContext,ioContext);
+                        addWord(str,tState,pos,ioContext);
                     }
                 }
             }catch(ConcatRuntimeError|NumberFormatException e){
@@ -1837,13 +1808,8 @@ public class Interpreter {
             }
         }
     }
-
-    VariableContext getContext(CodeBlock currentBlock,VariableContext root){
-        return currentBlock!=null?currentBlock.context():root;
-    }
-
-    private void addWord(String str, ArrayList<Token> tokens, ArrayDeque<CodeBlock> openBlocks,
-                         FilePosition pos,RootContext rootContext,IOContext ioContext) throws SyntaxError {
+    private void addWord(String str, ParserState tState,FilePosition pos,IOContext ioContext) throws SyntaxError {
+        ArrayList<Token> tokens = tState.globalCode;
         Token prev;
         switch (str) {
             case END_OF_FILE -> {} //## string can only be passed to the method on end of file
@@ -2031,7 +1997,7 @@ public class Interpreter {
 
             case "tuple" -> {
                 String name;
-                if(openBlocks.size()>0){//addLater?  anonymous tuple (declarable at non-root level)
+                if(tState.openBlocks.size()>0){
                     throw new SyntaxError("tuples can only be declared at root level",pos);
                 }
                 if(tokens.size()==0){
@@ -2044,10 +2010,10 @@ public class Interpreter {
                     throw new SyntaxError("token before root level tuple has to be an unmodified identifier",pos);
                 }
                 name = ((IdentifierToken) prev).name;
-                openBlocks.add(new TupleBlock(name, tokens.size(),pos,rootContext));
+                tState.openBlocks.add(new TupleBlock(name, tokens.size(),pos,tState.rootContext));
             }
             case "enum" ->{
-                if(openBlocks.size()>0){
+                if(tState.openBlocks.size()>0){
                     throw new SyntaxError("enums can only be declared at root level",pos);
                 }
                 if(tokens.size()==0){
@@ -2060,10 +2026,10 @@ public class Interpreter {
                     throw new SyntaxError("token before 'enum' has to be an unmodified identifier",pos);
                 }
                 String name = ((IdentifierToken) prev).name;
-                openBlocks.add(new EnumBlock(name, tokens.size(),pos,rootContext));
+                tState.openBlocks.add(new EnumBlock(name, tokens.size(),pos,tState.rootContext));
             }
             case "proc","procedure" ->{
-                if(openBlocks.size()>0){
+                if(tState.openBlocks.size()>0){
                     throw new SyntaxError("procedures can only be declared at root level",pos);
                 }
                 if(tokens.size()==0){
@@ -2079,23 +2045,23 @@ public class Interpreter {
                     throw new SyntaxError("token before 'proc' has to be an unmodified identifier",pos);
                 }
                 String name = ((IdentifierToken) prev).name;
-                openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,rootContext,isNative));
+                tState.openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,tState.rootContext,isNative));
             }
             case "=>" ->{
-                CodeBlock block = openBlocks.peekLast();
+                CodeBlock block = tState.openBlocks.peekLast();
                 if(block instanceof ProcedureBlock proc) {
                     proc.addIns(tokens.subList(proc.start,tokens.size()),pos);
                 }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
-                    openBlocks.removeLast();
-                    openBlocks.addLast(new ProcTypeBlock((ListBlock)block,tokens.size()));
+                    tState.openBlocks.removeLast();
+                    tState.openBlocks.addLast(new ProcTypeBlock((ListBlock)block,tokens.size()));
                 }else{
                     throw new SyntaxError("'=>' can only be used in proc- or proc-type blocks ",pos);
                 }
             }
             case "lambda","λ" ->
-                    openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext), false));
+                    tState.openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,tState.getContext(), false));
             case ":" -> {
-                CodeBlock block=openBlocks.peekLast();
+                CodeBlock block=tState.openBlocks.peekLast();
                 if(block==null){
                     throw new SyntaxError(": can only be used in proc- and lambda- blocks",pos);
                 }else if(block.type==BlockType.PROCEDURE){
@@ -2107,11 +2073,11 @@ public class Interpreter {
                 }
             }
             case "while" -> {
-                openBlocks.add(new WhileBlock(tokens.size(),pos,getContext(openBlocks.peekLast(),rootContext)));
+                tState.openBlocks.add(new WhileBlock(tokens.size(),pos,tState.getContext()));
                 tokens.add(new BlockToken(BlockTokenType.WHILE,pos,-1));
             }
             case "do" -> {
-                CodeBlock block=openBlocks.peekLast();
+                CodeBlock block=tState.openBlocks.peekLast();
                 if(block==null){
                     throw new SyntaxError("do can only be used in while- blocks",pos);
                 }else{
@@ -2127,20 +2093,20 @@ public class Interpreter {
                 }
             }
             case "switch"->{
-                SwitchCaseBlock switchBlock=new SwitchCaseBlock(tokens.size(), pos,getContext(openBlocks.peekLast(), rootContext));
-                openBlocks.addLast(switchBlock);
+                SwitchCaseBlock switchBlock=new SwitchCaseBlock(tokens.size(), pos,tState.getContext());
+                tState.openBlocks.addLast(switchBlock);
                 //handle switch-case separately since : does not change context and produces special jump
                 tokens.add(new SwitchToken(switchBlock,pos));
                 switchBlock.newSection(tokens.size(),pos);
             }
             case "if" ->{
-                IfBlock ifBlock = new IfBlock(tokens.size(), pos, getContext(openBlocks.peekLast(), rootContext));
-                openBlocks.addLast(ifBlock);
+                IfBlock ifBlock = new IfBlock(tokens.size(), pos,tState.getContext());
+                tState.openBlocks.addLast(ifBlock);
                 tokens.add(new BlockToken(BlockTokenType.IF, pos, -1));
                 tokens.add(new ContextOpen(ifBlock.context(),pos));
             }
             case "_if" -> {
-                CodeBlock block = openBlocks.peekLast();
+                CodeBlock block = tState.openBlocks.peekLast();
                 if(!(block instanceof IfBlock ifBlock)){
                     throw new SyntaxError("_if can only be used in if-blocks",pos);
                 }
@@ -2149,7 +2115,7 @@ public class Interpreter {
                 tokens.add(new ContextOpen(context,pos));
             }
             case "else" -> {
-                CodeBlock block = openBlocks.peekLast();
+                CodeBlock block = tState.openBlocks.peekLast();
                 if(!(block instanceof IfBlock ifBlock)){
                     throw new SyntaxError("elif can only be used in if-blocks",pos);
                 }
@@ -2164,7 +2130,7 @@ public class Interpreter {
                 }
             }
             case "case" ->{
-                CodeBlock block=openBlocks.peekLast();
+                CodeBlock block=tState.openBlocks.peekLast();
                 if(!(block instanceof SwitchCaseBlock switchBlock)){
                     throw new SyntaxError("case can only be used in switch-case-blocks",pos);
                 }
@@ -2178,7 +2144,7 @@ public class Interpreter {
                 tokens.add(new ContextOpen(context,pos));
             }
             case "default" ->{
-                CodeBlock block=openBlocks.peekLast();
+                CodeBlock block=tState.openBlocks.peekLast();
                 if(!(block instanceof SwitchCaseBlock switchBlock)){
                     throw new SyntaxError("default can only be used in switch-case-blocks",pos);
                 }
@@ -2186,7 +2152,7 @@ public class Interpreter {
                 tokens.add(new ContextOpen(context,pos));
             }
             case "end-case" ->{
-                CodeBlock block=openBlocks.peekLast();
+                CodeBlock block=tState.openBlocks.peekLast();
                 if(!(block instanceof SwitchCaseBlock switchBlock)){
                     throw new SyntaxError("end-case can only be used in switch-case-blocks",pos);
                 }
@@ -2195,7 +2161,7 @@ public class Interpreter {
                 switchBlock.newSection(tokens.size(),pos);
             }
             case "end" ->{
-                CodeBlock block=openBlocks.pollLast();
+                CodeBlock block=tState.openBlocks.pollLast();
                 if(block==null){
                     throw new SyntaxError("unexpected end statement",pos);
                 }else {
@@ -2235,13 +2201,13 @@ public class Interpreter {
                                 }
                                 Value.NativeProcedure proc=Value.createNativeProcedure((Type.Procedure) procType,block.startPos,
                                         ((ProcedureBlock) block).name);
-                                rootContext.declareNamedDeclareable(proc,ioContext);
+                                tState.rootContext.declareNamedDeclareable(proc,ioContext);
                             }else{
                                 Value.Procedure proc=Value.createProcedure(procType, content,
                                         generics.toArray(Type.GenericParameter[]::new), block.startPos, context);
                                 if (context.curried.isEmpty()) {
                                     if(((ProcedureBlock) block).name!=null){
-                                        rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
+                                        tState.rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
                                     }else{
                                         tokens.add(new ValueToken(proc, block.startPos, false));
                                     }
@@ -2302,7 +2268,7 @@ public class Interpreter {
                                 tmp=tokens.get(block.start);
                                 throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
                             }
-                            rootContext.declareEnum(((EnumBlock) block),ioContext);
+                            tState.rootContext.declareEnum(((EnumBlock) block),ioContext);
                         }
                         case TUPLE -> {
                             ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
@@ -2312,14 +2278,14 @@ public class Interpreter {
                             if(generics.size()>0){
                                 GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,
                                         generics.toArray(Type.GenericParameter[]::new),types,block.startPos);
-                                rootContext.declareNamedDeclareable(tuple,ioContext);
+                                tState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }else{
                                 Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name,types,block.startPos);
-                                rootContext.declareNamedDeclareable(tuple,ioContext);
+                                tState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }
                         }
                         case ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST ->
-                            throw new SyntaxError("unexpected end-statement",pos);
+                                throw new SyntaxError("unexpected end-statement",pos);
                     }
                 }
             }
@@ -2366,10 +2332,9 @@ public class Interpreter {
             case "[:]"   -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,      pos));
 
             case "(" ->
-                    openBlocks.add(new ListBlock(tokens.size(),BlockType.ANONYMOUS_TUPLE,pos,
-                            getContext(openBlocks.peekLast(),rootContext)));
+                    tState.openBlocks.add(new ListBlock(tokens.size(),BlockType.ANONYMOUS_TUPLE,pos,tState.getContext()));
             case ")" -> {
-                CodeBlock block=openBlocks.pollLast();
+                CodeBlock block=tState.openBlocks.pollLast();
                 if(block==null||(block.type!=BlockType.ANONYMOUS_TUPLE&&block.type!=BlockType.PROC_TYPE)){
                     throw new SyntaxError("unexpected ')' statement ",pos);
                 }
@@ -2389,10 +2354,9 @@ public class Interpreter {
                 }
             }
             case "{" ->
-                    openBlocks.add(new ListBlock(tokens.size(),BlockType.CONST_LIST,pos,
-                            getContext(openBlocks.peekLast(),rootContext)));
+                    tState.openBlocks.add(new ListBlock(tokens.size(),BlockType.CONST_LIST,pos,tState.getContext()));
             case "}" -> {
-                CodeBlock block=openBlocks.pollLast();
+                CodeBlock block=tState.openBlocks.pollLast();
                 if(block==null||block.type!=BlockType.CONST_LIST){
                     throw new SyntaxError("unexpected '}' statement ",pos);
                 }
@@ -2483,7 +2447,7 @@ public class Interpreter {
             case "fill"      -> tokens.add(new OperatorToken(OperatorType.FILL,       pos));
 
             default -> {
-                CodeBlock last= openBlocks.peekLast();
+                CodeBlock last= tState.openBlocks.peekLast();
                 if(last instanceof EnumBlock){
                     ((EnumBlock) last).add(str,pos);
                 }else{
