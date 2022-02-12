@@ -1,6 +1,6 @@
 lib/utf8 :
 
-core #module
+core #namespace
 
 stack #include
 io #include

@@ -1,6 +1,6 @@
 lib/chars :
 
-core #module
+core #namespace
 
 stack #include
 ## files are parsed only once => defines can be at top level

@@ -1,6 +1,6 @@
 lib/bytes :
 
-core #module
+core #namespace
 valueIO #include
 
 uintToBytes proc uint => byte list :

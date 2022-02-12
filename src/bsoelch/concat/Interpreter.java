@@ -8,7 +8,7 @@ public class Interpreter {
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
     //use ## for end of file since it cannot appear in normal tokens
     public static final String END_OF_FILE = "##";
-    //use ' as separator for modules, as it cannot be part of identifiers
+    //use ' as separator for namespaces, as it cannot be part of identifiers
     public static final String MODULE_SEPARATOR = "'";
 
     /**
@@ -807,7 +807,7 @@ public class Interpreter {
             return Arrays.toString(path) +" declaredAt " + declaredAt;
         }
     }
-    /**File specific part of module parsing*/
+    /**File specific part of namespace parsing*/
     private static class FileContext{
         final ArrayList<String> globalImports=new ArrayList<>();
         final HashMap<String,PredeclaredProc> globalPredeclared = new HashMap<>();
@@ -826,7 +826,7 @@ public class Interpreter {
     }
     private static class RootContext extends VariableContext{
         RootContext(){}
-        HashSet<String> modules=new HashSet<>();
+        HashSet<String> namespaces=new HashSet<>();
         ArrayDeque<FileContext> openFiles=new ArrayDeque<>();
 
         private FileContext file(){
@@ -835,10 +835,10 @@ public class Interpreter {
         void startFile(){
             openFiles.addLast(new FileContext());
         }
-        void startModule(String moduleName,FilePosition declaredAt) throws SyntaxError {
-            Declareable d=elements.get(inCurrentModule(moduleName));
+        void startModule(String namespaceName,FilePosition declaredAt) throws SyntaxError {
+            Declareable d=elements.get(inCurrentModule(namespaceName));
             if(d!=null){
-                throw new SyntaxError("cannot declare module "+moduleName+
+                throw new SyntaxError("cannot declare namespace "+namespaceName+
                         ", the identifier is already used by " + declarableName(d.declarableType(), true)
                         + " (declared at " + d.declaredAt() + ")",declaredAt);
             }
@@ -848,16 +848,16 @@ public class Interpreter {
                     fullPath.append(s).append(MODULE_SEPARATOR);
                 }
             }
-            String[] path = moduleName.split(MODULE_SEPARATOR);
+            String[] path = namespaceName.split(MODULE_SEPARATOR);
             for(String s:path){
                 fullPath.append(s);
-                modules.add(fullPath.toString());
+                namespaces.add(fullPath.toString());
                 fullPath.append(MODULE_SEPARATOR);
             }
             file().openModules.add(new ModuleBlock(path,new ArrayList<>(),declaredAt,new HashMap<>()));
         }
         void addImport(String path,FilePosition pos) throws SyntaxError {
-            if(modules.contains(path)){
+            if(namespaces.contains(path)){
                 path+="'";
                 if(file().openModules.size()>0){
                     file().openModules.get(file().openModules.size()-1).imports.add(path);
@@ -868,13 +868,13 @@ public class Interpreter {
                 //addLater static imports
                 throw new UnsupportedOperationException("static imports are currently unimplemented");
             }else{
-                //addLater formatted printing of module paths
-                throw new SyntaxError("module "+path+" does not exist",pos);
+                //addLater formatted printing of namespace paths
+                throw new SyntaxError("namespace "+path+" does not exist",pos);
             }
         }
         void endModule(FilePosition pos) throws SyntaxError {
             if(file().openModules.isEmpty()){
-                throw new SyntaxError("Unexpected End of module",pos);
+                throw new SyntaxError("Unexpected End of namespace",pos);
             }
             ModuleBlock removed = file().openModules.remove(file().openModules.size() - 1);
             if(removed.predeclaredProcs.size()>0){
@@ -888,7 +888,7 @@ public class Interpreter {
         void endFile(FilePosition pos,IOContext context) throws SyntaxError {
             FileContext ctx=openFiles.removeLast();
             if(ctx.openModules.size()>0) {
-                context.stdErr.println("unclosed modules at end of File:");
+                context.stdErr.println("unclosed namespaces at end of File:");
                 while(ctx.openModules.size()>0){
                     ModuleBlock removed=ctx.openModules.remove(ctx.openModules.size()-1);
                     if(removed.predeclaredProcs.size()>0){
@@ -939,7 +939,7 @@ public class Interpreter {
         Declareable getDeclareable(String name){
             Declareable d;
             ArrayDeque<String> paths = currentPaths();
-            while(paths.size()>0){//go through all modules
+            while(paths.size()>0){//go through all namespaces
                 d=elements.get(paths.removeLast()+name);
                 if(d!=null){
                     return d;
@@ -999,7 +999,7 @@ public class Interpreter {
         void removeMacro(String name, FilePosition pos) throws SyntaxError {
             Declareable removed=elements.remove(inCurrentModule(name));
             if(removed==null){
-                throw new SyntaxError("macro "+name+" does not exists in the current module",pos);
+                throw new SyntaxError("macro "+name+" does not exists in the current namespace",pos);
             }else if(removed.declarableType()!=DeclareableType.MACRO){
                 throw new SyntaxError("macro "+name+" does not exists, or is" +
                         " shadowed by "+declarableName(removed.declarableType(),false)
@@ -1432,21 +1432,21 @@ public class Interpreter {
                         }
                         return;
                     }
-                    case "#module"-> {
+                    case "#namespace"-> {
                         if(tState.openBlocks.size()>0){
-                            throw new SyntaxError("modules can only be declared at root-level",pos);
+                            throw new SyntaxError("namespaces can only be declared at root-level",pos);
                         }
                         if(prevId != null){
                             tokens.remove(tokens.size()-1);
                             tState.rootContext.startModule(prevId,pos);
                         }else{
-                            throw new SyntaxError("module name has to be an identifier",pos);
+                            throw new SyntaxError("namespace name has to be an identifier",pos);
                         }
                         return;
                     }
                     case "#end"-> {
                         if(tState.openBlocks.size()>0){
-                            throw new SyntaxError("modules can only be closed at root-level",pos);
+                            throw new SyntaxError("namespaces can only be closed at root-level",pos);
                         }else{
                             //finish all words
                             finishWord("##","##",tState,pos,ioContext);
@@ -1462,7 +1462,7 @@ public class Interpreter {
                             tokens.remove(tokens.size()-1);
                             tState.rootContext.addImport(prevId,pos);
                         }else{
-                            throw new SyntaxError("imported module name has to be an identifier",pos);
+                            throw new SyntaxError("imported namespace name has to be an identifier",pos);
                         }
                         return;
                     }

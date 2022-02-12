@@ -1,6 +1,6 @@
 lib/hashMap :
 
-hashMap #module
+hashMap #namespace
 
 stack #include
 codeblocks #include

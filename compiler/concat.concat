@@ -377,9 +377,9 @@ newOpenFile proc => OpenFile :
 end
 
 RootContext tuple #+elements+# HashMap #+varCount+# int #+contextType+# ContextType
-    #+openFiles+# OpenFile list #+modules+# HashMap end
+    #+openFiles+# OpenFile list #+namespaces+# HashMap end
 RootContext.openFiles proc RootContext => OpenFile list : 3 [] end
-RootContext.modules   proc RootContext => HashMap       : 4 [] end
+RootContext.namespaces   proc RootContext => HashMap       : 4 [] end
 newRootContext proc => RootContext :
   string Declareable 16 newHashMap
   0
@@ -484,7 +484,7 @@ Context.getDeclareable proc #+context+# Context #+name+# string => Declareable o
     ContextType ROOT_CONTEXT . case
       context RootContext.currentPaths string list paths =:
       paths length 1 - int i =:
-      while i 0 >= do ##go through all modules
+      while i 0 >= do ##go through all namespaces
         context Context.elements paths i [] clone name :+ HashMap.get ?? if
           return
         else drop end
@@ -514,12 +514,12 @@ end
 
 RootContext.inCurrentModule proc RootContext  #+name+# string => string :
    string name =:
-   #+context+# RootContext.file OpenFile.openModules OpenModule list modules =:
-   modules length 0 > if
+   #+context+# RootContext.file OpenFile.openModules OpenModule list namespaces =:
+   namespaces length 0 > if
     "" string path =:
      0 int i =:
-     while i modules length < do
-        modules i [] OpenModule.path string list paths =:
+     while i namespaces length < do
+        namespaces i [] OpenModule.path string list paths =:
         0 int j =:
         while j paths length < do
           path paths j [] :+ MODULE_SEPARATOR :<< path =
@@ -537,7 +537,7 @@ RootContext.startModule proc RootContext #+name+# string #+declaredAt+# FilePosi
   RootContext context =:
   context Context.elements context name RootContext.inCurrentModule HashMap.get ?? if
     unwrap Declareable d =:
-    "cannot declare module " name :+ ", the identifier is already used by " :+
+    "cannot declare namespace " name :+ ", the identifier is already used by " :+
     true d Declareable.type DeclareableType.strAppend
     " (declared at " :+ d Declareable.pos FilePosition.strAppend ")\n at " :+
     fPos  FilePosition.strAppend '\n' :<< eputs
@@ -550,7 +550,7 @@ RootContext.startModule proc RootContext #+name+# string #+declaredAt+# FilePosi
   while i name length < do
     fullPath name i [] :<< fullPath =
     name i [] MODULE_SEPARATOR == if
-      context RootContext.modules fullPath clone true HashMap.put drop
+      context RootContext.namespaces fullPath clone true HashMap.put drop
       path tmp :<< path =
       "" tmp =
     else
@@ -560,7 +560,7 @@ RootContext.startModule proc RootContext #+name+# string #+declaredAt+# FilePosi
   end
   path tmp :<< path =
   fullPath MODULE_SEPARATOR :<< fullPath =
-  context RootContext.modules fullPath clone true HashMap.put drop
+  context RootContext.namespaces fullPath clone true HashMap.put drop
   context RootContext.file OpenFile.openModules path fPos newOpenModule :<< drop
 end
 RootContext.addImport proc RootContext #+name+# string #+declaredAt+# FilePosition => :
@@ -568,7 +568,7 @@ RootContext.addImport proc RootContext #+name+# string #+declaredAt+# FilePositi
   string name0 =:
   name0 clone '\'' :<< string name =:
   RootContext context =:
-  context RootContext.modules name HashMap.contains if
+  context RootContext.namespaces name HashMap.contains if
      context RootContext.file OpenFile file =:
      file OpenFile.openModules length 0 > if
          file OpenFile.openModules file OpenFile.openModules length 1 - [] OpenModule.imports name :<< drop
@@ -582,8 +582,8 @@ RootContext.addImport proc RootContext #+name+# string #+declaredAt+# FilePositi
     "static imports are currently unimplemented"
     1 exit
   else drop
-  context RootContext.modules
-    "module " name0 :+ " does not exist " :+ fPos FilePosition.strAppend '\n' :<< eputs
+  context RootContext.namespaces
+    "namespace " name0 :+ " does not exist " :+ fPos FilePosition.strAppend '\n' :<< eputs
     1 exit
   end
 end
@@ -592,7 +592,7 @@ RootContext.endModule proc RootContext FilePosition => :
   RootContext context =:
   context RootContext.file OpenFile file =:
   file OpenFile.openModules length 0 == if
-    "Unexpected End of module " fPos FilePosition.strAppend '\n' :<< eputs
+    "Unexpected End of namespace " fPos FilePosition.strAppend '\n' :<< eputs
     1 exit
   end
   file OpenFile.openModules file OpenFile.openModules length 1 - [] OpenModule removed =:
@@ -613,7 +613,7 @@ RootContext.endFile proc RootContext FilePosition => :
   context RootContext.openFiles context RootContext.openFiles length 1 - [] OpenFile closed =:
   context RootContext.openFiles context RootContext.openFiles length 1 - context RootContext.openFiles length [:] clear
   closed OpenFile.openModules length 0 > if
-    "unclosed modules at end of File:\n" eputs
+    "unclosed namespaces at end of File:\n" eputs
     closed OpenFile.openModules length 1 - int i =:
     while i 0 >= do
       closed OpenFile.openModules i [] OpenModule removed =:
@@ -646,17 +646,17 @@ RootContext.currentPaths proc RootContext => string list :
   #+context+# RootContext.file OpenFile file =:
   file OpenFile.globalImports clone string list paths =:
   16 string new string path =:
-  file OpenFile.openModules OpenModule list modules =:
+  file OpenFile.openModules OpenModule list namespaces =:
   0 int i =:
-  while i modules length < do
-    modules i [] OpenModule.path string list mPath =:
+  while i namespaces length < do
+    namespaces i [] OpenModule.path string list mPath =:
     0 int j =:
     while j mPath length < do
       path mPath j [] :+ MODULE_SEPARATOR :<< path =
       j 1 + j =
       paths path clone :<< paths =
     end
-    paths  modules i [] OpenModule.imports  paths length 1 - paths length 1 - [:] =
+    paths  namespaces i [] OpenModule.imports  paths length 1 - paths length 1 - [:] =
     i 1 + i =
   end
   paths return
@@ -704,7 +704,7 @@ RootContext.removeMacro proc #+context+# RootContext #+name+# string #+pos+# Fil
       1 exit
     end
   else drop
-    "macro " name :+ " does not exists in the current module " :+ fPos FilePosition.strAppend '\n' :<< eputs
+    "macro " name :+ " does not exists in the current namespace " :+ fPos FilePosition.strAppend '\n' :<< eputs
     1 exit
   end
 end
@@ -888,7 +888,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         context openBlocks OpenBlocks.currentMacro RootContext.declareMacro
         openBlocks fPos "" newMacro OpenBlocks.currentMacro=
         end-case
-      "#define" "#undef" "#module" "#include" "#import" "proc" "procedure" "enum" "tuple" case
+      "#define" "#undef" "#namespace" "#include" "#import" "proc" "procedure" "enum" "tuple" case
         word " is not allowed in macros " :+ fPos FilePosition.strAppend '\n' :<< eputs
         1 exit
         end-case
@@ -952,7 +952,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
       tokens TokenType IDENTIFIER . fPos
         IdentifierType ADDRESS_OF . prev WordToken.value IdentifierToken new tokens length 1 - [] =
       end-case
-    ## macro&module key-words
+    ## macro&namespace key-words
     "#define" case
       tokens length 0 == if
         "missing macro name " fPos FilePosition.strAppend '\n' :<< eputs
@@ -981,14 +981,14 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
       tokens tokens length 1 - tokens length [:] clear
       context prev WordToken.value fPos RootContext.removeMacro
       end-case
-    "#module" case
+    "#namespace" case
       openBlocks OpenBlocks.blocks length 0 > if
-        "modules can only be declared at root-level " fPos FilePosition.strAppend '\n' :<< eputs
+        "namespaces can only be declared at root-level " fPos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
       tokens tokens length 1 - [] Token prev =:
       prev Token.type TokenType WORD . != if
-        "invalid token for module name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
+        "invalid token for namespace name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
       tokens tokens length 1 - tokens length [:] clear
@@ -996,7 +996,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
       end-case
     "#end" case
       openBlocks OpenBlocks.blocks length 0 > if
-        "modules can only be closed at root-level " fPos FilePosition.strAppend '\n' :<< eputs
+        "namespaces can only be closed at root-level " fPos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
       END_OF_SECTION "" fPos openBlocks program parseWord
@@ -1009,7 +1009,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
       end
       tokens tokens length 1 - [] Token prev =:
       prev Token.type TokenType WORD . != if
-        "imported module name has to be an identifier, got "
+        "imported namespace name has to be an identifier, got "
            prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
@@ -1633,7 +1633,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
   16 byte list new                    #+word+#
   fileName 1 1 FilePosition new       #+wordPos+#
   ParserReader new ParserReader reader =:
-  ## TODO detect file header
+  ## FIXME detect file header
   context RootContext.startFile
   ParseState STATE_WORD . ParseState state =:
   reader ParserReader.pos "" newMacro 16 CodeBlock list new OpenBlocks new OpenBlocks openBlocks =:

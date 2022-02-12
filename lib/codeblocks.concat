@@ -1,6 +1,6 @@
 lib/codeblocks :
 
-core #module
+core #namespace
 
 || #define   if true  else #end
 && #define ! if false else #end

@@ -98,7 +98,7 @@ leaves the following values on the stack:
 
 #### Standard Library
 in `io`
-in module `io`
+in namespace `io`
 - `open` arguments: `<path> <options>`
   opens the file at `path`, `options` a string
   containing `r` for reading and `w` for writing
@@ -114,7 +114,7 @@ in module `io`
 - `seek`
 - `seekEnd`
 - 
-in module `core`
+in namespace `core`
 - `fputs` prints a string to a file
 (arguments `<string> <file>`)
 - `puts` prints a string to standard output

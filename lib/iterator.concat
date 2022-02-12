@@ -1,6 +1,6 @@
 lib/iterator :
 
-core #module
+core #namespace
 
 Iterator tuple (list) int end
 

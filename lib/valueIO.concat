@@ -1,6 +1,6 @@
 lib/valueIO :
 
-core #module
+core #namespace
 
 stack #include
 io #include

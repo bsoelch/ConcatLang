@@ -1,6 +1,6 @@
 lib/lists :
 
-lists #module
+lists #namespace
 codeblocks #include
 core #import
 

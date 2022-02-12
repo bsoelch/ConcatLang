@@ -1,6 +1,6 @@
 lib/io :
 
-io #module
+io #namespace
   type FILE native =$
 
   FILE stdIn  native =$
@@ -17,7 +17,7 @@ io #module
   seekEnd  native proc FILE => bool : end
   seek     native proc FILE int => bool : end
 #end
-core #module
+core #namespace
 stack #include
 io #import
 fputs proc string FILE => bool :

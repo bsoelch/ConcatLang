@@ -1,6 +1,6 @@
 lib/math :
 
-math #module
+math #namespace
 
 exp native proc float => float : end
 log native proc float => float : end

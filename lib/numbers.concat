@@ -1,6 +1,6 @@
 lib/numbers :
 
-core #module
+core #namespace
 
 stack #include
 codeblocks #include

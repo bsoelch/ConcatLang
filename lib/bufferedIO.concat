@@ -3,7 +3,7 @@ lib/bufferedIO :
 stack #include
 core #import
 io #include
-io #module
+io #namespace
 
 BufferedInput tuple FILE byte list int end
 BufferedInput.file   proc BufferedInput => FILE      : 0 [] end
