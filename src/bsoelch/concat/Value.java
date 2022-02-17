@@ -1586,7 +1586,7 @@ public abstract class Value {
         final FilePosition declaredAt;
 
         final Interpreter.ProcedureContext context;
-        final ArrayList<Interpreter.Token> tokens;
+        ArrayList<Interpreter.Token> tokens;
         final Type.GenericParameter[] generics;
         private Procedure(Type procType, ArrayList<Interpreter.Token> tokens, Type.GenericParameter[] generics, FilePosition declaredAt,
                           Interpreter.ProcedureContext context) {

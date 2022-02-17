@@ -68,3 +68,39 @@ end
  8 testDefault println
  9 testDefault println
 10 testDefault println
+
+"__________________________________" println
+
+"switch" "in" "switch" switch
+"switch" case
+  switch
+  "switch" case
+     "NOT OK" println
+    end-case
+  "ERROR" case
+     "NOT OK" println
+    end-case
+  "in" case
+    switch
+    "switch" case
+       "OK" println
+      end-case
+    "in" case
+       "NOT OK" println
+      end-case
+    "ERROR" case
+       "NOT OK" println
+      end-case
+    default
+       "NOT OK" println
+    end
+    end-case
+  end
+  end-case
+"in" case
+   "NOT OK" println
+  end-case
+"ERROR" case
+   "NOT OK" println
+  end-case
+end

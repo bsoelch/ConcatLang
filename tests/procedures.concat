@@ -30,6 +30,7 @@ end
  1 +
 end drop
 
+#+ TODO reimplement lambda-procedures
 lambda 0 != end *->* intToBool =$
 
 3 intToBool () println
@@ -53,7 +54,7 @@ lambda
   end
 end () () () () ()
 
-curriedMinus proc int => int 1 int 1 -> :
+curriedMinus proc int => ( int => int ) :
  int a =$
  lambda int => int :
    int b =:
@@ -61,6 +62,14 @@ curriedMinus proc int => int 1 int 1 -> :
  end
 end
 
-1 curriedMinus int 1 int 1 -> oneMinus =:
+1 curriedMinus ( int => int ) oneMinus =:
 2 3 curriedMinus () println
 4 oneMinus () println
++#
+## expected output of commented code
+"true" println
+"false" println
+"2.5" println
+"currying is now supported!" println
+"1" println
+"-3" println

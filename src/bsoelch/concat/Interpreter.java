@@ -6,8 +6,6 @@ import java.util.regex.Pattern;
 
 public class Interpreter {
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
-    //use ## for end of file since it cannot appear in normal tokens
-    public static final String END_OF_FILE = "##";
     //use ' as separator for namespaces, as it cannot be part of identifiers
     public static final String MODULE_SEPARATOR = "'";
 
@@ -59,7 +57,7 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE,CONST_DECLARE,UNMODIFIED,PROC_ID,VAR_WRITE,NATIVE, NEW_GENERIC, NATIVE_DECLARE
+        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NEW_GENERIC, NATIVE_DECLARE
     }
     static class IdentifierToken extends Token {
         final IdentifierType type;
@@ -114,7 +112,9 @@ public class Interpreter {
             this.count = count;
         }
     }
-    enum BlockTokenType{IF, ELSE, _IF, END_CASE, END_WHILE, DO_WHILE, WHILE, END_IF, DO}
+    enum BlockTokenType{
+        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT,END,LIST,END_LIST
+    }
     static class BlockToken extends Token{
         final BlockTokenType blockType;
         int delta;
@@ -150,26 +150,14 @@ public class Interpreter {
         }
     }
     static class ProcedureToken extends Token {
-        private Value.Procedure value;
-        ProcedureToken(boolean isPtr,Value.Procedure value, FilePosition pos) {
+        final Value.Procedure procedure;
+        ProcedureToken(boolean isPtr, Value.Procedure procedure, FilePosition pos) {
             super(isPtr?TokenType.PUSH_PROC_PTR :TokenType.CALL_PROC, pos);
-            this.value=value;
-        }
-        void declareProcedure(Value.Procedure value){
-            if(this.value!=null){
-                throw new RuntimeException("procedure can only be initialized once");
-            }
-            this.value=value;
-        }
-        Value.Procedure getProcedure() throws ConcatRuntimeError {
-            if(value==null){
-                throw new ConcatRuntimeError("missing procedure");
-            }
-            return value;
+            this.procedure = procedure;
         }
         @Override
         public String toString() {
-            return tokenType.toString()+": "+value;
+            return tokenType.toString()+": "+ procedure;
         }
     }
     static class NativeProcedureToken extends Token {
@@ -256,15 +244,6 @@ public class Interpreter {
         @Override
         public String toString() {
             return variableType+"_"+accessType +":" +(variableType==VariableType.CURRIED?id:id.id)+" ("+variableName+")";
-        }
-    }
-
-
-    private static void checkElementCount(long count) throws ConcatRuntimeError {
-        if(count<0){
-            throw new ConcatRuntimeError("the element count has to be at least 0");
-        }else if(count >Integer.MAX_VALUE){
-            throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
         }
     }
 
@@ -606,7 +585,6 @@ public class Interpreter {
         private int line =1;
         private int posInLine =1;
         private FilePosition currentPos;
-        private FilePosition nextPos;
 
         private ParserReader(String path) throws SyntaxError {
             this.path=path;
@@ -646,17 +624,16 @@ public class Interpreter {
             return currentPos;
         }
         void nextToken() {
-            currentPos=nextPos;
+            currentPos=new FilePosition(path, line, posInLine);
             buffer.setLength(0);
-            updateNextPos();
         }
         void updateNextPos() {
-            nextPos=new FilePosition(path, line, posInLine);
+            currentPos=new FilePosition(path, line, posInLine);
         }
     }
 
     enum DeclareableType{
-        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,PREDECLARED_PROCEDURE,ENUM, TUPLE, ENUM_ENTRY, GENERIC, NATIVE_PROC,
+        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, ENUM_ENTRY, GENERIC, NATIVE_PROC,
         GENERIC_TUPLE,
     }
     static String declarableName(DeclareableType t, boolean a){
@@ -675,9 +652,6 @@ public class Interpreter {
             }
             case PROCEDURE -> {
                 return a?"a procedure":"procedure";
-            }
-            case PREDECLARED_PROCEDURE -> {
-                return a?"a predeclared procedure":"predeclared procedure";
             }
             case ENUM -> {
                 return a?"an enum":"enum";
@@ -800,8 +774,7 @@ public class Interpreter {
         abstract int level();
     }
 
-    record ModuleBlock(String[] path,ArrayList<String> imports,FilePosition declaredAt,
-                       HashMap<String,PredeclaredProc> predeclaredProcs){
+    record ModuleBlock(String[] path,ArrayList<String> imports,FilePosition declaredAt){
         @Override
         public String toString() {
             return Arrays.toString(path) +" declaredAt " + declaredAt;
@@ -810,19 +783,8 @@ public class Interpreter {
     /**File specific part of namespace parsing*/
     private static class FileContext{
         final ArrayList<String> globalImports=new ArrayList<>();
-        final HashMap<String,PredeclaredProc> globalPredeclared = new HashMap<>();
         final ArrayList<ModuleBlock> openModules=new ArrayList<>();
         final HashMap<String,Declareable> declared =new HashMap<>();
-    }
-    record PredeclaredProc(FilePosition pos,ArrayDeque<ProcedureToken> listeners) implements Declareable{
-        @Override
-        public DeclareableType declarableType() {
-            return DeclareableType.PREDECLARED_PROCEDURE;
-        }
-        @Override
-        public FilePosition declaredAt() {
-            return pos;
-        }
     }
     private static class RootContext extends VariableContext{
         RootContext(){}
@@ -854,7 +816,7 @@ public class Interpreter {
                 namespaces.add(fullPath.toString());
                 fullPath.append(MODULE_SEPARATOR);
             }
-            file().openModules.add(new ModuleBlock(path,new ArrayList<>(),declaredAt,new HashMap<>()));
+            file().openModules.add(new ModuleBlock(path,new ArrayList<>(),declaredAt));
         }
         void addImport(String path,FilePosition pos) throws SyntaxError {
             if(namespaces.contains(path)){
@@ -876,37 +838,16 @@ public class Interpreter {
             if(file().openModules.isEmpty()){
                 throw new SyntaxError("Unexpected End of namespace",pos);
             }
-            ModuleBlock removed = file().openModules.remove(file().openModules.size() - 1);
-            if(removed.predeclaredProcs.size()>0){
-                StringBuilder message=new StringBuilder("Syntax Error: missing variables/procedures");
-                for(Map.Entry<String, PredeclaredProc> p:removed.predeclaredProcs.entrySet()){
-                    message.append("\n- ").append(p.getKey()).append(" (at ").append(p.getValue().pos).append(")");
-                }
-                throw new SyntaxError(message.toString(),pos);
-            }
+            file().openModules.remove(file().openModules.size() - 1);
         }
-        void endFile(FilePosition pos,IOContext context) throws SyntaxError {
+        void endFile(IOContext context){
             FileContext ctx=openFiles.removeLast();
             if(ctx.openModules.size()>0) {
                 context.stdErr.println("unclosed namespaces at end of File:");
                 while(ctx.openModules.size()>0){
                     ModuleBlock removed=ctx.openModules.remove(ctx.openModules.size()-1);
-                    if(removed.predeclaredProcs.size()>0){
-                        StringBuilder message=new StringBuilder("Syntax Error: missing variables/procedures");
-                        for(Map.Entry<String, PredeclaredProc> p:removed.predeclaredProcs.entrySet()){
-                            message.append("\n- ").append(p.getKey()).append(" (at ").append(p.getValue().pos).append(")");
-                        }
-                        throw new SyntaxError(message.toString(),pos);
-                    }
                     context.stdErr.println(" - "+removed);
                 }
-            }
-            if(ctx.globalPredeclared.size()>0){
-                StringBuilder message=new StringBuilder("Syntax Error: missing variables/procedures");
-                for(Map.Entry<String, PredeclaredProc> p:ctx.globalPredeclared.entrySet()){
-                    message.append("\n- ").append(p.getKey()).append(" (at ").append(p.getValue().pos).append(")");
-                }
-                throw new SyntaxError(message.toString(),pos);
             }
         }
         private String inCurrentModule(String name){
@@ -957,55 +898,14 @@ public class Interpreter {
             file().declared.put(name,declared);
         }
 
-        HashMap<String,PredeclaredProc> predeclaredProcs(){
-            if(file().openModules.size()>0){
-                return file().openModules.get(file().openModules.size()-1).predeclaredProcs;
-            }else{
-                return file().globalPredeclared;
-            }
-        }
-
         void declareProcedure(String name, Value.Procedure proc,IOContext ioContext) throws SyntaxError {
             String name0=name;
             name=inCurrentModule(name);
-            PredeclaredProc predeclared=predeclaredProcs().remove(name);
-            if(predeclared!=null){
-                for(ProcedureToken token:predeclared.listeners){
-                    token.declareProcedure(proc);
-                }
-                Declareable prev=elements.remove(name);
-                assert prev==predeclared;
-            }
             ensureDeclareable(name,DeclareableType.PROCEDURE,proc.declaredAt);
             checkShadowed(proc,name0,proc.declaredAt,ioContext);
             elements.put(name,proc);
         }
-        PredeclaredProc predeclareProcedure(String name,VariableContext callee,FilePosition pos) throws SyntaxError {
-            String localName=inCurrentModule(name);
-            PredeclaredProc predeclared=predeclaredProcs().get(localName);
-            if(predeclared==null){
-                if(callee.procedureContext()!=null){
-                    predeclared = new PredeclaredProc(pos, new ArrayDeque<>());
-                    predeclaredProcs().put(localName, predeclared);
-                    ensureDeclareable(localName,DeclareableType.PREDECLARED_PROCEDURE,pos);
-                    elements.put(localName,predeclared);//add to elements for better handling of shadowing
-                }else{
-                    throw new SyntaxError("variable "+name+" does not exist",pos);
-                }
-            }
-            return predeclared;
-        }
 
-        void removeMacro(String name, FilePosition pos) throws SyntaxError {
-            Declareable removed=elements.remove(inCurrentModule(name));
-            if(removed==null){
-                throw new SyntaxError("macro "+name+" does not exists in the current namespace",pos);
-            }else if(removed.declarableType()!=DeclareableType.MACRO){
-                throw new SyntaxError("macro "+name+" does not exists, or is" +
-                        " shadowed by "+declarableName(removed.declarableType(),false)
-                        +" (declared at "+removed.declaredAt()+")",pos);
-            }
-        }
         void declareEnum(EnumBlock source, IOContext ioContext) throws SyntaxError {
             String localName=inCurrentModule(source.name);
             Type.Enum anEnum=new Type.Enum(source.name,source.elements.toArray(new String[0]),
@@ -1179,7 +1079,7 @@ public class Interpreter {
         }
     }
 
-    /**@return false if the value was an integer otherwise true*/
+    /**@return true if the value was an integer otherwise true*/
     private boolean tryParseInt(ArrayList<Token> tokens, String str0,FilePosition pos) throws SyntaxError {
         try {
             String str=str0;
@@ -1190,40 +1090,43 @@ public class Interpreter {
             }
             if(intDec.matcher(str).matches()){//dez-Int
                 tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,10,unsigned), unsigned), pos, false));
-                return false;
+                return true;
             }else if(intBin.matcher(str).matches()){//bin-Int
                 str=str.replaceAll(BIN_PREFIX,"");//remove header
                 tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,2,unsigned), unsigned), pos, false));
-                return false;
+                return true;
             }else if(intHex.matcher(str).matches()){ //hex-Int
                 str=str.replaceAll(HEX_PREFIX,"");//remove header
                 tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,16,unsigned), unsigned), pos, false));
-                return false;
+                return true;
             }
         } catch (ConcatRuntimeError nfeL) {
             throw new SyntaxError("Number out of Range: "+str0,pos);
         }
-        return true;
+        return false;
     }
 
     static class ParserState {
+        final ArrayList<Token> tokens =new ArrayList<>();
+        /**global code after type-check*/
         final ArrayList<Token> globalCode =new ArrayList<>();
 
         final ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
+        int openBlocks2=0;//number of opened blocks that will be processed in the next step
         final RootContext rootContext;
         final HashSet<String> files=new HashSet<>();
-        final HashMap<VariableId,Value> globalConstants=new HashMap<>();
+        public HashMap<VariableId, Value> globalVariables=new HashMap<>();
+        public ArrayDeque<Value.Procedure> unparsedProcs=new ArrayDeque<>();
 
         Macro currentMacro;//max be null
         ProcedureBlock currentProc;//may be null
-        ArrayList<Token> procTokens;//may be null
 
         ParserState(RootContext rootContext) {
             this.rootContext = rootContext;
         }
 
         VariableContext getContext(){
-            return openBlocks.size()>0?openBlocks.peekLast().context() : currentProc==null?rootContext:currentProc.context();
+            return currentProc==null?rootContext:currentProc.context();
         }
     }
     public Program parse(File file, ParserState pState, IOContext ioContext) throws IOException, SyntaxError {
@@ -1261,17 +1164,12 @@ public class Interpreter {
         pState.rootContext.startFile();
         reader.nextToken();
         WordState state=WordState.ROOT;
-        String current,next=null;
         while((c=reader.nextChar())>=0){
             switch(state){
                 case ROOT:
                     if(Character.isWhitespace(c)){
                         if(reader.buffer.length()>0){
-                            current=next;
-                            next=reader.buffer.toString();
-                            if(current!=null){
-                                finishWord(current,next,pState,reader.currentPos(),ioContext);
-                            }
+                            finishWord(reader.buffer.toString(), pState,reader.currentPos(),ioContext);
                             reader.nextToken();
                         }
                         reader.updateNextPos();
@@ -1291,19 +1189,11 @@ public class Interpreter {
                                 c = reader.forceNextChar();
                                 if (c == '#') {
                                     state = WordState.LINE_COMMENT;
-                                    current=next;
-                                    next=reader.buffer.toString();
-                                    if(current!=null){
-                                        finishWord(current,next,pState,reader.currentPos(),ioContext);
-                                    }
+                                    finishWord(reader.buffer.toString(), pState,reader.currentPos(),ioContext);
                                     reader.nextToken();
                                 } else if (c == '+') {
                                     state = WordState.COMMENT;
-                                    current=next;
-                                    next=reader.buffer.toString();
-                                    if(current!=null){
-                                        finishWord(current,next,pState,reader.currentPos(),ioContext);
-                                    }
+                                    finishWord(reader.buffer.toString(), pState,reader.currentPos(),ioContext);
                                     reader.nextToken();
                                 } else {
                                     reader.buffer.append('#').append((char) c);
@@ -1315,11 +1205,7 @@ public class Interpreter {
                     break;
                 case STRING,UNICODE_STRING:
                     if(c==reader.buffer.charAt(state==WordState.STRING?0:1)){
-                        current=next;
-                        next=reader.buffer.toString();
-                        if(current!=null){
-                            finishWord(current,next,pState,reader.currentPos(),ioContext);
-                        }
+                        finishWord(reader.buffer.toString(),pState,reader.currentPos(),ioContext);
                         reader.nextToken();
                         state=WordState.ROOT;
                     }else{
@@ -1350,7 +1236,7 @@ public class Interpreter {
                     }
                     break;
                 case COMMENT:
-                    if(c=='+'){
+                    if(c=='+'){//addLater? comments starting with #++ can only be closed with ++#
                         c = reader.forceNextChar();
                         if(c=='#'){
                             state=WordState.ROOT;
@@ -1366,391 +1252,36 @@ public class Interpreter {
         }
         switch (state){
             case ROOT->{
-                current=next;
-                next=reader.buffer.toString();
-                if(current!=null){
-                    finishWord(current,next,pState,reader.currentPos(),ioContext);
-                }
+                finishWord(reader.buffer.toString(), pState,reader.currentPos(),ioContext);
                 reader.nextToken();
             }
             case LINE_COMMENT ->{} //do nothing
             case STRING,UNICODE_STRING ->throw new SyntaxError("unfinished string", reader.currentPos());
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
-        //finish parsing of all elements
-        finishWord(next,        END_OF_FILE, pState, reader.currentPos(), ioContext);
-        finishWord(END_OF_FILE, END_OF_FILE, pState, reader.currentPos(), ioContext);
+        finishParsing(pState, ioContext,true);
 
         if(pState.openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+pState.openBlocks.getLast(),pState.openBlocks.getLast().startPos);
         }
-        pState.rootContext.endFile(reader.currentPos,ioContext);
+        pState.rootContext.endFile(ioContext);
         return new Program(pState.globalCode,pState.files,pState.rootContext);
     }
 
-    private void finishWord(String str, String next, ParserState tState, FilePosition pos, IOContext ioContext) throws SyntaxError, IOException {
+    private void finishWord(String str, ParserState pState, FilePosition pos, IOContext ioContext) throws SyntaxError {
         if (str.length() > 0) {
-            if(tState.currentMacro!=null){//handle macros
+            ArrayList<Token> tokens = pState.tokens;
+            Token prev= tokens.size()>0? tokens.get(tokens.size()-1):null;
+            String prevId=(prev instanceof IdentifierToken &&((IdentifierToken) prev).type == IdentifierType.WORD)?
+                    ((IdentifierToken)prev).name:null;
+            if(pState.currentMacro!=null){
                 if(str.equals("#end")){
-                    tState.rootContext.declareNamedDeclareable(tState.currentMacro,ioContext);
-                    tState.currentMacro=null;
-                }else if(str.startsWith("#")){
-                    throw new SyntaxError(str+" is not allowed in macros",pos);
+                    pState.rootContext.declareNamedDeclareable(pState.currentMacro,ioContext);
+                    pState.currentMacro=null;
                 }else{
-                    tState.currentMacro.content.add(new StringWithPos(str,pos));
+                    pState.currentMacro.content.add(new StringWithPos(str,pos));
                 }
                 return;
-            }
-            ArrayList<Token> tokens = tState.globalCode;
-            {//preprocessor
-                Token prev= tokens.size()>0? tokens.get(tokens.size()-1):null;
-                String prevId=(prev instanceof IdentifierToken &&((IdentifierToken) prev).type == IdentifierType.UNMODIFIED)?
-                        ((IdentifierToken)prev).name:null;
-                VariableContext context=tState.getContext();
-                switch (str){
-                    case "#define"->{
-                        if(tState.currentProc==null&&tState.openBlocks.size()>0){
-                            throw new SyntaxError("macros can only be defined at root-level",pos);
-                        }
-                        if(prevId!=null){
-                            tokens.remove(tokens.size()-1);
-                            tState.currentMacro=new Macro(pos,prevId,new ArrayList<>());
-                        }else{
-                            throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
-                        }
-                        return;
-                    }
-                    case "#undef"->{
-                        if(tState.currentProc==null&&tState.openBlocks.size()>0){
-                            throw new SyntaxError("macros can only be undefined at root-level",pos);
-                        }
-                        if(prevId!=null){
-                            tokens.remove(tokens.size()-1);
-                            tState.rootContext.removeMacro(prevId,pos);
-                        }else{
-                            throw new SyntaxError("invalid token preceding #undef: "+prev+" expected macro-name",pos);
-                        }
-                        return;
-                    }
-                    case "#namespace"-> {
-                        if(tState.openBlocks.size()>0){
-                            throw new SyntaxError("namespaces can only be declared at root-level",pos);
-                        }
-                        if(prevId != null){
-                            tokens.remove(tokens.size()-1);
-                            tState.rootContext.startModule(prevId,pos);
-                        }else{
-                            throw new SyntaxError("namespace name has to be an identifier",pos);
-                        }
-                        return;
-                    }
-                    case "#end"-> {
-                        if(tState.openBlocks.size()>0){
-                            throw new SyntaxError("namespaces can only be closed at root-level",pos);
-                        }else{
-                            //finish all words
-                            finishWord("##","##",tState,pos,ioContext);
-                            tState.rootContext.endModule(pos);
-                        }
-                        return;
-                    }
-                    case "#import"-> {
-                        if(tState.openBlocks.size()>0){
-                            throw new SyntaxError("imports are can only allowed at root-level",pos);
-                        }
-                        if(prevId != null){
-                            tokens.remove(tokens.size()-1);
-                            tState.rootContext.addImport(prevId,pos);
-                        }else{
-                            throw new SyntaxError("imported namespace name has to be an identifier",pos);
-                        }
-                        return;
-                    }
-                    case "#include" -> {
-                        if(tState.openBlocks.size()>0){
-                            throw new SyntaxError("includes are can only allowed at root-level",pos);
-                        }
-                        if(prev instanceof ValueToken){
-                            tokens.remove(tokens.size()-1);
-                            String name=((ValueToken) prev).value.stringValue();
-                            File file=new File(name);
-                            if(file.exists()){
-                                parse(file,tState,ioContext);
-                            }else{
-                                throw new SyntaxError("File "+name+" does not exist",pos);
-                            }
-                        }else if(prevId != null){
-                            tokens.remove(tokens.size()-1);
-                            String path=libPath+File.separator+ prevId +DEFAULT_FILE_EXTENSION;
-                            File file=new File(path);
-                            if(file.exists()){
-                                parse(file,tState,ioContext);
-                            }else{
-                                throw new SyntaxError(prevId+" is not part of the standard library",pos);
-                            }
-                        }else{
-                            throw new SyntaxError("include path has to be a string literal or identifier",pos);
-                        }
-                        return;
-                    }
-                    case "="->{
-                        if(prev==null){
-                            throw new SyntaxError("not enough tokens tokens for '=' modifier",pos);
-                        }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_INDEX){
-                            //<array> <val> <index> [] =
-                            tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_INDEX,prev.pos));
-                        }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_SLICE){
-                            //<array> <val> <off> <to> [:] =
-                            tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_SLICE,prev.pos));
-                        }else if(prev instanceof IdentifierToken){
-                            if(((IdentifierToken) prev).type == IdentifierType.UNMODIFIED){
-                                prev=new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
-                            }else{
-                                throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
-                            }
-                            tokens.set(tokens.size()-1,prev);
-                        }else{
-                            throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
-                        }
-                        return;
-                    }
-                    case "."->{
-                        if(prev==null||tokens.size()<2){
-                            throw new SyntaxError("not enough tokens tokens for '.' modifier",pos);
-                        }else if(prevId!=null){
-                            Token prePrev=tokens.get(tokens.size()-2);
-                            if(!(prePrev instanceof IdentifierToken && ((IdentifierToken) prePrev).type==IdentifierType.UNMODIFIED)){
-                                throw new SyntaxError("invalid token for '.' modifier: "+prePrev,prePrev.pos);
-                            }
-                            String newName=((IdentifierToken)prePrev).name+ MODULE_SEPARATOR +prevId;
-                            tokens.remove(tokens.size()-1);
-                            prev=new IdentifierToken(IdentifierType.UNMODIFIED, newName,pos);
-                        }else{
-                            throw new SyntaxError("invalid token for '.' modifier: "+prev,prev.pos);
-                        }
-                        tokens.set(tokens.size()-1,prev);
-                        return;
-                    }
-                    case "=:"->{
-                        if(prev==null){
-                            throw new SyntaxError("not enough tokens tokens for '=:' modifier",pos);
-                        }else if(prevId!=null){
-                            prev=new IdentifierToken(IdentifierType.DECLARE,prevId,prev.pos);
-                        }else{
-                            throw new SyntaxError("invalid token for '=:' modifier "+prev,prev.pos);
-                        }
-                        tokens.set(tokens.size()-1,prev);
-                        return;
-                    }
-                    case "=$" -> {
-                        if(prev==null){
-                            throw new SyntaxError("not enough tokens tokens for '=$' modifier",pos);
-                        }else if(prevId!=null){
-                            prev=new IdentifierToken(IdentifierType.CONST_DECLARE,prevId,prev.pos);
-                        }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.NATIVE){
-                            prev=new IdentifierToken(IdentifierType.NATIVE_DECLARE,((IdentifierToken) prev).name,prev.pos);
-                        }else{
-                            throw new SyntaxError("invalid token for '=$' modifier: "+prev,prev.pos);
-                        }
-                        tokens.set(tokens.size()-1,prev);
-                        return;
-                    }
-                    case "native" -> {
-                        if(prev==null){
-                            throw new SyntaxError("not enough tokens tokens for 'native' modifier",pos);
-                        }else if(prevId!=null){
-                            prev=new IdentifierToken(IdentifierType.NATIVE,prevId,prev.pos);
-                        }else{
-                            throw new SyntaxError("invalid token for 'native' modifier: "+prev,prev.pos);
-                        }
-                        tokens.set(tokens.size()-1,prev);
-                        return;
-                    }
-                    case "@()"->{
-                        if(prev==null){
-                            throw new SyntaxError("not enough tokens tokens for '@()' modifier",pos);
-                        }else if(prevId!=null){
-                            tokens.set(tokens.size()-1,new IdentifierToken(IdentifierType.PROC_ID,prevId,prev.pos));
-                        }else{
-                            throw new SyntaxError("invalid token for '@()' modifier: "+prev,prev.pos);
-                        }
-                        return;
-                    }
-                    case "<>" ->{
-                        if(prev==null){
-                            throw new SyntaxError("not enough tokens tokens for '<>' modifier",pos);
-                        }else if(prevId!=null){
-                            tokens.set(tokens.size()-1,new IdentifierToken(IdentifierType.NEW_GENERIC,prevId,prev.pos));
-                        }else{
-                            throw new SyntaxError("invalid token for '<>' modifier: "+prev,prev.pos);
-                        }
-                        return;
-                    }
-                }
-                if(prev!=null){
-                    if((!(next.equals(".")||str.equals("proc")||str.equals("procedure")||str.equals("enum")
-                            ||(str.equals("tuple")&&tState.openBlocks.size()==0)))&&
-                            prev instanceof IdentifierToken identifier){
-                        int index=tokens.size()-1;
-                        //update variables
-                        switch (identifier.type){
-                            case NATIVE ->
-                                    throw new RuntimeException("unreachable");
-                            case NEW_GENERIC -> {
-                                if(!(context instanceof GenericContext)){
-                                    throw new SyntaxError("generics can only be declared in tuple and procedure signatures",prev.pos);
-                                }
-                                ((GenericContext) context).declareGeneric( identifier.name,identifier.pos,ioContext);
-                                tokens.remove(index);
-                            }
-                            case DECLARE,CONST_DECLARE,NATIVE_DECLARE -> {
-                                if(index>=1&&(prev=tokens.get(index-1)) instanceof ValueToken){
-                                    try {//remember constant declarations
-                                        Type type=((ValueToken)prev).value.asType();
-                                        VariableId id=context.declareVariable(
-                                                identifier.name,type, identifier.type != IdentifierType.DECLARE,
-                                                identifier.pos,ioContext);
-                                        AccessType accessType = identifier.type == IdentifierType.DECLARE ?
-                                                AccessType.DECLARE : AccessType.CONST_DECLARE;
-                                        //only remember root-level constants
-                                        if(identifier.type==IdentifierType.NATIVE_DECLARE){
-                                            tokens.subList(index-1,tokens.size()).clear();
-                                            tState.globalConstants.put(id,Value.loadNativeConstant(type,identifier.name,pos));
-                                            break;
-                                        }else if(id.isConstant && id.context.procedureContext() == null
-                                                && (prev = tokens.get(index - 2)) instanceof ValueToken){
-                                            tState.globalConstants.put(id,((ValueToken) prev).value.clone(true).castTo(type));
-                                            tokens.subList(index-2, tokens.size()).clear();
-                                            break;//don't add token to code
-                                        }
-                                        tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                                accessType,context));
-                                    } catch (ConcatRuntimeError e) {
-                                        throw new SyntaxError(e.getMessage(),prev.pos);
-                                    }
-                                }else{
-                                    throw new SyntaxError("Token before declaration has to be a type",identifier.pos);
-                                }
-                            }
-                            case UNMODIFIED -> {
-                                Declareable d=context.getDeclareable(identifier.name);
-                                DeclareableType type=d==null?DeclareableType.PREDECLARED_PROCEDURE:d.declarableType();
-                                switch (type){
-                                    case PROCEDURE -> {
-                                        Value.Procedure proc=(Value.Procedure)d;
-                                        ProcedureToken token=new ProcedureToken(false,proc,identifier.pos);
-                                        tokens.set(index,token);
-                                    }
-                                    case NATIVE_PROC -> {
-                                        Value.NativeProcedure proc=(Value.NativeProcedure)d;
-                                        NativeProcedureToken token=new NativeProcedureToken(false,proc,identifier.pos);
-                                        tokens.set(index,token);
-                                    }
-                                    case PREDECLARED_PROCEDURE -> {
-                                        PredeclaredProc proc;
-                                        if(d!=null){
-                                            proc=(PredeclaredProc) d;
-                                        }else{
-                                            proc=tState.rootContext.predeclareProcedure(identifier.name,context,identifier.pos);
-                                        }
-                                        ProcedureToken token=new ProcedureToken(false,null,identifier.pos);
-                                        proc.listeners.add(token);
-                                        tokens.set(index,token);
-                                    }
-                                    case VARIABLE,CONSTANT,CURRIED_VARIABLE -> {
-                                        VariableId id=(VariableId)d;
-                                        id=context.wrapCurried(identifier.name,id,identifier.pos);
-                                        Value constValue=tState.globalConstants.get(id);
-                                        if(constValue!=null){
-                                            tokens.set(index,new ValueToken(constValue,identifier.pos, false));
-                                        }else{
-                                            tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                                    AccessType.READ,context));
-                                        }
-                                    }
-                                    case MACRO -> {
-                                        Macro m=(Macro) d;
-                                        tokens.remove(index);//remove prev
-                                        for(int i=0;i<m.content.size();i++){
-                                            StringWithPos s=m.content.get(i);
-                                            finishWord(s.str,i+1<m.content.size()?m.content.get(i+1).str:"##",
-                                                    tState, new FilePosition(s.start, identifier.pos),ioContext);
-                                        }
-                                        //update identifiers at end of macro
-                                        finishWord(END_OF_FILE,next,tState, identifier.pos, ioContext);
-                                    }
-                                    case TUPLE,ENUM,GENERIC ->
-                                        tokens.set(index,
-                                                new ValueToken(Value.ofType((Type)d), identifier.pos, false));
-                                    case ENUM_ENTRY ->
-                                        tokens.set(index,
-                                                new ValueToken((Value.EnumEntry)d, identifier.pos, false));
-                                    case GENERIC_TUPLE ->{
-                                        tokens.remove(index);
-                                        GenericTuple g = (GenericTuple) d;
-                                        Type[] genArgs=new Type[g.params.length];
-                                        for(int i= genArgs.length-1;i>=0;i--){
-                                            if(index<=0){
-                                                throw new SyntaxError("Not enough arguments for "+
-                                                        declarableName(DeclareableType.GENERIC_TUPLE,false)+" "+((GenericTuple) d).name,pos);
-                                            }
-                                            prev=tokens.remove(--index);
-                                            if(!(prev instanceof ValueToken)){
-                                                throw new SyntaxError("invalid token for type-parameter:"+prev,prev.pos);
-                                            }
-                                            try {
-                                                genArgs[i]=((ValueToken)prev).value.asType();
-                                            } catch (TypeError e) {
-                                                throw new SyntaxError(e.getMessage(),prev.pos);
-                                            }
-                                        }
-                                        tokens.add(new ValueToken(Value.ofType(
-                                                Type.GenericTuple.create(g.name,g.params.clone(),genArgs,g.types.clone(),g.declaredAt)),
-                                                identifier.pos, false));
-                                    }
-                                }
-                            }
-                            case VAR_WRITE -> {
-                                Declareable d=context.getDeclareable(identifier.name);
-                                if(d==null){
-                                    throw new SyntaxError("variable "+identifier.name+" does not exist",pos);
-                                }else if(d.declarableType()==DeclareableType.VARIABLE){
-                                    VariableId id=(VariableId) d;
-                                    context.wrapCurried(identifier.name,id,identifier.pos);
-                                    assert !tState.globalConstants.containsKey(id);
-                                    tokens.set(index,new VariableToken(identifier.pos,identifier.name,id,
-                                            AccessType.WRITE,context));
-                                }else{
-                                    throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
-                                            identifier.name+" (declared at "+d.declaredAt()+") is not a variable",pos);
-                                }
-                            }
-                            case PROC_ID -> {
-                                Declareable d=context.getDeclareable(identifier.name);
-                                if(d instanceof Value.NativeProcedure proc){
-                                    NativeProcedureToken token=new NativeProcedureToken(true,proc,pos);
-                                    tokens.set(index,token);
-                                }else if(d instanceof Value.Procedure proc){
-                                    ProcedureToken token=new ProcedureToken(true,proc,pos);
-                                    tokens.set(index,token);
-                                }else if(d==null||d instanceof PredeclaredProc){
-                                    ProcedureToken token=new ProcedureToken(true,null,pos);
-                                    PredeclaredProc proc;
-                                    if(d!=null){
-                                        proc=(PredeclaredProc) d;
-                                    }else{
-                                        proc=tState.rootContext.predeclareProcedure(identifier.name,context,pos);
-                                    }
-                                    proc.listeners.add(token);
-                                    tokens.set(index,token);
-                                }else{
-                                    throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
-                                            identifier.name+" (declared at "+d.declaredAt()+") is not a procedure",pos);
-                                }
-                            }
-                        }
-                    }
-                }
             }
             if(str.charAt(0)=='\''){//unicode char literal
                 str=str.substring(1);
@@ -1787,384 +1318,207 @@ public class Interpreter {
             }
             try{
                 if (tryParseInt(tokens, str,pos)) {
-                    if(floatDec.matcher(str).matches()){
-                        //dez-Float
-                        double d = Double.parseDouble(str);
-                        tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
-                    }else if(floatBin.matcher(str).matches()){
-                        //bin-Float
-                        double d= Value.parseFloat(str.substring(BIN_PREFIX.length()),2);
-                        tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
-                    }else if(floatHex.matcher(str).matches()){
-                        //hex-Float
-                        double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
-                        tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
-                    }else {
-                        addWord(str,tState,pos,ioContext);
-                    }
+                    return;
+                }else if(floatDec.matcher(str).matches()){
+                    //dez-Float
+                    double d = Double.parseDouble(str);
+                    tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
+                    return;
+                }else if(floatBin.matcher(str).matches()){
+                    //bin-Float
+                    double d= Value.parseFloat(str.substring(BIN_PREFIX.length()),2);
+                    tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
+                    return;
+                }else if(floatHex.matcher(str).matches()){
+                    //hex-Float
+                    double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
+                    tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
+                    return;
                 }
             }catch(ConcatRuntimeError|NumberFormatException e){
                 throw new SyntaxError(e, pos);
             }
-        }
-    }
-    private void addWord(String str, ParserState tState,FilePosition pos,IOContext ioContext) throws SyntaxError {
-        ArrayList<Token> tokens = tState.globalCode;
-        Token prev;
-        switch (str) {
-            case END_OF_FILE -> {} //## string can only be passed to the method on end of file
-            case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos, false));
-            case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos, false));
-
-            case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),              pos, false));
-            case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),              pos, false));
-            case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos, false));
-            case "uint"       -> tokens.add(new ValueToken(Value.ofType(Type.UINT),              pos, false));
-            case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos, false));
-            case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos, false));
-//addLater define string/ustring in concat
-            case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos, false));
-            case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
-            case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
-            case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_PROCEDURE), pos, false));
-            case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
-            case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_LIST),      pos, false));
-            case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_OPTIONAL),  pos, false));
-
-            case "list" -> {
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
-                    try {
-                        tokens.set(tokens.size()-1,
-                                new ValueToken(Value.ofType(Type.listOf(((ValueToken)prev).value.asType())),pos, false));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e,pos);
+            switch (str){
+                //codesections
+                case "#define"->{
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("macros can only be defined at root-level",pos);
                     }
-                }else{
-                    tokens.add(new OperatorToken(OperatorType.LIST_OF, pos));
-                }
-            }
-            case "optional" -> {
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
-                    try {
-                        tokens.set(tokens.size()-1,
-                                new ValueToken(Value.ofType(Type.optionalOf(((ValueToken)prev).value.asType())),pos, false));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e,pos);
+                    if(prevId!=null){
+                        tokens.remove(tokens.size()-1);
+                        finishParsing(pState, ioContext,false);
+                        pState.currentMacro=new Macro(pos,prevId,new ArrayList<>());
+                    }else{
+                        throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
                     }
-                }else{
-                    tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF, pos));
                 }
-            }
-            case "content" -> {
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
-                    try {
-                        tokens.set(tokens.size()-1,
-                                new ValueToken(Value.ofType(((ValueToken)prev).value.asType().content()),pos, false));
-                    } catch (TypeError e) {
-                        throw new SyntaxError(e,pos);
+                case "#namespace"-> {
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("namespaces can only be declared at root-level",pos);
                     }
-                }else{
-                    tokens.add(new OperatorToken(OperatorType.CONTENT, pos));
-                }
-            }
-            case "isEnum"->{
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
-                    try {
-                        tokens.set(tokens.size()-1,
-                                new ValueToken(((ValueToken)prev).value.asType() instanceof Type.Enum ?Value.TRUE:Value.FALSE,
-                                        pos, false));
-                    } catch (TypeError e) {
-                        throw new SyntaxError(e,pos);
+                    if(prevId != null){
+                        tokens.remove(tokens.size()-1);
+                        finishParsing(pState, ioContext,true);
+                        pState.rootContext.startModule(prevId,pos);
+                    }else{
+                        throw new SyntaxError("namespace name has to be an identifier",pos);
                     }
-                }else{
-                    tokens.add(new OperatorToken(OperatorType.IS_ENUM,pos));
                 }
-            }
-            case "->" ->{
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken) {
-                    try {
-                        long outCount = ((ValueToken)prev).value.asLong();
-                        checkElementCount(outCount);
-                        int iMin=tokens.size()-1-(int)outCount;
-                        if(iMin>0&&(prev=tokens.get(iMin-1)) instanceof ValueToken){
-                            long inCount = ((ValueToken)prev).value.asLong();
-                            checkElementCount(inCount);
-                            Type[] outTypes=new Type[(int)outCount];
-                            for(int i=(int)outCount-1;i>=0;i--){
-                                prev=tokens.get(iMin+i);
-                                if(prev instanceof ValueToken){
-                                    outTypes[i]=((ValueToken) prev).value.asType();
-                                }else{
-                                    throw new SyntaxError("illegal token in proc signature "+prev,prev.pos);
-                                }
+                case "#end"-> {
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("namespaces can only be closed at root-level",pos);
+                    }else{
+                        finishParsing(pState, ioContext,true);
+                        pState.rootContext.endModule(pos);
+                    }
+                }
+                case "#import"-> {
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("imports are can only allowed at root-level",pos);
+                    }
+                    if(prevId != null){
+                        tokens.remove(tokens.size()-1);
+                        finishParsing(pState, ioContext,false);
+                        pState.rootContext.addImport(prevId,pos);
+                    }else{
+                        throw new SyntaxError("imported namespace name has to be an identifier",pos);
+                    }
+                }
+                case "#include" -> {
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("includes are can only allowed at root-level",pos);
+                    }
+                    if(prev instanceof ValueToken){
+                        tokens.remove(tokens.size()-1);
+                        finishParsing(pState, ioContext,false);
+                        String name=((ValueToken) prev).value.stringValue();
+                        File file=new File(name);
+                        if(file.exists()){
+                            try {
+                                parse(file,pState,ioContext);
+                            } catch (IOException e) {
+                                throw new SyntaxError(e,pos);
                             }
-                            Type[] inTypes=new Type[(int)inCount];
-                            iMin=iMin-1-(int)inCount;
-                            for(int i=(int)inCount-1;i>=0;i--){
-                                prev=tokens.get(iMin+i);
-                                if(prev instanceof ValueToken){
-                                    inTypes[i]=((ValueToken) prev).value.asType();
-                                }else{
-                                    throw new SyntaxError("illegal token in proc signature "+prev,prev.pos);
-                                }
+                        }else{
+                            throw new SyntaxError("File "+name+" does not exist",pos);
+                        }
+                    }else if(prevId != null){
+                        tokens.remove(tokens.size()-1);
+                        finishParsing(pState, ioContext,false);
+                        String path=libPath+File.separator+ prevId +DEFAULT_FILE_EXTENSION;
+                        File file=new File(path);
+                        if(file.exists()){
+                            try {
+                                parse(file,pState,ioContext);
+                            } catch (IOException e) {
+                                throw new SyntaxError(e,pos);
                             }
-                            tokens.subList(iMin, tokens.size()).clear();
-                            tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),pos, false));
+                        }else{
+                            throw new SyntaxError(prevId+" is not part of the standard library",pos);
                         }
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e.getMessage(), prev.pos);
-                    }
-                }else{
-                    throw new SyntaxError("not enough arguments for operator '->'",pos);
-                }
-            }
-
-            case "cast"   ->  {
-                if(tokens.size()<1||!(tokens.get(tokens.size()-1) instanceof ValueToken)){
-                    tokens.add(new TypedToken(TokenType.CAST,null,pos));
-                }else{
-                    try {
-                        Type type= ((ValueToken) tokens.remove(tokens.size()-1)).value.asType();
-                        tokens.add(new TypedToken(TokenType.CAST,type,pos));
-                    } catch (TypeError e) {
-                        throw new SyntaxError(e,pos);
+                    }else{
+                        throw new SyntaxError("include path has to be a string literal or identifier",pos);
                     }
                 }
-            }
-            case "typeof" ->  {
-                if(tokens.size()>0&&(prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
-                    tokens.set(tokens.size()-1,
-                            new ValueToken(Value.ofType(((ValueToken)prev).value.type),pos, false));
-                }else{
-                    tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
+                case "tuple" -> {
+                    String name;
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("tuples can only be declared at root level",pos);
+                    }
+                    if(tokens.size()==0){
+                        throw new SyntaxError("missing enum name",pos);
+                    }
+                    prev=tokens.remove(tokens.size()-1);
+                    finishParsing(pState, ioContext,false);
+                    if(!(prev instanceof IdentifierToken)){
+                        throw new SyntaxError("token before root level tuple has to be an identifier",pos);
+                    }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
+                        throw new SyntaxError("token before root level tuple has to be an unmodified identifier",pos);
+                    }
+                    name = ((IdentifierToken) prev).name;
+                    pState.openBlocks.add(new TupleBlock(name, 0,pos,pState.rootContext));
                 }
-            }
-
-            /*<off> <count> $dup*/
-            /*<off> <count> $drop*/
-            case "$drop","$dup"  ->{
-                if(tokens.size()<2){
-                    throw new SyntaxError("not enough arguments for "+str,pos);
+                case "enum" ->{
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("enums can only be declared at root level",pos);
+                    }
+                    if(tokens.size()==0){
+                        throw new SyntaxError("missing enum name",pos);
+                    }
+                    prev=tokens.remove(tokens.size()-1);
+                    finishParsing(pState, ioContext,false);
+                    if(!(prev instanceof IdentifierToken)){
+                        throw new SyntaxError("token before 'enum' has to be an identifier",pos);
+                    }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
+                        throw new SyntaxError("token before 'enum' has to be an unmodified identifier",pos);
+                    }
+                    String name = ((IdentifierToken) prev).name;
+                    pState.openBlocks.add(new EnumBlock(name, 0,pos,pState.rootContext));
                 }
-                Token count=tokens.remove(tokens.size()-1);
-                Token off=tokens.remove(tokens.size()-1);
-                if(count instanceof ValueToken &&off instanceof ValueToken){
-                    try {
-                        long c=((ValueToken) count).value.asLong();
-                        if(c<0){
-                            throw new SyntaxError(str+": count has to be greater than of equal to 0",pos);
+                case "proc","procedure" ->{
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("procedures can only be declared at root level",pos);
+                    }
+                    if(tokens.size()==0){
+                        throw new SyntaxError("missing procedure name",pos);
+                    }
+                    prev=tokens.remove(tokens.size()-1);
+                    finishParsing(pState, ioContext,false);
+                    boolean isNative=false;
+                    if(!(prev instanceof IdentifierToken)){
+                        throw new SyntaxError("token before 'proc' has to be an identifier",pos);
+                    }else if(((IdentifierToken) prev).type==IdentifierType.NATIVE){
+                        isNative=true;
+                    }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
+                        throw new SyntaxError("token before 'proc' has to be an unmodified identifier",pos);
+                    }
+                    String name = ((IdentifierToken) prev).name;
+                    pState.openBlocks.add(new ProcedureBlock(name, 0,pos,pState.rootContext,isNative));
+                }
+                case "lambda","λ" -> //TODO handle lambdas
+                        pState.openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,pState.getContext(), false));
+                case "=>" ->{
+                    CodeBlock block = pState.openBlocks.peekLast();
+                    if(block instanceof ProcedureBlock proc) {
+                        List<Token> ins = tokens.subList(proc.start, tokens.size());
+                        proc.addIns(typeCheck(ins,block.context(),pState.globalVariables,ioContext),pos);
+                        ins.clear();
+                    }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
+                        pState.openBlocks.removeLast();
+                        pState.openBlocks.addLast(new ProcTypeBlock((ListBlock)block,tokens.size()));
+                    }else{
+                        throw new SyntaxError("'=>' can only be used in proc- or proc-type blocks ",pos);
+                    }
+                }
+                case ":" -> {
+                    CodeBlock block=pState.openBlocks.peekLast();
+                    if(block==null){
+                        throw new SyntaxError(": can only be used in proc- and lambda- blocks",pos);
+                    }else if(block.type==BlockType.PROCEDURE){
+                        //handle procedure separately since : does not change context of produce a jump
+                        ProcedureBlock proc=(ProcedureBlock) block;
+                        List<Token> outs = tokens.subList(proc.start, tokens.size());
+                        proc.addOuts(typeCheck(outs,block.context(),pState.globalVariables,ioContext),pos);
+                        outs.clear();
+                    }else{
+                        throw new SyntaxError(": can only be used in proc- and lambda- blocks", pos);
+                    }
+                }
+                case "end" ->{
+                    if(pState.openBlocks2>0){//process 'end' for blocks processed in 2nd compile step
+                        pState.openBlocks2--;
+                        if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
+                                b.blockType==BlockTokenType.DO){//merge do-end
+                            tokens.set(tokens.size()-1,new BlockToken(BlockTokenType.DO_WHILE, pos, -1));
+                        }else{
+                            tokens.add(new BlockToken(BlockTokenType.END, pos, -1));
                         }
-                        long o=((ValueToken) off).value.asLong();
-                        if(o<0){
-                            throw new SyntaxError(str+":offset has to be greater than of equal to 0",pos);
-                        }
-                        tokens.add(new StackModifierToken(str.equals("$dup"),o,c,pos));
-                    } catch (TypeError e) {
-                        throw new SyntaxError(e,pos);
+                        break;
                     }
-                }else{
-                    throw new SyntaxError("the arguments of "+str+" have to be compile time constants",pos);
-                }
-            }
-
-            case "refId"  -> tokens.add(new OperatorToken(OperatorType.REF_ID,     pos));
-
-            case "clone"  -> tokens.add(new OperatorToken(OperatorType.CLONE,      pos));
-            case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, pos));
-
-            case "debugPrint"    -> tokens.add(new Token(TokenType.DEBUG_PRINT, pos));
-            case "assert"    -> {
-                if(tokens.size()<2){
-                    throw new SyntaxError("not enough tokens for 'assert'",pos);
-                }
-                prev=tokens.remove(tokens.size()-1);
-                if(!(prev instanceof ValueToken&&((ValueToken) prev).value.isString())){
-                    throw new SyntaxError("tokens directly preceding 'assert' has to be a string-constant",pos);
-                }
-                String message=((ValueToken) prev).value.stringValue();
-                if((prev=tokens.get(tokens.size()-1)) instanceof ValueToken){
-                    try {
-                        if(!((ValueToken) prev).value.asBool()){
-                            throw new SyntaxError("assertion failed: "+message,pos);
-                        }
-                    } catch (TypeError e) {
-                        throw new SyntaxError(e,pos);
+                    CodeBlock block=pState.openBlocks.pollLast();
+                    if(block==null) {
+                        throw new SyntaxError("unexpected 'end' statement",pos);
                     }
-                }else{
-                    tokens.add(new AssertToken(message, pos));
-                }
-            }
-
-            case "tuple" -> {
-                String name;
-                if(tState.openBlocks.size()>0){
-                    throw new SyntaxError("tuples can only be declared at root level",pos);
-                }
-                if(tokens.size()==0){
-                    throw new SyntaxError("missing enum name",pos);
-                }
-                prev=tokens.remove(tokens.size()-1);
-                if(!(prev instanceof IdentifierToken)){
-                    throw new SyntaxError("token before root level tuple has to be an identifier",pos);
-                }else if(((IdentifierToken) prev).type!=IdentifierType.UNMODIFIED){
-                    throw new SyntaxError("token before root level tuple has to be an unmodified identifier",pos);
-                }
-                name = ((IdentifierToken) prev).name;
-                tState.openBlocks.add(new TupleBlock(name, tokens.size(),pos,tState.rootContext));
-            }
-            case "enum" ->{
-                if(tState.openBlocks.size()>0){
-                    throw new SyntaxError("enums can only be declared at root level",pos);
-                }
-                if(tokens.size()==0){
-                    throw new SyntaxError("missing enum name",pos);
-                }
-                prev=tokens.remove(tokens.size()-1);
-                if(!(prev instanceof IdentifierToken)){
-                    throw new SyntaxError("token before 'enum' has to be an identifier",pos);
-                }else if(((IdentifierToken) prev).type!=IdentifierType.UNMODIFIED){
-                    throw new SyntaxError("token before 'enum' has to be an unmodified identifier",pos);
-                }
-                String name = ((IdentifierToken) prev).name;
-                tState.openBlocks.add(new EnumBlock(name, tokens.size(),pos,tState.rootContext));
-            }
-            case "proc","procedure" ->{
-                if(tState.openBlocks.size()>0){
-                    throw new SyntaxError("procedures can only be declared at root level",pos);
-                }
-                if(tokens.size()==0){
-                    throw new SyntaxError("missing procedure name",pos);
-                }
-                prev=tokens.remove(tokens.size()-1);
-                boolean isNative=false;
-                if(!(prev instanceof IdentifierToken)){
-                    throw new SyntaxError("token before 'proc' has to be an identifier",pos);
-                }else if(((IdentifierToken) prev).type==IdentifierType.NATIVE){
-                    isNative=true;
-                }else if(((IdentifierToken) prev).type!=IdentifierType.UNMODIFIED){
-                    throw new SyntaxError("token before 'proc' has to be an unmodified identifier",pos);
-                }
-                String name = ((IdentifierToken) prev).name;
-                tState.openBlocks.add(new ProcedureBlock(name, tokens.size(),pos,tState.rootContext,isNative));
-            }
-            case "=>" ->{
-                CodeBlock block = tState.openBlocks.peekLast();
-                if(block instanceof ProcedureBlock proc) {
-                    proc.addIns(tokens.subList(proc.start,tokens.size()),pos);
-                }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
-                    tState.openBlocks.removeLast();
-                    tState.openBlocks.addLast(new ProcTypeBlock((ListBlock)block,tokens.size()));
-                }else{
-                    throw new SyntaxError("'=>' can only be used in proc- or proc-type blocks ",pos);
-                }
-            }
-            case "lambda","λ" ->
-                    tState.openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,tState.getContext(), false));
-            case ":" -> {
-                CodeBlock block=tState.openBlocks.peekLast();
-                if(block==null){
-                    throw new SyntaxError(": can only be used in proc- and lambda- blocks",pos);
-                }else if(block.type==BlockType.PROCEDURE){
-                    //handle procedure separately since : does not change context of produce a jump
-                    ProcedureBlock proc=(ProcedureBlock) block;
-                    proc.addOuts(tokens.subList(proc.start,tokens.size()),pos);
-                }else{
-                    throw new SyntaxError(": can only be used in proc- and lambda- blocks", pos);
-                }
-            }
-            case "while" -> {
-                tState.openBlocks.add(new WhileBlock(tokens.size(),pos,tState.getContext()));
-                tokens.add(new BlockToken(BlockTokenType.WHILE,pos,-1));
-            }
-            case "do" -> {
-                CodeBlock block=tState.openBlocks.peekLast();
-                if(block==null){
-                    throw new SyntaxError("do can only be used in while- blocks",pos);
-                }else{
-                    int forkPos=tokens.size();
-                    tokens.add(new BlockToken(BlockTokenType.DO, pos, -1));
-                    VariableContext newContext;
-                    if (block.type == BlockType.WHILE) {
-                        newContext = ((WhileBlock) block).fork(forkPos, pos);
-                    } else {
-                        throw new SyntaxError(": can only be used in while- blocks", pos);
-                    }
-                    tokens.add(new ContextOpen(newContext,pos));
-                }
-            }
-            case "switch"->{
-                SwitchCaseBlock switchBlock=new SwitchCaseBlock(tokens.size(), pos,tState.getContext());
-                tState.openBlocks.addLast(switchBlock);
-                //handle switch-case separately since : does not change context and produces special jump
-                tokens.add(new SwitchToken(switchBlock,pos));
-                switchBlock.newSection(tokens.size(),pos);
-            }
-            case "if" ->{
-                IfBlock ifBlock = new IfBlock(tokens.size(), pos,tState.getContext());
-                tState.openBlocks.addLast(ifBlock);
-                tokens.add(new BlockToken(BlockTokenType.IF, pos, -1));
-                tokens.add(new ContextOpen(ifBlock.context(),pos));
-            }
-            case "_if" -> {
-                CodeBlock block = tState.openBlocks.peekLast();
-                if(!(block instanceof IfBlock ifBlock)){
-                    throw new SyntaxError("_if can only be used in if-blocks",pos);
-                }
-                VariableContext context=ifBlock.newBranch(tokens.size(),pos);
-                tokens.add(new BlockToken(BlockTokenType._IF, pos, -1));
-                tokens.add(new ContextOpen(context,pos));
-            }
-            case "else" -> {
-                CodeBlock block = tState.openBlocks.peekLast();
-                if(!(block instanceof IfBlock ifBlock)){
-                    throw new SyntaxError("elif can only be used in if-blocks",pos);
-                }
-                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                if(ifBlock.branches.size()>0){//end else-context
-                    tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                }
-                VariableContext context=ifBlock.elseBranch(tokens.size(),pos);
-                tokens.add(new BlockToken(BlockTokenType.ELSE, pos, -1));
-                if(ifBlock.branches.size()<2){//start else-context after first else
-                    tokens.add(new ContextOpen(context,pos));
-                }
-            }
-            case "case" ->{
-                CodeBlock block=tState.openBlocks.peekLast();
-                if(!(block instanceof SwitchCaseBlock switchBlock)){
-                    throw new SyntaxError("case can only be used in switch-case-blocks",pos);
-                }
-                int start=switchBlock.sectionStart;
-                if(start==-1){
-                    throw new SyntaxError("unexpected case statement",pos);
-                }
-                List<Token> caseValues=tokens.subList(start,tokens.size());
-                VariableContext context=switchBlock.caseBlock(caseValues,pos);
-                caseValues.clear();
-                tokens.add(new ContextOpen(context,pos));
-            }
-            case "default" ->{
-                CodeBlock block=tState.openBlocks.peekLast();
-                if(!(block instanceof SwitchCaseBlock switchBlock)){
-                    throw new SyntaxError("default can only be used in switch-case-blocks",pos);
-                }
-                VariableContext context=switchBlock.defaultBlock(tokens.size(),pos);
-                tokens.add(new ContextOpen(context,pos));
-            }
-            case "end-case" ->{
-                CodeBlock block=tState.openBlocks.peekLast();
-                if(!(block instanceof SwitchCaseBlock switchBlock)){
-                    throw new SyntaxError("end-case can only be used in switch-case-blocks",pos);
-                }
-                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
-                switchBlock.newSection(tokens.size(),pos);
-            }
-            case "end" ->{
-                CodeBlock block=tState.openBlocks.pollLast();
-                if(block==null){
-                    throw new SyntaxError("unexpected end statement",pos);
-                }else {
                     Token tmp;
                     switch (block.type) {
                         case PROCEDURE -> {
@@ -2201,13 +1555,14 @@ public class Interpreter {
                                 }
                                 Value.NativeProcedure proc=Value.createNativeProcedure((Type.Procedure) procType,block.startPos,
                                         ((ProcedureBlock) block).name);
-                                tState.rootContext.declareNamedDeclareable(proc,ioContext);
+                                pState.rootContext.declareNamedDeclareable(proc,ioContext);
                             }else{
                                 Value.Procedure proc=Value.createProcedure(procType, content,
                                         generics.toArray(Type.GenericParameter[]::new), block.startPos, context);
+                                pState.unparsedProcs.add(proc);
                                 if (context.curried.isEmpty()) {
                                     if(((ProcedureBlock) block).name!=null){
-                                        tState.rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
+                                        pState.rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
                                     }else{
                                         tokens.add(new ValueToken(proc, block.startPos, false));
                                     }
@@ -2219,242 +1574,805 @@ public class Interpreter {
                                 }
                             }
                         }
-                        case IF -> {
-                            if(((IfBlock) block).forkPos!=-1){
-                                tmp=tokens.get(((IfBlock) block).forkPos);
-                                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                                //when there is no else then the last branch has to jump onto the close operation
-                                ((BlockToken)tmp).delta=tokens.size()-((IfBlock) block).forkPos;
-                                if(((IfBlock) block).branches.size()>0){//close-else context
-                                    tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                                }
-                            }else{//close else context
-                                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            }
-                            for(IfBranch branch:((IfBlock) block).branches){
-                                tmp=tokens.get(branch.fork);
-                                ((BlockToken)tmp).delta=branch.end-branch.fork+1;
-                                tmp=tokens.get(branch.end);
-                                ((BlockToken)tmp).delta=tokens.size()-branch.end;
-                            }
-                            tokens.add(new BlockToken(BlockTokenType.END_IF,pos,-1));
-                        }
-                        case WHILE -> {
-                            ((WhileBlock)block).end(pos);
-                            tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            tmp=tokens.get(((WhileBlock) block).forkPos);
-                            if(((WhileBlock) block).forkPos==tokens.size()-3){
-                                tokens.subList(tokens.size()-2,tokens.size()).clear();
-                                //empty body => the jumps can be merged
-                                tokens.set(((WhileBlock) block).forkPos,new BlockToken(BlockTokenType.DO_WHILE,tmp.pos,
-                                        block.start - (tokens.size()-1)));
-                            }else{
-                                tokens.add(new BlockToken(BlockTokenType.END_WHILE,pos, block.start - tokens.size()));
-                                ((BlockToken)tmp).delta=tokens.size()-((WhileBlock) block).forkPos;
-                            }
-                        }
-                        case SWITCH_CASE -> {
-                            if(((SwitchCaseBlock)block).defaultJump!=-1){
-                                tokens.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            }
-                            ((SwitchCaseBlock)block).end(tokens.size(),pos,ioContext);
-                            for(Integer i:((SwitchCaseBlock) block).blockEnds){
-                                tmp=tokens.get(i);
-                                ((BlockToken)tmp).delta=tokens.size()-i;
-                            }
-                        }
                         case ENUM -> {
                             if(tokens.size()>block.start){
                                 tmp=tokens.get(block.start);
                                 throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
                             }
-                            tState.rootContext.declareEnum(((EnumBlock) block),ioContext);
+                            pState.rootContext.declareEnum(((EnumBlock) block),ioContext);
                         }
                         case TUPLE -> {
                             ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
                             List<Token> subList = tokens.subList(block.start, tokens.size());
-                            Type[] types=ProcedureBlock.getSignature(subList, true);
+                            Type[] types=ProcedureBlock.getSignature(
+                                    typeCheck(subList, block.context(), pState.globalVariables,ioContext), true);
                             subList.clear();
                             if(generics.size()>0){
                                 GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,
                                         generics.toArray(Type.GenericParameter[]::new),types,block.startPos);
-                                tState.rootContext.declareNamedDeclareable(tuple,ioContext);
+                                pState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }else{
                                 Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name,types,block.startPos);
-                                tState.rootContext.declareNamedDeclareable(tuple,ioContext);
+                                pState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }
                         }
+                        case IF,WHILE,SWITCH_CASE ->
+                                throw new SyntaxError("blocks of type "+block.type+
+                                        " should not exist at this stage of compilation",pos);
                         case ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST ->
-                                throw new SyntaxError("unexpected end-statement",pos);
+                                throw new SyntaxError("unexpected 'end' statement",pos);
                     }
                 }
-            }
-
-            case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
-            case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
-
-            //addLater constant folding
-            case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,          pos));
-            case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,         pos));
-            case "-_"  -> tokens.add(new OperatorToken(OperatorType.NEGATE,        pos));
-            case "/_"  -> tokens.add(new OperatorToken(OperatorType.INVERT,        pos));
-            case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
-            case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
-            case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
-            case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           pos));
-            case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          pos));
-            case "&"   -> tokens.add(new OperatorToken(OperatorType.AND,           pos));
-            case "|"   -> tokens.add(new OperatorToken(OperatorType.OR,            pos));
-            case "xor" -> tokens.add(new OperatorToken(OperatorType.XOR,           pos));
-            case "<"   -> tokens.add(new OperatorToken(OperatorType.LT,            pos));
-            case "<="  -> tokens.add(new OperatorToken(OperatorType.LE,            pos));
-            case "=="  -> tokens.add(new OperatorToken(OperatorType.EQ,            pos));
-            case "!="  -> tokens.add(new OperatorToken(OperatorType.NE,            pos));
-            case "===" -> tokens.add(new OperatorToken(OperatorType.REF_EQ,        pos));
-            case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE,        pos));
-            case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,            pos));
-            case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,            pos));
-
-            case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
-            case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  pos));
-
-            //TODO make non-primitive floating-point operations to native functions
-            case "**"    -> tokens.add(new OperatorToken(OperatorType.POW,   pos));
-
-            case ">>:"   -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     pos));
-            case ":<<"   -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
-            case "+:"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, pos));
-            case ":+"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_LAST,  pos));
-            case "clear" -> tokens.add(new OperatorToken(OperatorType.CLEAR,          pos));
-            //<array> <index> []
-            case "[]"    -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,      pos));
-            //<array> <off> <to> [:]
-            case "[:]"   -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,      pos));
-
-            case "(" ->
-                    tState.openBlocks.add(new ListBlock(tokens.size(),BlockType.ANONYMOUS_TUPLE,pos,tState.getContext()));
-            case ")" -> {
-                CodeBlock block=tState.openBlocks.pollLast();
-                if(block==null||(block.type!=BlockType.ANONYMOUS_TUPLE&&block.type!=BlockType.PROC_TYPE)){
-                    throw new SyntaxError("unexpected ')' statement ",pos);
+                case "while" -> {
+                    tokens.add(new BlockToken(BlockTokenType.WHILE, pos, -1));
+                    pState.openBlocks2++;
                 }
-                if(block.type==BlockType.PROC_TYPE){
-                    List<Token> subList=tokens.subList(block.start, ((ProcTypeBlock)block).separatorPos);
-                    Type[] inTypes=ProcedureBlock.getSignature(subList,false);
-                    subList=tokens.subList(((ProcTypeBlock)block).separatorPos, tokens.size());
-                    Type[] outTypes=ProcedureBlock.getSignature(subList,false);
-                    subList=tokens.subList(block.start,tokens.size());
-                    subList.clear();
-                    tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),pos,false));
-                }else {
-                    List<Token> subList=tokens.subList(block.start, tokens.size());
-                    Type[] tupleTypes=ProcedureBlock.getSignature(subList,true);
-                    subList.clear();
-                    tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null,tupleTypes,pos)),pos,false));
+                case "switch" -> {
+                    tokens.add(new BlockToken(BlockTokenType.SWITCH, pos, -1));
+                    pState.openBlocks2++;
                 }
-            }
-            case "{" ->
-                    tState.openBlocks.add(new ListBlock(tokens.size(),BlockType.CONST_LIST,pos,tState.getContext()));
-            case "}" -> {
-                CodeBlock block=tState.openBlocks.pollLast();
-                if(block==null||block.type!=BlockType.CONST_LIST){
-                    throw new SyntaxError("unexpected '}' statement ",pos);
+                case "if" -> {
+                    tokens.add(new BlockToken(BlockTokenType.IF, pos, -1));
+                    pState.openBlocks2++;
                 }
-                List<Token> subList = tokens.subList(block.start, tokens.size());
-                ArrayList<Value> values=new ArrayList<>(subList.size());
-                boolean constant=true;
-                Type type=null;
-                for(Token t:subList){
-                    if(t instanceof ValueToken){
-                        type=Type.commonSuperType(type,((ValueToken) t).value.type);
-                        values.add(((ValueToken) t).value);
-                    }else{
-                        values.clear();
-                        constant=false;
-                        break;
+                case "do" -> {
+                    if(pState.openBlocks2==0){
+                        throw new SyntaxError("'do' can only appear in while-blocks",pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.DO, pos, -1));
+                }
+                case "_if" -> {
+                    if(pState.openBlocks2==0){
+                        throw new SyntaxError("'_if' can only appear in if-blocks",pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType._IF, pos, -1));
+                }
+                case "else" ->  {
+                    if(pState.openBlocks2==0){
+                        throw new SyntaxError("'else' can only appear in if-blocks",pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.ELSE, pos, -1));
+                }
+                case "case" -> {
+                    if (pState.openBlocks2 == 0) {
+                        throw new SyntaxError("'case' can only appear in switch-blocks", pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.CASE, pos, -1));
+                }
+                case "default"  -> {
+                    if (pState.openBlocks2 == 0) {
+                        throw new SyntaxError("'default' can only appear in switch-blocks", pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.DEFAULT, pos, -1));
+                }
+                case "end-case" -> {
+                    if (pState.openBlocks2 == 0) {
+                        throw new SyntaxError("'end-case' can only appear in switch-blocks", pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
+                }
+                case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
+                case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
+                case "(" ->
+                        pState.openBlocks.add(new ListBlock(tokens.size(),BlockType.ANONYMOUS_TUPLE,pos, pState.rootContext));
+                case ")" -> { //addLater use correct context for anonymous tuple
+                    CodeBlock open=pState.openBlocks.pollLast();
+                    if(open==null||(open.type!=BlockType.ANONYMOUS_TUPLE&&open.type!=BlockType.PROC_TYPE)){
+                        throw new SyntaxError("unexpected ')' statement ",pos);
+                    }
+                    if(open.type==BlockType.PROC_TYPE){
+                        List<Token> subList=tokens.subList(open.start, ((ProcTypeBlock)open).separatorPos);
+                        Type[] inTypes=ProcedureBlock.getSignature(
+                                typeCheck(subList,pState.rootContext,pState.globalVariables,ioContext),false);
+                        subList=tokens.subList(((ProcTypeBlock)open).separatorPos, tokens.size());
+                        Type[] outTypes=ProcedureBlock.getSignature(
+                                typeCheck(subList,pState.rootContext,pState.globalVariables,ioContext),false);
+                        subList=tokens.subList(open.start,tokens.size());
+                        subList.clear();
+                        tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),
+                                pos,false));
+                    }else {
+                        List<Token> subList=tokens.subList(open.start, tokens.size());
+                        Type[] tupleTypes=ProcedureBlock.getSignature(
+                                typeCheck(subList,pState.rootContext,pState.globalVariables,ioContext),true);
+                        subList.clear();
+                        tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null,tupleTypes,pos)),
+                                pos,false));
                     }
                 }
-                if(constant){
-                    subList.clear();
-                    try {
-                        for(int i=0;i< values.size();i++){
-                            values.set(i,values.get(i).castTo(type));
+                case "{" -> tokens.add(new BlockToken(BlockTokenType.LIST,        pos,-1));
+                case "}" -> tokens.add(new BlockToken(BlockTokenType.END_LIST,    pos,-1));
+
+                //debug helpers
+                case "debugPrint"    -> tokens.add(new Token(TokenType.DEBUG_PRINT, pos));
+                case "assert"    -> {
+                    if(tokens.size()<2){
+                        throw new SyntaxError("not enough tokens for 'assert'",pos);
+                    }
+                    prev=tokens.remove(tokens.size()-1);
+                    if(!(prev instanceof ValueToken&&((ValueToken) prev).value.isString())){
+                        throw new SyntaxError("tokens directly preceding 'assert' has to be a constant string",pos);
+                    }
+                    String message=((ValueToken) prev).value.stringValue();
+                    tokens.add(new AssertToken(message, pos));
+                }
+                //constants
+                case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos, false));
+                case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos, false));
+                //types
+                case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),              pos, false));
+                case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),              pos, false));
+                case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos, false));
+                case "uint"       -> tokens.add(new ValueToken(Value.ofType(Type.UINT),              pos, false));
+                case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos, false));
+                case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos, false));
+//addLater define string/ustring in concat
+                case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos, false));
+                case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
+                case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
+                case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_PROCEDURE), pos, false));
+                case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
+                case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_LIST),      pos, false));
+                case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_OPTIONAL),  pos, false));
+
+                case "list"     -> tokens.add(new OperatorToken(OperatorType.LIST_OF, pos));
+                case "optional" -> tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF, pos));
+                case "content"  -> tokens.add(new OperatorToken(OperatorType.CONTENT, pos));
+                case "isEnum"   -> tokens.add(new OperatorToken(OperatorType.IS_ENUM,pos));
+
+                case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
+                case "typeof" -> tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
+                //stack modifiers addLater better stack modifiers
+                /*<off> <count> $dup*/
+                /*<off> <count> $drop*/
+                case "$drop","$dup"  ->{
+                    if(tokens.size()<2){
+                        throw new SyntaxError("not enough arguments for "+str,pos);
+                    }
+                    Token count=tokens.remove(tokens.size()-1);
+                    Token off=tokens.remove(tokens.size()-1);
+                    if(count instanceof ValueToken &&off instanceof ValueToken){
+                        try {
+                            long c=((ValueToken) count).value.asLong();
+                            if(c<0){
+                                throw new SyntaxError(str+": count has to be greater than of equal to 0",pos);
+                            }
+                            long o=((ValueToken) off).value.asLong();
+                            if(o<0){
+                                throw new SyntaxError(str+":offset has to be greater than of equal to 0",pos);
+                            }
+                            tokens.add(new StackModifierToken(str.equals("$dup"),o,c,pos));
+                        } catch (TypeError e) {
+                            throw new SyntaxError(e,pos);
                         }
-                        tokens.add(new ValueToken(Value.createList(Type.listOf(type),values),block.startPos,true));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e,pos);
+                    }else{
+                        throw new SyntaxError("the arguments of "+str+" have to be compile time constants",pos);
                     }
-                }else{
-                    ArrayList<Token> listTokens=new ArrayList<>(subList);
-                    subList.clear();
-                    tokens.add(new ListCreatorToken(listTokens,pos));
+                }
+                //operators
+                case "refId"  -> tokens.add(new OperatorToken(OperatorType.REF_ID,     pos));
+                case "clone"  -> tokens.add(new OperatorToken(OperatorType.CLONE,      pos));
+                case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, pos));
+
+                case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,          pos));
+                case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,         pos));
+                case "-_"  -> tokens.add(new OperatorToken(OperatorType.NEGATE,        pos));
+                case "/_"  -> tokens.add(new OperatorToken(OperatorType.INVERT,        pos));
+                case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
+                case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
+                case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
+                case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           pos));
+                case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          pos));
+                case "&"   -> tokens.add(new OperatorToken(OperatorType.AND,           pos));
+                case "|"   -> tokens.add(new OperatorToken(OperatorType.OR,            pos));
+                case "xor" -> tokens.add(new OperatorToken(OperatorType.XOR,           pos));
+                case "<"   -> tokens.add(new OperatorToken(OperatorType.LT,            pos));
+                case "<="  -> tokens.add(new OperatorToken(OperatorType.LE,            pos));
+                case "=="  -> tokens.add(new OperatorToken(OperatorType.EQ,            pos));
+                case "!="  -> tokens.add(new OperatorToken(OperatorType.NE,            pos));
+                case "===" -> tokens.add(new OperatorToken(OperatorType.REF_EQ,        pos));
+                case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE,        pos));
+                case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,            pos));
+                case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,            pos));
+
+                case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
+                case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  pos));
+
+                //addLater? make pow a native functions
+                case "**"    -> tokens.add(new OperatorToken(OperatorType.POW,   pos));
+
+                case ">>:"   -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     pos));
+                case ":<<"   -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
+                case "+:"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, pos));
+                case ":+"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_LAST,  pos));
+                case "clear" -> tokens.add(new OperatorToken(OperatorType.CLEAR,          pos));
+                //<array> <index> []
+                case "[]"    -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,      pos));
+                //<array> <off> <to> [:]
+                case "[:]"   -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,      pos));
+                case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   pos));
+
+                case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
+
+                case "wrap"   -> tokens.add(new OperatorToken(OperatorType.WRAP,           pos));
+                case "unwrap" -> tokens.add(new OperatorToken(OperatorType.UNWRAP,         pos));
+                case "??"     -> tokens.add(new OperatorToken(OperatorType.HAS_VALUE,      pos));
+                case "empty"  -> tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL, pos));
+
+                case "new"       -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
+                case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
+                case "fill"      -> tokens.add(new OperatorToken(OperatorType.FILL,       pos));
+
+                //identifiers
+                case "="->{
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '=' modifier",pos);
+                    }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_INDEX){
+                        //<array> <val> <index> [] =
+                        tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_INDEX,prev.pos));
+                    }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_SLICE){
+                        //<array> <val> <off> <to> [:] =
+                        tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_SLICE,prev.pos));
+                    }else if(prev instanceof IdentifierToken){
+                        if(((IdentifierToken) prev).type == IdentifierType.WORD){
+                            prev=new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
+                        }else{
+                            throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
+                        }
+                        tokens.set(tokens.size()-1,prev);
+                    }else{
+                        throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
+                    }
+                }
+                case "."->{
+                    if(prev==null||tokens.size()<2){
+                        throw new SyntaxError("not enough tokens tokens for '.' modifier",pos);
+                    }else if(prevId!=null){
+                        Token prePrev=tokens.get(tokens.size()-2);
+                        if(!(prePrev instanceof IdentifierToken && ((IdentifierToken) prePrev).type==IdentifierType.WORD)){
+                            throw new SyntaxError("invalid token for '.' modifier: "+prePrev,prePrev.pos);
+                        }
+                        String newName=((IdentifierToken)prePrev).name+ MODULE_SEPARATOR +prevId;
+                        tokens.remove(tokens.size()-1);
+                        Declareable d=pState.rootContext.getDeclareable(newName);
+                        if(d instanceof Macro){
+                            tokens.remove(tokens.size()-1);
+                            expandMacro(pState,(Macro)d,pos,ioContext);
+                        }else{
+                            prev=new IdentifierToken(IdentifierType.WORD, newName,pos);
+                            tokens.set(tokens.size()-1,prev);
+                        }
+                    }else{
+                        throw new SyntaxError("invalid token for '.' modifier: "+prev,prev.pos);
+                    }
+                }
+                case "=:"->{
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '=:' modifier",pos);
+                    }else if(prevId!=null){
+                        prev=new IdentifierToken(IdentifierType.DECLARE,prevId,prev.pos);
+                    }else{
+                        throw new SyntaxError("invalid token for '=:' modifier "+prev,prev.pos);
+                    }
+                    tokens.set(tokens.size()-1,prev);
+                }
+                case "=$" -> {
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '=$' modifier",pos);
+                    }else if(prevId!=null){
+                        prev=new IdentifierToken(IdentifierType.CONST_DECLARE,prevId,prev.pos);
+                    }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.NATIVE){
+                        prev=new IdentifierToken(IdentifierType.NATIVE_DECLARE,((IdentifierToken) prev).name,prev.pos);
+                    }else{
+                        throw new SyntaxError("invalid token for '=$' modifier: "+prev,prev.pos);
+                    }
+                    tokens.set(tokens.size()-1,prev);
+                }
+                case "native" -> {
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for 'native' modifier",pos);
+                    }else if(prevId!=null){
+                        prev=new IdentifierToken(IdentifierType.NATIVE,prevId,prev.pos);
+                    }else{
+                        throw new SyntaxError("invalid token for 'native' modifier: "+prev,prev.pos);
+                    }
+                    tokens.set(tokens.size()-1,prev);
+                }
+                case "@()"->{
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '@()' modifier",pos);
+                    }else if(prevId!=null){
+                        tokens.set(tokens.size()-1,new IdentifierToken(IdentifierType.PROC_ID,prevId,prev.pos));
+                    }else{
+                        throw new SyntaxError("invalid token for '@()' modifier: "+prev,prev.pos);
+                    }
+                }
+                case "<>" ->{
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '<>' modifier",pos);
+                    }else if(prevId!=null){
+                        tokens.set(tokens.size()-1,new IdentifierToken(IdentifierType.NEW_GENERIC,prevId,prev.pos));
+                    }else{
+                        throw new SyntaxError("invalid token for '<>' modifier: "+prev,prev.pos);
+                    }
+                }
+                default -> {
+                    Declareable d=pState.rootContext.getDeclareable(str);
+                    if(d instanceof Macro){
+                        expandMacro(pState,(Macro)d,pos,ioContext);
+                    }else{
+                        CodeBlock last= pState.openBlocks.peekLast();
+                        if(last instanceof EnumBlock){
+                            ((EnumBlock) last).add(str,pos);
+                        }else{
+                            tokens.add(new IdentifierToken(IdentifierType.WORD, str, pos));
+                        }
+                    }
                 }
             }
-            case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   pos));
+        }
+    }
+    private void expandMacro(ParserState pState, Macro m, FilePosition pos, IOContext ioContext) throws SyntaxError {
+        for(StringWithPos s:m.content){
+            finishWord(s.str,pState,new FilePosition(s.start, pos),ioContext);
+        }
+    }
+    private void finishParsing(ParserState pState, IOContext ioContext,boolean parseProcs) throws SyntaxError {
+        pState.globalCode.addAll(typeCheck(pState.tokens, pState.rootContext,
+                pState.globalVariables, ioContext));
+        if(parseProcs){
+            Value.Procedure p;
+            while((p=pState.unparsedProcs.poll())!=null){
+                p.tokens=typeCheck(p.tokens,p.context,pState.globalVariables,ioContext);
+            }
+        }
+        pState.tokens.clear();
+    }
 
-            case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
-
-            case "wrap"   -> tokens.add(new OperatorToken(OperatorType.WRAP,          pos));
-            case "unwrap" -> tokens.add(new OperatorToken(OperatorType.UNWRAP,         pos));
-            case "??"     -> tokens.add(new OperatorToken(OperatorType.HAS_VALUE,      pos));
-            case "empty"  ->  {
-                if(tokens.size()<1||!(tokens.get(tokens.size()-1) instanceof ValueToken)){
-                    tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL,pos));
-                }else{
+    public ArrayList<Token> typeCheck(List<Token> tokens,VariableContext context,
+                                      HashMap<VariableId,Value> globalConstants,IOContext ioContext) throws SyntaxError {
+        ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
+        ArrayList<Token> ret=new ArrayList<>(tokens.size());
+        Token prev;
+        for(int i=0;i<tokens.size();i++){
+            Token t=tokens.get(i);
+            if(t instanceof BlockToken block){
+                switch (block.blockType){
+                    case IF ->{
+                        IfBlock ifBlock = new IfBlock(ret.size(), t.pos, context);
+                        openBlocks.add(ifBlock);
+                        ret.add(t);
+                        context=ifBlock.context();
+                        ret.add(new ContextOpen(context,t.pos));
+                    }
+                    case ELSE -> {//addLater handle if-jumps in else-block
+                        CodeBlock open=openBlocks.peekLast();
+                        if(!(open instanceof IfBlock ifBlock)){
+                            throw new SyntaxError("'else' can only be used in if-blocks",t.pos);
+                        }
+                        ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
+                        if(ifBlock.branches.size()>0){//end else-context
+                            ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
+                        }
+                        context=ifBlock.elseBranch(ret.size(),t.pos);
+                        ret.add(t);
+                        if(ifBlock.branches.size()<2){//start else-context after first else
+                            ret.add(new ContextOpen(context,t.pos));
+                        }
+                    }
+                    case _IF -> {
+                        CodeBlock open=openBlocks.peekLast();
+                        if(!(open instanceof IfBlock ifBlock)){
+                            throw new SyntaxError("'_if' can only be used in if-blocks",t.pos);
+                        }
+                        context=ifBlock.newBranch(ret.size(),t.pos);
+                        ret.add(t);
+                        ret.add(new ContextOpen(context,t.pos));
+                    }
+                    case END_IF,END_WHILE ->
+                        throw new RuntimeException("block tokens of type "+block.blockType+
+                                " should not exist at this stage of compilation");
+                    case WHILE -> {
+                        //TODO use own context for elements between while and do
+                        openBlocks.add(new WhileBlock(ret.size(),t.pos,context));
+                        ret.add(t);
+                    }
+                    case DO -> {
+                        CodeBlock open=openBlocks.peekLast();
+                        if(!(open instanceof WhileBlock whileBlock)){
+                            throw new SyntaxError("do can only be used in while- blocks",t.pos);
+                        }
+                        int forkPos=ret.size();
+                        ret.add(t);
+                        context= whileBlock.fork(forkPos, t.pos);
+                        ret.add(new ContextOpen(context,t.pos));
+                    }
+                    case DO_WHILE -> {
+                        CodeBlock open=openBlocks.pollLast();
+                        if(!(open instanceof WhileBlock whileBlock)){
+                            throw new SyntaxError("do can only be used in while- blocks",t.pos);
+                        }
+                        whileBlock.fork(ret.size(), t.pos);//TODO function for handling fork and end in one step
+                        whileBlock.end(t.pos);
+                        /*addLater close context opened by 'while' (when it is introduced)
+                        ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
+                        context=((BlockContext)context).parent;
+                         */
+                        ret.add(new BlockToken(BlockTokenType.DO_WHILE,t.pos,open.start - (ret.size()-1)));
+                    }
+                    case SWITCH -> {
+                        SwitchCaseBlock switchBlock=new SwitchCaseBlock(ret.size(), t.pos,context);
+                        openBlocks.addLast(switchBlock);
+                        //handle switch-case separately since : does not change context and produces special jump
+                        ret.add(new SwitchToken(switchBlock,t.pos));
+                        switchBlock.newSection(ret.size(),t.pos);
+                        //find case statement
+                        int j=i+1;
+                        while(j<tokens.size()&&(!(tokens.get(j) instanceof BlockToken))){
+                            j++;
+                        }
+                        if(j>= tokens.size()){
+                            throw new SyntaxError("found no case-statement for switch at "+t.pos,
+                                    tokens.get(tokens.size()-1).pos);
+                        }else if(((BlockToken)tokens.get(j)).blockType!=BlockTokenType.CASE){
+                            throw new SyntaxError("unexpected statement in switch at "+t.pos+" "+
+                                    tokens.get(j)+" expected 'case' statement",
+                                    tokens.get(j).pos);
+                        }
+                        List<Token> caseValues=tokens.subList(i+1,j);
+                        context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,ioContext),
+                                tokens.get(j).pos);
+                        ret.add(new ContextOpen(context,t.pos));
+                        i=j;
+                    }
+                    case END_CASE -> {
+                        CodeBlock open=openBlocks.peekLast();
+                        if(!(open instanceof SwitchCaseBlock switchBlock)){
+                            throw new SyntaxError("end-case can only be used in switch-case-blocks",t.pos);
+                        }
+                        ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
+                        context=((BlockContext)context).parent;
+                        ret.add(new BlockToken(BlockTokenType.END_CASE, t.pos, -1));
+                        switchBlock.newSection(ret.size(),t.pos);
+                        //find case statement
+                        int j=i+1;
+                        while(j<tokens.size()&&(!(tokens.get(j) instanceof BlockToken))){
+                            j++;
+                        }
+                        if(j>= tokens.size()){
+                            throw new SyntaxError("found no case-statement for switch at "+t.pos,
+                                    tokens.get(tokens.size()-1).pos);
+                        }
+                        t=tokens.get(j);
+                        if(((BlockToken)t).blockType==BlockTokenType.CASE){
+                            List<Token> caseValues=tokens.subList(i+1,j);
+                            context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,ioContext),
+                                    tokens.get(j).pos);
+                            ret.add(new ContextOpen(context,t.pos));
+                        }else if(((BlockToken)t).blockType==BlockTokenType.DEFAULT){
+                            context=switchBlock.defaultBlock(ret.size(),t.pos);
+                            ret.add(new ContextOpen(context,t.pos));
+                        }else if(((BlockToken)t).blockType==BlockTokenType.END){
+                            switchBlock.end(ret.size(),t.pos,ioContext);
+                            openBlocks.removeLast();//remove switch-block form blocks
+                            for(Integer p:switchBlock.blockEnds){
+                                Token tmp=ret.get(p);
+                                ((BlockToken)tmp).delta=ret.size()-p;
+                            }
+                        }else{
+                            throw new SyntaxError("unexpected statement after end-case at "+tokens.get(i).pos+": "+
+                                    t+" expected 'case', 'default' or 'end' statement",t.pos);
+                        }
+                        i=j;
+                    }
+                    case CASE ->
+                            throw new SyntaxError("unexpected 'case' statement",t.pos);
+                    case DEFAULT ->
+                            throw new SyntaxError("unexpected 'default' statement",t.pos);
+                    case END -> {
+                        CodeBlock open=openBlocks.pollLast();
+                        if(open==null){
+                            throw new SyntaxError("unexpected 'end' statement",t.pos);
+                        }
+                        Token tmp;
+                        switch (open.type){
+                            case IF -> {
+                                if(((IfBlock) open).forkPos!=-1){
+                                    tmp=ret.get(((IfBlock) open).forkPos);
+                                    ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
+                                    context=((BlockContext)context).parent;
+                                    //when there is no else then the last branch has to jump onto the close operation
+                                    ((BlockToken)tmp).delta=ret.size()-((IfBlock) open).forkPos;
+                                    if(((IfBlock) open).branches.size()>0){//close-else context
+                                        ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
+                                        context=((BlockContext)context).parent;
+                                    }
+                                }else{//close else context
+                                    ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
+                                    context=((BlockContext)context).parent;
+                                }
+                                for(IfBranch branch:((IfBlock) open).branches){
+                                    tmp=ret.get(branch.fork);
+                                    ((BlockToken)tmp).delta=branch.end-branch.fork+1;
+                                    tmp=ret.get(branch.end);
+                                    ((BlockToken)tmp).delta=ret.size()-branch.end;
+                                }
+                                ret.add(new BlockToken(BlockTokenType.END_IF,t.pos,-1));
+                            }
+                            case WHILE -> {
+                                ((WhileBlock)open).end(t.pos);
+                                ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
+                                context=((BlockContext)context).parent;
+                                tmp=ret.get(((WhileBlock) open).forkPos);
+                                ret.add(new BlockToken(BlockTokenType.END_WHILE,t.pos, open.start - ret.size()));
+                                ((BlockToken)tmp).delta=ret.size()-((WhileBlock)open).forkPos;
+                            }
+                            case SWITCH_CASE -> {//end switch with default
+                                if(((SwitchCaseBlock)open).defaultJump==-1){
+                                    throw new SyntaxError("missing end-case statement",t.pos);
+                                }
+                                ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
+                                context=((BlockContext)context).parent;
+                                ((SwitchCaseBlock)open).end(ret.size(),t.pos,ioContext);
+                                for(Integer p:((SwitchCaseBlock) open).blockEnds){
+                                    tmp=ret.get(p);
+                                    ((BlockToken)tmp).delta=ret.size()-p;
+                                }
+                            }
+                            case PROCEDURE,PROC_TYPE,CONST_LIST,ANONYMOUS_TUPLE,TUPLE,ENUM ->
+                                throw new SyntaxError("blocks of type "+open.type+
+                                        " should not exist at this stage of compilation",t.pos);
+                        }
+                    }
+                    case LIST ->
+                            openBlocks.add(new ListBlock(ret.size(),BlockType.CONST_LIST,t.pos,context));
+                    case END_LIST -> {
+                        CodeBlock open=openBlocks.pollLast();
+                        if(open==null||open.type!=BlockType.CONST_LIST){
+                            throw new SyntaxError("unexpected '}' statement ",t.pos);
+                        }
+                        List<Token> subList = ret.subList(open.start, ret.size());
+                        ArrayList<Value> values=new ArrayList<>(subList.size());
+                        boolean constant=true;
+                        Type type=null;
+                        for(Token v:subList){
+                            if(v instanceof ValueToken){
+                                type=Type.commonSuperType(type,((ValueToken) v).value.type);
+                                values.add(((ValueToken) v).value);
+                            }else{
+                                values.clear();
+                                constant=false;
+                                break;
+                            }
+                        }
+                        if(constant){
+                            subList.clear();
+                            try {
+                                for(int p=0;p< values.size();p++){
+                                    values.set(p,values.get(p).castTo(type));
+                                }
+                                ret.add(new ValueToken(Value.createList(Type.listOf(type),values),
+                                        open.startPos,true));
+                            } catch (ConcatRuntimeError e) {
+                                throw new SyntaxError(e,t.pos);
+                            }
+                        }else{
+                            ArrayList<Token> listTokens=new ArrayList<>(subList);
+                            subList.clear();
+                            ret.add(new ListCreatorToken(listTokens,t.pos));
+                        }
+                    }
+                }
+            }else if(t instanceof IdentifierToken identifier){
+                switch (identifier.type) {
+                    case NATIVE -> throw new RuntimeException("unreachable");
+                    case NEW_GENERIC -> {
+                        if(!(context instanceof GenericContext)){
+                            throw new SyntaxError("generics can only be declared in tuple and procedure signatures",
+                                    identifier.pos);
+                        }
+                        ((GenericContext) context).declareGeneric( identifier.name,identifier.pos,ioContext);
+                    }
+                    case DECLARE, CONST_DECLARE, NATIVE_DECLARE -> {
+                        if (ret.size() > 0 && (prev = ret.remove(ret.size() - 1)) instanceof ValueToken) {
+                            try {//remember constant declarations
+                                Type type = ((ValueToken) prev).value.asType();
+                                VariableId id = context.declareVariable(
+                                        identifier.name, type, identifier.type != IdentifierType.DECLARE,
+                                        identifier.pos, ioContext);
+                                AccessType accessType = identifier.type == IdentifierType.DECLARE ?
+                                        AccessType.DECLARE : AccessType.CONST_DECLARE;
+                                //only remember root-level constants
+                                if (identifier.type == IdentifierType.NATIVE_DECLARE) {
+                                    globalConstants.put(id, Value.loadNativeConstant(type, identifier.name, t.pos));
+                                    break;
+                                } else if (id.isConstant && id.context.procedureContext() == null
+                                        && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
+                                    globalConstants.put(id, ((ValueToken) prev).value.clone(true).castTo(type));
+                                    ret.remove(ret.size() - 1);
+                                    break;//don't add token to code
+                                }
+                                ret.add(new VariableToken(identifier.pos, identifier.name, id,
+                                        accessType, context));
+                            } catch (ConcatRuntimeError e) {
+                                throw new SyntaxError(e.getMessage(), prev.pos);
+                            }
+                        } else {
+                            throw new SyntaxError("Token before declaration has to be a type", identifier.pos);
+                        }
+                    }
+                    case WORD -> {
+                        Declareable d = context.getDeclareable(identifier.name);
+                        if(d==null){
+                            throw new SyntaxError("variable "+identifier.name+" does not exist",identifier.pos);
+                        }
+                        DeclareableType type = d.declarableType();
+                        switch (type) {
+                            case PROCEDURE -> {
+                                Value.Procedure proc = (Value.Procedure) d;
+                                ProcedureToken token = new ProcedureToken(false, proc, identifier.pos);
+                                ret.add(token);
+                            }
+                            case NATIVE_PROC -> {
+                                Value.NativeProcedure proc = (Value.NativeProcedure) d;
+                                NativeProcedureToken token = new NativeProcedureToken(false, proc, identifier.pos);
+                                ret.add(token);
+                            }
+                            case VARIABLE, CONSTANT, CURRIED_VARIABLE -> {
+                                VariableId id = (VariableId) d;
+                                id = context.wrapCurried(identifier.name, id, identifier.pos);
+                                Value constValue = globalConstants.get(id);
+                                if (constValue != null) {
+                                    ret.add(new ValueToken(constValue, identifier.pos, false));
+                                } else {
+                                    ret.add(new VariableToken(identifier.pos, identifier.name, id,
+                                            AccessType.READ, context));
+                                }
+                            }
+                            case MACRO ->
+                                    throw new RuntimeException("macros should already be resolved at this state of compilation");
+                            case TUPLE, ENUM, GENERIC -> ret.add(
+                                    new ValueToken(Value.ofType((Type) d), identifier.pos, false));
+                            case ENUM_ENTRY -> ret.add(
+                                    new ValueToken((Value.EnumEntry) d, identifier.pos, false));
+                            case GENERIC_TUPLE -> {
+                                GenericTuple g = (GenericTuple) d;
+                                Type[] genArgs = new Type[g.params.length];
+                                for (int j = genArgs.length - 1; j >= 0; j--) {
+                                    if (ret.size() <= 0) {
+                                        throw new SyntaxError("Not enough arguments for " +
+                                                declarableName(DeclareableType.GENERIC_TUPLE, false) + " " + ((GenericTuple) d).name,
+                                                t.pos);
+                                    }
+                                    prev = ret.remove(ret.size()-1);
+                                    if (!(prev instanceof ValueToken)) {
+                                        throw new SyntaxError("invalid token for type-parameter:" + prev, prev.pos);
+                                    }
+                                    try {
+                                        genArgs[j] = ((ValueToken) prev).value.asType();
+                                    } catch (TypeError e) {
+                                        throw new SyntaxError(e.getMessage(), prev.pos);
+                                    }
+                                }
+                                ret.add(new ValueToken(Value.ofType(
+                                        Type.GenericTuple.create(g.name, g.params.clone(), genArgs, g.types.clone(), g.declaredAt)),
+                                        identifier.pos, false));
+                            }
+                        }
+                    }
+                    case VAR_WRITE -> {
+                        Declareable d=context.getDeclareable(identifier.name);
+                        if(d==null){
+                            throw new SyntaxError("variable "+identifier.name+" does not exist",t.pos);
+                        }else if(d.declarableType()==DeclareableType.VARIABLE){
+                            VariableId id=(VariableId) d;
+                            context.wrapCurried(identifier.name,id,identifier.pos);
+                            assert !globalConstants.containsKey(id);
+                            ret.add(new VariableToken(identifier.pos,identifier.name,id,
+                                    AccessType.WRITE,context));
+                        }else{
+                            throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
+                                    identifier.name+" (declared at "+d.declaredAt()+") is not a variable",t.pos);
+                        }
+                    }
+                    case PROC_ID -> {
+                        Declareable d=context.getDeclareable(identifier.name);
+                        if(d instanceof Value.NativeProcedure proc){
+                            NativeProcedureToken token=new NativeProcedureToken(true,proc,t.pos);
+                            ret.add(token);
+                        }else if(d instanceof Value.Procedure proc){
+                            ProcedureToken token=new ProcedureToken(true,proc,t.pos);
+                            ret.add(token);
+                        }else{
+                            throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
+                                    identifier.name+" (declared at "+d.declaredAt()+") is not a procedure",t.pos);
+                        }
+                    }
+                }
+            }else if(t instanceof AssertToken){
+                if((prev=ret.get(ret.size()-1)) instanceof ValueToken){
                     try {
-                        Type type= ((ValueToken) tokens.remove(tokens.size()-1)).value.asType();
-                        tokens.add(new ValueToken(Value.emptyOptional(type), pos, false));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e,pos);
+                        if(!((ValueToken) prev).value.asBool()){
+                            throw new SyntaxError("assertion failed: "+ ((AssertToken)t).message,t.pos);
+                        }
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,t.pos);
                     }
+                }else{
+                    ret.add(t);
                 }
-            }
-
-            case "new"       -> {
-                if(tokens.size()<1||!(tokens.get(tokens.size()-1) instanceof ValueToken)){
-                    throw new SyntaxError("token before of new has to be a type",pos);
+            }else if(t instanceof OperatorToken op){
+                switch (op.opType){
+                    case LIST_OF -> {//addLater make pre-evaluation optional
+                        if(ret.size()>0&&(prev=ret.get(ret.size()-1)) instanceof ValueToken){
+                            try {
+                                ret.set(ret.size()-1,
+                                        new ValueToken(Value.ofType(
+                                                Type.listOf(((ValueToken)prev).value.asType())),
+                                                t.pos, false));
+                            } catch (ConcatRuntimeError e) {
+                                throw new SyntaxError(e,t.pos);
+                            }
+                        }else{
+                            ret.add(t);
+                        }
+                    }
+                    case OPTIONAL_OF -> {
+                        if(ret.size()>0&&(prev=ret.get(ret.size()-1)) instanceof ValueToken){
+                            try {
+                                ret.set(ret.size()-1,
+                                        new ValueToken(Value.ofType(
+                                                Type.optionalOf(((ValueToken)prev).value.asType())),
+                                                t.pos, false));
+                            } catch (ConcatRuntimeError e) {
+                                throw new SyntaxError(e,t.pos);
+                            }
+                        }else{
+                            ret.add(t);
+                        }
+                    }
+                    default -> //TODO type-check and pre-evaluate other operations
+                            ret.add(t);
                 }
-                prev=tokens.remove(tokens.size()-1);
+            }else if(t.tokenType==TokenType.NEW){
+                if(ret.size()<1||!((prev=ret.remove(ret.size()-1)) instanceof ValueToken)) {
+                    throw new SyntaxError("token before of new has to be a type", t.pos);
+                }
                 try {
-                    Type t = ((ValueToken)prev).value.asType();
-                    if(t instanceof Type.Tuple){
-                        int c=((Type.Tuple) t).elementCount();
-                        checkElementCount(c);
-                        int iMin=tokens.size()-c;
+                    Type type = ((ValueToken)prev).value.asType();
+                    if(type instanceof Type.Tuple){
+                        int c=((Type.Tuple) type).elementCount();
+                        if(c < 0){
+                            throw new ConcatRuntimeError("the element count has to be at least 0");
+                        }
+                        int iMin=ret.size()-c;
                         if(iMin>=0){
                             Value[] values=new Value[c];
-                            for(int i=c-1;i>=0;i--){
-                                prev=tokens.get(iMin+i);
+                            for(int j=c-1;j>=0;j--){
+                                prev=ret.get(iMin+j);
                                 if(prev instanceof ValueToken){
-                                    values[i]=((ValueToken) prev).value.castTo(((Type.Tuple) t).get(i));
+                                    values[j]=((ValueToken) prev).value.castTo(((Type.Tuple) type).get(j));
                                 }else{
                                     break;
                                 }
                             }
                             if(c==0||values[0]!=null){//all types resolved successfully
-                                tokens.subList(iMin, tokens.size()).clear();
-                                tokens.add(new ValueToken(Value.createTuple((Type.Tuple)t,values),pos, false));
-                                break;
+                                ret.subList(iMin, ret.size()).clear();
+                                ret.add(new ValueToken(Value.createTuple((Type.Tuple)type,values),
+                                        t.pos, false));
+                                continue;//got to next item
                             }
                         }
                     }//TODO support list in pre-evaluation
-                    tokens.add(new TypedToken(TokenType.NEW,t, pos));
+                    ret.add(new TypedToken(TokenType.NEW,type, t.pos));
                 } catch (ConcatRuntimeError e) {
                     throw new SyntaxError(e.getMessage(), prev.pos);
                 }
-            }
-            case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
-            case "fill"      -> tokens.add(new OperatorToken(OperatorType.FILL,       pos));
-
-            default -> {
-                CodeBlock last= tState.openBlocks.peekLast();
-                if(last instanceof EnumBlock){
-                    ((EnumBlock) last).add(str,pos);
-                }else{
-                    tokens.add(new IdentifierToken(IdentifierType.UNMODIFIED, str, pos));
-                }
+            }else{
+                ret.add(t);
             }
         }
+        return ret;
     }
 
     static class Variable{
@@ -2897,7 +2815,7 @@ public class Interpreter {
                     }
                     case PUSH_PROC_PTR -> {
                         ProcedureToken token=(ProcedureToken) next;
-                        stack.push(token.getProcedure().type);
+                        stack.push(token.procedure.type);
                     }
                     case PUSH_NATIVE_PROC_PTR -> {
                         NativeProcedureToken token=(NativeProcedureToken) next;
@@ -2906,7 +2824,7 @@ public class Interpreter {
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Type called;
                         if(next.tokenType==TokenType.CALL_PROC){
-                            called=((ProcedureToken) next).getProcedure().type;
+                            called=((ProcedureToken) next).procedure.type;
                         }else if(next.tokenType==TokenType.CALL_NATIVE_PROC){
                             called=((NativeProcedureToken) next).value.type;
                         }else{
@@ -3316,7 +3234,10 @@ public class Interpreter {
                                 }
                             }
                             case CONST_DECLARE,DECLARE -> {
-                                Type  type=stack.pop().asType();
+                                Type type=asVar.id.type;
+                                if(type == null){
+                                    type = stack.pop().asType();
+                                }
                                 Value initValue=stack.pop();
                                 switch (asVar.variableType){
                                     case GLOBAL ->
@@ -3354,7 +3275,7 @@ public class Interpreter {
                     }
                     case PUSH_PROC_PTR -> {
                         ProcedureToken token=(ProcedureToken) next;
-                        stack.push(token.getProcedure());
+                        stack.push(token.procedure);
                     }
                     case PUSH_NATIVE_PROC_PTR -> {
                         NativeProcedureToken token=(NativeProcedureToken) next;
@@ -3363,7 +3284,7 @@ public class Interpreter {
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Value called;
                         if(next.tokenType==TokenType.CALL_PROC){
-                            called=((ProcedureToken) next).getProcedure();
+                            called=((ProcedureToken) next).procedure;
                         }else if(next.tokenType==TokenType.CALL_NATIVE_PROC){
                             called=((NativeProcedureToken) next).value;
                         }else{
@@ -3428,6 +3349,9 @@ public class Interpreter {
                             case WHILE,END_IF -> {
                                 //do nothing
                             }
+                            case SWITCH,CASE,DEFAULT,END,LIST,END_LIST ->
+                                throw new RuntimeException("blocks of type "+((BlockToken)next).blockType+
+                                        " should be eliminated at compile time");
                         }
                     }
                     case SWITCH -> {
