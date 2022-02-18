@@ -16,7 +16,7 @@ public class Interpreter {
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
     enum TokenType {
-        VALUE,CURRIED_PROCEDURE,OPERATOR,CAST,NEW,NEW_LIST,
+        VALUE, LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,NEW,NEW_LIST,
         DROP,DUP,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
@@ -1116,17 +1116,19 @@ public class Interpreter {
         final RootContext rootContext;
         final HashSet<String> files=new HashSet<>();
         public HashMap<VariableId, Value> globalVariables=new HashMap<>();
+        //proc-contexts that are currently open
+        final ArrayDeque<ProcedureContext> openedProcs =new ArrayDeque<>();
         public ArrayDeque<Value.Procedure> unparsedProcs=new ArrayDeque<>();
 
         Macro currentMacro;//max be null
-        ProcedureBlock currentProc;//may be null
 
         ParserState(RootContext rootContext) {
             this.rootContext = rootContext;
         }
 
         VariableContext getContext(){
-            return currentProc==null?rootContext:currentProc.context();
+            ProcedureContext currentProc = openedProcs.peekLast();
+            return currentProc==null?rootContext:currentProc;
         }
     }
     public Program parse(File file, ParserState pState, IOContext ioContext) throws IOException, SyntaxError {
@@ -1339,7 +1341,7 @@ public class Interpreter {
                 throw new SyntaxError(e, pos);
             }
             switch (str){
-                //codesections
+                //code-sections
                 case "#define"->{
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("macros can only be defined at root-level",pos);
@@ -1473,10 +1475,15 @@ public class Interpreter {
                         throw new SyntaxError("token before 'proc' has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
-                    pState.openBlocks.add(new ProcedureBlock(name, 0,pos,pState.rootContext,isNative));
+                    ProcedureBlock proc = new ProcedureBlock(name, 0, pos, pState.rootContext, isNative);
+                    pState.openBlocks.add(proc);
+                    pState.openedProcs.add(proc.context());
                 }
-                case "lambda","λ" -> //TODO handle lambdas
-                        pState.openBlocks.add(new ProcedureBlock(null, tokens.size(),pos,pState.getContext(), false));
+                case "lambda","λ" -> {
+                    ProcedureBlock lambda = new ProcedureBlock(null, tokens.size(), pos, pState.getContext(), false);
+                    pState.openBlocks.add(lambda);
+                    pState.openedProcs.add(lambda.context());
+                }
                 case "=>" ->{
                     CodeBlock block = pState.openBlocks.peekLast();
                     if(block instanceof ProcedureBlock proc) {
@@ -1526,6 +1533,10 @@ public class Interpreter {
                             ArrayList<Token> content=new ArrayList<>(subList);
                             subList.clear();
                             ProcedureContext context = ((ProcedureBlock) block).context();
+                            if(context != pState.openedProcs.pollLast()){
+                                throw new RuntimeException("openedProcs is out of sync with openBlocks");
+                            }
+                            assert context != null;
                             Type[] ins=((ProcedureBlock) block).inTypes;
                             Type[] outs=((ProcedureBlock) block).outTypes;
                             ArrayList<Type.GenericParameter> generics=((ProcedureBlock) block).context.generics;
@@ -1559,18 +1570,12 @@ public class Interpreter {
                             }else{
                                 Value.Procedure proc=Value.createProcedure(procType, content,
                                         generics.toArray(Type.GenericParameter[]::new), block.startPos, context);
-                                pState.unparsedProcs.add(proc);
-                                if (context.curried.isEmpty()) {
-                                    if(((ProcedureBlock) block).name!=null){
-                                        pState.rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
-                                    }else{
-                                        tokens.add(new ValueToken(proc, block.startPos, false));
-                                    }
-                                } else {
-                                    if(((ProcedureBlock) block).name!=null){
-                                        throw new RuntimeException("named procedures cannot be curried");
-                                    }
-                                    tokens.add(new ValueToken(TokenType.CURRIED_PROCEDURE,proc, block.startPos, false));
+                                assert context.curried.isEmpty();
+                                if(((ProcedureBlock) block).name!=null){
+                                    pState.unparsedProcs.add(proc);
+                                    pState.rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
+                                }else{
+                                    tokens.add(new ValueToken(TokenType.LAMBDA,proc, block.startPos, false));
                                 }
                             }
                         }
@@ -1654,8 +1659,8 @@ public class Interpreter {
                 case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
                 case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
                 case "(" ->
-                        pState.openBlocks.add(new ListBlock(tokens.size(),BlockType.ANONYMOUS_TUPLE,pos, pState.rootContext));
-                case ")" -> { //addLater use correct context for anonymous tuple
+                        pState.openBlocks.add(new ListBlock(tokens.size(),BlockType.ANONYMOUS_TUPLE,pos, pState.getContext()));
+                case ")" -> {
                     CodeBlock open=pState.openBlocks.pollLast();
                     if(open==null||(open.type!=BlockType.ANONYMOUS_TUPLE&&open.type!=BlockType.PROC_TYPE)){
                         throw new SyntaxError("unexpected ')' statement ",pos);
@@ -2368,6 +2373,14 @@ public class Interpreter {
                 } catch (ConcatRuntimeError e) {
                     throw new SyntaxError(e.getMessage(), prev.pos);
                 }
+            }else if(t.tokenType == TokenType.LAMBDA){//parse lambda-procedures
+                Value.Procedure lambda = (Value.Procedure) ((ValueToken) t).value;
+                lambda.tokens=typeCheck(lambda.tokens(),lambda.context,globalConstants,ioContext);
+                if(lambda.context.curried.isEmpty()){
+                    ret.add(t);
+                }else{
+                    ret.add(new ValueToken(TokenType.CURRIED_LAMBDA,lambda,t.pos,false));
+                }
             }else{
                 ret.add(t);
             }
@@ -2748,7 +2761,7 @@ public class Interpreter {
             Token next=tokens.get(ip);
             try {
                 switch (next.tokenType) {
-                    case VALUE -> {
+                    case LAMBDA, VALUE -> {
                         ValueToken value = (ValueToken) next;
                         if(value.value.type==Type.TYPE){
                             Type type = value.value.asType();
@@ -2758,7 +2771,7 @@ public class Interpreter {
                         }
                         stack.push(value.value.type);
                     }
-                    case CURRIED_PROCEDURE -> {
+                    case CURRIED_LAMBDA -> {
                         if(program instanceof Program){
                             throw new RuntimeException("curried procedures should only exist inside of procedures");
                         }
@@ -3118,7 +3131,7 @@ public class Interpreter {
             boolean incIp=true;
             try {
                 switch (next.tokenType) {
-                    case VALUE -> {
+                    case LAMBDA,VALUE -> {
                         ValueToken value = (ValueToken) next;
                         if(value.value.type==Type.TYPE&&value.value.type instanceof Type.GenericParameter){
                             //TODO resolve generic types in procedure signatures
@@ -3129,7 +3142,7 @@ public class Interpreter {
                             stack.push(value.value);
                         }
                     }
-                    case CURRIED_PROCEDURE -> {
+                    case CURRIED_LAMBDA -> {
                         if(globalVariables==null){
                             throw new RuntimeException("curried procedures should only exist inside of procedures");
                         }
