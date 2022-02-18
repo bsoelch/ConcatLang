@@ -115,9 +115,13 @@ while i 0 > do
   j println
 end
 j println
-while "do-while-scope" string doWhile =: j 0 > do
-j 1 - j =
-0 int doWhile =:
+"global" string doWhile =:
+while "while-scope" string doWhile =: j 0 > do
+  j 1 - j =
+  "do-scope" string doWhile =:
 end
 doWhile println
+while "do-while-scope" string doWhile =: j 1 + dup j = 5 < do end
+doWhile println
+j println
 

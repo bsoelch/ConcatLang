@@ -281,7 +281,6 @@ public class Interpreter {
                 if(t instanceof ValueToken){
                     stack.push(((ValueToken) t));
                 }else{//list, optional, tuple, -> are evaluated in parser
-                    //TODO! report predeclared procedures as missing variables
                     throw new SyntaxError("Tokens of type "+t.tokenType+
                             " are not supported in "+(tupleMode?"tuple":"procedure")+" signatures",t.pos);
                 }
@@ -364,7 +363,7 @@ public class Interpreter {
         VariableContext context;
         WhileBlock(int startToken,FilePosition pos, VariableContext parentContext) {
             super(startToken, BlockType.WHILE,pos, parentContext);
-            context=parentContext;
+            context=new BlockContext(parentContext);
         }
         void end(FilePosition pos) throws SyntaxError {
             if(forkPos==-1){
@@ -378,7 +377,7 @@ public class Interpreter {
                         "can only appear after 'while'",pos);
             }
             forkPos=tokenPos;
-            context=new BlockContext(context);
+            context=new BlockContext(parentContext);
             return context;
         }
 
@@ -1028,7 +1027,7 @@ public class Interpreter {
         }
     }
 
-    //addLater only allow generics in in-signature
+    //addLater allow declaring generics only in in-signature
     static class ProcedureContext extends GenericContext {
         ArrayList<CurriedVariable> curried=new ArrayList<>();
         ProcedureContext(VariableContext parent){
@@ -1120,7 +1119,7 @@ public class Interpreter {
         final ArrayDeque<ProcedureContext> openedProcs =new ArrayDeque<>();
         public ArrayDeque<Value.Procedure> unparsedProcs=new ArrayDeque<>();
 
-        Macro currentMacro;//max be null
+        Macro currentMacro;//may be null
 
         ParserState(RootContext rootContext) {
             this.rootContext = rootContext;
@@ -1783,9 +1782,6 @@ public class Interpreter {
                 case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
                 case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  pos));
 
-                //addLater? make pow a native functions
-                case "**"    -> tokens.add(new OperatorToken(OperatorType.POW,   pos));
-
                 case ">>:"   -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     pos));
                 case ":<<"   -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
                 case "+:"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, pos));
@@ -1978,16 +1974,20 @@ public class Interpreter {
                         throw new RuntimeException("block tokens of type "+block.blockType+
                                 " should not exist at this stage of compilation");
                     case WHILE -> {
-                        //TODO use own context for elements between while and do
-                        openBlocks.add(new WhileBlock(ret.size(),t.pos,context));
+                        WhileBlock whileBlock = new WhileBlock(ret.size(), t.pos, context);
+                        openBlocks.add(whileBlock);
+                        context= whileBlock.context();
                         ret.add(t);
+                        ret.add(new ContextOpen(context,t.pos));
                     }
                     case DO -> {
                         CodeBlock open=openBlocks.peekLast();
                         if(!(open instanceof WhileBlock whileBlock)){
                             throw new SyntaxError("do can only be used in while- blocks",t.pos);
                         }
+                        ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
                         int forkPos=ret.size();
+                        //context variable will be reset on fork
                         ret.add(t);
                         context= whileBlock.fork(forkPos, t.pos);
                         ret.add(new ContextOpen(context,t.pos));
@@ -1997,12 +1997,9 @@ public class Interpreter {
                         if(!(open instanceof WhileBlock whileBlock)){
                             throw new SyntaxError("do can only be used in while- blocks",t.pos);
                         }
-                        whileBlock.fork(ret.size(), t.pos);//TODO function for handling fork and end in one step
-                        whileBlock.end(t.pos);
-                        /*addLater close context opened by 'while' (when it is introduced)
+                        whileBlock.fork(ret.size(), t.pos);//whileBlock.end() only checks if fork was called
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
                         context=((BlockContext)context).parent;
-                         */
                         ret.add(new BlockToken(BlockTokenType.DO_WHILE,t.pos,open.start - (ret.size()-1)));
                     }
                     case SWITCH -> {
@@ -2308,7 +2305,7 @@ public class Interpreter {
                 }
             }else if(t instanceof OperatorToken op){
                 switch (op.opType){
-                    case LIST_OF -> {//addLater make pre-evaluation optional
+                    case LIST_OF -> {//addLater make pre-evaluation optional (excluding type-signatures and global context)
                         if(ret.size()>0&&(prev=ret.get(ret.size()-1)) instanceof ValueToken){
                             try {
                                 ret.set(ret.size()-1,

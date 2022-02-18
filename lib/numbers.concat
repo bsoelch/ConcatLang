@@ -136,7 +136,7 @@ end
   0b1e-110100 #+2^-52+# value * float eps =: ##? better implementation of eps
   value log base log / floor int e =:
   e int e_max =:
-  base e float cast ** float p =:
+  base e float cast pow float p =:
   64 int list new int list buff =:
   0 int n =:
   while p eps > do
@@ -381,7 +381,7 @@ stringToFloat proc #+str+# string #+base+# int => #+val+# float #+err-code+# Str
   0  int c =:
   0  int d =:
   -1 int e =:
-  2 53 ** int max =: ## maximum precision of ieee float64
+  1 53 << int max =: ## maximum precision of ieee float64
   while i str length < do
     str i [] '.' == if ## str[i] == '.'
       d 0 != if
@@ -414,7 +414,7 @@ stringToFloat proc #+str+# string #+base+# int => #+val+# float #+err-code+# Str
     end
     c exponent - c =
   end
-  val  sgn if -_ end base c -_ float cast ** * StringParseError ERR_NONE . return
+  val  sgn if -_ end base c -_ float cast pow * StringParseError ERR_NONE . return
 end
 
 parseFloat proc string => float :

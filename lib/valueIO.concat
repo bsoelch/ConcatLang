@@ -333,7 +333,7 @@ end
 
 isFormatChar proc #+char+# byte => bool :
   byte c =:
-  "bBiIuUdxXfFeEcsS%" string formats =: ## addLater? formatted printing of lists
+  "bBiIuUdxXfFeEcsS%" string formats =:
   0 int i =:
   while i formats length < do
     formats i [] c == if

@@ -1900,7 +1900,7 @@ public abstract class Value {
             String className=path.substring(path.lastIndexOf('/')+1);
             className=className.substring(0,className.lastIndexOf('.'));
             ClassLoader loader=getLoader(dir);
-            Class<?> cls=loader.loadClass(className);//TODO ensure names are valid identifiers
+            Class<?> cls=loader.loadClass(className);//TODO ensure names are valid java-identifiers
             Object val=cls.getField("nativeImpl_"+name).get(null);
             if(type==Type.TYPE){
                 return ofType(new Type.NativeType(name, (Class<?>) val));
