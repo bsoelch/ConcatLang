@@ -322,9 +322,8 @@ public class Interpreter {
             return context;
         }
     }
-    private record IfBranch(int fork,int end){}
     static class IfBlock extends CodeBlock{
-        ArrayList<IfBranch> branches=new ArrayList<>();
+        ArrayList<Integer> elsePositions =new ArrayList<>();
         int forkPos;
 
         VariableContext ifContext;
@@ -348,7 +347,7 @@ public class Interpreter {
             if(forkPos==-1){
                 throw new SyntaxError("unexpected 'else' in if-statement 'else' can only appear after 'if' or 'if_",pos);
             }
-            branches.add(new IfBranch(forkPos,tokenPos));
+            elsePositions.add(tokenPos);
             forkPos=-1;
             return elseContext;
         }
@@ -1105,12 +1104,15 @@ public class Interpreter {
         return false;
     }
 
+    record TypeFrame(Type type,boolean hasValue,Value value){}
     static class ParserState {
         final ArrayList<Token> tokens =new ArrayList<>();
         /**global code after type-check*/
         final ArrayList<Token> globalCode =new ArrayList<>();
 
         final ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
+        public ArrayDeque<TypeFrame> typeStack=new ArrayDeque<>();
+
         int openBlocks2=0;//number of opened blocks that will be processed in the next step
         final RootContext rootContext;
         final HashSet<String> files=new HashSet<>();
@@ -1487,7 +1489,7 @@ public class Interpreter {
                     CodeBlock block = pState.openBlocks.peekLast();
                     if(block instanceof ProcedureBlock proc) {
                         List<Token> ins = tokens.subList(proc.start, tokens.size());
-                        proc.addIns(typeCheck(ins,block.context(),pState.globalVariables,ioContext),pos);
+                        proc.addIns(typeCheck(ins,block.context(),pState.globalVariables,new ArrayDeque<>(),ioContext),pos);
                         ins.clear();
                     }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
                         pState.openBlocks.removeLast();
@@ -1504,7 +1506,7 @@ public class Interpreter {
                         //handle procedure separately since : does not change context of produce a jump
                         ProcedureBlock proc=(ProcedureBlock) block;
                         List<Token> outs = tokens.subList(proc.start, tokens.size());
-                        proc.addOuts(typeCheck(outs,block.context(),pState.globalVariables,ioContext),pos);
+                        proc.addOuts(typeCheck(outs,block.context(),pState.globalVariables,new ArrayDeque<>(),ioContext),pos);
                         outs.clear();
                     }else{
                         throw new SyntaxError(": can only be used in proc- and lambda- blocks", pos);
@@ -1589,7 +1591,8 @@ public class Interpreter {
                             ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
                             List<Token> subList = tokens.subList(block.start, tokens.size());
                             Type[] types=ProcedureBlock.getSignature(
-                                    typeCheck(subList, block.context(), pState.globalVariables,ioContext), true);
+                                    typeCheck(subList, block.context(), pState.globalVariables,new ArrayDeque<>(),ioContext),
+                                    true);
                             subList.clear();
                             if(generics.size()>0){
                                 GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,
@@ -1667,10 +1670,12 @@ public class Interpreter {
                     if(open.type==BlockType.PROC_TYPE){
                         List<Token> subList=tokens.subList(open.start, ((ProcTypeBlock)open).separatorPos);
                         Type[] inTypes=ProcedureBlock.getSignature(
-                                typeCheck(subList,pState.rootContext,pState.globalVariables,ioContext),false);
+                                typeCheck(subList,pState.rootContext,pState.globalVariables,new ArrayDeque<>(),ioContext),
+                                false);
                         subList=tokens.subList(((ProcTypeBlock)open).separatorPos, tokens.size());
                         Type[] outTypes=ProcedureBlock.getSignature(
-                                typeCheck(subList,pState.rootContext,pState.globalVariables,ioContext),false);
+                                typeCheck(subList,pState.rootContext,pState.globalVariables,new ArrayDeque<>(),ioContext),
+                                false);
                         subList=tokens.subList(open.start,tokens.size());
                         subList.clear();
                         tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),
@@ -1678,7 +1683,8 @@ public class Interpreter {
                     }else {
                         List<Token> subList=tokens.subList(open.start, tokens.size());
                         Type[] tupleTypes=ProcedureBlock.getSignature(
-                                typeCheck(subList,pState.rootContext,pState.globalVariables,ioContext),true);
+                                typeCheck(subList,pState.rootContext,pState.globalVariables,new ArrayDeque<>(),
+                                        ioContext),true);
                         subList.clear();
                         tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null,tupleTypes,pos)),
                                 pos,false));
@@ -1710,7 +1716,6 @@ public class Interpreter {
                 case "uint"       -> tokens.add(new ValueToken(Value.ofType(Type.UINT),              pos, false));
                 case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos, false));
                 case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos, false));
-//addLater define string/ustring in concat
                 case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos, false));
                 case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
                 case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
@@ -1919,19 +1924,21 @@ public class Interpreter {
         }
     }
     private void finishParsing(ParserState pState, IOContext ioContext,boolean parseProcs) throws SyntaxError {
-        pState.globalCode.addAll(typeCheck(pState.tokens, pState.rootContext,
-                pState.globalVariables, ioContext));
+        pState.globalCode.addAll(typeCheck(pState.tokens, pState.rootContext,pState.globalVariables,
+                pState.typeStack, ioContext));
         if(parseProcs){
             Value.Procedure p;
             while((p=pState.unparsedProcs.poll())!=null){
-                p.tokens=typeCheck(p.tokens,p.context,pState.globalVariables,ioContext);
+                ArrayDeque<TypeFrame> typeStack=new ArrayDeque<>();//TODO prepare type-stack
+                p.tokens=typeCheck(p.tokens,p.context,pState.globalVariables,typeStack,ioContext);
+                //TODO check output types
             }
         }
         pState.tokens.clear();
     }
 
-    public ArrayList<Token> typeCheck(List<Token> tokens,VariableContext context,
-                                      HashMap<VariableId,Value> globalConstants,IOContext ioContext) throws SyntaxError {
+    public ArrayList<Token> typeCheck(List<Token> tokens,VariableContext context,HashMap<VariableId,Value> globalConstants,
+                                      ArrayDeque<TypeFrame> typeStack,IOContext ioContext) throws SyntaxError {
         ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
         ArrayList<Token> ret=new ArrayList<>(tokens.size());
         Token prev;
@@ -1946,18 +1953,21 @@ public class Interpreter {
                         context=ifBlock.context();
                         ret.add(new ContextOpen(context,t.pos));
                     }
-                    case ELSE -> {//addLater handle if-jumps in else-block
+                    case ELSE -> {
                         CodeBlock open=openBlocks.peekLast();
                         if(!(open instanceof IfBlock ifBlock)){
                             throw new SyntaxError("'else' can only be used in if-blocks",t.pos);
                         }
+
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                        if(ifBlock.branches.size()>0){//end else-context
+                        if(ifBlock.elsePositions.size()>0){//end else-context
                             ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
                         }
+                        Token tmp=ret.get(ifBlock.forkPos);
+                        ((BlockToken)tmp).delta=ret.size()-ifBlock.forkPos+1;
                         context=ifBlock.elseBranch(ret.size(),t.pos);
                         ret.add(t);
-                        if(ifBlock.branches.size()<2){//start else-context after first else
+                        if(ifBlock.elsePositions.size()<2){//start else-context after first else
                             ret.add(new ContextOpen(context,t.pos));
                         }
                     }
@@ -2022,7 +2032,7 @@ public class Interpreter {
                                     tokens.get(j).pos);
                         }
                         List<Token> caseValues=tokens.subList(i+1,j);
-                        context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,ioContext),
+                        context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,new ArrayDeque<>(),ioContext),
                                 tokens.get(j).pos);
                         ret.add(new ContextOpen(context,t.pos));
                         i=j;
@@ -2048,7 +2058,7 @@ public class Interpreter {
                         t=tokens.get(j);
                         if(((BlockToken)t).blockType==BlockTokenType.CASE){
                             List<Token> caseValues=tokens.subList(i+1,j);
-                            context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,ioContext),
+                            context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,new ArrayDeque<>(),ioContext),
                                     tokens.get(j).pos);
                             ret.add(new ContextOpen(context,t.pos));
                         }else if(((BlockToken)t).blockType==BlockTokenType.DEFAULT){
@@ -2085,7 +2095,7 @@ public class Interpreter {
                                     context=((BlockContext)context).parent;
                                     //when there is no else then the last branch has to jump onto the close operation
                                     ((BlockToken)tmp).delta=ret.size()-((IfBlock) open).forkPos;
-                                    if(((IfBlock) open).branches.size()>0){//close-else context
+                                    if(((IfBlock) open).elsePositions.size()>0){//close-else context
                                         ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
                                         context=((BlockContext)context).parent;
                                     }
@@ -2093,11 +2103,9 @@ public class Interpreter {
                                     ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
                                     context=((BlockContext)context).parent;
                                 }
-                                for(IfBranch branch:((IfBlock) open).branches){
-                                    tmp=ret.get(branch.fork);
-                                    ((BlockToken)tmp).delta=branch.end-branch.fork+1;
-                                    tmp=ret.get(branch.end);
-                                    ((BlockToken)tmp).delta=ret.size()-branch.end;
+                                for(Integer branch:((IfBlock) open).elsePositions){
+                                    tmp=ret.get(branch);
+                                    ((BlockToken)tmp).delta=ret.size()-branch;
                                 }
                                 ret.add(new BlockToken(BlockTokenType.END_IF,t.pos,-1));
                             }
@@ -2372,7 +2380,9 @@ public class Interpreter {
                 }
             }else if(t.tokenType == TokenType.LAMBDA){//parse lambda-procedures
                 Value.Procedure lambda = (Value.Procedure) ((ValueToken) t).value;
-                lambda.tokens=typeCheck(lambda.tokens(),lambda.context,globalConstants,ioContext);
+                ArrayDeque<TypeFrame> procTypes=new ArrayDeque<>();//TODO prepare types
+                lambda.tokens=typeCheck(lambda.tokens(),lambda.context,globalConstants,procTypes,ioContext);
+                //TODO check output
                 if(lambda.context.curried.isEmpty()){
                     ret.add(t);
                 }else{
