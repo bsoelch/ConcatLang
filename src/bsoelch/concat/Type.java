@@ -2,21 +2,64 @@ package bsoelch.concat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class Type {
-    public static final Type INT   = new Type("int",  true);
-    public static final Type UINT  = new Type("uint", true);
-    public static final Type CODEPOINT = new Type("codepoint", true);
-    public static final Type FLOAT = new Type("float",false);
+    public static final Type INT   = new Type("int",  true) {
+        @Override
+        public boolean canCastTo(Type t) {
+            return t==UINT||t==CODEPOINT||t==BYTE||t==FLOAT||super.canCastTo(t);
+        }
+    };
+    public static final Type UINT  = new Type("uint", true) {
+        @Override
+        public boolean canCastTo(Type t) {
+            return t==INT||t==CODEPOINT||t==BYTE||t==FLOAT||super.canCastTo(t);
+        }
+    };
+    public static final Type FLOAT = new Type("float",false) {
+        @Override
+        public boolean canCastTo(Type t) {
+            return t==INT||t==UINT||super.canCastTo(t);
+        }
+    };
+    public static final Type CODEPOINT = new Type("codepoint", true) {
+        @Override
+        public boolean canCastTo(Type t) {
+            return t==INT||t==UINT||t==BYTE||super.canCastTo(t);
+        }
+    };
+    public static final Type BYTE  = new Type("byte", true){
+        @Override
+        public boolean canCastTo(Type t) {
+            return t==INT||t==UINT||t==CODEPOINT||super.canCastTo(t);
+        }
+    };
     public static final Type TYPE  = new Type("type", false);
     public static final Type BOOL  = new Type("bool", false);
-    public static final Type BYTE  = new Type("byte", true);
 
     //addLater remove untyped ... types
-    public static final Type UNTYPED_LIST      = new Type("(list)", false);
-    public static final Type UNTYPED_OPTIONAL = new Type("(optional)", false);
+    public static final Type UNTYPED_LIST      = new Type("(list)", false) {
+        @Override
+        public boolean isList() {
+            return true;
+        }
+        @Override
+        public Type content() {
+            return ANY;
+        }
+    };
+    public static final Type UNTYPED_OPTIONAL = new Type("(optional)", false) {
+        @Override
+        public boolean isOptional() {
+            return true;
+        }
+        @Override
+        public Type content() {
+            return ANY;
+        }
+    };
     public static final Type UNTYPED_PROCEDURE = new Type("*->*", false);
 
     /**blank type that could contain any value*/
@@ -57,26 +100,42 @@ public class Type {
         }
     }
 
-    /**@return true if values of this type can be assigned to type t*/
+    /**@return true if values of this type is a subtype of type t*/
     public boolean isSubtype(Type t){
         return (t==this)||t==ANY;
+    }
+    public boolean canCastTo(Type t){
+        return isSubtype(t)||t.isSubtype(this);
     }
 
     @Override
     public String toString() {
         return name;
     }
+    Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
+        return this;
+    }
+
     public boolean isList() {
         return false;
     }
     public boolean isOptional() {
         return false;
     }
-    public Type content() {
+    public Type content() {//addLater make type-data getters return optional
         throw new UnsupportedOperationException();
     }
-    Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
-        return this;
+    public List<Type> inTypes(){
+        throw new UnsupportedOperationException();
+    }
+    public List<Type> outTypes(){
+        throw new UnsupportedOperationException();
+    }
+    public String typeName(){
+        throw new UnsupportedOperationException();
+    }
+    public List<String> fields(){
+        throw new UnsupportedOperationException();
     }
 
 
@@ -142,6 +201,16 @@ public class Type {
         }
 
         @Override
+        public boolean canCastTo(Type t) {
+            if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
+                return content().canCastTo(t.content());
+            }else{
+                return (wrapperName.equals(LIST)&&t==UNTYPED_LIST)||(wrapperName.equals(OPTIONAL)&&t== UNTYPED_OPTIONAL)||
+                        super.canCastTo(t);
+            }
+        }
+
+        @Override
         public Type content() {
             return contentType;
         }
@@ -179,6 +248,15 @@ public class Type {
         }
 
         @Override
+        public List<Type> outTypes() {
+            return Arrays.asList(elements);
+        }
+        @Override
+        public String typeName() {
+            return name;
+        }
+
+        @Override
         Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
             Type[] newElements=new Type[elements.length];
             boolean isGeneric=false;
@@ -204,12 +282,29 @@ public class Type {
                 return super.isSubtype(t);
             }
         }
+        @Override
+        public boolean canCastTo(Type t) {
+            if(t instanceof Tuple){
+                int n=Math.min(elements.length,((Tuple) t).elements.length);
+                for(int i=0;i<n;i++){
+                    if(!elements[i].canCastTo(((Tuple) t).elements[i])){
+                        return false;
+                    }
+                }
+                return true;
+            }else{
+                return super.canCastTo(t);
+            }
+        }
 
         public int elementCount(){
             return elements.length;
         }
-        public Type get(int i) {
-            return elements[i];
+        public Type get(long i) throws ConcatRuntimeError {
+            if(i<0||i>=elements.length){
+                throw new ConcatRuntimeError("tuple index out of bounds: "+i+" length:"+elements.length);
+            }
+            return elements[(int) i];
         }
 
         @Override
@@ -280,9 +375,8 @@ public class Type {
     public static class Procedure extends Type{
         final Type[] inTypes;
         final Type[] outTypes;
-        private final Value insValue,outsValue;
 
-        public static Type create(Type[] inTypes,Type[] outTypes){
+        public static Procedure create(Type[] inTypes,Type[] outTypes){
             StringBuilder name=new StringBuilder("( ");
             for(Type t:inTypes){
                 name.append(t.name).append(' ');
@@ -298,21 +392,15 @@ public class Type {
             super(name, false);
             this.inTypes=inTypes;
             this.outTypes=outTypes;
-            try {
-                insValue  = Value.createList(listOf(TYPE), Arrays.stream(inTypes).map(Value::ofType).
-                        collect(Collectors.toCollection(ArrayList::new)));
-                outsValue  = Value.createList(listOf(TYPE), Arrays.stream(outTypes).map(Value::ofType).
-                        collect(Collectors.toCollection(ArrayList::new)));
-            } catch (ConcatRuntimeError e) {
-                throw new RuntimeException(e);
-            }
         }
 
-        Value ins(){
-            return insValue;
+        @Override
+        public List<Type> inTypes() {
+            return Arrays.asList(inTypes);
         }
-        Value outs(){
-            return outsValue;
+        @Override
+        public List<Type> outTypes() {
+            return Arrays.asList(outTypes);
         }
 
         @Override
@@ -395,9 +483,24 @@ public class Type {
         }
 
         @Override
+        public boolean canCastTo(Type t) {
+            return t==UINT||t==INT||super.canCastTo(t);
+        }
+
+        @Override
         public String name() {
             return name;
         }
+
+        @Override
+        public String typeName() {
+            return name;
+        }
+        @Override
+        public List<String> fields() {
+            return Arrays.asList(entryNames);
+        }
+
         @Override
         public Interpreter.DeclareableType declarableType() {
             return Interpreter.DeclareableType.ENUM;
@@ -413,6 +516,10 @@ public class Type {
         NativeType(String name, Class<?> jClass) {
             super(name, false);
             this.jClass = jClass;
+        }
+        @Override
+        public String typeName() {
+            return name;
         }
     }
 

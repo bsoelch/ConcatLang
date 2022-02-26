@@ -30,22 +30,22 @@ end
  1 +
 end drop
 
-lambda 0 != end *->* intToBool =$
+lambda int => bool : 0 != end *->* intToBool =$
 
 3 intToBool () println
 0 intToBool () println
 
-2 3 lambda + 2.0 / end () println
+2 3 lambda int int => int : + 2.0 / end () println
 
-lambda
+lambda => ( => ( => ( => ( => ) ) ) ) :
   "currying" string a =$
-  lambda
+  lambda => ( => ( => ( => ) ) ) :
     " is"    string b =$
-    lambda
+    lambda => ( => ( => ) ) :
       " now" string c =$
-      lambda
+      lambda => ( => ) :
         " supported!" string d =$
-        lambda
+        lambda => :
           a b :+ c :+ d :+ println
         end
       end

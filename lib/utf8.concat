@@ -26,6 +26,7 @@ string<<codepoint proc string codepoint => string :
   else
     ## don't exit on invalid codepoints, only display waring message
     "Codepoint out of range: 0x" cp int cast <<X '\n' :<< eputs
+    str return
   end
 end
 

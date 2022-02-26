@@ -437,9 +437,7 @@ public abstract class Value {
 
         @Override
         public int length() throws TypeError {
-            if(typeValue instanceof Type.Tuple){
-                return ((Type.Tuple) typeValue).elementCount();
-            }else if(typeValue instanceof Type.Enum){
+            if(typeValue instanceof Type.Enum){
                 return ((Type.Enum) typeValue).elementCount();
             }else{
                 return super.length();
@@ -448,23 +446,12 @@ public abstract class Value {
 
         @Override
         public Value get(long index) throws ConcatRuntimeError {
-            if(typeValue instanceof Type.Tuple){
-                if(index<0||index>=((Type.Tuple) typeValue).elementCount()){
-                    throw new ConcatRuntimeError("index out of bounds:"+index+" size:"
-                            +((Type.Tuple) typeValue).elementCount());
-                }
-                return ofType(((Type.Tuple) typeValue).get((int)index));
-            }else if(typeValue instanceof Type.Enum){
+            if(typeValue instanceof Type.Enum){
                 if(index<0||index>=((Type.Enum) typeValue).elementCount()){
                     throw new ConcatRuntimeError("index out of bounds:"+index+" size:"
                             +((Type.Enum) typeValue).elementCount());
                 }
                 return ofString(((Type.Enum) typeValue).get((int)index),false);
-            }else if(typeValue instanceof Type.Procedure){
-                if(index<0||index>=2){
-                    throw new ConcatRuntimeError("index out of bounds:"+index+" size: 2");
-                }
-                return index==0?((Type.Procedure) typeValue).ins():((Type.Procedure) typeValue).outs();
             }else{
                 return super.get(index);
             }
@@ -515,7 +502,9 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.INT){
+            if(type==Type.BYTE){
+                return ofByte((byte)codePoint);
+            }else if(type==Type.INT){
                 return ofInt(codePoint,false);
             }else if(type==Type.UINT){
                 return ofInt(codePoint,true);
@@ -579,6 +568,8 @@ public abstract class Value {
                 return ofInt(byteValue&0xff,false);
             }else if(type==Type.UINT){
                 return ofInt(byteValue&0xff,true);
+            }else if(type==Type.CODEPOINT){
+                return ofChar(byteValue);
             }else{
                 return super.castTo(type);
             }
@@ -1712,6 +1703,22 @@ public abstract class Value {
         Object rawData() throws TypeError {
             Value.jClass(type.content());//check type
             return wrapped==null?Optional.empty():Optional.of(wrapped.rawData());
+        }
+
+        @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if(this.type.isSubtype(type)){
+                return this;
+            }else if(type.isOptional()){
+                if(wrapped==null){
+                    if(this.type.canCastTo(type)){
+                        return new OptionalValue(type.content());
+                    }
+                }else{
+                    return new OptionalValue(wrapped.castTo(type.content()));
+                }
+            }
+            return super.castTo(type);
         }
 
         @Override

@@ -65,7 +65,7 @@ end
   end
   signed && value int cast 0 < end if
       '-' :<<
-      value -_ value =
+      value int cast -_ value =
   end
   1u uint p =:
   while value p / base >= do p base * p = end
@@ -75,7 +75,7 @@ end
       p base / p =
   end
 end
-intToString proc #+buffer+#string #+value+# int #+base+# int #+signed+# bool #+big+# bool => string :
+intToString proc #+value+# int #+base+# int #+signed+# bool #+big+# bool => string :
   bool big =:
   bool signed =:
   int base =:
@@ -338,10 +338,11 @@ parseUInt proc string => int :
   source 10 false stringToInt
   "uint" source checkErrCode
 end
-parseHex  proc string => uint :
+parseHex proc string => uint :
   string source =:
   source 16 true stringToInt
   "uint" source checkErrCode
+  uint cast return
 end
 
 _isExpChar proc #+char+# byte #+base+# int => bool :

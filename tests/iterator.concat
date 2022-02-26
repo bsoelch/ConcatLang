@@ -8,21 +8,21 @@ core #import
 reverse proc string => string :
   string toReverse =:
   ## store type and length of the list
-  toReverse length string new (list) res =:
+  toReverse length string new string res =:
   ## Iterate though the elements in reverse order
   toReverse ..^ while <^ ?? do
-    unwrap res swap :<< res =
+    unwrap byte cast res swap :<< res =
   end drop drop
   res return
 end
 
 "Hello World" reverse println
 
-sum proc var list => var :
-  0 var tmp =: ## Initialize sum to 0
+sum proc float list => float :
+  0 float tmp =: ## Initialize sum to 0
   ## Iterate though all elements of the list
   ^.. while ^> ?? do unwrap
-    tmp swap + tmp =
+    float cast tmp swap + tmp =
   end drop drop
   tmp ## load the total sum onto the stack
 end

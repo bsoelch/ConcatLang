@@ -13,59 +13,59 @@ _EMPTY_TUPLE tuple end
 <<s proc string var => string :
   var value =:
   value typeof string == if
-    value :+ return
+    value string cast :+ return
   else value typeof ustring == _if
     value string:+ustring return
   else value typeof _EMPTY_TUPLE <= _if
     '(' :<< string res =:
     0 int i =:
-    while i value length < do
+    while i value _EMPTY_TUPLE cast length < do
       i 0 > if
         res ", " :+ res =
       end
-      res value i [] <<s res =
+      res value _EMPTY_TUPLE cast i [] <<s res =
       i 1 + i =
     end
     res ')' :<< return
-  else value typeof (list) <= _if
+  else value typeof (list) <= _if ##TODO use generic function for printing list (once available)
     '[' :<< string res =:
     0 int i =:
-    while i value length < do
+    while i value (list) cast length < do
       i 0 > if
         res ", " :+ res =
       end
-      res value i [] <<s res =
+      res value (list) cast i [] <<s res =
       i 1 + i =
     end
     res ']' :<< return
   else value typeof (optional) <= _if
-    value ?? if
+    value (optional) cast ?? if
       unwrap <<s " wrap" :+ return
     else
       typeof content <<s " empty" :+ return
     end
   else value typeof isEnum _if
-    value typeof string cast :+ ' ' :<< value typeof value [] :+ " ." :+ return
+    value typeof type.name :+ ' ' :<< value typeof type.fields value uint cast [] :+ " ." :+ return
   else value typeof type == _if
     value string == if
       "string" :+ return
     else value ustring == _if
       "ustring" :+ return
-    else value _EMPTY_TUPLE <= _if
-      value string cast :+ return ## return tuple-name
-    else value *->* <= _if
+    else value type cast _EMPTY_TUPLE <= _if
+      value type cast type.name :+ return ## return tuple-name
+    else value type cast *->* <= _if
       value *->* == if
         "*->*" :+ return
       else
         "( " :+ string res =:
-        value 0 [] type list args =:
+        value type cast inTypes type list args =:
         0 int i =:
         while i args length < do
           res args i [] <<s " " :+ res =
           i 1 + i =
         end
         res "=> " :+ res =
-        value 1 [] args =
+        value type cast outTypes args =
         0 i =
         while i args length < do
           res args i [] <<s " " :+ res =
@@ -73,20 +73,20 @@ _EMPTY_TUPLE tuple end
         end
         res ")" :+ return
       end
-    else value (list) <= _if
+    else value type cast (list) <= _if
       value (list) == if
         "(list)" :+ return
       else
-        value content <<s " list" :+ return
+        value type cast content <<s " list" :+ return
       end
-    else value (optional) <= _if
+    else value type cast (optional) <= _if
       value (optional) == if
         "(optional)" :+ return
       else
-        value content <<s " optional" :+ return
+        value type cast content <<s " optional" :+ return
       end
-    else value isEnum _if
-      value string cast :+ return ## return enum-name
+    else value type cast isEnum _if
+      value type cast type.name :+ return ## return enum-name
     else value type == _if
       "type"  :+ return
     else value bool == _if
@@ -108,9 +108,9 @@ _EMPTY_TUPLE tuple end
       1 exit
     end
   else value typeof bool == _if
-    value if "true" else "false" end :+ return
+    value bool cast if "true" else "false" end :+ return
   else value typeof byte == _if
-    value 0x80 byte cast < if
+    value byte cast 0x80 byte cast < if
       value byte cast :<< return ## print valid ascii-characters as character
     else
       value byteToString :+ return ## print all other bytes as their byte-code
@@ -216,93 +216,93 @@ __IO_printValue proc __IO_FormatValue var list => string :
   'i' case
     ""
     plusSgn '\0' != if
-      values format __IO.index [] 0 >= if
+      values format __IO.index [] int cast 0 >= if
         plusSgn :<<
       end
     end
-    values format __IO.index [] base <<?i
+    values format __IO.index [] int cast base <<?i
     end-case
   'I' case
     ""
     plusSgn '\0' != if
-      values format __IO.index [] 0 >= if
+      values format __IO.index [] int cast  0 >= if
         plusSgn :<<
       end
     end
-    values format __IO.index [] base <<?I
+    values format __IO.index [] int cast  base <<?I
     end-case
   'u' case
     ""
     plusSgn '\0' != if
       plusSgn :<<
     end
-    values format __IO.index [] base <<?u
+    values format __IO.index [] uint cast base <<?u
     end-case
   'U' case
     ""
     plusSgn '\0' != if
       plusSgn :<<
     end
-    values format __IO.index [] base <<?U
+    values format __IO.index [] uint cast base <<?U
     end-case
   'd' case
     ""
     plusSgn '\0' != if
-      values format __IO.index [] 0 >= if
+      values format __IO.index [] int cast 0 >= if
         plusSgn :<<
       end
     end
-    values format __IO.index [] <<i
+    values format __IO.index [] int cast <<i
     end-case
   'x' case
     ""
     plusSgn '\0' != if
       plusSgn :<<
     end
-    values format __IO.index [] <<x
+    values format __IO.index [] uint cast <<x
    end-case
   'X' case
     ""
     plusSgn '\0' != if
       plusSgn :<<
     end
-    values format __IO.index []  <<X
+    values format __IO.index [] uint cast <<X
     end-case
   'e' case
     ""
     plusSgn '\0' != if
-      values format __IO.index [] 0 >= if
+      values format __IO.index [] float cast 0 >= if
         plusSgn :<<
       end
     end
-    values format __IO.index [] precision base <<??e
+    values format __IO.index [] float cast precision base <<??e
     end-case
   'E' case
     ""
     plusSgn '\0' != if
-      values format __IO.index [] 0 >= if
+      values format __IO.index [] float cast 0 >= if
         plusSgn :<<
       end
     end
-    values format __IO.index [] precision base <<??E
+    values format __IO.index [] float cast precision base <<??E
     end-case
   'f' case
     ""
     plusSgn '\0' != if
-      values format __IO.index [] 0 >= if
+      values format __IO.index [] float cast 0 >= if
         plusSgn :<<
       end
     end
-    values format __IO.index [] precision base <<??f
+    values format __IO.index [] float cast precision base <<??f
     end-case
   'F' case
     ""
     plusSgn '\0' != if
-      values format __IO.index [] 0 >= if
+      values format __IO.index [] float cast 0 >= if
         plusSgn :<<
       end
     end
-    values format __IO.index [] precision base <<??F
+    values format __IO.index [] float cast precision base <<??F
     end-case
   'c' case
     { values format __IO.index [] byte cast }

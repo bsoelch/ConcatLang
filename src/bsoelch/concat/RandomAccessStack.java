@@ -1,11 +1,11 @@
 package bsoelch.concat;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**Stack that supports random access of elements*/
-public class RandomAccessStack<T> {
+public class RandomAccessStack<T> implements Cloneable{
     private Object[] data;
     private int size;
 
@@ -77,6 +77,49 @@ public class RandomAccessStack<T> {
     public List<T> asList() {
         //noinspection unchecked
         return (List<T>) Arrays.asList(Arrays.copyOf(data,size));
+    }
+
+    public T get(int i){
+        if(i<1||i>size){
+            throw new IndexOutOfBoundsException("stack-index has to be between 1 and "+size+" got:"+i);
+        }
+        //noinspection unchecked
+        return (T) data[size-i];
+    }
+    public void set(int i,T val){
+        if(i<1||i>size){
+            throw new IndexOutOfBoundsException("stack-index has to be between 1 and "+size+" got:"+i);
+        }
+        data[size-i]=val;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RandomAccessStack<?> that = (RandomAccessStack<?>) o;
+        return size == that.size && Arrays.equals(Arrays.copyOf(data,size), Arrays.copyOf(that.data,that.size));
+    }
+
+    @Override
+    public int hashCode() {
+        int result = size;
+        for(int i=0;i<size;i++){
+            result = 31 * result + Objects.hashCode(data[i]);
+        }
+        return result;
+    }
+
+    @Override
+    public RandomAccessStack<T> clone(){
+        try {
+            @SuppressWarnings("unchecked")
+            RandomAccessStack<T> stack = (RandomAccessStack<T>) super.clone();
+            stack.data=data.clone();
+            return stack;
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static class StackUnderflow extends Exception {

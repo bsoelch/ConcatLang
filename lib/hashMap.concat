@@ -8,14 +8,22 @@ core #import
 
 _Empty_Tuple tuple end
 
-hashCode proc var => int :
+hashCode proc var => uint :
   var value =:
   value typeof type valType =:
-  valType (list) <= || valType _Empty_Tuple <= end if ## addLater? use list-hash for tuple/enum-types
+  valType (list) <= if
     0 int hash =:
     0 int i =:
-    while i value length < do
-      hash 31 * value i [] hashCode + hash =
+    while i value (list) cast length < do
+      hash 31 * value (list) cast i [] hashCode + hash =
+      i 1 + i =
+    end
+    hash
+  else valType _Empty_Tuple <= _if ## addLater? use list-hash for tuple/enum-types
+    0 int hash =:
+    0 int i =:
+    while i value _Empty_Tuple cast length < do
+      hash 31 * value _Empty_Tuple cast i [] hashCode + hash =
       i 1 + i =
     end
     hash
@@ -55,8 +63,8 @@ HashMap.put proc #+map+# HashMap #+key+# var #+value+# var => #+prevVal+# var op
   var key =:
   HashMap map =:
   ## cast elements to correct types
-  value map _Map.valType cast value =
-  key   map _Map.keyType cast key =
+  ## value map _Map.valType cast value =
+  ## key   map _Map.keyType cast key =
   key hashCode uint hash =:
   hash map _Map.data length % uint i =:
   map _Map.data i [] ?? if
@@ -78,12 +86,12 @@ HashMap.put proc #+map+# HashMap #+key+# var #+value+# var => #+prevVal+# var op
     else
       entry key value _Entry empty _Entry new wrap _Entry.next=
       map _Map.incSize
-      map _Map.valType empty return
+      #+map _Map.valType+#var empty return
     end
   else drop
     map _Map.data  key value _Entry empty _Entry new wrap i [] =
     map _Map.incSize
-    map _Map.valType empty return
+    #+map _Map.valType+#var empty return
   end
 end
 
@@ -116,7 +124,7 @@ HashMap.get proc #+map+# HashMap #+key+# var => #+value+# var optional :
     end
     unwrapped _Entry.next entry =
   end drop
-  map _Map.valType empty return
+  #+map _Map.valType+#var empty return
 end
 
 HashMap.remove proc #+map+# HashMap #+key+# var => #+prevVal+# var optional :
@@ -129,7 +137,7 @@ HashMap.remove proc #+map+# HashMap #+key+# var => #+prevVal+# var optional :
     entry MapEntry.key key == if
       map _Map.decSize
       entry MapEntry.value ## get previous value
-      map _Map.data   entry _Entry.next  i [] = ## remove entry
+      map _Map.data   entry _Entry.next _Entry optional cast i [] = ## remove entry
       wrap return
     else
       while entry _Entry.next ?? do
@@ -140,12 +148,12 @@ HashMap.remove proc #+map+# HashMap #+key+# var => #+prevVal+# var optional :
           entry   next _Entry.next  _Entry.next= ## remove entry
           wrap return
         end
-        entry _Entry.next entry =
+        entry _Entry.next unwrap entry =
       end drop
-      map _Map.valType empty return
+      #+map _Map.valType+#var empty return
     end
   else drop
-    map _Map.valType empty return
+    #+map _Map.valType+#var empty return
   end
 end
 

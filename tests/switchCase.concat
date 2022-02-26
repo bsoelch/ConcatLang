@@ -38,7 +38,6 @@ testDefault proc int => string :
   default
     "default case" return
   end
-  "fallthrough" return
 end
 
 -1 test println
@@ -75,9 +74,11 @@ end
 "switch" case
   switch
   "switch" case
+     drop
      "NOT OK" println
     end-case
   "ERROR" case
+     drop
      "NOT OK" println
     end-case
   "in" case
@@ -95,12 +96,19 @@ end
        "NOT OK" println
     end
     end-case
+  default drop
+    "NOT OK" println
   end
   end-case
 "in" case
+   drop drop
    "NOT OK" println
   end-case
 "ERROR" case
+   drop drop
    "NOT OK" println
   end-case
+default
+   drop drop
+   "NOT OK" println
 end

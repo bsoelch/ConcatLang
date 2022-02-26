@@ -17,9 +17,9 @@ newBufferedInput proc FILE #+ cap +# int => BufferedInput :
 end
 
 BufferedInput.readTo proc BufferedInput #+buffer+# byte list #+amount+# int => #+n-read+#int :
-  BufferedInput in =:
-  byte list buffer =:
   int count =:
+  byte list buffer =:
+  BufferedInput in =:
   in BufferedInput.buffer byte list inBuf =:
   0 int nRead =:
   inBuf length 0 > if ##read from buffer

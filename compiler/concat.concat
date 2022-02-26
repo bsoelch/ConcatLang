@@ -183,10 +183,10 @@ newWhileBlock proc #+startPos+# FilePosition #+start+# int => WhileBlock :
   BlockType WHILE_BLOCK . startPos start -1 WhileBlock new return
 end
 
-IfBlock tuple  #+type+# BlockType #+startPos+# FilePosition #+start+# int #+prev_if+# int #+else_positions+# int list end
+IfBlock tuple  #+type+# BlockType #+startPos+# FilePosition #+start+# int #+prev_if+# int #+else_positions+# uint list end
 IfBlock.prevIf         proc IfBlock => int      : 3 []   end
 IfBlock.prevIf=        proc IfBlock int =>      : 3 [] = end
-IfBlock.else_positions proc IfBlock => int list : 4 []   end
+IfBlock.else_positions proc IfBlock => uint list : 4 []   end
 newIfBlock proc #+startPos+# FilePosition #+start+# int => IfBlock :
   int start =:
   FilePosition startPos =:
@@ -205,7 +205,7 @@ newEnumBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => Enu
 end
 TupleBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int #+name+# string end
 TupleBlock.name proc TupleBlock => string : 3 [] end
-newTupleBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => EnumBlock :
+newTupleBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => TupleBlock :
   int start =:
   FilePosition startPos =:
   string name =:
@@ -273,7 +273,7 @@ Macro.words proc Macro => NameWithPos list : 3 []   end
 newMacro proc FilePosition string => Macro :
   string name =:
   FilePosition mPos =:
-  DeclareableType MACRO . mPos name 16 byte list new Macro new return
+  DeclareableType MACRO . mPos name 16 NameWithPos list new Macro new return
 end
 
 VariableId tuple #+type+# DeclareableType #+pos+# FilePosition #+global+# bool #+level+# int #+varId+# int end
@@ -336,10 +336,10 @@ Declareable.strAppend proc string Declareable => string :
     d VariableId.strAppend
     end-case
   DeclareableType PREDECLARED_PROCEDURE . case
-    "unimplemented\n" 1 exit
+    "unimplemented\n" eputs 1 exit
     end-case
   DeclareableType PROCEDURE . case
-    "unimplemented\n" 1 exit
+    "unimplemented\n" eputs 1 exit
     end-case
   end
   " at " :+ d Declareable.pos FilePosition.strAppend return
@@ -357,10 +357,10 @@ OpenModule.strAppend proc string OpenModule => string :
   OpenModule m =:
   string str =:
   0 int i =:
-  while i m OpenModule.path length < do
-     str m OpenModule.path i [] :+ "'" :+
+  str while i m OpenModule.path length < do
+     m OpenModule.path i [] :+ "'" :+
   end
-  str " declared at " :+ m OpenModule.declaredAt FilePosition.strAppend return
+  " declared at " :+ m OpenModule.declaredAt FilePosition.strAppend return
 end
 
 OpenFile tuple #+global imports +# string list #+global predeclared+# HashMap
@@ -421,7 +421,7 @@ Context.procContext proc Context => ProcContext optional :
     ProcContext empty return
     end-case
   ContextType PROC_CONTEXT . case
-    context return
+    context ProcContext cast wrap return
     end-case
   ContextType BLOCK_CONTEXT . case
     context BlockContext.parent Context.procContext return
@@ -449,9 +449,9 @@ Context.ensureDeclareable proc #+context+# Context #+name+#string #+type+# Decla
   context Context.elements localName HashMap.get ?? if
     unwrap Declareable prev =:
     ## procedures can overwrite predeclared procedures
-    prev Declareable.type DeclareableType PREDECLARED_PROCEDURE . != || dType Declareable.type DeclareableType PROCEDURE . != end if
-      "cannot declare " false dType DeclareableType.strAppend :+ ' ' :<< name :+
-      ", the identifier is already used by " :+ true prev Declareable.type DeclareableType.strAppend :+
+    prev Declareable.type DeclareableType PREDECLARED_PROCEDURE . != || prev Declareable.type DeclareableType PROCEDURE . != end if
+      "cannot declare " false dType DeclareableType.strAppend ' ' :<< name :+
+      ", the identifier is already used by " :+ true prev Declareable.type DeclareableType.strAppend
       " (declared at " prev Declareable.pos FilePosition.strAppend ") at " :+ fPos FilePosition.strAppend '\n' :<< eputs
       1 exit
     end
@@ -486,15 +486,15 @@ Context.getDeclareable proc #+context+# Context #+name+# string => Declareable o
       paths length 1 - int i =:
       while i 0 >= do ##go through all namespaces
         context Context.elements paths i [] clone name :+ HashMap.get ?? if
-          return
+          #+element+# Declareable optional cast return
         else drop end
         i 1 - i =
       end
-      context Context.elements name HashMap.get return
+      context Context.elements name HashMap.get Declareable optional cast return
       end-case
     ContextType PROC_CONTEXT . ContextType BLOCK_CONTEXT . case
       context Context.elements name HashMap.get ?? if
-        #+element+# return
+        #+element+# Declareable optional cast return
       else drop
         context BlockContext.parent name Context.getDeclareable return
       end
@@ -601,7 +601,7 @@ RootContext.endModule proc RootContext FilePosition => :
     "Syntax Error: missing variables/procedures" string message =:
     removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
        unwrap MapEntry e =:
-       message "\n- " :+ e MapEntry.key :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<<
+       message "\n- " :+ e MapEntry.key string cast :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<< drop
     end drop drop
     message fPos FilePosition.strAppend '\n' :<< eputs
     1 exit
@@ -621,7 +621,7 @@ RootContext.endFile proc RootContext FilePosition => :
         "Syntax Error: missing variables/procedures" string message =:
         removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
            unwrap MapEntry e =:
-           message "\n- " :+ e MapEntry.key :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<<
+           message "\n- " :+ e MapEntry.key string cast :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<< drop
         end drop drop
         message fPos FilePosition.strAppend '\n' :<< eputs
         1 exit
@@ -635,7 +635,7 @@ RootContext.endFile proc RootContext FilePosition => :
     "Syntax Error: missing variables/procedures" string message =:
     closed OpenFile.globalPredeclared HashMap.itr while HashMapItr.next ?? do
        unwrap MapEntry e =:
-       message "\n- " :+ e MapEntry.key :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<<
+       message "\n- " :+ e MapEntry.key string cast :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<< drop
     end drop drop
     message fPos FilePosition.strAppend '\n' :<< eputs
     1 exit
@@ -797,7 +797,7 @@ VariableToken.id         proc VariableToken => VariableId : 3 [] end
 Token.strAppend proc string Token => string :
   Token token =:
 
-  TokenType token Token.type [] +: ": " +:
+  TokenType type.fields token Token.type [] +: ": " +:
   token Token.type switch
   TokenType WORD . TokenType KEY_WORD . TokenType PROCEDURE_START . TokenType ENUM_START . case
     token WordToken.value :+
@@ -806,16 +806,16 @@ Token.strAppend proc string Token => string :
     token ValueToken.value Value.strAppend
     end-case
   TokenType BLOCK_TOKEN . case
-    BlockTokenType token BlockToken.type [] :+ '(' :<< token BlockToken.target stringValue :+ ')' :<<
+    BlockTokenType type.fields token BlockToken.type [] :+ '(' :<< token BlockToken.target stringValue :+ ')' :<<
     end-case
   TokenType IDENTIFIER . case
-    IdentifierType token IdentifierToken.idType [] :+ ": " :+ token IdentifierToken.value :+
+    IdentifierType type.fields token IdentifierToken.idType [] :+ ": " :+ token IdentifierToken.value :+
     end-case
   TokenType OPERATOR . case
-    OperatorType token OperatorToken.opType [] :+
+    OperatorType type.fields token OperatorToken.opType [] :+
     end-case
   TokenType VARIABLE . case
-    AccessType token VariableToken.accessType [] :+ " " :+
+    AccessType type.fields token VariableToken.accessType [] :+ " " :+
     token VariableToken.id VariableId.strAppend " " :+
     end-case
   TokenType CONTEXT_CLOSE . case end-case
@@ -975,7 +975,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
       tokens tokens length 1 - [] Token prev =:
       prev Token.type TokenType WORD . != if
         "invalid token preceding #undef: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend
-        " expected macro-name \n" :<< eputs
+        " expected macro-name \n" :+ eputs
         1 exit
       end
       tokens tokens length 1 - tokens length [:] clear
@@ -1083,7 +1083,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               d Declareable.type DeclareableType VARIABLE_ID . != if
                 "" false d Declareable.type DeclareableType.strAppend " " :+ prev IdentifierToken.value :+
                 " (declared at " :+ d Declareable.pos FilePosition.strAppend ") is not a variable" :+
-                pos FilePosition.strAppend '\n' :<< eputs
+                fPos FilePosition.strAppend '\n' :<< eputs
                 1 exit
               end
               ##TODO check for curried variables
@@ -1092,13 +1092,13 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               TokenType VARIABLE . prev Token.pos AccessType WRITE_VAR . d VariableToken new
               tokens length 1 - [] =
             else drop
-              "variable " prev IdentifierToken.value :+ " does not exist " :+ pos FilePosition.strAppend '\n' :<< eputs
+              "variable " prev IdentifierToken.value :+ " does not exist " :+ fPos FilePosition.strAppend '\n' :<< eputs
               1 exit
             end
             end-case
           IdentifierType ADDRESS_OF . case
             ##TODO address of
-            "unimplemented\n"
+            "unimplemented\n" eputs
             1 exit
             end-case
           end
@@ -1178,7 +1178,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         end
       end
       off word length < && word off [] base valueOfDigit 0 >= end if ##number starts with digit after prefixes
-        word word length 1 - [] dup 'u' == || 'U' == end if ##unsigned
+        word word length 1 - [] 'u' == || word word length 1 - [] 'U' == end if ##unsigned
           word off word length 1 - [:] base false stringToInt switch
           StringParseError ERR_NONE . case
             sgn if -_ end uint val =:
@@ -1479,7 +1479,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           0 int i =:
           while i values length < do
             values i [] Token.type TokenType VALUE . != if
-              "tokens of type:" TokenType values i [] Token.type [] :+ " are not allowed in tuple signatures " :+
+              "tokens of type:" TokenType type.fields values i [] Token.type [] :+ " are not allowed in tuple signatures " :+
               values i [] Token.pos FilePosition.strAppend '\n' :<< eputs
               1 exit
             else values i [] ValueToken.value Value.type Type.TYPE != _if
@@ -1487,7 +1487,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               values i [] Token.pos FilePosition.strAppend '\n' :<< eputs
               1 exit
             end
-             types values i [] ValueToken.value Value.data :<< types =
+             types values i [] ValueToken.value Value.data Type cast :<< types =
              i 1 + i =
           end
           values clear
@@ -1871,7 +1871,7 @@ constEvaluate proc Token list => Token list :
           OperatorType NE .
           OperatorType GE .
           OperatorType GT . case
-            "operators of type:" OperatorType tokens i [] OperatorToken.opType [] :+
+            "operators of type:" OperatorType type.fields tokens i [] OperatorToken.opType [] :+
             " are currently not supported in constant evaluation " :+
             tokens i [] Token.pos FilePosition.strAppend '\n' :<< eputs
             1 exit
@@ -1887,7 +1887,8 @@ constEvaluate proc Token list => Token list :
       TokenType BLOCK_TOKEN .
       TokenType CONTEXT_OPEN .
       TokenType CONTEXT_CLOSE . case
-        "tokens of type:" TokenType tokens i [] Token.type [] :+ " are currently not supported in constant evaluation " :+
+        "tokens of type:" TokenType type.fields tokens i [] Token.type [] :+
+        " are currently not supported in constant evaluation " :+
         tokens i [] Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end-case

@@ -18,11 +18,11 @@ reverse proc (list) => :
   end
 end
 
-__LISTS_mergesort_helper proc (list) #+off+# int  #+to+# int #+buffer+# (list) => :
-  (list) buffer =:
+__LISTS_mergesort_helper proc int list #+off+# int  #+to+# int #+buffer+# int list => :
+  int list buffer =:
   int to =:
   int off =:
-  (list) input =:
+  int list input =:
   off to < if
     off to + 2 / int c =:
     input off c buffer __LISTS_mergesort_helper
@@ -59,10 +59,10 @@ __LISTS_mergesort_helper proc (list) #+off+# int  #+to+# int #+buffer+# (list) =
   end
 end
 
-mergesort proc (list) => :
-  (list) input =:
+mergesort proc int list => : #+ TODO make generic once generics implemented +#
+  int list input =:
   #+list:+#input  #+off:+#0  #+to:+#input length 1 -  #+buffer:+#input length 2 /
-  var list #+ TODO replace when generics are implemented +#
+  int list
   new __LISTS_mergesort_helper
 end
 ## addLater sort with comparator (needs generic signatures)

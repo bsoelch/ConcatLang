@@ -92,7 +92,7 @@ while false do
   1 exit
 end
 "do-while\n"
-while puts false do end
+while dup puts false do end drop
 
 "__________________________\n" puts
 "scopes:\n" puts
