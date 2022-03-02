@@ -29,8 +29,7 @@ public class Test {
                     includeAll.newLine();
                     context=new Interpreter.IOContext(System.in,out,err);
                     Interpreter.compileAndRun(path,new String[]{System.getProperty("user.dir")},context);
-                }else if(!file.getName().equals("native.jar")){
-                    //addLater ignore native code extensions
+                }else if(!file.getName().equals("native.jar")){//ignore native code extensions
                     System.err.println("non-concat lib file:"+path);
                 }
             }

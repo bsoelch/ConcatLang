@@ -1274,7 +1274,7 @@ public class Interpreter {
                     }
                     break;
                 case COMMENT:
-                    if(c=='+'){//addLater? comments starting with #++ can only be closed with ++#
+                    if(c=='+'){//addLater? detect comments in comments
                         c = reader.forceNextChar();
                         if(c=='#'){
                             state=WordState.ROOT;
@@ -2662,7 +2662,7 @@ public class Interpreter {
                 TypeFrame f2 = typeStack.pop();
                 TypeFrame f1 = typeStack.pop();
                 Type a=f1.type,b=f2.type;
-                if(!(a.canCastTo(b)||b.canCastTo(a))){//TODO use isSubtype when checking for ref-eq
+                if(!(a.canCastTo(b)||b.canCastTo(a))){
                     ioContext.stdErr.println("Warning: equality check for incompatible types:"+a+" and "+b+" (at "+op.pos+")");
                 }
                 typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
@@ -2864,9 +2864,9 @@ public class Interpreter {
             }
             case LENGTH -> {
                 TypeFrame f = typeStack.pop();
-                if(!(f.type.isList()||f.type instanceof Type.Tuple||f.type==Type.TYPE)){
+                if(!(f.type.isList()||f.type instanceof Type.Tuple)){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }//TODO check if type is index-able
+                }
                 typeStack.push(new TypeFrame(Type.UINT,null,t.pos));
 
                 ret.add(t);
@@ -2915,9 +2915,6 @@ public class Interpreter {
                         //addLater use common supertype of all elements instead of ANY
                         typeStack.push(new TypeFrame(Type.ANY, null, t.pos));
                     }
-                }else if(container.type == Type.TYPE&&(container.value.asType() instanceof Type.Enum)){
-                    //addLater detect explicit element access
-                    typeStack.push(new TypeFrame(container.value.asType(), null, t.pos));
                 }else{
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+container.type+" "+index.type,op.pos);
                 }
