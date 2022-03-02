@@ -1565,10 +1565,10 @@ public abstract class Value {
         }
     }
 
-    public static Procedure createProcedure(Type procType, ArrayList<Interpreter.Token> tokens, Type.GenericParameter[] generics, FilePosition declaredAt,
+    public static Procedure createProcedure(Type procType, ArrayList<Interpreter.Token> tokens,FilePosition declaredAt,
                                             Interpreter.ProcedureContext variableContext) {
         if(procType instanceof Type.Procedure||procType==Type.UNTYPED_PROCEDURE){
-            return new Procedure(procType, tokens, generics, declaredAt, variableContext);
+            return new Procedure(procType, tokens,  declaredAt, variableContext);
         }else{
             throw new IllegalArgumentException(procType+" is no valid procedure Type");
         }
@@ -1578,11 +1578,10 @@ public abstract class Value {
 
         final Interpreter.ProcedureContext context;
         ArrayList<Interpreter.Token> tokens;
-        final Type.GenericParameter[] generics;
-        private Procedure(Type procType, ArrayList<Interpreter.Token> tokens, Type.GenericParameter[] generics, FilePosition declaredAt,
+
+        private Procedure(Type procType, ArrayList<Interpreter.Token> tokens,  FilePosition declaredAt,
                           Interpreter.ProcedureContext context) {
             super(procType);
-            this.generics = generics;
             this.declaredAt = declaredAt;
             this.tokens=tokens;
             this.context=context;
@@ -1597,7 +1596,7 @@ public abstract class Value {
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(this.type==Type.UNTYPED_PROCEDURE &&(type instanceof Type.Procedure)){
                 //addLater type-check body
-                return new Procedure(type, tokens, generics, declaredAt, context);
+                return new Procedure(type, tokens, declaredAt, context);
             }
             return super.castTo(type);
         }

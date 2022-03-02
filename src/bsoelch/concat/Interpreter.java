@@ -59,7 +59,7 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NEW_GENERIC, NATIVE_DECLARE
+        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NATIVE_DECLARE
     }
     static class IdentifierToken extends Token {
         final IdentifierType type;
@@ -550,23 +550,32 @@ public class Interpreter {
     }
     private static class ListBlock extends CodeBlock{
         RandomAccessStack<TypeFrame> prevTypes;
+        final VariableContext context;
         ListBlock(int start, BlockType type, FilePosition startPos, VariableContext parentContext) {
             super(start, type, startPos, parentContext);
+            if(type==BlockType.ANONYMOUS_TUPLE){
+                this.context=new GenericContext(parentContext);
+            }else{
+                this.context=parentContext;
+            }
         }
         @Override
         VariableContext context() {
-            return parentContext;
+            return context;
         }
     }
     private static class ProcTypeBlock extends CodeBlock{
         final int separatorPos;
+        final GenericContext context;
         ProcTypeBlock(ListBlock start,int separatorPos) {
             super(start.start,BlockType.PROC_TYPE,start.startPos, start.parentContext);
             this.separatorPos=separatorPos;
+            assert start.type==BlockType.ANONYMOUS_TUPLE;
+            context=(GenericContext)start.context;
         }
         @Override
         VariableContext context() {
-            return parentContext;
+            return context;
         }
     }
 
@@ -1144,7 +1153,7 @@ public class Interpreter {
         final HashSet<String> files=new HashSet<>();
         public HashMap<VariableId, Value> globalVariables=new HashMap<>();
         //proc-contexts that are currently open
-        final ArrayDeque<ProcedureContext> openedProcs =new ArrayDeque<>();
+        final ArrayDeque<VariableContext> openedContexts =new ArrayDeque<>();
         public ArrayDeque<Value.Procedure> unparsedProcs=new ArrayDeque<>();
 
         Macro currentMacro;//may be null
@@ -1154,7 +1163,7 @@ public class Interpreter {
         }
 
         VariableContext getContext(){
-            ProcedureContext currentProc = openedProcs.peekLast();
+            VariableContext currentProc = openedContexts.peekLast();
             return currentProc==null?rootContext:currentProc;
         }
     }
@@ -1504,12 +1513,12 @@ public class Interpreter {
                     String name = ((IdentifierToken) prev).name;
                     ProcedureBlock proc = new ProcedureBlock(name, 0, pos, pState.rootContext, isNative);
                     pState.openBlocks.add(proc);
-                    pState.openedProcs.add(proc.context());
+                    pState.openedContexts.add(proc.context());
                 }
                 case "lambda","λ" -> {
                     ProcedureBlock lambda = new ProcedureBlock(null, tokens.size(), pos, pState.getContext(), false);
                     pState.openBlocks.add(lambda);
-                    pState.openedProcs.add(lambda.context());
+                    pState.openedContexts.add(lambda.context());
                 }
                 case "=>" ->{
                     CodeBlock block = pState.openBlocks.peekLast();
@@ -1562,22 +1571,22 @@ public class Interpreter {
                             ArrayList<Token> content=new ArrayList<>(subList);
                             subList.clear();
                             ProcedureContext context = ((ProcedureBlock) block).context();
-                            if(context != pState.openedProcs.pollLast()){
+                            if(context != pState.openedContexts.pollLast()){
                                 throw new RuntimeException("openedProcs is out of sync with openBlocks");
                             }
                             assert context != null;
                             Type[] ins=((ProcedureBlock) block).inTypes;
                             Type[] outs=((ProcedureBlock) block).outTypes;
                             ArrayList<Type.GenericParameter> generics=((ProcedureBlock) block).context.generics;
-                            if(generics.size()>0){
-                                throw new UnsupportedOperationException("generic procedures are currently not supported");
-                            }
                             Type procType;
                             if(ins!=null) {
                                 if (outs == null) {
                                     throw new SyntaxError("procedure supplies inTypes but no outTypes", pos);
                                 } else {
-                                    procType=Type.Procedure.create(ins,outs);
+                                    procType=(generics.size()>0)?
+                                        Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),
+                                                generics.toArray(Type[]::new),ins,outs):
+                                        Type.Procedure.create(ins,outs);
                                 }
                             }else{
                                 if(((ProcedureBlock) block).name!=null){
@@ -1597,8 +1606,7 @@ public class Interpreter {
                                         ((ProcedureBlock) block).name);
                                 pState.rootContext.declareNamedDeclareable(proc,ioContext);
                             }else{
-                                Value.Procedure proc=Value.createProcedure(procType, content,
-                                        generics.toArray(Type.GenericParameter[]::new), block.startPos, context);
+                                Value.Procedure proc=Value.createProcedure(procType, content,block.startPos, context);
                                 assert context.curried.isEmpty();
                                 if(((ProcedureBlock) block).name!=null){
                                     pState.unparsedProcs.add(proc);
@@ -1688,30 +1696,40 @@ public class Interpreter {
                 }
                 case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
                 case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
-                case "(" ->
-                        pState.openBlocks.add(new ListBlock(tokens.size(),BlockType.ANONYMOUS_TUPLE,pos, pState.getContext()));
+                case "(" ->{
+                    ListBlock block = new ListBlock(tokens.size(), BlockType.ANONYMOUS_TUPLE, pos, pState.getContext());
+                    pState.openBlocks.add(block);
+                    pState.openedContexts.add(block.context());
+                }
                 case ")" -> {
                     CodeBlock open=pState.openBlocks.pollLast();
                     if(open==null||(open.type!=BlockType.ANONYMOUS_TUPLE&&open.type!=BlockType.PROC_TYPE)){
                         throw new SyntaxError("unexpected ')' statement ",pos);
                     }
+                    if(open.context() != pState.openedContexts.pollLast()){
+                        throw new RuntimeException("openedProcs is out of sync with openBlocks");
+                    }
                     if(open.type==BlockType.PROC_TYPE){
                         List<Token> subList=tokens.subList(open.start, ((ProcTypeBlock)open).separatorPos);
                         Type[] inTypes=ProcedureBlock.getSignature(
-                                typeCheck(subList,pState.rootContext,pState.globalVariables,
+                                typeCheck(subList,open.context(),pState.globalVariables,
                                         new RandomAccessStack<>(8),ioContext).tokens,false);
                         subList=tokens.subList(((ProcTypeBlock)open).separatorPos, tokens.size());
                         Type[] outTypes=ProcedureBlock.getSignature(
-                                typeCheck(subList,pState.rootContext,pState.globalVariables,
+                                typeCheck(subList,open.context(),pState.globalVariables,
                                         new RandomAccessStack<>(8),ioContext).tokens,false);
                         subList=tokens.subList(open.start,tokens.size());
                         subList.clear();
-                        tokens.add(new ValueToken(Value.ofType(Type.Procedure.create(inTypes,outTypes)),
-                                pos,false));
+                        ArrayList<Type.GenericParameter> generics=((GenericContext)open.context()).generics;
+                        Type.Procedure procType=(generics.size()>0)?
+                                Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),
+                                        generics.toArray(Type[]::new),inTypes,outTypes):
+                                Type.Procedure.create(inTypes,outTypes);
+                        tokens.add(new ValueToken(Value.ofType(procType),pos,false));
                     }else {
                         List<Token> subList=tokens.subList(open.start, tokens.size());
                         Type[] tupleTypes=ProcedureBlock.getSignature(
-                                typeCheck(subList,pState.rootContext,pState.globalVariables,
+                                typeCheck(subList,open.context(),pState.globalVariables,
                                         new RandomAccessStack<>(8),ioContext).tokens,true);
                         subList.clear();
                         tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null,tupleTypes,pos)),
@@ -1929,7 +1947,12 @@ public class Interpreter {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '<>' modifier",pos);
                     }else if(prevId!=null){
-                        tokens.set(tokens.size()-1,new IdentifierToken(IdentifierType.NEW_GENERIC,prevId,prev.pos));
+                        VariableContext context=pState.getContext();
+                        if(!(context instanceof GenericContext)){
+                            throw new SyntaxError("generics can only be declared in tuple and procedure signatures",pos);
+                        }
+                        ((GenericContext) context).declareGeneric( prevId,pos, ioContext);
+                        tokens.remove(tokens.size()-1);
                     }else{
                         throw new SyntaxError("invalid token for '<>' modifier: "+prev,prev.pos);
                     }
@@ -2975,13 +2998,6 @@ public class Interpreter {
         IdentifierToken identifier=(IdentifierToken) t;
         switch (identifier.type) {
             case NATIVE -> throw new SyntaxError("native modifier can only be used in declarations",t.pos);
-            case NEW_GENERIC -> {
-                if(!(context instanceof GenericContext)){
-                    throw new SyntaxError("generics can only be declared in tuple and procedure signatures",
-                            identifier.pos);
-                }
-                ((GenericContext) context).declareGeneric( identifier.name,identifier.pos, ioContext);
-            }
             case DECLARE, CONST_DECLARE, NATIVE_DECLARE -> {
                 if (ret.size() > 0 && (prev = ret.remove(ret.size() - 1)) instanceof ValueToken) {
                     try {//remember constant declarations
@@ -3134,6 +3150,19 @@ public class Interpreter {
     }
     private void typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
+        int offset=isPtr?1:0;
+        if(type instanceof Type.GenericProcedure){
+            Type[] typeArgs=new Type[((Type.GenericProcedure) type).genericArgs.length];
+            for(int i=typeArgs.length-1;i>=0;i--){
+                try {
+                    typeArgs[i]=typeStack.pop().value().asType();
+                } catch (TypeError e) {
+                    throw new SyntaxError(e,pos);
+                }
+            }
+            type=type.replaceGenerics(((Type.GenericProcedure) type).params,typeArgs);
+            offset+=typeArgs.length;
+        }
         Type[] inTypes=new Type[type.inTypes.length];
         for(int i=inTypes.length-1;i>=0;i--){
             inTypes[i]=typeStack.pop().type;
@@ -3141,7 +3170,7 @@ public class Interpreter {
         for(int i=0;i<inTypes.length;i++){
             if(!inTypes[i].isSubtype(type.inTypes[i])){
                 if(inTypes[i].canCastTo(type.inTypes[i])){//try to implicitly cast input arguments
-                    tokens.add(new ArgCastToken(inTypes.length-i+(isPtr?1:0),type.inTypes[i],pos));
+                    tokens.add(new ArgCastToken(inTypes.length-i+offset,type.inTypes[i],pos));
                 }else{
                     throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(inTypes)+
                             " expected: "+Arrays.toString(type.inTypes),pos);
@@ -3232,11 +3261,13 @@ public class Interpreter {
         throw new RuntimeException("unreachable");
     }
 
+    record GenericArguments(Type.GenericParameter[] params,Type[] args){}
+
     public RandomAccessStack<Value> run(Program program, String[] arguments,IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
         Declareable main=program.rootContext.elements.get("main");
         if(main==null){
-            recursiveRun(stack,program,null,null,null,context);
+            recursiveRun(stack,program,null,null,null,new ArrayDeque<>(),context);
         }else{
             if(program.tokens.size()>0){
                 context.stdErr.println("programs with main procedure cannot contain code at top level "+
@@ -3266,7 +3297,7 @@ public class Interpreter {
                         }
                     }
                 }
-                recursiveRun(stack,(Value.Procedure)main,new ArrayList<>(),null,null,context);
+                recursiveRun(stack,(Value.Procedure)main,new ArrayList<>(),null,null,new ArrayDeque<>(),context);
             }
         }
         return stack;
@@ -3501,7 +3532,7 @@ public class Interpreter {
 
     private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,
                                   ArrayList<Variable[]> globalVariables,ArrayList<Variable[]> variables,
-                                  Value[] curried, IOContext context){
+                                  Value[] curried,ArrayDeque<GenericArguments> genArgs,IOContext context){
         if(variables==null){
             variables=new ArrayList<>();
             variables.add(new Variable[program.context().elements.size()]);
@@ -3511,13 +3542,25 @@ public class Interpreter {
         while(ip<tokens.size()){
             Token next=tokens.get(ip);
             boolean incIp=true;
+            if(next instanceof TypedToken){
+                Type target = ((TypedToken) next).target;
+                for(GenericArguments args:genArgs){
+                    target=target.replaceGenerics(args.params,args.args);
+                }
+                next=new TypedToken(next.tokenType, target,next.pos);
+            }
             try {
                 switch (next.tokenType) {
                     case LAMBDA,VALUE -> {
+                        assert next instanceof ValueToken;
                         ValueToken value = (ValueToken) next;
-                        if(value.value.type==Type.TYPE&&value.value.type instanceof Type.GenericParameter){
-                            //TODO resolve generic types in procedure signatures
-                            throw new ConcatRuntimeError("unresolved generic type");
+                        if(value.value.type==Type.TYPE){
+                            //resolve generic types in procedure signatures
+                            Type t=value.value.asType();
+                            for(GenericArguments args:genArgs){
+                                t=t.replaceGenerics(args.params,args.args);
+                            }
+                            stack.push(Value.ofType(t));
                         }else if(value.cloneOnCreate){
                             stack.push(value.value.clone(true));
                         }else{
@@ -3525,6 +3568,7 @@ public class Interpreter {
                         }
                     }
                     case CURRIED_LAMBDA -> {
+                        assert next instanceof ValueToken;
                         if(globalVariables==null){
                             throw new RuntimeException("curried procedures should only exist inside of procedures");
                         }
@@ -3542,11 +3586,14 @@ public class Interpreter {
                         }
                         stack.push(proc.withCurried(curried2));
                     }
-                    case OPERATOR ->
+                    case OPERATOR -> {
+                        assert next instanceof OperatorToken;
                         executeOperator((OperatorToken) next, stack);
+                    }
                     case NEW_LIST -> {//{ e1 e2 ... eN }
+                        assert next instanceof ListCreatorToken;
                         RandomAccessStack<Value> listStack=new RandomAccessStack<>(((ListCreatorToken)next).tokens.size());
-                        ExitType res=recursiveRun(listStack,((ListCreatorToken)next),globalVariables,variables,curried,context);
+                        ExitType res=recursiveRun(listStack,((ListCreatorToken)next),globalVariables,variables,curried,genArgs,context);
                         if(res!=ExitType.NORMAL){
                             if(res==ExitType.ERROR) {
                                 context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
@@ -3561,6 +3608,7 @@ public class Interpreter {
                         stack.push(Value.createList(Type.listOf(type), values));
                     }
                     case CAST -> {
+                        assert next instanceof TypedToken;
                         Type type=((TypedToken)next).target;
                         if(type==null){//dynamic operation
                             type=stack.pop().asType();
@@ -3569,6 +3617,7 @@ public class Interpreter {
                         stack.push(val.castTo(type));
                     }
                     case NEW -> {
+                        assert next instanceof TypedToken;
                         Type type=((TypedToken)next).target;
                         if(type==null){//dynamic operation
                             type=stack.pop().asType();
@@ -3588,11 +3637,16 @@ public class Interpreter {
                         }
                     }
                     case DEBUG_PRINT -> context.stdOut.println(stack.pop().stringValue());
-                    case DROP ->
-                            stack.dropAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
-                    case DUP ->
-                        stack.dupAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
+                    case DROP ->{
+                        assert next instanceof StackModifierToken;
+                        stack.dropAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
+                    }
+                    case DUP -> {
+                        assert next instanceof StackModifierToken;
+                        stack.dupAll(((StackModifierToken) next).off, ((StackModifierToken) next).count);
+                    }
                     case VARIABLE -> {
+                        assert next instanceof VariableToken;
                         VariableToken asVar=(VariableToken) next;
                         switch (asVar.accessType){
                             case READ -> {
@@ -3629,9 +3683,13 @@ public class Interpreter {
                                 }
                             }
                             case CONST_DECLARE,DECLARE -> {
-                                Type type=asVar.id.type;
+                                Type type= asVar.id.type;
                                 if(type == null){
                                     type = stack.pop().asType();
+                                }else{
+                                    for(GenericArguments args:genArgs){
+                                        type=type.replaceGenerics(args.params,args.args);
+                                    }
                                 }
                                 Value initValue=stack.pop();
                                 switch (asVar.variableType){
@@ -3653,6 +3711,7 @@ public class Interpreter {
                         }
                     }
                     case ASSERT -> {
+                        assert next instanceof AssertToken;
                         if(!stack.pop().asBool()){
                             throw new ConcatRuntimeError("assertion failed: "+((AssertToken)next).message);
                         }
@@ -3660,8 +3719,10 @@ public class Interpreter {
                     case IDENTIFIER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
-                    case CONTEXT_OPEN ->
-                            variables.add(new Variable[((ContextOpen)next).context.elements.size()]);
+                    case CONTEXT_OPEN -> {
+                        assert next instanceof ContextOpen;
+                        variables.add(new Variable[((ContextOpen) next).context.elements.size()]);
+                    }
                     case CONTEXT_CLOSE -> {
                         if(variables.size()<=1){
                             throw new RuntimeException("unexpected CONTEXT_CLOSE operation");
@@ -3671,11 +3732,22 @@ public class Interpreter {
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Value called;
                         if(next.tokenType==TokenType.CALL_PROC){
+                            assert next instanceof ProcedureToken;
                             called=((ProcedureToken) next).procedure;
                         }else if(next.tokenType==TokenType.CALL_NATIVE_PROC){
+                            assert next instanceof NativeProcedureToken;
                             called=((NativeProcedureToken) next).value;
                         }else{
                             called = stack.pop();
+                        }
+                        boolean hadArgs=false;
+                        if(called.type instanceof Type.GenericProcedure){//get generic arguments
+                            Type[] genArgsP=new Type[((Type.GenericProcedure) called.type).params.length];
+                            for(int i=genArgsP.length-1;i>=0;i--){
+                                genArgsP[i]=stack.pop().asType();
+                            }
+                            hadArgs=true;
+                            genArgs.addLast(new GenericArguments(((Type.GenericProcedure) called.type).params,genArgsP));
                         }
                         if(called instanceof Value.NativeProcedure nativeProc){
                             int count=nativeProc.argCount();
@@ -3690,7 +3762,7 @@ public class Interpreter {
                         }else if(called instanceof Value.Procedure procedure){
                             assert ((Value.Procedure) called).context.curried.isEmpty();
                             ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                    null,null,context);
+                                    null,null,genArgs,context);
                             if(e!=ExitType.NORMAL){
                                 if(e==ExitType.ERROR) {
                                     context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
@@ -3699,7 +3771,7 @@ public class Interpreter {
                             }
                         }else if(called instanceof Value.CurriedProcedure procedure){
                             ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                    null,procedure.curried,context);
+                                    null,procedure.curried,genArgs,context);
                             if(e!=ExitType.NORMAL){
                                 if(e==ExitType.ERROR) {
                                     context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
@@ -3708,12 +3780,16 @@ public class Interpreter {
                             }
                         }else{
                             throw new ConcatRuntimeError("cannot call objects of type "+called.type);
+                        }//no else
+                        if(hadArgs){
+                            genArgs.pollLast();//TODO check if popped arguments are correct
                         }
                     }
                     case RETURN -> {
                         return ExitType.NORMAL;
                     }
                     case BLOCK_TOKEN -> {
+                        assert next instanceof BlockToken;
                         switch(((BlockToken)next).blockType){
                             case IF,_IF,DO -> {
                                 Value c = stack.pop();
@@ -3742,6 +3818,7 @@ public class Interpreter {
                         }
                     }
                     case SWITCH -> {
+                        assert next instanceof SwitchToken;
                         Value v= stack.pop();
                         Integer jumpTo=((SwitchToken)next).block.blockJumps.get(v);
                         if(jumpTo==null){
@@ -3756,9 +3833,11 @@ public class Interpreter {
                         context.stdErr.println("exited with exit code:"+exitCode);
                         return ExitType.FORCED;
                     }
-                    case CAST_ARG ->
-                        stack.set(((ArgCastToken)next).offset,
-                                stack.get(((ArgCastToken)next).offset).castTo(((ArgCastToken)next).target));
+                    case CAST_ARG -> {
+                        assert next instanceof ArgCastToken;
+                        stack.set(((ArgCastToken) next).offset,
+                                stack.get(((ArgCastToken) next).offset).castTo(((ArgCastToken) next).target));
+                    }
                 }
             }catch(ConcatRuntimeError|RandomAccessStack.StackUnderflow  e){
                 context.stdErr.println(e.getMessage());

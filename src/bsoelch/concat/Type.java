@@ -104,7 +104,7 @@ public class Type {
     public boolean isSubtype(Type t){
         return (t==this)||t==ANY;
     }
-    public boolean canCastTo(Type t){
+    public boolean canCastTo(Type t){//TODO casting of generic types
         return isSubtype(t)||t.isSubtype(this);
     }
 
@@ -259,14 +259,14 @@ public class Type {
         @Override
         Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
             Type[] newElements=new Type[elements.length];
-            boolean isGeneric=false;
+            boolean changed=false;
             for(int i=0;i<elements.length;i++){
                 newElements[i]=elements[i].replaceGenerics(genericParams, genericArgs);
                 if(newElements[i]!=elements[i]){
-                    isGeneric=true;
+                    changed=true;
                 }
             }
-            return isGeneric?new Tuple(named?name:null,newElements,declaredAt):this;
+            return changed?new Tuple(named?name:null,newElements,declaredAt):this;
         }
 
         @Override
@@ -354,21 +354,21 @@ public class Type {
         @Override
         Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
             Type[] newElements=new Type[elements.length];
-            boolean isGeneric=false;
+            boolean changed=false;
             for(int i=0;i<elements.length;i++){
                 newElements[i]=elements[i].replaceGenerics(genericParams, genericArgs);
                 if(newElements[i]!=elements[i]){
-                    isGeneric=true;
+                    changed=true;
                 }
             }
             Type[] newArgs=new Type[this.genericArgs.length];
             for(int i=0;i<this.genericArgs.length;i++){
                 newArgs[i]=this.genericArgs[i].replaceGenerics(genericParams, genericArgs);
                 if(newArgs[i]!=this.genericArgs[i]){
-                    isGeneric=true;
+                    changed=true;
                 }
             }
-            return isGeneric?new GenericTuple(name,newArgs,newElements,declaredAt):this;
+            return changed?new GenericTuple(name,newArgs,newElements,declaredAt):this;
         }
     }
 
@@ -376,18 +376,24 @@ public class Type {
         final Type[] inTypes;
         final Type[] outTypes;
 
-        public static Procedure create(Type[] inTypes,Type[] outTypes){
+
+        static StringBuilder getName(Type[] inTypes, Type[] outTypes) {
             StringBuilder name=new StringBuilder("( ");
-            for(Type t:inTypes){
+            for(Type t: inTypes){
                 name.append(t.name).append(' ');
             }
             name.append("=> ");
-            for(Type t:outTypes){
+            for(Type t: outTypes){
                 name.append(t.name).append(' ');
             }
             name.append(")");
+            return name;
+        }
+        public static Procedure create(Type[] inTypes,Type[] outTypes){
+            StringBuilder name = getName(inTypes, outTypes);
             return new Procedure(name.toString(),inTypes,outTypes);
         }
+
         private Procedure(String name,Type[] inTypes,Type[] outTypes) {
             super(name, false);
             this.inTypes=inTypes;
@@ -404,23 +410,23 @@ public class Type {
         }
 
         @Override
-        Type replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
+        Procedure replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
             Type[] newIns=new Type[inTypes.length];
-            boolean isGeneric=false;
+            boolean changed=false;
             for(int i=0;i<inTypes.length;i++){
                 newIns[i]=inTypes[i].replaceGenerics(genericParams, genericArgs);
                 if(newIns[i]!=inTypes[i]){
-                    isGeneric=true;
+                    changed=true;
                 }
             }
             Type[] newOuts=new Type[outTypes.length];
             for(int i=0;i<this.outTypes.length;i++){
                 newOuts[i]=this.outTypes[i].replaceGenerics(genericParams, genericArgs);
                 if(newOuts[i]!=this.outTypes[i]){
-                    isGeneric=true;
+                    changed=true;
                 }
             }
-            return isGeneric?Procedure.create(inTypes,outTypes):this;
+            return changed?Procedure.create(inTypes,outTypes):this;
         }
 
         @Override
@@ -459,6 +465,52 @@ public class Type {
             return result;
         }
     }
+    public static class GenericProcedure extends Procedure {
+        final GenericParameter[] params;
+        final Type[] genericArgs;
+
+        public static GenericProcedure create(GenericParameter[] genericParams,Type[] genericArgs,Type[] inTypes,Type[] outTypes) {
+            //Unwrap generic arguments
+            StringBuilder sb=new StringBuilder();
+            for(Type t:genericArgs){
+                sb.append(t.name).append(" ");
+            }
+            return new GenericProcedure(sb.append(getName(inTypes,outTypes)).toString(),genericParams,genericParams, inTypes,outTypes);
+        }
+        private GenericProcedure(String name,GenericParameter[] params,Type[] genericArgs,Type[] inTypes,Type[] outTypes) {
+            super(name, inTypes,outTypes);
+            this.params=params;
+            this.genericArgs=genericArgs;
+        }
+
+        @Override
+        Procedure replaceGenerics(GenericParameter[] genericParams, Type[] genericArgs) {
+            Type[] newIn=new Type[inTypes.length];
+            boolean changed=false;
+            for(int i=0;i<inTypes.length;i++){
+                newIn[i]=inTypes[i].replaceGenerics(genericParams, genericArgs);
+                if(newIn[i]!=inTypes[i]){
+                    changed=true;
+                }
+            }
+            Type[] newOut=new Type[outTypes.length];
+            for(int i=0;i<outTypes.length;i++){
+                newOut[i]=outTypes[i].replaceGenerics(genericParams, genericArgs);
+                if(newOut[i]!=outTypes[i]){
+                    changed=true;
+                }
+            }
+            Type[] newArgs=new Type[this.genericArgs.length];
+            for(int i=0;i<this.genericArgs.length;i++){
+                newArgs[i]=this.genericArgs[i].replaceGenerics(genericParams, genericArgs);
+                if(newArgs[i]!=this.genericArgs[i]){
+                    changed=true;
+                }
+            }
+            return changed?new GenericProcedure(name,params,newArgs,newIn,newOut):this;
+        }
+    }
+
 
 
     public static class Enum extends Type implements Interpreter.NamedDeclareable {
