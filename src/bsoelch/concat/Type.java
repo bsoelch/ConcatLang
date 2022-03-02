@@ -1,39 +1,36 @@
 package bsoelch.concat;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class Type {
     public static final Type INT   = new Type("int",  true) {
         @Override
-        public boolean canCastTo(Type t) {
-            return t==UINT||t==CODEPOINT||t==BYTE||t==FLOAT||super.canCastTo(t);
+        public boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            return t==UINT||t==CODEPOINT||t==BYTE||t==FLOAT||super.canCastTo(t,generics);
         }
     };
     public static final Type UINT  = new Type("uint", true) {
         @Override
-        public boolean canCastTo(Type t) {
-            return t==INT||t==CODEPOINT||t==BYTE||t==FLOAT||super.canCastTo(t);
+        public boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            return t==INT||t==CODEPOINT||t==BYTE||t==FLOAT||super.canCastTo(t,generics);
         }
     };
     public static final Type FLOAT = new Type("float",false) {
         @Override
-        public boolean canCastTo(Type t) {
-            return t==INT||t==UINT||super.canCastTo(t);
+        public boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            return t==INT||t==UINT||super.canCastTo(t,generics);
         }
     };
     public static final Type CODEPOINT = new Type("codepoint", true) {
         @Override
-        public boolean canCastTo(Type t) {
-            return t==INT||t==UINT||t==BYTE||super.canCastTo(t);
+        public boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            return t==INT||t==UINT||t==BYTE||super.canCastTo(t,generics);
         }
     };
     public static final Type BYTE  = new Type("byte", true){
         @Override
-        public boolean canCastTo(Type t) {
-            return t==INT||t==UINT||t==CODEPOINT||super.canCastTo(t);
+        public boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            return t==INT||t==UINT||t==CODEPOINT||super.canCastTo(t,generics);
         }
     };
     public static final Type TYPE  = new Type("type", false);
@@ -100,13 +97,30 @@ public class Type {
         }
     }
 
-    /**@return true if this type is a subtype of type t*/
-    public boolean isSubtype(Type t){
-        return equals(t)||t==ANY;
+    @Override
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Type)) return false;
+        return equals((Type) o,new IdentityHashMap<>());
     }
+    protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics){
+        return super.equals(t);
+    }
+
+    /**@return true if this type is a subtype of type t*/
+    public final boolean isSubtype(Type t){
+        return isSubtype(t,new IdentityHashMap<>());
+    }
+    protected boolean isSubtype(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics){
+        return equals(t,generics)||t==ANY;
+    }
+
     /**@return true if values of this type can be cast to type t*/
-    public boolean canCastTo(Type t){//TODO casting of generic types
-        return isSubtype(t)||t.isSubtype(this);
+    public final boolean canCastTo(Type t){
+        return canCastTo(t,new IdentityHashMap<>());
+    }
+    protected boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics){
+        return isSubtype(t,generics)||t.isSubtype(this,generics);
     }
 
     @Override
@@ -192,22 +206,22 @@ public class Type {
         }
 
         @Override
-        public boolean isSubtype(Type t) {
+        public boolean isSubtype(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                return content().isSubtype(t.content());
+                return content().isSubtype(t.content(),generics);
             }else{
                 return (wrapperName.equals(LIST)&&t==UNTYPED_LIST)||(wrapperName.equals(OPTIONAL)&&t== UNTYPED_OPTIONAL)||
-                        super.isSubtype(t);
+                        super.isSubtype(t,generics);
             }
         }
 
         @Override
-        public boolean canCastTo(Type t) {
+        public boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                return content().canCastTo(t.content());
+                return content().canCastTo(t.content(),generics);
             }else{
                 return (wrapperName.equals(LIST)&&t==UNTYPED_LIST)||(wrapperName.equals(OPTIONAL)&&t== UNTYPED_OPTIONAL)||
-                        super.canCastTo(t);
+                        super.canCastTo(t,generics);
             }
         }
 
@@ -217,11 +231,10 @@ public class Type {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            WrapperType that = (WrapperType) o;
-            return Objects.equals(contentType, that.contentType) && Objects.equals(wrapperName, that.wrapperName);
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if (this == t) return true;
+            if (!(t instanceof WrapperType that)) return false;
+            return contentType.equals(that.contentType,generics) && Objects.equals(wrapperName, that.wrapperName);
         }
         @Override
         public int hashCode() {
@@ -271,30 +284,30 @@ public class Type {
         }
 
         @Override
-        public boolean isSubtype(Type t) {
+        protected boolean isSubtype(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             if(t instanceof Tuple&&((Tuple) t).elementCount()<=elementCount()){
                 for(int i=0;i<((Tuple) t).elements.length;i++){
-                    if(!elements[i].isSubtype(((Tuple) t).elements[i])){
+                    if(!elements[i].isSubtype(((Tuple) t).elements[i],generics)){
                         return false;
                     }
                 }
                 return true;
             }else{
-                return super.isSubtype(t);
+                return super.isSubtype(t,generics);
             }
         }
         @Override
-        public boolean canCastTo(Type t) {
+        protected boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             if(t instanceof Tuple){
                 int n=Math.min(elements.length,((Tuple) t).elements.length);
                 for(int i=0;i<n;i++){
-                    if(!elements[i].canCastTo(((Tuple) t).elements[i])){
+                    if(!elements[i].canCastTo(((Tuple) t).elements[i],generics)){
                         return false;
                     }
                 }
                 return true;
             }else{
-                return super.canCastTo(t);
+                return super.canCastTo(t,generics);
             }
         }
 
@@ -309,11 +322,16 @@ public class Type {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Tuple tuple = (Tuple) o;
-            return Arrays.equals(elements, tuple.elements);
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if (this == t) return true;
+            if (!(t instanceof Tuple tuple)) return false;
+            if(tuple.elements.length!=elements.length)
+                return false;
+            for(int i=0;i<elements.length;i++){
+                if(!(elements[i].equals(tuple.elements[i],generics)))
+                    return false;
+            }
+            return true;
         }
         @Override
         public int hashCode() {
@@ -375,6 +393,39 @@ public class Type {
             }
             return changed?create(tupleName,params,newArgs,newElements,declaredAt):this;
         }
+
+        @Override
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if((!(t instanceof GenericTuple))||((GenericTuple) t).params.length!=params.length)
+                return false;
+            IdentityHashMap<GenericParameter, GenericParameter> extended=new IdentityHashMap<>(generics);
+            for(int i=0;i< params.length;i++){//map generic parameters to their equivalents
+                extended.put(params[i],((GenericTuple) t).params[i]);
+            }
+            return super.equals(t, extended);
+        }
+        @Override
+        protected boolean isSubtype(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if((!(t instanceof GenericTuple))||((GenericTuple) t).params.length!=params.length)
+                return false;
+            IdentityHashMap<GenericParameter, GenericParameter> extended=new IdentityHashMap<>(generics);
+            for(int i=0;i< params.length;i++){//map generic parameters to their equivalents
+                extended.put(params[i],((GenericTuple) t).params[i]);
+                extended.put(((GenericTuple) t).params[i],params[i]);
+            }
+            return super.isSubtype(t, extended);
+        }
+        @Override
+        protected boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if((!(t instanceof GenericTuple))||((GenericTuple) t).params.length!=params.length)
+                return false;
+            IdentityHashMap<GenericParameter, GenericParameter> extended=new IdentityHashMap<>(generics);
+            for(int i=0;i< params.length;i++){//map generic parameters to their equivalents
+                extended.put(params[i],((GenericTuple) t).params[i]);
+                extended.put(((GenericTuple) t).params[i],params[i]);
+            }
+            return super.canCastTo(t, extended);
+        }
     }
 
     public static class Procedure extends Type{
@@ -435,16 +486,16 @@ public class Type {
         }
 
         @Override
-        public boolean isSubtype(Type t) {
+        protected boolean isSubtype(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             if(t instanceof Procedure proc){
                 if(proc.inTypes.length== inTypes.length&&proc.outTypes.length==outTypes.length){
                     for(int i=0;i< inTypes.length;i++){
-                        if(!proc.inTypes[i].isSubtype(inTypes[i])){
+                        if(!proc.inTypes[i].isSubtype(inTypes[i],generics)){
                             return false;
                         }
                     }
                     for(int i=0;i< outTypes.length;i++){
-                        if(!outTypes[i].isSubtype(proc.outTypes[i])){
+                        if(!outTypes[i].isSubtype(proc.outTypes[i],generics)){
                             return false;
                         }
                     }
@@ -452,15 +503,25 @@ public class Type {
                 }
                 return false;
             }
-            return t== UNTYPED_PROCEDURE ||super.isSubtype(t);
+            return t== UNTYPED_PROCEDURE ||super.isSubtype(t,generics);
         }
+        //addLater? overwrite canCastTo
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Procedure procedure = (Procedure) o;
-            return Arrays.equals(inTypes, procedure.inTypes) && Arrays.equals(outTypes, procedure.outTypes);
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if (this == t) return true;
+            if ( ! (t instanceof Procedure proc)) return false;
+            if(proc.inTypes.length!=inTypes.length||((Procedure) t).outTypes.length!=outTypes.length)
+                return false;
+            for(int i=0;i<inTypes.length;i++){
+                if(!inTypes[i].equals(proc.inTypes[i],generics))
+                    return false;
+            }
+            for(int i=0;i<outTypes.length;i++){
+                if(!outTypes[i].equals(proc.outTypes[i],generics))
+                    return false;
+            }
+            return true;
         }
 
         @Override
@@ -514,6 +575,38 @@ public class Type {
             }
             return changed?new GenericProcedure(name,params,newArgs,newIn,newOut):this;
         }
+        @Override
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if((!(t instanceof GenericProcedure))||((GenericProcedure) t).params.length!=params.length)
+                return false;
+            IdentityHashMap<GenericParameter, GenericParameter> extended=new IdentityHashMap<>(generics);
+            for(int i=0;i< params.length;i++){//map generic parameters to their equivalents
+                extended.put(params[i],((GenericProcedure) t).params[i]);
+            }
+            return super.equals(t, extended);
+        }
+        @Override
+        protected boolean isSubtype(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if((!(t instanceof GenericProcedure))||((GenericProcedure) t).params.length!=params.length)
+                return false;
+            IdentityHashMap<GenericParameter, GenericParameter> extended=new IdentityHashMap<>(generics);
+            for(int i=0;i< params.length;i++){//map generic parameters to their equivalents
+                extended.put(params[i],((GenericProcedure) t).params[i]);
+                extended.put(((GenericProcedure) t).params[i],params[i]);
+            }
+            return super.isSubtype(t, extended);
+        }
+        @Override
+        protected boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if((!(t instanceof GenericProcedure))||((GenericProcedure) t).params.length!=params.length)
+                return false;
+            IdentityHashMap<GenericParameter, GenericParameter> extended=new IdentityHashMap<>(generics);
+            for(int i=0;i< params.length;i++){//map generic parameters to their equivalents
+                extended.put(params[i],((GenericProcedure) t).params[i]);
+                extended.put(((GenericProcedure) t).params[i],params[i]);
+            }
+            return super.canCastTo(t, extended);
+        }
     }
 
 
@@ -540,8 +633,8 @@ public class Type {
         }
 
         @Override
-        public boolean canCastTo(Type t) {
-            return t==UINT||t==INT||super.canCastTo(t);
+        public boolean canCastTo(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            return t==UINT||t==INT||super.canCastTo(t,generics);
         }
 
         @Override
@@ -596,6 +689,14 @@ public class Type {
                     return genericArgs[i];
             }
             return this;
+        }
+
+        @Override
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if(this==t)
+                return true;
+            Type g=generics.get(this);
+            return g!=null&&g.equals(t,generics);
         }
 
         @Override
