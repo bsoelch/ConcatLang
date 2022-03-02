@@ -1737,8 +1737,9 @@ public class Interpreter {
                                 typeCheck(subList,open.context(),pState.globalVariables,
                                         new RandomAccessStack<>(8),ioContext).tokens,true);
                         subList.clear();
-                        if(((GenericContext)open.context()).generics.size()>0){//addLater? generic tuples
-                            throw new SyntaxError("cannot declare anonymous generic tuples",pos);
+                        if(((GenericContext)open.context()).generics.size()>0){
+                            throw new SyntaxError("generic parameters are not allowed in anonymous tuples",
+                                    ((GenericContext)open.context()).generics.get(0).declaredAt);
                         }
                         tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null,tupleTypes,pos)),
                                 pos,false));
