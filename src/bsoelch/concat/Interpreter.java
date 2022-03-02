@@ -1474,7 +1474,9 @@ public class Interpreter {
                         throw new SyntaxError("token before root level tuple has to be an unmodified identifier",pos);
                     }
                     name = ((IdentifierToken) prev).name;
-                    pState.openBlocks.add(new TupleBlock(name, 0,pos,pState.rootContext));
+                    TupleBlock tupleBlock = new TupleBlock(name, 0, pos, pState.rootContext);
+                    pState.openBlocks.add(tupleBlock);
+                    pState.openedContexts.add(tupleBlock.context());
                 }
                 case "enum" ->{
                     if(pState.openBlocks.size()>0){
@@ -1624,6 +1626,9 @@ public class Interpreter {
                             pState.rootContext.declareEnum(((EnumBlock) block),ioContext);
                         }
                         case TUPLE -> {
+                            if(((TupleBlock) block).context != pState.openedContexts.pollLast()){
+                                throw new RuntimeException("openedProcs is out of sync with openBlocks");
+                            }
                             ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
                             List<Token> subList = tokens.subList(block.start, tokens.size());
                             Type[] types=ProcedureBlock.getSignature(
@@ -1732,6 +1737,9 @@ public class Interpreter {
                                 typeCheck(subList,open.context(),pState.globalVariables,
                                         new RandomAccessStack<>(8),ioContext).tokens,true);
                         subList.clear();
+                        if(((GenericContext)open.context()).generics.size()>0){//addLater? generic tuples
+                            throw new SyntaxError("cannot declare anonymous generic tuples",pos);
+                        }
                         tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null,tupleTypes,pos)),
                                 pos,false));
                     }
@@ -3084,7 +3092,6 @@ public class Interpreter {
                         ret.add(new ValueToken((Value.EnumEntry) d, identifier.pos, false));
                     }
                     case GENERIC_TUPLE -> {
-                        //TODO type-check generic tuple
                         GenericTuple g = (GenericTuple) d;
                         Type[] genArgs = new Type[g.params.length];
                         for (int j = genArgs.length - 1; j >= 0; j--) {
@@ -3099,13 +3106,18 @@ public class Interpreter {
                             }
                             try {
                                 genArgs[j] = ((ValueToken) prev).value.asType();
+                                Value value = typeStack.pop().value;
+                                if(value==null||value.type!=Type.TYPE||value.asType()!=genArgs[j]){
+                                    throw new RuntimeException("type-stack out of sync with tokens");
+                                }
                             } catch (TypeError e) {
                                 throw new SyntaxError(e.getMessage(), prev.pos);
                             }
                         }
-                        ret.add(new ValueToken(Value.ofType(
-                                Type.GenericTuple.create(g.name, g.params.clone(), genArgs, g.types.clone(), g.declaredAt)),
-                                identifier.pos, false));
+                        Value tupleType = Value.ofType(Type.GenericTuple.create(g.name, g.params.clone(), genArgs,
+                                g.types.clone(), g.declaredAt));
+                        typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
+                        ret.add(new ValueToken(tupleType,identifier.pos, false));
                     }
                 }
             }

@@ -100,10 +100,11 @@ public class Type {
         }
     }
 
-    /**@return true if values of this type is a subtype of type t*/
+    /**@return true if this type is a subtype of type t*/
     public boolean isSubtype(Type t){
-        return (t==this)||t==ANY;
+        return equals(t)||t==ANY;
     }
+    /**@return true if values of this type can be cast to type t*/
     public boolean canCastTo(Type t){//TODO casting of generic types
         return isSubtype(t)||t.isSubtype(this);
     }
@@ -334,6 +335,8 @@ public class Type {
     }
     public static class GenericTuple extends Tuple{
         final Type[] genericArgs;
+        final GenericParameter[] params;
+        final String tupleName;
 
         public static GenericTuple create(String name,GenericParameter[] genericParams,Type[] genericArgs,Type[] elements, FilePosition declaredAt) {
             //Unwrap generic arguments
@@ -344,10 +347,12 @@ public class Type {
             for(Type t:genericArgs){
                 sb.append(t.name).append(" ");
             }
-            return new GenericTuple(sb.append(name).toString(), genericParams, elements, declaredAt);
+            return new GenericTuple(name,sb.append(name).toString(),genericParams, genericArgs, elements, declaredAt);
         }
-        private GenericTuple(String name, Type[] genericArgs,Type[] elements, FilePosition declaredAt) {
+        private GenericTuple(String baseName,String name,GenericParameter[] genericParams,Type[] genericArgs,Type[] elements, FilePosition declaredAt) {
             super(name, elements, declaredAt);
+            tupleName=baseName;
+            this.params=genericParams;
             this.genericArgs=genericArgs;
         }
 
@@ -368,7 +373,7 @@ public class Type {
                     changed=true;
                 }
             }
-            return changed?new GenericTuple(name,newArgs,newElements,declaredAt):this;
+            return changed?create(tupleName,params,newArgs,newElements,declaredAt):this;
         }
     }
 
@@ -426,7 +431,7 @@ public class Type {
                     changed=true;
                 }
             }
-            return changed?Procedure.create(inTypes,outTypes):this;
+            return changed?Procedure.create(newIns,newOuts):this;
         }
 
         @Override
