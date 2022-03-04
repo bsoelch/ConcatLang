@@ -153,20 +153,31 @@ public class Interpreter {
     }
     static class ProcedureToken extends Token {
         final Value.Procedure procedure;
-        ProcedureToken(Value.Procedure procedure, FilePosition pos) {
+        final HashMap<Type.GenericId,Type> genericArgs;
+        ProcedureToken(Value.Procedure procedure, HashMap<Type.GenericId, Type> genericArgs, FilePosition pos) {
             super(TokenType.CALL_PROC, pos);
             this.procedure = procedure;
+            this.genericArgs = genericArgs;
         }
         @Override
         public String toString() {
             return tokenType.toString()+": "+ procedure;
         }
     }
+    static class CallPtrToken extends Token {
+        final HashMap<Type.GenericId,Type> genericArgs;
+        CallPtrToken(HashMap<Type.GenericId, Type> genericArgs, FilePosition pos) {
+            super(TokenType.CALL_PTR, pos);
+            this.genericArgs = genericArgs;
+        }
+    }
     static class NativeProcedureToken extends Token {
         final Value.NativeProcedure value;
-        NativeProcedureToken(Value.NativeProcedure value, FilePosition pos) {
+        final HashMap<Type.GenericId,Type> genericArgs;
+        NativeProcedureToken(Value.NativeProcedure value, HashMap<Type.GenericId, Type> genericArgs, FilePosition pos) {
             super(TokenType.CALL_NATIVE_PROC, pos);
             this.value=value;
+            this.genericArgs = genericArgs;
         }
         @Override
         public String toString() {
@@ -1045,10 +1056,10 @@ public class Interpreter {
         public GenericContext(VariableContext parent) {
             super(parent);
         }
-        void declareGeneric(String name, FilePosition pos, IOContext ioContext) throws SyntaxError {
+        void declareGeneric(String name, boolean isImplicit, FilePosition pos, IOContext ioContext) throws SyntaxError {
             Type.GenericParameter generic;
             ensureDeclareable(name,DeclareableType.GENERIC,pos);
-            generic = new Type.GenericParameter(generics.size(), pos);
+            generic = new Type.GenericParameter(generics.size(), isImplicit, pos);
             generics.add(generic);
             elements.put(name, generic);
             Declareable shadowed = parent.unsafeGetDeclared(name);
@@ -1586,8 +1597,7 @@ public class Interpreter {
                                     throw new SyntaxError("procedure supplies inTypes but no outTypes", pos);
                                 } else {
                                     procType=(generics.size()>0)?
-                                        Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),
-                                                generics.toArray(Type[]::new),ins,outs):
+                                        Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),ins,outs):
                                         Type.Procedure.create(ins,outs);
                                 }
                             }else{
@@ -1727,8 +1737,7 @@ public class Interpreter {
                         subList.clear();
                         ArrayList<Type.GenericParameter> generics=((GenericContext)open.context()).generics;
                         Type.Procedure procType=(generics.size()>0)?
-                                Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),
-                                        generics.toArray(Type[]::new),inTypes,outTypes):
+                                Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),inTypes,outTypes):
                                 Type.Procedure.create(inTypes,outTypes);
                         tokens.add(new ValueToken(Value.ofType(procType),pos,false));
                     }else {
@@ -1857,7 +1866,7 @@ public class Interpreter {
                 case "[:]"   -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,      pos));
                 case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   pos));
 
-                case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
+                case "()"     -> tokens.add(new CallPtrToken(null, pos));
 
                 case "wrap"   -> tokens.add(new OperatorToken(OperatorType.WRAP,           pos));
                 case "unwrap" -> tokens.add(new OperatorToken(OperatorType.UNWRAP,         pos));
@@ -1952,15 +1961,15 @@ public class Interpreter {
                         throw new SyntaxError("invalid token for '@()' modifier: "+prev,prev.pos);
                     }
                 }
-                case "<>" ->{
+                case "<>", "<?>" ->{
                     if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '<>' modifier",pos);
+                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
                     }else if(prevId!=null){
                         VariableContext context=pState.getContext();
                         if(!(context instanceof GenericContext)){
                             throw new SyntaxError("generics can only be declared in tuple and procedure signatures",pos);
                         }
-                        ((GenericContext) context).declareGeneric( prevId,pos, ioContext);
+                        ((GenericContext) context).declareGeneric(prevId, str.equals("<?>"), pos, ioContext);
                         tokens.remove(tokens.size()-1);
                     }else{
                         throw new SyntaxError("invalid token for '<>' modifier: "+prev,prev.pos);
@@ -2012,7 +2021,6 @@ public class Interpreter {
         }
         pState.tokens.clear();
     }
-
 
     private boolean notAssignable(RandomAccessStack<TypeFrame> a, RandomAccessStack<TypeFrame> b) {
         if(a.size()!=b.size()){
@@ -2072,7 +2080,8 @@ public class Interpreter {
             }
             try {
             switch(t.tokenType){
-                case BLOCK_TOKEN -> {                    BlockToken block=(BlockToken)t;
+                case BLOCK_TOKEN -> {
+                    BlockToken block=(BlockToken)t;
                     switch (block.blockType){
                         case IF ->{
                             IfBlock ifBlock = new IfBlock(ret.size(), t.pos, context);
@@ -2435,77 +2444,11 @@ public class Interpreter {
                 }
                 case OPERATOR ->
                     typeCheckOperator(t, ret, typeStack, ioContext);
-                case NEW ->{
-                    if(ret.size()<1||!((prev=ret.remove(ret.size()-1)) instanceof ValueToken)) {
-                        throw new SyntaxError("token before of new has to be a type", t.pos);
-                    }
-                    if(typeStack.pop().type!=Type.TYPE){
-                        throw new RuntimeException("type-stack out of sync with tokens");
-                    }
-                    try {
-                        Type type = ((ValueToken)prev).value.asType();
-                        if(type instanceof Type.Tuple){
-                            typeCheckCall("new",typeStack,Type.Procedure.create(((Type.Tuple) type).elements,
-                                            new Type[]{type}),ret,t.pos, false);
-
-                            int c=((Type.Tuple) type).elementCount();
-                            if(c < 0){
-                                throw new ConcatRuntimeError("the element count has to be at least 0");
-                            }
-                            int iMin=ret.size()-c;
-                            if(iMin>=0){
-                                Value[] values=new Value[c];
-                                for(int j=c-1;j>=0;j--){
-                                    prev=ret.get(iMin+j);
-                                    if(prev instanceof ValueToken){
-                                        values[j]=((ValueToken) prev).value.castTo(((Type.Tuple) type).get(j));
-                                    }else{
-                                        break;
-                                    }
-                                }
-                                if(c==0||values[0]!=null){//all types resolved successfully
-                                    ret.subList(iMin, ret.size()).clear();
-                                    ret.add(new ValueToken(Value.createTuple((Type.Tuple)type,values),
-                                            t.pos, false));
-                                    continue;//got to next item
-                                }
-                            }
-                        }else if(type.isList()){
-                            TypeFrame f=typeStack.pop();
-                            if(f.type!=Type.UINT&&f.type!=Type.INT){
-                                throw new SyntaxError("invalid argument for '"+type+" new': "+f.type+
-                                        " expected an integer",t.pos);
-                            }
-                            typeStack.push(new TypeFrame(type,null,t.pos));
-                            //addLater? support new-list in pre-evaluation
-                        }else{
-                            throw new SyntaxError("cannot apply 'new' to type "+type,t.pos);
-                        }
-                        ret.add(new TypedToken(TokenType.NEW,type, t.pos));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e.getMessage(), prev.pos);
-                    }
-                }
+                case NEW ->
+                    typeCheckNew(typeStack, ret, t);
                 case LAMBDA -> {//parse lambda-procedures
                     assert t instanceof ValueToken;
-                    Value.Procedure lambda = (Value.Procedure) ((ValueToken) t).value;
-                    if(!(lambda.type instanceof Type.Procedure)){
-                        throw new SyntaxError("untyped lambdas are currently not supported",t.pos);
-                    }
-                    RandomAccessStack<TypeFrame> procTypes=new RandomAccessStack<>(8);
-                    for(Type in:((Type.Procedure)lambda.type).inTypes){
-                        procTypes.push(new TypeFrame(in,null,t.pos));
-                    }
-                    TypeCheckResult res=typeCheck(lambda.tokens(),lambda.context,globalConstants,procTypes,ioContext);
-                    lambda.tokens=res.tokens;
-                    //TODO check output
-                    //push type information
-                    typeStack.push(new TypeFrame(lambda.type, lambda,t.pos));
-                    if(lambda.context.curried.isEmpty()){
-                        ret.add(t);
-                    }else{
-                        ret.add(new ValueToken(TokenType.CURRIED_LAMBDA,lambda,t.pos,false));
-                    }
+                    typeCheckLambda(globalConstants, typeStack, ioContext, ret, (ValueToken)t);
                 }
                 case VALUE -> {
                     assert t instanceof ValueToken;
@@ -2565,8 +2508,9 @@ public class Interpreter {
                     if(!(f.type instanceof Type.Procedure)){
                         throw new SyntaxError("unexpected type for operator '()': "+f.type,t.pos);
                     }
-                    typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
-                    ret.add(t);
+                    HashMap<Type.GenericId,Type> generics =
+                            typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
+                    ret.add(new CallPtrToken(generics,t.pos));
                 }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,
                         CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG ->
@@ -2581,6 +2525,83 @@ public class Interpreter {
             merge(typeStack,branch,"procedure");
         }
         return new TypeCheckResult(ret,typeStack);
+    }
+
+    private void typeCheckLambda(HashMap<VariableId, Value> globalConstants, RandomAccessStack<TypeFrame> typeStack
+            , IOContext ioContext, ArrayList<Token> ret, ValueToken t) throws SyntaxError {
+        Value.Procedure lambda = (Value.Procedure) t.value;
+        if(!(lambda.type instanceof Type.Procedure)){
+            throw new SyntaxError("untyped lambdas are currently not supported", t.pos);
+        }
+        RandomAccessStack<TypeFrame> procTypes=new RandomAccessStack<>(8);
+        for(Type in:((Type.Procedure)lambda.type).inTypes){
+            procTypes.push(new TypeFrame(in,null, t.pos));
+        }
+        TypeCheckResult res=typeCheck(lambda.tokens(),lambda.context, globalConstants,procTypes, ioContext);
+        lambda.tokens=res.tokens;
+        //TODO check output
+        //push type information
+        typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
+        if(lambda.context.curried.isEmpty()){
+            ret.add(t);
+        }else{
+            ret.add(new ValueToken(TokenType.CURRIED_LAMBDA,lambda, t.pos,false));
+        }
+    }
+
+    private void typeCheckNew(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, Token t)
+            throws SyntaxError, RandomAccessStack.StackUnderflow {
+        Token prev;
+        if(ret.size()<1||!((prev= ret.remove(ret.size()-1)) instanceof ValueToken)) {
+            throw new SyntaxError("token before of new has to be a type", t.pos);
+        }
+        if(typeStack.pop().type!=Type.TYPE){
+            throw new RuntimeException("type-stack out of sync with tokens");
+        }
+        try {
+            Type type = ((ValueToken)prev).value.asType();
+            if(type instanceof Type.Tuple){
+                HashMap<Type.GenericId,Type> generics = typeCheckCall("new", typeStack,
+                        Type.Procedure.create(((Type.Tuple) type).elements,new Type[]{type}), ret, t.pos, false);
+                type=type.replaceGenerics(generics);
+
+                int c=((Type.Tuple) type).elementCount();
+                if(c < 0){
+                    throw new ConcatRuntimeError("the element count has to be at least 0");
+                }
+                int iMin= ret.size()-c;
+                if(iMin>=0){
+                    Value[] values=new Value[c];
+                    for(int j=c-1;j>=0;j--){
+                        prev= ret.get(iMin+j);
+                        if(prev instanceof ValueToken){
+                            values[j]=((ValueToken) prev).value.castTo(((Type.Tuple) type).get(j));
+                        }else{
+                            break;
+                        }
+                    }
+                    if(c==0||values[0]!=null){//all types resolved successfully
+                        ret.subList(iMin, ret.size()).clear();
+                        ret.add(new ValueToken(Value.createTuple((Type.Tuple)type,values),
+                                t.pos, false));
+                        return;
+                    }
+                }
+            }else if(type.isList()){
+                TypeFrame f= typeStack.pop();
+                if(f.type!=Type.UINT&&f.type!=Type.INT){
+                    throw new SyntaxError("invalid argument for '"+type+" new': "+f.type+
+                            " expected an integer", t.pos);
+                }
+                typeStack.push(new TypeFrame(type,null, t.pos));
+                //addLater? support new-list in pre-evaluation
+            }else{
+                throw new SyntaxError("cannot apply 'new' to type "+type, t.pos);
+            }
+            ret.add(new TypedToken(TokenType.NEW,type, t.pos));
+        } catch (ConcatRuntimeError e) {
+            throw new SyntaxError(e.getMessage(), prev.pos);
+        }
     }
 
     private void typeCheckOperator(Token t, ArrayList<Token> ret, RandomAccessStack<TypeFrame> typeStack, IOContext ioContext)
@@ -3055,14 +3076,16 @@ public class Interpreter {
                 switch (type) {
                     case PROCEDURE -> {
                         Value.Procedure proc = (Value.Procedure) d;
-                        typeCheckCall("procedure "+identifier.name,typeStack, (Type.Procedure) proc.type,ret,t.pos, false);
-                        ProcedureToken token = new ProcedureToken( proc, identifier.pos);
+                        HashMap<Type.GenericId,Type> generics = typeCheckCall("procedure "+identifier.name,
+                                typeStack, (Type.Procedure) proc.type,ret,t.pos, false);
+                        ProcedureToken token = new ProcedureToken( proc, generics, identifier.pos);
                         ret.add(token);
                     }
                     case NATIVE_PROC -> {
                         Value.NativeProcedure proc = (Value.NativeProcedure) d;
-                        typeCheckCall("procedure "+identifier.name,typeStack, (Type.Procedure) proc.type,ret,t.pos, false);
-                        NativeProcedureToken token = new NativeProcedureToken( proc, identifier.pos);
+                        HashMap<Type.GenericId,Type> generics = typeCheckCall("procedure "+identifier.name,
+                                typeStack, (Type.Procedure) proc.type,ret,t.pos, false);
+                        NativeProcedureToken token = new NativeProcedureToken( proc, generics, identifier.pos);
                         ret.add(token);
                     }
                     case VARIABLE, CONSTANT, CURRIED_VARIABLE -> {
@@ -3158,38 +3181,50 @@ public class Interpreter {
             }
         }
     }
-    private void typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
+    private HashMap<Type.GenericId,Type> typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         int offset=isPtr?1:0;
+        HashMap<Type.GenericId,Type> generics=new HashMap<>();
         if(type instanceof Type.GenericProcedure){
-            Type[] typeArgs=new Type[((Type.GenericProcedure) type).genericArgs.length];
+            Type[] typeArgs=new Type[((Type.GenericProcedure) type).explicitGenerics.length];
             for(int i=typeArgs.length-1;i>=0;i--){
                 try {
                     typeArgs[i]=typeStack.pop().value().asType();
+                    //explicit generics of top level are first elements of generic list
+                    generics.put(new Type.GenericId(i,false), typeArgs[i]);
                 } catch (TypeError e) {
                     throw new SyntaxError(e,pos);
                 }
             }
-            type=type.replaceGenerics(((Type.GenericProcedure) type).params,typeArgs);
-            offset+=typeArgs.length;
+            type=(Type.Procedure) type.replaceGenerics(generics);
+            if(typeArgs.length>0){
+                tokens.add(new StackModifierToken(false,offset,typeArgs.length,pos));
+                offset++;
+            }
         }
         Type[] inTypes=new Type[type.inTypes.length];
         for(int i=inTypes.length-1;i>=0;i--){
             inTypes[i]=typeStack.pop().type;
         }
+        HashMap<Type.GenericId,Type> implicitTypes=new HashMap<>();
         for(int i=0;i<inTypes.length;i++){
-            if(!inTypes[i].isSubtype(type.inTypes[i])){
+            if(!inTypes[i].isSubtype(type.inTypes[i],implicitTypes)){
                 if(inTypes[i].canCastTo(type.inTypes[i])){//try to implicitly cast input arguments
                     tokens.add(new ArgCastToken(inTypes.length-i+offset,type.inTypes[i],pos));
                 }else{
-                    throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(inTypes)+
-                            " expected: "+Arrays.toString(type.inTypes),pos);
+                    throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
+                            ": "+Arrays.toString(inTypes),pos);
                 }
             }
+        }
+        if(implicitTypes.size()>0){
+            type.replaceGenerics(implicitTypes);
+            generics.putAll(implicitTypes);
         }
         for(Type t:type.outTypes){
             typeStack.push(new TypeFrame(t,null,pos));
         }
+        return generics;
     }
 
     static class Variable{
@@ -3270,8 +3305,6 @@ public class Interpreter {
         }
         throw new RuntimeException("unreachable");
     }
-
-    record GenericArguments(Type.GenericParameter[] params,Type[] args){}
 
     public RandomAccessStack<Value> run(Program program, String[] arguments,IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
@@ -3541,8 +3574,8 @@ public class Interpreter {
     }
 
     private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,
-                                  ArrayList<Variable[]> globalVariables,ArrayList<Variable[]> variables,
-                                  Value[] curried,ArrayDeque<GenericArguments> genArgs,IOContext context){
+                                  ArrayList<Variable[]> globalVariables, ArrayList<Variable[]> variables,
+                                  Value[] curried, ArrayDeque<HashMap<Type.GenericId,Type>> genArgs, IOContext context){
         if(variables==null){
             variables=new ArrayList<>();
             variables.add(new Variable[program.context().elements.size()]);
@@ -3554,21 +3587,21 @@ public class Interpreter {
             boolean incIp=true;
             if(next instanceof TypedToken){
                 Type target = ((TypedToken) next).target;
-                for(GenericArguments args:genArgs){
-                    target=target.replaceGenerics(args.params,args.args);
+                for(HashMap<Type.GenericId,Type> args:genArgs){
+                    target=target.replaceGenerics(args);
                 }
                 next=new TypedToken(next.tokenType, target,next.pos);
             }
             try {
                 switch (next.tokenType) {
-                    case LAMBDA,VALUE -> {
+                    case LAMBDA, VALUE -> {
                         assert next instanceof ValueToken;
                         ValueToken value = (ValueToken) next;
                         if(value.value.type==Type.TYPE){
                             //resolve generic types in procedure signatures
                             Type t=value.value.asType();
-                            for(GenericArguments args:genArgs){
-                                t=t.replaceGenerics(args.params,args.args);
+                            for(HashMap<Type.GenericId,Type> args:genArgs){
+                                t=t.replaceGenerics(args);
                             }
                             stack.push(Value.ofType(t));
                         }else if(value.cloneOnCreate){
@@ -3697,8 +3730,8 @@ public class Interpreter {
                                 if(type == null){
                                     type = stack.pop().asType();
                                 }else{
-                                    for(GenericArguments args:genArgs){
-                                        type=type.replaceGenerics(args.params,args.args);
+                                    for(HashMap<Type.GenericId,Type> args:genArgs){
+                                        type=type.replaceGenerics(args);
                                     }
                                 }
                                 Value initValue=stack.pop();
@@ -3741,23 +3774,23 @@ public class Interpreter {
                     }
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Value called;
+                        HashMap<Type.GenericId,Type> generics;
                         if(next.tokenType==TokenType.CALL_PROC){
                             assert next instanceof ProcedureToken;
                             called=((ProcedureToken) next).procedure;
+                            generics=((ProcedureToken) next).genericArgs;
                         }else if(next.tokenType==TokenType.CALL_NATIVE_PROC){
                             assert next instanceof NativeProcedureToken;
                             called=((NativeProcedureToken) next).value;
+                            generics=((NativeProcedureToken) next).genericArgs;
                         }else{
+                            assert next instanceof CallPtrToken;
                             called = stack.pop();
+                            generics=((CallPtrToken)next).genericArgs;
+                            assert generics!=null;
                         }
-                        boolean hadArgs=false;
-                        if(called.type instanceof Type.GenericProcedure){//get generic arguments
-                            Type[] genArgsP=new Type[((Type.GenericProcedure) called.type).params.length];
-                            for(int i=genArgsP.length-1;i>=0;i--){
-                                genArgsP[i]=stack.pop().asType();
-                            }
-                            hadArgs=true;
-                            genArgs.addLast(new GenericArguments(((Type.GenericProcedure) called.type).params,genArgsP));
+                        if(generics.size()>0){
+                            genArgs.addLast(generics);
                         }
                         if(called instanceof Value.NativeProcedure nativeProc){
                             int count=nativeProc.argCount();
@@ -3791,8 +3824,10 @@ public class Interpreter {
                         }else{
                             throw new ConcatRuntimeError("cannot call objects of type "+called.type);
                         }//no else
-                        if(hadArgs){
-                            genArgs.pollLast();//TODO check if popped arguments are correct
+                        if(generics.size()>0){
+                            if(genArgs.pollLast()!=generics){
+                                throw new RuntimeException("generic arguments out of sync");
+                            }
                         }
                     }
                     case RETURN -> {
