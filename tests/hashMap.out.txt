@@ -1,14 +1,14 @@
 1026
 1026
 put:
-var empty
-var empty
-var empty
-var empty
-var empty
-var empty
-var empty
-var empty
+string empty
+string empty
+string empty
+string empty
+string empty
+string empty
+string empty
+string empty
 0 wrap
 3 wrap
 contains:
@@ -18,12 +18,12 @@ get:
 8 wrap
 2 wrap
 4 wrap
-var empty
+string empty
 remove:
 1 wrap
 9 wrap
 5 wrap
-var empty
+string empty
 map:
 (0,8) (4,4) (2,2) (6,6) (7,7) 
 Stack:

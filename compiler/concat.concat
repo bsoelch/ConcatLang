@@ -260,10 +260,10 @@ Declareable.pos= proc Declareable FilePosition =>    : 1 [] = end
 
 ContextType enum ROOT_CONTEXT PROC_CONTEXT BLOCK_CONTEXT end
 
-Context tuple #+elements+# HashMap #+varCount+# int #+contextType+# ContextType end
-Context.elements    proc Context => HashMap     : 0 [] end
-Context.varCount    proc Context => int         : 1 [] end
-Context.type        proc Context => ContextType : 2 [] end
+Context tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType end
+Context.elements    proc Context => string Declareable HashMap : 0 [] end
+Context.varCount    proc Context => int                        : 1 [] end
+Context.type        proc Context => ContextType                : 2 [] end
 Context.incVarCount proc Context => : dup 1 [] 1 + 1 [] = end
 
 Macro tuple #+type+# DeclareableType #+pos+# FilePosition #+name+# string #+words+# NameWithPos list end
@@ -345,13 +345,14 @@ Declareable.strAppend proc string Declareable => string :
   " at " :+ d Declareable.pos FilePosition.strAppend return
 end
 
-OpenModule tuple #+path+# string list #+declaredAt+# FilePosition #+imports+# string list #+predeclared+# HashMap end
-OpenModule.path        proc OpenModule => string list  : 0 [] end
-OpenModule.declaredAt  proc OpenModule => FilePosition : 1 [] end
-OpenModule.imports     proc OpenModule => string list  : 2 [] end
-OpenModule.predeclared proc OpenModule => HashMap      : 3 [] end
+OpenModule tuple #+path+# string list #+declaredAt+# FilePosition #+imports+# string list
+  #+predeclared+# string PredeclaredProc HashMap end
+OpenModule.path        proc OpenModule => string list                    : 0 [] end
+OpenModule.declaredAt  proc OpenModule => FilePosition                   : 1 [] end
+OpenModule.imports     proc OpenModule => string list                    : 2 [] end
+OpenModule.predeclared proc OpenModule => string PredeclaredProc HashMap : 3 [] end
 newOpenModule proc #+path+# string list #+declaredAt+# FilePosition => OpenModule :
-  16 string list new string PredeclaredProc 16 newHashMap OpenModule new return
+  16 string list new 16 string PredeclaredProc newHashMap OpenModule new return
 end
 OpenModule.strAppend proc string OpenModule => string :
   OpenModule m =:
@@ -363,40 +364,40 @@ OpenModule.strAppend proc string OpenModule => string :
   " declared at " :+ m OpenModule.declaredAt FilePosition.strAppend return
 end
 
-OpenFile tuple #+global imports +# string list #+global predeclared+# HashMap
+OpenFile tuple #+global imports +# string list #+global predeclared+# string PredeclaredProc HashMap
     #+openModules+# OpenModule list end
-OpenFile.globalImports     proc OpenFile => string list     : 0 [] end
-OpenFile.globalPredeclared proc OpenFile => HashMap         : 1 [] end
-OpenFile.openModules       proc OpenFile => OpenModule list : 2 [] end
+OpenFile.globalImports     proc OpenFile => string list                    : 0 [] end
+OpenFile.globalPredeclared proc OpenFile => string PredeclaredProc HashMap : 1 [] end
+OpenFile.openModules       proc OpenFile => OpenModule list                : 2 [] end
 
 newOpenFile proc => OpenFile :
   16 string list new
-  string PredeclaredProc 16 newHashMap
+  16 string PredeclaredProc newHashMap
   16 OpenModule list new
   OpenFile new return
 end
 
-RootContext tuple #+elements+# HashMap #+varCount+# int #+contextType+# ContextType
-    #+openFiles+# OpenFile list #+namespaces+# HashMap end
-RootContext.openFiles proc RootContext => OpenFile list : 3 [] end
-RootContext.namespaces   proc RootContext => HashMap       : 4 [] end
+RootContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType
+    #+openFiles+# OpenFile list #+namespaces+# string bool HashMap end
+RootContext.openFiles  proc RootContext => OpenFile list       : 3 [] end
+RootContext.namespaces proc RootContext => string bool HashMap : 4 [] end
 newRootContext proc => RootContext :
-  string Declareable 16 newHashMap
+  16 string Declareable newHashMap
   0
   ContextType ROOT_CONTEXT .
   16 OpenFile list new
-  string bool 16 newHashMap
+  16 string bool newHashMap
   RootContext new return
 end
 
-BlockContext tuple #+elements+# HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context end
+BlockContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context end
 BlockContext.parent proc BlockContext => Context : 3 [] end
 newBlockContext proc #+parent+# Context => BlockContext :
   Context parent =:
-  string Declareable 16 newHashMap 0 ContextType BLOCK_CONTEXT . parent BlockContext new return
+  16 string Declareable newHashMap 0 ContextType BLOCK_CONTEXT . parent BlockContext new return
 end
 
-ProcContext tuple #+elements+# HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context
+ProcContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context
    #+curried+# CurriedVariable list end
 ProcContext.curried proc ProcContext => CurriedVariable list : 4 [] end
 
@@ -490,7 +491,7 @@ Context.getDeclareable proc #+context+# Context #+name+# string => Declareable o
         else drop end
         i 1 - i =
       end
-      context Context.elements name HashMap.get Declareable optional cast return
+      context Context.elements name HashMap.get return
       end-case
     ContextType PROC_CONTEXT . ContextType BLOCK_CONTEXT . case
       context Context.elements name HashMap.get ?? if
@@ -600,7 +601,7 @@ RootContext.endModule proc RootContext FilePosition => :
   removed OpenModule.predeclared HashMap.size 0 > if
     "Syntax Error: missing variables/procedures" string message =:
     removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
-       unwrap MapEntry e =:
+       unwrap string PredeclaredProc MapEntry e =:
        message "\n- " :+ e MapEntry.key string cast :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<< drop
     end drop drop
     message fPos FilePosition.strAppend '\n' :<< eputs
@@ -620,7 +621,7 @@ RootContext.endFile proc RootContext FilePosition => :
       removed OpenModule.predeclared HashMap.size 0 > if
         "Syntax Error: missing variables/procedures" string message =:
         removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
-           unwrap MapEntry e =:
+           unwrap string PredeclaredProc MapEntry e =:
            message "\n- " :+ e MapEntry.key string cast :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<< drop
         end drop drop
         message fPos FilePosition.strAppend '\n' :<< eputs
@@ -634,7 +635,7 @@ RootContext.endFile proc RootContext FilePosition => :
   closed OpenFile.globalPredeclared HashMap.size 0 > if
     "Syntax Error: missing variables/procedures" string message =:
     closed OpenFile.globalPredeclared HashMap.itr while HashMapItr.next ?? do
-       unwrap MapEntry e =:
+       unwrap string PredeclaredProc MapEntry e =:
        message "\n- " :+ e MapEntry.key string cast :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<< drop
     end drop drop
     message fPos FilePosition.strAppend '\n' :<< eputs
@@ -661,7 +662,7 @@ RootContext.currentPaths proc RootContext => string list :
   end
   paths return
 end
-RootContext.predeclared proc RootContext => HashMap :
+RootContext.predeclared proc RootContext => string Declareable HashMap :
   #+context+# RootContext.file OpenFile file =:
   file OpenFile.openModules length 0 > if
     file OpenFile.openModules file OpenFile.openModules length 1 - [] OpenModule.predeclared return
@@ -1925,7 +1926,7 @@ main proc string list => :
   "\n" puts
   "declared values:\n" puts
   context Context.elements HashMap.itr while HashMapItr.next ?? do
-      unwrap MapEntry e =:
+      unwrap string Declareable MapEntry e =:
       e MapEntry.key print ": " e MapEntry.value Declareable.strAppend println
    end drop drop
 end
