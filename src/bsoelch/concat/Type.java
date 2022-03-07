@@ -745,7 +745,7 @@ public class Type {
         final int id;
         final boolean isImplicit;
         final FilePosition declaredAt;
-        private boolean bound=true;
+        private boolean isBound =true;
         public GenericParameter(int id, boolean isImplicit, FilePosition pos) {
             super("'"+id,false);
             this.id=id;
@@ -753,7 +753,7 @@ public class Type {
             this.declaredAt=pos;
         }
         void unbind(){
-            bound=false;
+            isBound =false;
         }
 
         @Override
@@ -766,7 +766,7 @@ public class Type {
         protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
             if(this==t)
                 return true;
-            if(bound)
+            if(isBound)
                 return false;
             if(t instanceof GenericParameter){
                 GenericParameter t1=generics.get(t);
@@ -784,7 +784,7 @@ public class Type {
         protected boolean isSubtype(Type t, BoundMaps bounds) {
             if(this==t)
                 return true;
-            if(bound||(t instanceof GenericParameter&&((GenericParameter) t).isImplicit))
+            if(isBound ||(t instanceof GenericParameter&&((GenericParameter) t).isImplicit))
                 return super.isSubtype(t,bounds);
             GenericBound bound=bounds.l.get(this);
             if(bound!=null){
