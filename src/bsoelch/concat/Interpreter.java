@@ -151,10 +151,10 @@ public class Interpreter {
             this.message = message;
         }
     }
-    static class ProcedureToken extends Token {
+    static class CallToken extends Token {
         final Value.Procedure procedure;
-        final HashMap<Type.GenericId,Type> genericArgs;
-        ProcedureToken(Value.Procedure procedure, HashMap<Type.GenericId, Type> genericArgs, FilePosition pos) {
+        final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
+        CallToken(Value.Procedure procedure, IdentityHashMap<Type.GenericParameter, Type> genericArgs, FilePosition pos) {
             super(TokenType.CALL_PROC, pos);
             this.procedure = procedure;
             this.genericArgs = genericArgs;
@@ -165,16 +165,16 @@ public class Interpreter {
         }
     }
     static class CallPtrToken extends Token {
-        final HashMap<Type.GenericId,Type> genericArgs;
-        CallPtrToken(HashMap<Type.GenericId, Type> genericArgs, FilePosition pos) {
+        final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
+        CallPtrToken(IdentityHashMap<Type.GenericParameter, Type> genericArgs, FilePosition pos) {
             super(TokenType.CALL_PTR, pos);
             this.genericArgs = genericArgs;
         }
     }
-    static class NativeProcedureToken extends Token {
+    static class NativeCallToken extends Token {
         final Value.NativeProcedure value;
-        final HashMap<Type.GenericId,Type> genericArgs;
-        NativeProcedureToken(Value.NativeProcedure value, HashMap<Type.GenericId, Type> genericArgs, FilePosition pos) {
+        final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
+        NativeCallToken(Value.NativeProcedure value, IdentityHashMap<Type.GenericParameter, Type> genericArgs, FilePosition pos) {
             super(TokenType.CALL_NATIVE_PROC, pos);
             this.value=value;
             this.genericArgs = genericArgs;
@@ -551,7 +551,7 @@ public class Interpreter {
         TupleBlock(String name,int start, FilePosition startPos, VariableContext parentContext) {
             super(start, BlockType.TUPLE, startPos, parentContext);
             this.name=name;
-            context=new GenericContext(parentContext);
+            context=new GenericContext(parentContext, false);
         }
 
         @Override
@@ -565,7 +565,7 @@ public class Interpreter {
         ListBlock(int start, BlockType type, FilePosition startPos, VariableContext parentContext) {
             super(start, type, startPos, parentContext);
             if(type==BlockType.ANONYMOUS_TUPLE){
-                this.context=new GenericContext(parentContext);
+                this.context=new GenericContext(parentContext, false);
             }else{
                 this.context=parentContext;
             }
@@ -1052,11 +1052,21 @@ public class Interpreter {
     }
     static class GenericContext extends BlockContext{
         ArrayList<Type.GenericParameter> generics=new ArrayList<>();
+        final boolean allowImplicit;
 
-        public GenericContext(VariableContext parent) {
+        boolean locked=false;
+        boolean closed=false;
+
+        public GenericContext(VariableContext parent, boolean allowImplicit) {
             super(parent);
+            this.allowImplicit = allowImplicit;
         }
         void declareGeneric(String name, boolean isImplicit, FilePosition pos, IOContext ioContext) throws SyntaxError {
+            if(locked){
+                throw new SyntaxError("declaring generics is not allowed in the current context",pos);
+            }else if(isImplicit&&!allowImplicit){
+                throw new SyntaxError("implicit generics are not allowed in the current context",pos);
+            }
             Type.GenericParameter generic;
             ensureDeclareable(name,DeclareableType.GENERIC,pos);
             generic = new Type.GenericParameter(generics.size(), isImplicit, pos);
@@ -1069,13 +1079,34 @@ public class Interpreter {
                         + " declared at "  + shadowed.declaredAt());
             }
         }
+        //disable declaration of generics
+        void lock(){
+            if(locked){
+                throw new RuntimeException("lock can only be called once");
+            }
+            locked=true;
+        }
+        /**unbinds all generics declared in this context*/
+        void unbind(){
+            if(closed){
+                throw new RuntimeException("unbind can only be called once");
+            }
+            if(!locked){
+                lock();
+            }
+            closed=true;
+            for(Type.GenericParameter p:generics){
+                p.unbind();
+            }
+        }
+
     }
 
     //addLater allow declaring generics only in in-signature
     static class ProcedureContext extends GenericContext {
         ArrayList<CurriedVariable> curried=new ArrayList<>();
         ProcedureContext(VariableContext parent){
-            super(parent);
+            super(parent, true);
             assert parent!=null;
         }
 
@@ -1540,9 +1571,11 @@ public class Interpreter {
                         proc.addIns(typeCheck(ins,block.context(),pState.globalVariables,
                                 new RandomAccessStack<>(8),ioContext).tokens,pos);
                         ins.clear();
+                        proc.context().lock();
                     }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
                         pState.openBlocks.removeLast();
                         pState.openBlocks.addLast(new ProcTypeBlock((ListBlock)block,tokens.size()));
+                        ((GenericContext)((ListBlock) block).context).lock();
                     }else{
                         throw new SyntaxError("'=>' can only be used in proc- or proc-type blocks ",pos);
                     }
@@ -1588,6 +1621,7 @@ public class Interpreter {
                                 throw new RuntimeException("openedProcs is out of sync with openBlocks");
                             }
                             assert context != null;
+                            context.unbind();
                             Type[] ins=((ProcedureBlock) block).inTypes;
                             Type[] outs=((ProcedureBlock) block).outTypes;
                             ArrayList<Type.GenericParameter> generics=((ProcedureBlock) block).context.generics;
@@ -1639,6 +1673,7 @@ public class Interpreter {
                             if(((TupleBlock) block).context != pState.openedContexts.pollLast()){
                                 throw new RuntimeException("openedProcs is out of sync with openBlocks");
                             }
+                            ((TupleBlock) block).context.unbind();
                             ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
                             List<Token> subList = tokens.subList(block.start, tokens.size());
                             Type[] types=ProcedureBlock.getSignature(
@@ -1647,7 +1682,8 @@ public class Interpreter {
                             subList.clear();
                             if(generics.size()>0){
                                 GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,
-                                        generics.toArray(Type.GenericParameter[]::new),types,block.startPos);
+                                        generics.stream().filter(g->!g.isImplicit).toArray(Type.GenericParameter[]::new),
+                                        types,block.startPos);
                                 pState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }else{
                                 Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name,types,block.startPos);
@@ -1724,6 +1760,7 @@ public class Interpreter {
                     if(open.context() != pState.openedContexts.pollLast()){
                         throw new RuntimeException("openedProcs is out of sync with openBlocks");
                     }
+                    ((GenericContext)open.context()).unbind();
                     if(open.type==BlockType.PROC_TYPE){
                         List<Token> subList=tokens.subList(open.start, ((ProcTypeBlock)open).separatorPos);
                         Type[] inTypes=ProcedureBlock.getSignature(
@@ -2012,6 +2049,9 @@ public class Interpreter {
                 p.tokens=res.tokens;
                 typeStack=res.types;
                 int k=typeStack.size();
+                if(typeStack.size()!=((Type.Procedure)p.type).outTypes.length){
+                    throw new SyntaxError("procedure body does not match signature",p.declaredAt);
+                }
                 for(Type t:((Type.Procedure)p.type).outTypes){
                     if(!typeStack.get(k--).type().isSubtype(t)){
                         throw new SyntaxError("procedure body does not match signature",p.declaredAt);
@@ -2508,7 +2548,7 @@ public class Interpreter {
                     if(!(f.type instanceof Type.Procedure)){
                         throw new SyntaxError("unexpected type for operator '()': "+f.type,t.pos);
                     }
-                    HashMap<Type.GenericId,Type> generics =
+                    IdentityHashMap<Type.GenericParameter,Type> generics =
                             typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
                     ret.add(new CallPtrToken(generics,t.pos));
                 }
@@ -2518,6 +2558,11 @@ public class Interpreter {
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
                 throw new SyntaxError(e,t.pos);
+            }catch (SyntaxError e) {
+                throw e;
+            }catch (Throwable e) {
+                System.err.println("while compiling "+t.pos);
+                throw e;
             }
         }
 
@@ -2561,7 +2606,7 @@ public class Interpreter {
         try {
             Type type = ((ValueToken)prev).value.asType();
             if(type instanceof Type.Tuple){
-                HashMap<Type.GenericId,Type> generics = typeCheckCall("new", typeStack,
+                IdentityHashMap<Type.GenericParameter,Type> generics = typeCheckCall("new", typeStack,
                         Type.Procedure.create(((Type.Tuple) type).elements,new Type[]{type}), ret, t.pos, false);
                 type=type.replaceGenerics(generics);
 
@@ -3076,16 +3121,16 @@ public class Interpreter {
                 switch (type) {
                     case PROCEDURE -> {
                         Value.Procedure proc = (Value.Procedure) d;
-                        HashMap<Type.GenericId,Type> generics = typeCheckCall("procedure "+identifier.name,
+                        IdentityHashMap<Type.GenericParameter,Type> generics = typeCheckCall("procedure "+identifier.name,
                                 typeStack, (Type.Procedure) proc.type,ret,t.pos, false);
-                        ProcedureToken token = new ProcedureToken( proc, generics, identifier.pos);
+                        CallToken token = new CallToken( proc, generics, identifier.pos);
                         ret.add(token);
                     }
                     case NATIVE_PROC -> {
                         Value.NativeProcedure proc = (Value.NativeProcedure) d;
-                        HashMap<Type.GenericId,Type> generics = typeCheckCall("procedure "+identifier.name,
+                        IdentityHashMap<Type.GenericParameter,Type> generics = typeCheckCall("procedure "+identifier.name,
                                 typeStack, (Type.Procedure) proc.type,ret,t.pos, false);
-                        NativeProcedureToken token = new NativeProcedureToken( proc, generics, identifier.pos);
+                        NativeCallToken token = new NativeCallToken( proc, generics, identifier.pos);
                         ret.add(token);
                     }
                     case VARIABLE, CONSTANT, CURRIED_VARIABLE -> {
@@ -3128,6 +3173,7 @@ public class Interpreter {
                             try {
                                 genArgs[j] = ((ValueToken) prev).value.asType();
                                 Value value = typeStack.pop().value;
+                                //FIXME this error can be reached in a normal program (generic tuples with lists as parameter)
                                 if(value==null||value.type!=Type.TYPE||value.asType()!=genArgs[j]){
                                     throw new RuntimeException("type-stack out of sync with tokens");
                                 }
@@ -3181,22 +3227,21 @@ public class Interpreter {
             }
         }
     }
-    private HashMap<Type.GenericId,Type> typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
+    private IdentityHashMap<Type.GenericParameter,Type> typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         int offset=isPtr?1:0;
-        HashMap<Type.GenericId,Type> generics=new HashMap<>();
+        IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
         if(type instanceof Type.GenericProcedure){
             Type[] typeArgs=new Type[((Type.GenericProcedure) type).explicitGenerics.length];
             for(int i=typeArgs.length-1;i>=0;i--){
                 try {
                     typeArgs[i]=typeStack.pop().value().asType();
-                    //explicit generics of top level are first elements of generic list
-                    generics.put(new Type.GenericId(i,false), typeArgs[i]);
+                    generics.put(((Type.GenericProcedure) type).explicitGenerics[i], typeArgs[i]);
                 } catch (TypeError e) {
                     throw new SyntaxError(e,pos);
                 }
             }
-            type=(Type.Procedure) type.replaceGenerics(generics);
+            type= type.replaceGenerics(generics);
             if(typeArgs.length>0){
                 tokens.add(new StackModifierToken(false,offset,typeArgs.length,pos));
                 offset++;
@@ -3206,10 +3251,10 @@ public class Interpreter {
         for(int i=inTypes.length-1;i>=0;i--){
             inTypes[i]=typeStack.pop().type;
         }
-        HashMap<Type.GenericId,Type> implicitTypes=new HashMap<>();
+        Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
-            if(!inTypes[i].isSubtype(type.inTypes[i],implicitTypes)){
-                if(inTypes[i].canCastTo(type.inTypes[i])){//try to implicitly cast input arguments
+            if(!inTypes[i].isSubtype(type.inTypes[i],bounds)){
+                if(inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
                     tokens.add(new ArgCastToken(inTypes.length-i+offset,type.inTypes[i],pos));
                 }else{
                     throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
@@ -3217,9 +3262,28 @@ public class Interpreter {
                 }
             }
         }
-        if(implicitTypes.size()>0){
-            type.replaceGenerics(implicitTypes);
-            generics.putAll(implicitTypes);
+        if(bounds.l.size()>0){
+            for(Type.GenericBound b:bounds.l.values()){
+                if(b.min()!=null||(b.max()!=null&&b.max()!=Type.ANY)){
+                    throw new SyntaxError("unexpected l-bounds",pos);
+                }
+            }
+        }else if(bounds.r.size()>0){
+            IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
+            for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.r.entrySet()){
+                if(e.getValue().min()!=null){
+                    if(e.getValue().max()==null||e.getValue().min().isSubtype(e.getValue().max())){
+                        implicitGenerics.put(e.getKey(),e.getValue().min());
+                    }else{
+                        throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
+                                ": "+Arrays.toString(inTypes),pos);
+                    }
+                }else if(e.getValue().max()!=null){
+                    implicitGenerics.put(e.getKey(),e.getValue().max());
+                }
+            }
+            type=type.replaceGenerics(implicitGenerics);
+            generics.putAll(implicitGenerics);
         }
         for(Type t:type.outTypes){
             typeStack.push(new TypeFrame(t,null,pos));
@@ -3575,7 +3639,7 @@ public class Interpreter {
 
     private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,
                                   ArrayList<Variable[]> globalVariables, ArrayList<Variable[]> variables,
-                                  Value[] curried, ArrayDeque<HashMap<Type.GenericId,Type>> genArgs, IOContext context){
+                                  Value[] curried, ArrayDeque<IdentityHashMap<Type.GenericParameter,Type>> genArgs, IOContext context){
         if(variables==null){
             variables=new ArrayList<>();
             variables.add(new Variable[program.context().elements.size()]);
@@ -3587,7 +3651,7 @@ public class Interpreter {
             boolean incIp=true;
             if(next instanceof TypedToken){
                 Type target = ((TypedToken) next).target;
-                for(HashMap<Type.GenericId,Type> args:genArgs){
+                for(IdentityHashMap<Type.GenericParameter,Type> args:genArgs){
                     target=target.replaceGenerics(args);
                 }
                 next=new TypedToken(next.tokenType, target,next.pos);
@@ -3600,7 +3664,7 @@ public class Interpreter {
                         if(value.value.type==Type.TYPE){
                             //resolve generic types in procedure signatures
                             Type t=value.value.asType();
-                            for(HashMap<Type.GenericId,Type> args:genArgs){
+                            for(IdentityHashMap<Type.GenericParameter,Type> args:genArgs){
                                 t=t.replaceGenerics(args);
                             }
                             stack.push(Value.ofType(t));
@@ -3730,7 +3794,7 @@ public class Interpreter {
                                 if(type == null){
                                     type = stack.pop().asType();
                                 }else{
-                                    for(HashMap<Type.GenericId,Type> args:genArgs){
+                                    for(IdentityHashMap<Type.GenericParameter,Type> args:genArgs){
                                         type=type.replaceGenerics(args);
                                     }
                                 }
@@ -3774,15 +3838,15 @@ public class Interpreter {
                     }
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Value called;
-                        HashMap<Type.GenericId,Type> generics;
+                        IdentityHashMap<Type.GenericParameter,Type> generics;
                         if(next.tokenType==TokenType.CALL_PROC){
-                            assert next instanceof ProcedureToken;
-                            called=((ProcedureToken) next).procedure;
-                            generics=((ProcedureToken) next).genericArgs;
+                            assert next instanceof CallToken;
+                            called=((CallToken) next).procedure;
+                            generics=((CallToken) next).genericArgs;
                         }else if(next.tokenType==TokenType.CALL_NATIVE_PROC){
-                            assert next instanceof NativeProcedureToken;
-                            called=((NativeProcedureToken) next).value;
-                            generics=((NativeProcedureToken) next).genericArgs;
+                            assert next instanceof NativeCallToken;
+                            called=((NativeCallToken) next).value;
+                            generics=((NativeCallToken) next).genericArgs;
                         }else{
                             assert next instanceof CallPtrToken;
                             called = stack.pop();
