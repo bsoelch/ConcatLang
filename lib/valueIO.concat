@@ -156,9 +156,9 @@ byteListToString proc byte list => string :
   res "]" :+ return
 end
 
-print   proc var      => : core stringValue .           core puts .  end
-println proc var      => : core stringValue . '\n' :<<  core puts .  end
-fprint  proc var FILE => : swap core stringValue . swap core fputs . end
+print   proc var      =>      : core stringValue .           core puts .         end
+println proc var      =>      : core stringValue . '\n' :<<  core puts .         end
+fprint  proc var FILE => bool : swap core stringValue . swap core fputs . return end
 
 1 int __IO_FLAG_PAD_0 =$
 2 int __IO_FLAG_ALIGN_LEFT =$
@@ -182,7 +182,7 @@ __IO.b      proc __IO_FormatValue => int  : 7 [] end
 __IO.b_ptr  proc __IO_FormatValue => bool : 8 [] end
 __IO.format proc __IO_FormatValue => byte : 9 [] end
 
-__IO_printValue proc __IO_FormatValue var list => string :
+__IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime checks for correct types
   (list) values =:
   __IO_FormatValue format =:
   format __IO.flags __IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
@@ -574,9 +574,9 @@ printf proc var list string => :
 end
 
 ## formats string file
-fprintf proc var list string FILE => :
+fprintf proc var list string FILE => bool :
   FILE file =:
-  sprintf file fputs
+  sprintf file fputs return
 end
 
 #end ##std
