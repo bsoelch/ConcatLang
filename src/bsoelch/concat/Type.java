@@ -818,4 +818,28 @@ public class Type {
             return declaredAt;
         }
     }
+
+    static IdentityHashMap<GenericParameter, Type> mergeArgs(IdentityHashMap<GenericParameter, Type> genArgs,
+                                                             IdentityHashMap<GenericParameter, Type> update) {
+        IdentityHashMap<GenericParameter,Type> newArgs=new IdentityHashMap<>();
+        IdentityHashMap<GenericParameter,Type> remaining=new IdentityHashMap<>(update);
+        for(Map.Entry<GenericParameter, Type> g: genArgs.entrySet()){
+            if(g.getValue() instanceof GenericParameter){
+                Type t= remaining.remove(g.getValue());
+                if(t!=null){
+                    newArgs.put(g.getKey(),t);
+                }else{
+                    newArgs.put(g.getKey(),g.getValue());
+                }
+            }else{
+                newArgs.put(g.getKey(),g.getValue());
+            }
+        }
+        for(Map.Entry<GenericParameter, Type> g: remaining.entrySet()){
+            if(newArgs.put(g.getKey(),g.getValue())!=null){
+                throw new RuntimeException("unexpected replacement of generic value");
+            }
+        }
+        return newArgs;
+    }
 }

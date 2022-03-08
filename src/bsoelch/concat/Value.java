@@ -1568,7 +1568,7 @@ public abstract class Value {
     public static Procedure createProcedure(Type procType, ArrayList<Interpreter.Token> tokens,FilePosition declaredAt,
                                             Interpreter.ProcedureContext variableContext) {
         if(procType instanceof Type.Procedure||procType==Type.UNTYPED_PROCEDURE){
-            return new Procedure(procType, tokens,  declaredAt, variableContext);
+            return new Procedure(procType, tokens, null, new IdentityHashMap<>(), declaredAt, variableContext);
         }else{
             throw new IllegalArgumentException(procType+" is no valid procedure Type");
         }
@@ -1577,11 +1577,16 @@ public abstract class Value {
         final FilePosition declaredAt;
 
         final Interpreter.ProcedureContext context;
-        ArrayList<Interpreter.Token> tokens;
+        ArrayList<Interpreter.Token> tokens;//not final, to make two-step compilation easier
 
-        private Procedure(Type procType, ArrayList<Interpreter.Token> tokens,  FilePosition declaredAt,
+        final Value[] curriedArgs;
+        final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
+
+        private Procedure(Type procType, ArrayList<Interpreter.Token> tokens, Value[] curriedArgs, IdentityHashMap<Type.GenericParameter, Type> genericArgs, FilePosition declaredAt,
                           Interpreter.ProcedureContext context) {
             super(procType);
+            this.curriedArgs = curriedArgs;
+            this.genericArgs = genericArgs;
             this.declaredAt = declaredAt;
             this.tokens=tokens;
             this.context=context;
@@ -1596,7 +1601,7 @@ public abstract class Value {
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(this.type==Type.UNTYPED_PROCEDURE &&(type instanceof Type.Procedure)){
                 //addLater type-check body
-                return new Procedure(type, tokens, declaredAt, context);
+                return new Procedure(type, tokens, curriedArgs, genericArgs, declaredAt, context);
             }
             return super.castTo(type);
         }
@@ -1606,8 +1611,13 @@ public abstract class Value {
             return "@("+ declaredAt +")";
         }
 
-        CurriedProcedure withCurried(Value[] curried){
-            return new CurriedProcedure(this,curried);
+        Value.Procedure withCurried(Value[] curried){
+            return new Procedure(type, tokens, curried, genericArgs, declaredAt, context);
+        }
+        Value.Procedure withTypeArgs(IdentityHashMap<Type.GenericParameter,Type> update){
+            IdentityHashMap<Type.GenericParameter, Type> newArgs = Type.mergeArgs(genericArgs, update);
+            //TODO update types of curried arguments
+            return new Procedure(type.replaceGenerics(update), tokens, curriedArgs, newArgs, declaredAt, context);
         }
 
         @Override
@@ -1639,46 +1649,6 @@ public abstract class Value {
         @Override
         public FilePosition declaredAt() {
             return declaredAt;
-        }
-    }
-    static class CurriedProcedure extends Value implements Interpreter.CodeSection{
-        final Procedure parent;
-        final Value[] curried;
-        public CurriedProcedure(Procedure parent, Value[] curried) {
-            super(parent.type);
-            this.parent=parent;
-            this.curried=curried;
-        }
-        @Override
-        public long id() {
-            return parent.id();
-        }
-
-        @Override
-        public String stringValue() {
-            return parent.stringValue()+Arrays.toString(curried);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CurriedProcedure that = (CurriedProcedure) o;
-            return parent==that.parent&& Arrays.equals(curried, that.curried);
-        }
-        @Override
-        public int hashCode() {
-            return parent.hashCode()+31*Arrays.hashCode(curried);
-        }
-
-        @Override
-        public ArrayList<Interpreter.Token> tokens() {
-            return parent.tokens;
-        }
-
-        @Override
-        public Interpreter.VariableContext context() {
-            return parent.context;
         }
     }
 

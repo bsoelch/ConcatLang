@@ -17,7 +17,7 @@ public class Interpreter {
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
     enum TokenType {
-        VALUE, LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,NEW,NEW_LIST,
+        VALUE, LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,UPDATE_GENERICS,NEW,NEW_LIST,
         DROP,DUP,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
@@ -223,6 +223,13 @@ public class Interpreter {
             super(TokenType.CAST_ARG, pos);
             this.offset=offset;
             this.target=target;
+        }
+    }
+    static class GenericUpdateToken extends Token{
+        final IdentityHashMap<Type.GenericParameter,Type> update;
+        GenericUpdateToken(IdentityHashMap<Type.GenericParameter, Type> update,FilePosition pos) {
+            super(TokenType.UPDATE_GENERICS, pos);
+            this.update = update;
         }
     }
 
@@ -2552,7 +2559,7 @@ public class Interpreter {
                     ret.add(new CallPtrToken(generics,t.pos));
                 }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,
-                        CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG ->
+                        CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,UPDATE_GENERICS ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -3095,9 +3102,20 @@ public class Interpreter {
                             }
                             ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
                         }
-                        if(bounds.l.size()>0||bounds.r.size()>0){
-                            //TODO update generics
-                            throw new UnsupportedOperationException("generic variables are currently unimplemented");
+                        if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
+                            IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
+                            for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
+                                if(e.getValue().min()!=null){
+                                    if(e.getValue().max()==null||e.getValue().min().isSubtype(e.getValue().max())){
+                                        update.put(e.getKey(),e.getValue().min());
+                                    }else{
+                                        throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
+                                    }
+                                }else if(e.getValue().max()!=null){
+                                    update.put(e.getKey(),e.getValue().max());
+                                }
+                            }
+                            ret.add(new GenericUpdateToken(update,t.pos));
                         }
                         if (id.isConstant && id.context.procedureContext() == null
                                 && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
@@ -3209,9 +3227,20 @@ public class Interpreter {
                         }
                         ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
                     }
-                    if(bounds.l.size()>0||bounds.r.size()>0){
-                        //TODO update generics
-                        throw new UnsupportedOperationException("generic variables are currently unimplemented");
+                    if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
+                        IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
+                        for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
+                            if(e.getValue().min()!=null){
+                                if(e.getValue().max()==null||e.getValue().min().isSubtype(e.getValue().max())){
+                                    update.put(e.getKey(),e.getValue().min());
+                                }else{
+                                    throw new SyntaxError("cannot cast from "+f.type+" to "+id.type,t.pos);
+                                }
+                            }else if(e.getValue().max()!=null){
+                                update.put(e.getKey(),e.getValue().max());
+                            }
+                        }
+                        ret.add(new GenericUpdateToken(update,t.pos));
                     }
                     ret.add(new VariableToken(identifier.pos,identifier.name,id,
                             AccessType.WRITE, context));
@@ -3733,6 +3762,18 @@ public class Interpreter {
                         Value val = stack.pop();
                         stack.push(val.castTo(type));
                     }
+                    case UPDATE_GENERICS -> {
+                        assert next instanceof GenericUpdateToken;
+                        Value v=stack.pop();
+                        if(v instanceof Value.Procedure proc){
+                            stack.push(proc.withTypeArgs(((GenericUpdateToken)next).update));
+                        }else if(v instanceof Value.NativeProcedure){
+                            //TODO? generic update for native procedures
+                            throw new UnsupportedOperationException("generic update for native procedures is not implemented");
+                        }else{
+                            throw new RuntimeException("unbound generics should only exist in procedure pointers");
+                        }
+                    }
                     case NEW -> {
                         assert next instanceof TypedToken;
                         Type type=((TypedToken)next).target;
@@ -3863,32 +3904,31 @@ public class Interpreter {
                             generics=((CallPtrToken)next).genericArgs;
                             assert generics!=null;
                         }
-                        if(generics.size()>0){
-                            genArgs.addLast(generics);
-                        }
                         if(called instanceof Value.NativeProcedure nativeProc){
                             int count=nativeProc.argCount();
                             Value[] args=new Value[count];
                             for(int i=count-1;i>=0;i--){
                                 args[i]=stack.pop();
                             }
-                            args=nativeProc.callWith(args);
+                            args=nativeProc.callWith(args);//addLater? pass generic arguments to native call
                             for (Value arg : args) {
                                 stack.push(arg);
                             }
                         }else if(called instanceof Value.Procedure procedure){
-                            assert ((Value.Procedure) called).context.curried.isEmpty();
-                            ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                    null,null,genArgs,context);
-                            if(e!=ExitType.NORMAL){
-                                if(e==ExitType.ERROR) {
-                                    context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
-                                }
-                                return e;
+                            assert ((Value.Procedure) called).context.curried.isEmpty() || procedure.curriedArgs != null;
+                            if(procedure.genericArgs.size()>0){
+                                generics=Type.mergeArgs(procedure.genericArgs,generics);
                             }
-                        }else if(called instanceof Value.CurriedProcedure procedure){
+                            if(generics.size()>0){
+                                genArgs.addLast(generics);
+                            }
                             ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                    null,procedure.curried,genArgs,context);
+                                    null,procedure.curriedArgs,genArgs,context);
+                            if(generics.size()>0){
+                                if(genArgs.pollLast()!=generics){
+                                    throw new RuntimeException("generic arguments out of sync");
+                                }
+                            }
                             if(e!=ExitType.NORMAL){
                                 if(e==ExitType.ERROR) {
                                     context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
@@ -3898,11 +3938,6 @@ public class Interpreter {
                         }else{
                             throw new ConcatRuntimeError("cannot call objects of type "+called.type);
                         }//no else
-                        if(generics.size()>0){
-                            if(genArgs.pollLast()!=generics){
-                                throw new RuntimeException("generic arguments out of sync");
-                            }
-                        }
                     }
                     case RETURN -> {
                         return ExitType.NORMAL;
