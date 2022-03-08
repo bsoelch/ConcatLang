@@ -11,7 +11,7 @@ reverse proc A <?> A list  => :
   0 int i =:
   toReverse length 1 - int maxId =:
   while i toReverse length 2 / < do
-    toReverse i [] var tmp =:
+    toReverse i [] A tmp =:
     toReverse toReverse maxId i - [] i [] =
     toReverse tmp maxId i - [] =
     i 1 + i =
