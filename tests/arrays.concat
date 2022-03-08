@@ -32,3 +32,10 @@ lists #import
 
 { 1 2 3 4 rot3 } println
 
+lenCmp proc string string => int :
+  string a =:
+  string b =:
+  a length b length - int cast return
+end
+
+{ "sorting" "with" "comparator" "is" "now" "supported" } dup lenCmp @() generic_mergesort println

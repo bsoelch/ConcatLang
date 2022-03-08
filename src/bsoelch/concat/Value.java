@@ -795,7 +795,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.UNTYPED_LIST||this.type.equals(type)){
+            if(this.type.isSubtype(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1005,7 +1005,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.UNTYPED_LIST||this.type.equals(type)){
+            if(this.type.isSubtype(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1294,7 +1294,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.UNTYPED_LIST||this.type.equals(type)){
+            if(this.type.isSubtype(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1457,7 +1457,7 @@ public abstract class Value {
         }
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.UNTYPED_LIST||this.type.equals(type)){
+            if(this.type.isSubtype(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();

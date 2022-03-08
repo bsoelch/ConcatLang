@@ -2058,6 +2058,7 @@ public class Interpreter {
                 if(typeStack.size()!=((Type.Procedure)p.type).outTypes.length){
                     throw new SyntaxError("procedure body does not match signature",p.declaredAt);
                 }
+                //TODO casting of return values
                 for(Type t:((Type.Procedure)p.type).outTypes){
                     if(!typeStack.get(k--).type().isSubtype(t)){
                         throw new SyntaxError("procedure body does not match signature",p.declaredAt);
@@ -2591,6 +2592,7 @@ public class Interpreter {
         TypeCheckResult res=typeCheck(lambda.tokens(),lambda.context, globalConstants,procTypes, ioContext);
         lambda.tokens=res.tokens;
         //TODO check output
+        //TODO casting of return values
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
         if(lambda.context.curried.isEmpty()){
@@ -3274,7 +3276,7 @@ public class Interpreter {
             Type[] typeArgs=new Type[((Type.GenericProcedure) type).explicitGenerics.length];
             for(int i=typeArgs.length-1;i>=0;i--){
                 try {
-                    typeArgs[i]=typeStack.pop().value().asType();
+                    typeArgs[i]=typeStack.pop().value().asType();//FIXME handle missing typeFrame/value
                     generics.put(((Type.GenericProcedure) type).explicitGenerics[i], typeArgs[i]);
                 } catch (TypeError e) {
                     throw new SyntaxError(e,pos);
@@ -3301,13 +3303,7 @@ public class Interpreter {
                 }
             }
         }
-        if(bounds.l.size()>0){
-            for(Type.GenericBound b:bounds.l.values()){
-                if(b.min()!=null||(b.max()!=null&&b.max()!=Type.ANY)){
-                    throw new SyntaxError("unexpected l-bounds",pos);
-                }
-            }
-        }else if(bounds.r.size()>0){
+        if(bounds.r.size()>0){//TODO handle bounds.l
             IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
             for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.r.entrySet()){
                 if(e.getValue().min()!=null){
