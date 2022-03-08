@@ -65,7 +65,7 @@ ustring:+string proc ustring string => ustring :
   string  append  =:
   ustring value   =:
   value value length append length + ensureCap drop
-  append 0
+  append 0u
   while nextCodepoint do
     value swap :<< value =
   end 0 3 $drop ## drop remaining data
@@ -93,8 +93,8 @@ returns true/false depending of if there was a next codepoint
 the value of the read codepoint (of 0 if the end of the string was reached)
 followed by the index after the next codepoint and the string
 +#
-nextCodepoint proc string #+index+# int => string #+end+# int #+next+# codepoint #+has next+# bool :
-  int    index =:
+nextCodepoint proc string #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool :
+  uint   index =:
   string value =:
   while index value length < && value index [] int cast 0xc0 & 0x80 == end do
     index 1 + index = ## skip parts of unfinished codepoint
@@ -102,7 +102,7 @@ nextCodepoint proc string #+index+# int => string #+end+# int #+next+# codepoint
   while index value length < do
     value index [] int char =:
     char 0x80 & 0 == if ## ascii - character
-      value  index 1 +  char codepoint cast  true return
+      value  index 1u +  char codepoint cast  true return
     else ## multi - char codepoint
       0 while char 0x80 & 0 != do
         char 1 << char =

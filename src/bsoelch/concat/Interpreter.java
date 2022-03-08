@@ -2058,7 +2058,6 @@ public class Interpreter {
                 if(typeStack.size()!=((Type.Procedure)p.type).outTypes.length){
                     throw new SyntaxError("procedure body does not match signature",p.declaredAt);
                 }
-                //TODO casting of return values
                 for(Type t:((Type.Procedure)p.type).outTypes){
                     if(!typeStack.get(k--).type().isSubtype(t)){
                         throw new SyntaxError("procedure body does not match signature",p.declaredAt);
@@ -2104,7 +2103,7 @@ public class Interpreter {
             TypeFrame t2= branch.get(p);
             if((!t1.equals(t2))){
                 //TODO? warning when incompatible types (i.e. string and int) are merged
-                main.set(p,new TypeFrame(Type.commonSuperType(t1.type,t2.type),null,t1.pushedAt));
+                main.set(p,new TypeFrame(Type.commonSuperType(t1.type,t2.type,true),null,t1.pushedAt));
                 //addLater? better position reporting for merged positions
             }
         }
@@ -2433,7 +2432,7 @@ public class Interpreter {
                             Type type=null;
                             for(Token v:subList){
                                 if(v instanceof ValueToken){
-                                    type=Type.commonSuperType(type,((ValueToken) v).value.type);
+                                    type=Type.commonSuperType(type,((ValueToken) v).value.type,true);
                                     values.add(((ValueToken) v).value);
                                 }else{
                                     values.clear();
@@ -2516,6 +2515,8 @@ public class Interpreter {
                     ret.add(t);
                 }
                 case RETURN -> {
+                    //TODO check return values separately
+                    //addLater? implicit casting of return values ( int <-> uint -> float )
                     retStacks.addLast(typeStack.clone());
                     finishedBranch=true;
                     ret.add(t);
@@ -2592,7 +2593,6 @@ public class Interpreter {
         TypeCheckResult res=typeCheck(lambda.tokens(),lambda.context, globalConstants,procTypes, ioContext);
         lambda.tokens=res.tokens;
         //TODO check output
-        //TODO casting of return values
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
         if(lambda.context.curried.isEmpty()){
@@ -2710,7 +2710,7 @@ public class Interpreter {
                 TypeFrame f2 = typeStack.pop();
                 TypeFrame f1 = typeStack.pop();
                 Type a=f1.type,b=f2.type;
-                if(a ==Type.UINT&& b ==Type.UINT){
+                if(a ==Type.UINT&& b ==Type.UINT){//TODO? uint + int -> uint
                     typeStack.push(new TypeFrame(Type.UINT,null,t.pos));
                 }else if(a ==Type.INT|| a ==Type.UINT || a ==Type.BYTE){//addLater? isInt/isUInt functions
                     if(b ==Type.INT|| b ==Type.UINT || b ==Type.BYTE){
@@ -3743,7 +3743,7 @@ public class Interpreter {
                             return res;
                         }
                         ArrayList<Value> values=new ArrayList<>(listStack.asList());
-                        Type type=values.stream().map(v->v.type).reduce(null, Type::commonSuperType);
+                        Type type=values.stream().map(v->v.type).reduce(null, (a,b)->Type.commonSuperType(a,b,false));
                         for(int i=0;i< values.size();i++){
                             values.set(i,values.get(i).castTo(type));
                         }

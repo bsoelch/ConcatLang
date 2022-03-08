@@ -290,7 +290,7 @@ stringToInt proc #+source+# string #+base+# int #+signed+# bool => #+val+# int #
   else source 0 [] '+' == _if
     1 i =
   end
-  signed if int_MAX else uint_MAX end base uint cast / int max =:
+  signed if int_MAX uint cast else uint_MAX end base uint cast / int max =:
   while i source length < do
     res max > if
       res  sgn if -_ end StringParseError ERR_OVERFLOW . return
@@ -368,7 +368,7 @@ stringToFloat proc #+str+# string #+base+# int => #+val+# float #+err-code+# Str
     float_NaN StringParseError ERR_BASE . return
   end
   str length 0 == if
-    0 StringParseError ERR_EMPTY . return
+    0.0 StringParseError ERR_EMPTY . return
   end
   0 int val =:
   0 int i =:

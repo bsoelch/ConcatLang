@@ -12,16 +12,16 @@ hashCode proc var => uint :
   var value =:
   value typeof type valType =:
   valType (list) <= if
-    0 int hash =:
-    0 int i =:
+    0 uint hash =:
+    0 uint i =:
     while i value (list) cast length < do
       hash 31 * value (list) cast i [] hashCode + hash =
       i 1 + i =
     end
     hash
   else valType _Empty_Tuple <= _if ## addLater? use list-hash for tuple/enum-types
-    0 int hash =:
-    0 int i =:
+    0 uint hash =:
+    0 uint i =:
     while i value _Empty_Tuple cast length < do
       hash 31 * value _Empty_Tuple cast i [] hashCode + hash =
       i 1 + i =

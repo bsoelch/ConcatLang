@@ -77,7 +77,7 @@ public class Type {
     final String name;
     final boolean switchable;
 
-    public static Type commonSuperType(Type a, Type b) {
+    public static Type commonSuperType(Type a, Type b,boolean strict) {
         if(a==ANY||b==null){
             return a;
         }else if(a==null||b==ANY){
@@ -87,9 +87,9 @@ public class Type {
                 return b;
             }else if(b.isSubtype(a)){
                 return a;
-            }else if((a==UINT||a==INT)&&(b==UINT||b==INT)){
+            }else if((!strict)&&((a==UINT||a==INT)&&(b==UINT||b==INT))){
                 return a;
-            }else if((a==FLOAT&&(b==UINT||b==INT))||(b==FLOAT&&(a==UINT||a==INT))){
+            }else if((!strict)&&((a==FLOAT&&(b==UINT||b==INT))||(b==FLOAT&&(a==UINT||a==INT)))){
                 return FLOAT;
             }else{
                 return ANY;
