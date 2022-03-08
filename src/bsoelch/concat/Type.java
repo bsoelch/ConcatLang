@@ -130,7 +130,7 @@ public class Type {
     }
 
     protected boolean isSubtype(Type t, BoundMaps bounds){
-        if(t instanceof GenericParameter){
+        if(t instanceof GenericParameter&&!((GenericParameter) t).isBound){
             GenericBound bound=bounds.r.get(t);
             if(bound!=null){
                 if(bound.min==null||bound.min.isSubtype(this,bounds.swapped())) {
@@ -457,21 +457,25 @@ public class Type {
         }
         @Override
         protected boolean isSubtype(Type t, BoundMaps bounds) {
-            if((!(t instanceof GenericTuple))||((GenericTuple) t).explicitParams.length!= explicitParams.length)
-                return false;
-            for(int i = 0; i< genericArgs.length; i++){//compare generic parameters with their equivalents
-                if(!genericArgs[i].isSubtype(((GenericTuple) t).genericArgs[i],bounds))
+            if(t instanceof GenericTuple){
+                if(((GenericTuple) t).explicitParams.length!= explicitParams.length)
                     return false;
+                for(int i = 0; i< genericArgs.length; i++){//compare generic parameters with their equivalents
+                    if(!genericArgs[i].isSubtype(((GenericTuple) t).genericArgs[i],bounds))
+                        return false;
+                }
             }
             return super.isSubtype(t, bounds);
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
-            if((!(t instanceof GenericTuple))||((GenericTuple) t).explicitParams.length!= explicitParams.length)
-                return false;
-            for(int i = 0; i< genericArgs.length; i++){//compare generic parameters with their equivalents
-                if(!genericArgs[i].canCastTo(((GenericTuple) t).genericArgs[i], bounds))
+            if(t instanceof GenericTuple) {
+                if (((GenericTuple) t).explicitParams.length != explicitParams.length)
                     return false;
+                for (int i = 0; i < genericArgs.length; i++) {//compare generic parameters with their equivalents
+                    if (!genericArgs[i].canCastTo(((GenericTuple) t).genericArgs[i], bounds))
+                        return false;
+                }
             }
             return super.canCastTo(t, bounds);
         }
@@ -657,21 +661,25 @@ public class Type {
         }
         @Override
         protected boolean isSubtype(Type t, BoundMaps bounds) {
-            if((!(t instanceof GenericProcedure))||((GenericProcedure) t).explicitGenerics.length!= explicitGenerics.length)
-                return false;
-            for(int i = 0; i< genericArgs.length; i++){//map generic parameters to their equivalents
-                if(!genericArgs[i].isSubtype(((GenericProcedure) t).genericArgs[i],bounds))
+            if(t instanceof GenericProcedure) {
+                if (((GenericProcedure) t).explicitGenerics.length != explicitGenerics.length)
                     return false;
+                for (int i = 0; i < genericArgs.length; i++) {//map generic parameters to their equivalents
+                    if (!genericArgs[i].isSubtype(((GenericProcedure) t).genericArgs[i], bounds))
+                        return false;
+                }
             }
             return super.isSubtype(t, bounds);
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
-            if((!(t instanceof GenericProcedure))||((GenericProcedure) t).explicitGenerics.length!= explicitGenerics.length)
-                return false;
-            for(int i = 0; i< genericArgs.length; i++){//map generic parameters to their equivalents
-                if(!genericArgs[i].isSubtype(((GenericProcedure) t).genericArgs[i],bounds))
+            if(t instanceof GenericProcedure){
+                if(((GenericProcedure) t).explicitGenerics.length!= explicitGenerics.length)
                     return false;
+                for(int i = 0; i< genericArgs.length; i++){//map generic parameters to their equivalents
+                    if(!genericArgs[i].isSubtype(((GenericProcedure) t).genericArgs[i],bounds))
+                        return false;
+                }
             }
             return super.canCastTo(t, bounds);
         }
@@ -784,7 +792,7 @@ public class Type {
         protected boolean isSubtype(Type t, BoundMaps bounds) {
             if(this==t)
                 return true;
-            if(isBound ||(t instanceof GenericParameter&&((GenericParameter) t).isImplicit))
+            if(isBound ||t instanceof GenericParameter)//TODO handling of bounds if both sides are unbound generics
                 return super.isSubtype(t,bounds);
             GenericBound bound=bounds.l.get(this);
             if(bound!=null){

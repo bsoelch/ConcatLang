@@ -565,7 +565,7 @@ public class Interpreter {
         ListBlock(int start, BlockType type, FilePosition startPos, VariableContext parentContext) {
             super(start, type, startPos, parentContext);
             if(type==BlockType.ANONYMOUS_TUPLE){
-                this.context=new GenericContext(parentContext, false);
+                this.context=new GenericContext(parentContext, true);
             }else{
                 this.context=parentContext;
             }
@@ -1102,7 +1102,6 @@ public class Interpreter {
 
     }
 
-    //addLater allow declaring generics only in in-signature
     static class ProcedureContext extends GenericContext {
         ArrayList<CurriedVariable> curried=new ArrayList<>();
         ProcedureContext(VariableContext parent){
@@ -3088,11 +3087,17 @@ public class Interpreter {
                             break;
                         }
                         TypeFrame val = typeStack.pop();
-                        if(!val.type.isSubtype(id.type)){//cast to correct type if necessary
-                            if(!val.type.canCastTo(id.type)){
+                        Type.BoundMaps bounds=new Type.BoundMaps();
+                        if(!val.type.isSubtype(id.type,bounds)){//cast to correct type if necessary
+                            bounds=new Type.BoundMaps();
+                            if(!val.type.canCastTo(id.type,bounds)){
                                 throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
                             }
                             ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
+                        }
+                        if(bounds.l.size()>0||bounds.r.size()>0){
+                            //TODO update generics
+                            throw new UnsupportedOperationException("generic variables are currently unimplemented");
                         }
                         if (id.isConstant && id.context.procedureContext() == null
                                 && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
@@ -3173,8 +3178,7 @@ public class Interpreter {
                             try {
                                 genArgs[j] = ((ValueToken) prev).value.asType();
                                 Value value = typeStack.pop().value;
-                                //FIXME this error can be reached in a normal program (generic tuples with lists as parameter)
-                                if(value==null||value.type!=Type.TYPE||value.asType()!=genArgs[j]){
+                                if(value==null||value.type!=Type.TYPE||!value.asType().equals(genArgs[j])){
                                     throw new RuntimeException("type-stack out of sync with tokens");
                                 }
                             } catch (TypeError e) {
@@ -3197,11 +3201,17 @@ public class Interpreter {
                     context.wrapCurried(identifier.name,id,identifier.pos);
                     assert !globalConstants.containsKey(id);
                     TypeFrame f = typeStack.pop();
-                    if(!f.type.isSubtype(id.type)){//cast to correct type if necessary
-                        if(!f.type.canCastTo(id.type)){
+                    Type.BoundMaps bounds=new Type.BoundMaps();
+                    if(!f.type.isSubtype(id.type,bounds)){//cast to correct type if necessary
+                        bounds=new Type.BoundMaps();
+                        if(!f.type.canCastTo(id.type,bounds)){
                             throw new SyntaxError("cannot cast from "+f.type+" to "+id.type,t.pos);
                         }
                         ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
+                    }
+                    if(bounds.l.size()>0||bounds.r.size()>0){
+                        //TODO update generics
+                        throw new UnsupportedOperationException("generic variables are currently unimplemented");
                     }
                     ret.add(new VariableToken(identifier.pos,identifier.name,id,
                             AccessType.WRITE, context));
