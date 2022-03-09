@@ -2,11 +2,11 @@ lib/stack :
 
 core #namespace
 ## file with macros for elementary stack-manipulation
-drop #define 0 1 $drop          #end
-dup  #define 0 1 $dup           #end
-over #define 1 1 $dup           #end
-swap #define 1 1 $dup 2 1 $drop #end
-rot3 #define 2 1 $dup 3 1 $drop #end
+drop #define 1 $drop #end
+dup  #define 1 $dup  #end
+over #define 2 $dup  #end
+swap #define 2 $dup 2 3 $set 1 2 $set 1 $drop #end
+rot3 #define 3 $dup 3 4 $set 2 3 $set 1 2 $set 1 $drop #end
 
 #end ##core
 

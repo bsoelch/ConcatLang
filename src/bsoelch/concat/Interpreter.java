@@ -18,7 +18,7 @@ public class Interpreter {
 
     enum TokenType {
         VALUE, LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,UPDATE_GENERICS,NEW,NEW_LIST,
-        DROP,DUP,
+        STACK_DROP,STACK_DUP,STACK_SET,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
         CONTEXT_OPEN,CONTEXT_CLOSE,
@@ -107,11 +107,10 @@ public class Interpreter {
         }
     }
     static class StackModifierToken extends Token{
-        final long off,count;
-        StackModifierToken(boolean isDup,long off,long count,FilePosition pos) {
-            super(isDup?TokenType.DUP:TokenType.DROP,pos);
-            this.off = off;
-            this.count = count;
+        final int[] args;
+        StackModifierToken(TokenType type,int[] args,FilePosition pos) {
+            super(type,pos);
+            this.args=args;
         }
     }
     enum BlockTokenType{
@@ -663,7 +662,7 @@ public class Interpreter {
         int forceNextChar() throws IOException, SyntaxError {
             int c=nextChar();
             if (c < 0) {
-                throw new SyntaxError("Unexpected end of File",currentPos());
+                throw new SyntaxError("unexpected end of File",currentPos());
             }
             return c;
         }
@@ -1842,32 +1841,21 @@ public class Interpreter {
 
                 case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
                 case "typeof" -> tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
-                //stack modifiers addLater better stack modifiers
-                /*<off> <count> $dup*/
-                /*<off> <count> $drop*/
-                case "$drop","$dup"  ->{
-                    if(tokens.size()<2){
-                        throw new SyntaxError("not enough arguments for "+str,pos);
-                    }
-                    Token count=tokens.remove(tokens.size()-1);
-                    Token off=tokens.remove(tokens.size()-1);
-                    if(count instanceof ValueToken &&off instanceof ValueToken){
-                        try {
-                            long c=((ValueToken) count).value.asLong();
-                            if(c<0){
-                                throw new SyntaxError(str+": count has to be greater than of equal to 0",pos);
-                            }
-                            long o=((ValueToken) off).value.asLong();
-                            if(o<0){
-                                throw new SyntaxError(str+":offset has to be greater than of equal to 0",pos);
-                            }
-                            tokens.add(new StackModifierToken(str.equals("$dup"),o,c,pos));
-                        } catch (TypeError e) {
-                            throw new SyntaxError(e,pos);
-                        }
-                    }else{
-                        throw new SyntaxError("the arguments of "+str+" have to be compile time constants",pos);
-                    }
+                //stack modifiers
+                //<count> $drop
+                case "$drop" ->{
+                    int[] args = getArgInts(str, 1, tokens, pos);
+                    tokens.add(new StackModifierToken(TokenType.STACK_DROP,args,pos));
+                }
+                //<src> $dup
+                case "$dup" ->{
+                    int[] args = getArgInts(str, 1, tokens, pos);
+                    tokens.add(new StackModifierToken(TokenType.STACK_DUP,args,pos));
+                }
+                //<target> <src> $set
+                case "$set" ->{
+                    int[] args = getArgInts(str, 2, tokens, pos);
+                    tokens.add(new StackModifierToken(TokenType.STACK_SET,args,pos));
                 }
                 //operators
                 case "refId"  -> tokens.add(new OperatorToken(OperatorType.REF_ID,     pos));
@@ -2034,6 +2022,34 @@ public class Interpreter {
             }
         }
     }
+
+    private int[] getArgInts(String op, int nArgs, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
+        if(tokens.size()<nArgs){
+            throw new SyntaxError("not enough arguments for "+op,pos);
+        }
+        int[] args=new int[nArgs];
+        for(int i = 0; i< nArgs; i++){
+            Token arg= tokens.remove(tokens.size()-1);
+            if(arg instanceof ValueToken){
+                try {
+                    long c=((ValueToken) arg).value.asLong();
+                    if(c<=0){
+                        throw new SyntaxError(op +": count has to be greater than 0",arg.pos);
+                    }else if(c>Integer.MAX_VALUE){
+                        throw new SyntaxError(op +": count has to be less than of equal to "+Integer.MAX_VALUE,
+                                arg.pos);
+                    }
+                    args[i]=(int)c;
+                } catch (TypeError e) {
+                    throw new SyntaxError(e, pos);
+                }
+            }else{
+                throw new SyntaxError("the arguments of "+ op +" have to be compile time constants",arg.pos);
+            }
+        }
+        return args;
+    }
+
     private void expandMacro(ParserState pState, Macro m, FilePosition pos, IOContext ioContext) throws SyntaxError {
         for(StringWithPos s:m.content){
             finishWord(s.str,pState,new FilePosition(s.start, pos),ioContext);
@@ -2429,24 +2445,25 @@ public class Interpreter {
                             if(open==null||open.type!=BlockType.CONST_LIST){
                                 throw new SyntaxError("unexpected '}' statement ",t.pos);
                             }
+                            Type type=null;
+                            for(TypeFrame f:typeStack) {
+                                type = Type.commonSuperType(type, f.type, true);
+                            }
+                            if(type==null){
+                                type=Type.ANY;
+                            }
                             typeStack=((ListBlock)open).prevTypes;
-
                             List<Token> subList = ret.subList(open.start, ret.size());
                             ArrayList<Value> values=new ArrayList<>(subList.size());
                             boolean constant=true;
-                            Type type=null;
                             for(Token v:subList){
                                 if(v instanceof ValueToken){
-                                    type=Type.commonSuperType(type,((ValueToken) v).value.type,true);
                                     values.add(((ValueToken) v).value);
                                 }else{
                                     values.clear();
                                     constant=false;
                                     break;
                                 }
-                            }
-                            if(type==null){
-                                type=Type.ANY;
                             }
                             if(constant){
                                 subList.clear();
@@ -2547,16 +2564,19 @@ public class Interpreter {
 
                     ret.add(new TypedToken(TokenType.CAST,target,t.pos));
                 }
-                case DROP ->{
+                case STACK_DROP ->{
                     assert t instanceof StackModifierToken;
-                    typeStack.dropAll(((StackModifierToken)t).off,((StackModifierToken)t).count);
-
+                    typeStack.drop(((StackModifierToken)t).args[0]);
                     ret.add(t);
                 }
-                case DUP ->{
+                case STACK_DUP ->{
                     assert t instanceof StackModifierToken;
-                    typeStack.dupAll(((StackModifierToken)t).off,((StackModifierToken)t).count);
-
+                    typeStack.dup(((StackModifierToken)t).args[0]);
+                    ret.add(t);
+                }
+                case STACK_SET ->{
+                    assert t instanceof StackModifierToken;
+                    typeStack.set(((StackModifierToken)t).args[0],((StackModifierToken)t).args[1]);
                     ret.add(t);
                 }
                 case CALL_PTR -> {
@@ -3315,7 +3335,11 @@ public class Interpreter {
             }
             type= type.replaceGenerics(generics);
             if(typeArgs.length>0){
-                tokens.add(new StackModifierToken(false,offset,typeArgs.length,pos));
+                if(isPtr){//move pointer below the arguments
+                    tokens.add(new StackModifierToken(TokenType.STACK_SET,new int[]{typeArgs.length+1,1},pos));
+                    offset++;
+                }
+                tokens.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{typeArgs.length},pos));
                 offset++;
             }
         }
@@ -3822,13 +3846,17 @@ public class Interpreter {
                         }
                     }
                     case DEBUG_PRINT -> context.stdOut.println(stack.pop().stringValue());
-                    case DROP ->{
+                    case STACK_DROP ->{
                         assert next instanceof StackModifierToken;
-                        stack.dropAll(((StackModifierToken)next).off,((StackModifierToken)next).count);
+                        stack.drop(((StackModifierToken)next).args[0]);
                     }
-                    case DUP -> {
+                    case STACK_DUP -> {
                         assert next instanceof StackModifierToken;
-                        stack.dupAll(((StackModifierToken) next).off, ((StackModifierToken) next).count);
+                        stack.dup(((StackModifierToken)next).args[0]);
+                    }
+                    case STACK_SET -> {
+                        assert next instanceof StackModifierToken;
+                        stack.set(((StackModifierToken)next).args[0],((StackModifierToken)next).args[1]);
                     }
                     case VARIABLE -> {
                         assert next instanceof VariableToken;

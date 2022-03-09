@@ -68,7 +68,7 @@ ustring:+string proc ustring string => ustring :
   append 0u
   while nextCodepoint do
     value swap :<< value =
-  end 0 3 $drop ## drop remaining data
+  end 3 $drop ## drop remaining data
   value return
 end
 string+:ustring proc string ustring => ustring :

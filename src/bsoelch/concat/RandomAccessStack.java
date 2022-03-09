@@ -1,11 +1,12 @@
 package bsoelch.concat;
 
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
 /**Stack that supports random access of elements*/
-public class RandomAccessStack<T> implements Cloneable{
+public class RandomAccessStack<T> implements Cloneable,Iterable<T>{
     private Object[] data;
     private int size;
 
@@ -51,27 +52,35 @@ public class RandomAccessStack<T> implements Cloneable{
     }
 
     @Override
+    public Iterator<T> iterator() {
+        //noinspection unchecked
+        return (Iterator<T>) Arrays.asList(data).subList(0,size).iterator();
+    }
+
+    @Override
     public String toString() {
         return Arrays.toString(Arrays.copyOf(data,size));
     }
 
-    public void dropAll(long off, long count) throws StackUnderflow {
-        if(off+count>size){
+    public void drop(int count) throws StackUnderflow {
+        if(count>size){
             throw new StackUnderflow();
-        }
-        if(off>0){
-            System.arraycopy(data,size-(int)off,data,size-(int)(off+count),(int)off);
         }
         size-=count;
     }
-
-    public void dupAll(long off, long count) throws StackUnderflow {
-        if(off+count>size){
+    public void dup(int src) throws StackUnderflow {
+        if(src>size){
             throw new StackUnderflow();
         }
-        ensureCap((int)(size+count));
-        System.arraycopy(data,size-(int)(off+count),data,size,(int)count);
-        size+=count;
+        ensureCap(size+1);
+        data[size]=data[size-src];
+        size++;
+    }
+    public void set(int target,int src) throws StackUnderflow {
+        if(target>size||src>size){
+            throw new StackUnderflow();
+        }
+        data[size-target]=data[size-src];
     }
 
     public List<T> asList() {
