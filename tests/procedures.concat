@@ -35,7 +35,7 @@ lambda int => bool : 0 != end *->* intToBool =$
 3 intToBool () println
 0 intToBool () println
 
-2 3 lambda int int => int : + 2.0 / end () println
+2 3 lambda int int => float : + 2.0 / end () println
 
 lambda => ( => ( => ( => ( => ) ) ) ) :
   "currying" string a =$

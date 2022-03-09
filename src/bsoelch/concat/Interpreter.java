@@ -1575,7 +1575,7 @@ public class Interpreter {
                     if(block instanceof ProcedureBlock proc) {
                         List<Token> ins = tokens.subList(proc.start, tokens.size());
                         proc.addIns(typeCheck(ins,block.context(),pState.globalVariables,
-                                new RandomAccessStack<>(8),ioContext).tokens,pos);
+                                new RandomAccessStack<>(8),null,ioContext).tokens,pos);
                         ins.clear();
                         proc.context().lock();
                     }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
@@ -1595,7 +1595,7 @@ public class Interpreter {
                         ProcedureBlock proc=(ProcedureBlock) block;
                         List<Token> outs = tokens.subList(proc.start, tokens.size());
                         proc.addOuts(typeCheck(outs,block.context(),pState.globalVariables,
-                                new RandomAccessStack<>(8),ioContext).tokens,pos);
+                                new RandomAccessStack<>(8),null,ioContext).tokens,pos);
                         outs.clear();
                     }else{
                         throw new SyntaxError(": can only be used in proc- and lambda- blocks", pos);
@@ -1684,7 +1684,7 @@ public class Interpreter {
                             List<Token> subList = tokens.subList(block.start, tokens.size());
                             Type[] types=ProcedureBlock.getSignature(
                                     typeCheck(subList, block.context(), pState.globalVariables,
-                                            new RandomAccessStack<>(8),ioContext).tokens,true);
+                                            new RandomAccessStack<>(8),null,ioContext).tokens,true);
                             subList.clear();
                             if(generics.size()>0){
                                 GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,
@@ -1771,11 +1771,11 @@ public class Interpreter {
                         List<Token> subList=tokens.subList(open.start, ((ProcTypeBlock)open).separatorPos);
                         Type[] inTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
-                                        new RandomAccessStack<>(8),ioContext).tokens,false);
+                                        new RandomAccessStack<>(8),null,ioContext).tokens,false);
                         subList=tokens.subList(((ProcTypeBlock)open).separatorPos, tokens.size());
                         Type[] outTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
-                                        new RandomAccessStack<>(8),ioContext).tokens,false);
+                                        new RandomAccessStack<>(8),null,ioContext).tokens,false);
                         subList=tokens.subList(open.start,tokens.size());
                         subList.clear();
                         ArrayList<Type.GenericParameter> generics=((GenericContext)open.context()).generics;
@@ -1787,7 +1787,7 @@ public class Interpreter {
                         List<Token> subList=tokens.subList(open.start, tokens.size());
                         Type[] tupleTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
-                                        new RandomAccessStack<>(8),ioContext).tokens,true);
+                                        new RandomAccessStack<>(8),null,ioContext).tokens,true);
                         subList.clear();
                         if(((GenericContext)open.context()).generics.size()>0){
                             throw new SyntaxError("generic parameters are not allowed in anonymous tuples",
@@ -2041,7 +2041,7 @@ public class Interpreter {
     }
     private void finishParsing(ParserState pState, IOContext ioContext,boolean parseProcs) throws SyntaxError {
         TypeCheckResult res=typeCheck(pState.tokens, pState.rootContext,pState.globalVariables,
-                pState.typeStack, ioContext);
+                pState.typeStack, null, ioContext);
         pState.globalCode.addAll(res.tokens);
         pState.typeStack=res.types;
         if(parseProcs){
@@ -2051,21 +2051,26 @@ public class Interpreter {
                 for(Type t:((Type.Procedure)p.type).inTypes){
                     typeStack.push(new TypeFrame(t,null,p.declaredAt));
                 }
-                res=typeCheck(p.tokens,p.context,pState.globalVariables,typeStack,ioContext);
+                res=typeCheck(p.tokens,p.context,pState.globalVariables,typeStack,((Type.Procedure)p.type).outTypes,ioContext);
                 p.tokens=res.tokens;
                 typeStack=res.types;
-                int k=typeStack.size();
-                if(typeStack.size()!=((Type.Procedure)p.type).outTypes.length){
-                    throw new SyntaxError("procedure body does not match signature",p.declaredAt);
-                }
-                for(Type t:((Type.Procedure)p.type).outTypes){
-                    if(!typeStack.get(k--).type().isSubtype(t)){
-                        throw new SyntaxError("procedure body does not match signature",p.declaredAt);
-                    }
-                }
+                checkReturnValue(typeStack, ((Type.Procedure) p.type).outTypes,
+                        "procedure body does not match signature",p.declaredAt);
             }
         }
         pState.tokens.clear();
+    }
+
+    private void checkReturnValue(RandomAccessStack<TypeFrame> typeStack, Type[] outTypes,String message,FilePosition pos) throws SyntaxError {
+        int k= typeStack.size();
+        if(typeStack.size()!= outTypes.length){
+            throw new SyntaxError(message, pos);
+        }
+        for(Type t: outTypes){
+            if(!typeStack.get(k--).type().isSubtype(t)){
+                throw new SyntaxError(message, pos);
+            }
+        }
     }
 
     private boolean notAssignable(RandomAccessStack<TypeFrame> a, RandomAccessStack<TypeFrame> b) {
@@ -2110,7 +2115,7 @@ public class Interpreter {
     }
     record TypeCheckResult(ArrayList<Token> tokens,RandomAccessStack<TypeFrame> types){}
     public TypeCheckResult typeCheck(List<Token> tokens,VariableContext context,HashMap<VariableId,Value> globalConstants,
-                                      RandomAccessStack<TypeFrame> typeStack,IOContext ioContext) throws SyntaxError {
+                                      RandomAccessStack<TypeFrame> typeStack,Type[] expectedReturnTypes,IOContext ioContext) throws SyntaxError {
         ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
         ArrayList<Token> ret=new ArrayList<>(tokens.size());
         ArrayDeque<RandomAccessStack<TypeFrame>> retStacks=new ArrayDeque<>();
@@ -2257,7 +2262,7 @@ public class Interpreter {
                             }
                             List<Token> caseValues=tokens.subList(i+1,j);
                             context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
-                                            new RandomAccessStack<>(8),ioContext).tokens,tokens.get(j).pos);
+                                            new RandomAccessStack<>(8),null,ioContext).tokens,tokens.get(j).pos);
                             ret.add(new ContextOpen(context,t.pos));
                             i=j;
                             if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
@@ -2293,7 +2298,7 @@ public class Interpreter {
                             if(((BlockToken)t).blockType==BlockTokenType.CASE){
                                 List<Token> caseValues=tokens.subList(i+1,j);
                                 context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
-                                                new RandomAccessStack<>(8),ioContext).tokens,tokens.get(j).pos);
+                                                new RandomAccessStack<>(8),null,ioContext).tokens,tokens.get(j).pos);
                                 ret.add(new ContextOpen(context,t.pos));
 
                                 if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
@@ -2515,9 +2520,12 @@ public class Interpreter {
                     ret.add(t);
                 }
                 case RETURN -> {
-                    //TODO check return values separately
-                    //addLater? implicit casting of return values ( int <-> uint -> float )
-                    retStacks.addLast(typeStack.clone());
+                    if(expectedReturnTypes!=null){
+                        //addLater? implicit casting of return values ( int <-> uint -> float )
+                        checkReturnValue(typeStack,expectedReturnTypes,"return value does not match signature",t.pos);
+                    }else{
+                        retStacks.addLast(typeStack.clone());
+                    }
                     finishedBranch=true;
                     ret.add(t);
                 }
@@ -2590,9 +2598,10 @@ public class Interpreter {
         for(Type in:((Type.Procedure)lambda.type).inTypes){
             procTypes.push(new TypeFrame(in,null, t.pos));
         }
-        TypeCheckResult res=typeCheck(lambda.tokens(),lambda.context, globalConstants,procTypes, ioContext);
+        TypeCheckResult res=typeCheck(lambda.tokens(),lambda.context, globalConstants,procTypes,
+                ((Type.Procedure) lambda.type).outTypes, ioContext);
         lambda.tokens=res.tokens;
-        //TODO check output
+        checkReturnValue(res.types, ((Type.Procedure) lambda.type).outTypes,"procedure does not match signature",t.pos);
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
         if(lambda.context.curried.isEmpty()){
