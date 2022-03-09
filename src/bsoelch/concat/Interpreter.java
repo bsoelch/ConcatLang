@@ -3004,14 +3004,30 @@ public class Interpreter {
                 ret.add(t);
             }
             case SET_INDEX -> {
-                Type index = typeStack.pop().type;
+                TypeFrame index = typeStack.pop();
                 Type val   = typeStack.pop().type;
                 Type list  = typeStack.pop().type;
-                if((index!=Type.INT&&index!=Type.UINT)||
-                        (!((list.isList()&&val.isSubtype(list.content()))||list instanceof Type.Tuple))){//TODO check value for tuple set
+                if((index.type!=Type.INT&&index.type!=Type.UINT)||
+                        (!((list.isList()&&val.isSubtype(list.content()))||list instanceof Type.Tuple))){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+val+" "+index,op.pos);
                 }
-
+                if(list instanceof Type.Tuple){
+                    if(index.value==null){
+                        throw new SyntaxError("tuple indices have to be constant integers",op.pos);
+                    }else{
+                        long p=index.value.asLong();
+                        if(p<0||p>=((Type.Tuple) list).elements.length){
+                            throw new SyntaxError("tuple index out of range:"+p+" length:"+
+                                    ((Type.Tuple) list).elements.length,op.pos);
+                        }else if(!val.isSubtype(((Type.Tuple) list).elements[(int)p])){//TODO generics
+                            if(!val.canCastTo(((Type.Tuple) list).elements[(int)p])){
+                                throw new SyntaxError("cannot cast "+val+" to "+
+                                        ((Type.Tuple) list).elements[(int)p],op.pos);
+                            }
+                            ret.add(new ArgCastToken(2,((Type.Tuple) list).elements[(int)p],op.pos));
+                        }
+                    }
+                }
                 ret.add(t);
             }
             case GET_SLICE -> {
@@ -3286,7 +3302,7 @@ public class Interpreter {
             for(int i=typeArgs.length-1;i>=0;i--){
                 try {
                     TypeFrame f=typeStack.pop();
-                    if(f.type!=type||f.value()==null){
+                    if(f.type!=Type.TYPE||f.value()==null){
                         throw new SyntaxError("generic arguments have to be constant types",pos);
                     }
                     typeArgs[i]=f.value().asType();
