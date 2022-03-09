@@ -3285,9 +3285,15 @@ public class Interpreter {
             Type[] typeArgs=new Type[((Type.GenericProcedure) type).explicitGenerics.length];
             for(int i=typeArgs.length-1;i>=0;i--){
                 try {
-                    typeArgs[i]=typeStack.pop().value().asType();//FIXME handle missing typeFrame/value
+                    TypeFrame f=typeStack.pop();
+                    if(f.type!=type||f.value()==null){
+                        throw new SyntaxError("generic arguments have to be constant types",pos);
+                    }
+                    typeArgs[i]=f.value().asType();
                     generics.put(((Type.GenericProcedure) type).explicitGenerics[i], typeArgs[i]);
-                } catch (TypeError e) {
+                }catch (RandomAccessStack.StackUnderflow e){
+                    throw new SyntaxError("missing generic argument for function call "+procName,pos);
+                }catch (TypeError e) {
                     throw new SyntaxError(e,pos);
                 }
             }
