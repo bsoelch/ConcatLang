@@ -309,20 +309,20 @@ checkErrCode proc #+err-code+# StringParseError #+type-name+# string #+source+# 
   string source =:
   string typeName =:
   #+err-code+# switch
-  StringParseError ERR_NONE . case end-case
-  StringParseError ERR_BASE . case
+  ERR_NONE case end-case
+  ERR_BASE case
       "invalid string-format for " typeName :+ " \"" +: source :+ "\" (base outside of allowed rage)\n" :+ eputs
       1 exit
   end-case
-  StringParseError ERR_EMPTY . case
+  ERR_EMPTY case
       "invalid string-format for " typeName :+ " \"" +: source :+ "\" (empty-string)\n" :+ eputs
       1 exit
   end-case
-  StringParseError ERR_ILLEGAL_CHAR . case
+  ERR_ILLEGAL_CHAR case
       "invalid string-format for " typeName :+ " \"" +: source :+ "\" (illegal-character)\n" :+ eputs
       1 exit
   end-case
-  StringParseError ERR_OVERFLOW . case
+  ERR_OVERFLOW case
       "invalid string-format for " typeName :+ " \"" +: source :+ "\" (overflow)\n" :+ eputs
       1 exit
   end-case

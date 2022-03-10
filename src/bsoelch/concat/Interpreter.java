@@ -1928,7 +1928,7 @@ public class Interpreter {
                         throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
                     }
                 }
-                case "."->{
+                case "."->{ //FIXME '.' is evaluated after macro expansion -> fields with same name as macro cannot be reached
                     if(prev==null||tokens.size()<2){
                         throw new SyntaxError("not enough tokens tokens for '.' modifier",pos);
                     }else if(prevId!=null){
@@ -2286,6 +2286,7 @@ public class Interpreter {
                                         tokens.get(j).pos);
                             }
                             List<Token> caseValues=tokens.subList(i+1,j);
+                            findEnumFields(switchBlock, caseValues);
                             context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
                                             new RandomAccessStack<>(8),null,ioContext).tokens,tokens.get(j).pos);
                             ret.add(new ContextOpen(context,t.pos));
@@ -2322,6 +2323,7 @@ public class Interpreter {
                             t=tokens.get(j);
                             if(((BlockToken)t).blockType==BlockTokenType.CASE){
                                 List<Token> caseValues=tokens.subList(i+1,j);
+                                findEnumFields(switchBlock, caseValues);
                                 context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
                                                 new RandomAccessStack<>(8),null,ioContext).tokens,tokens.get(j).pos);
                                 ret.add(new ContextOpen(context,t.pos));
@@ -2615,6 +2617,23 @@ public class Interpreter {
             merge(typeStack,branch,"procedure");
         }
         return new TypeCheckResult(ret,typeStack);
+    }
+
+    private void findEnumFields(SwitchCaseBlock switchBlock, List<Token> caseValues) {
+        if(switchBlock.switchType instanceof Type.Enum sType){
+            String[] names=((Type.Enum) switchBlock.switchType).entryNames;
+            for(int p = 0; p < caseValues.size(); p++){
+                Token prev=caseValues.get(p);
+                if(prev instanceof IdentifierToken id&&id.type==IdentifierType.WORD){
+                    for(int p2 = 0;p2 < names.length; p2++){
+                        if(id.name.equals(names[p2])){
+                            caseValues.set(p,new ValueToken(sType.entries[p2],id.pos,false));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void typeCheckLambda(HashMap<VariableId, Value> globalConstants, RandomAccessStack<TypeFrame> typeStack

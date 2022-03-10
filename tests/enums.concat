@@ -21,7 +21,7 @@ a println
 a is . println
 
 a enumeration . switch
-a this .  a is . case
+this is case
   "this or is" println
 end-case
 a enumeration . case

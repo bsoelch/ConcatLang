@@ -1,5 +1,11 @@
 concat.concat :
 ## concat compiler written in concat
+#+
+this file is based on an outdated version of the interpreter
+the compiler will be updated once the language is stabilized
+
+the current version of the compiler is kept up to date as an example of a complex concat program
++#
 
 ## currently in early development phase
 
@@ -73,18 +79,18 @@ WrapperType.wrapped     proc WrapperType => Type            : 2 [] end
 Type.strAppend proc string Type => string :
   Type t =:
   t Type.type switch
-  TypeType PRIMITIVE_TYPE . case
+  PRIMITIVE_TYPE case
     t PrimitiveType.wrapped stringValue :+ return
     end-case
-  TypeType WRAPPER_TYPE . case
+  WRAPPER_TYPE case
     t WrapperType.wrapped Type.strAppend
     t WrapperType.wrapperType switch
-    WrapperTypeType LIST     . case " list"     :+ return end-case
-    WrapperTypeType OPTIONAL . case " optional" :+ return end-case
-    WrapperTypeType VAR_ARGS . case " ..."      :+ return end-case
+    LIST     case " list"     :+ return end-case
+    OPTIONAL case " optional" :+ return end-case
+    VAR_ARGS case " ..."      :+ return end-case
     end
     end-case
-  TypeType TUPLE_TYPE . case
+  TUPLE_TYPE case
     t TupleType.name :+ '[' :<<
     0 int i =:
     while i t TupleType.types length < do
@@ -94,7 +100,7 @@ Type.strAppend proc string Type => string :
     end
     ']' :<<
     end-case
-  TypeType ENUM_TYPE . case
+  ENUM_TYPE case
     t EnumType.name :+ '[' :<<
     0 int i =:
     while i t EnumType.fields length < do
@@ -127,20 +133,20 @@ Value.strAppend proc string Value => string :
   Value v =:
   v Value.type Type.strAppend ": " :+
   v Value.type Type.type switch
-  TypeType PRIMITIVE_TYPE . case
+  PRIMITIVE_TYPE case
     v Value.type Type.TYPE == if
       v Value.data Type.strAppend
     else
       v Value.data stringValue :+
     end
     end-case
-  TypeType ENUM_TYPE . case
+  ENUM_TYPE case
    '[' :<< v Value.data EnumEntry.index stringValue :+ ']' :<<
    end-case
-  TypeType TUPLE_TYPE . case
+  TUPLE_TYPE case
     "tuple-type unimplemented\n" eputs 1 exit
   end-case
-  TypeType WRAPPER_TYPE . case
+  WRAPPER_TYPE case
     v Value.type Type.STRING == || v Value.type Type.USTRING == end if
       v Value.data stringValue :+
     else
@@ -226,28 +232,28 @@ DeclareableType enum
 end
 DeclareableType.strAppend proc #+str+# string #+a+# bool #+type+# DeclareableType => string :
    #+type+# switch
-   DeclareableType MACRO . case
+   MACRO case
      #+a+# if "a macro" else "macro" end :+ return
      end-case
-   DeclareableType ENUM . case
+   ENUM case
      #+a+# if "an enum" else "enum" end :+ return
      end-case
-   DeclareableType ENUM_ENTRY . case
+   ENUM_ENTRY case
      #+a+# if "an enum entry" else "enum entry" end :+ return
      end-case
-   DeclareableType TUPLE . case
+   TUPLE case
      #+a+# if "a tuple" else "tuple" end :+ return
      end-case
-   DeclareableType VARIABLE_ID . case
+   VARIABLE_ID case
      #+a+# if "a variable" else "variable" end :+ return
      end-case
-   DeclareableType FINAL_VARIABLE . case
+   FINAL_VARIABLE case
      #+a+# if "a final variable" else "final variable" end :+ return
      end-case
-   DeclareableType PREDECLARED_PROCEDURE . case
+   PREDECLARED_PROCEDURE case
      #+a+# if "a predeclared procedure" else "predeclared procedure" end :+ return
      end-case
-   DeclareableType PROCEDURE . case
+   PROCEDURE case
      #+a+# if "a procedure" else "procedure" end :+ return
      end-case
    end
@@ -318,27 +324,27 @@ Declareable.strAppend proc string Declareable => string :
   Declareable d =:
   false d Declareable.type DeclareableType.strAppend ": " :+
   d Declareable.type switch
-  DeclareableType MACRO . case
+  MACRO case
     d Macro.name :+
     end-case
-  DeclareableType ENUM . case
+  ENUM case
     d Enum.enumType Type.strAppend
     end-case
-  DeclareableType ENUM_ENTRY . case
+  ENUM_ENTRY case
     d EnumEntry.enumType EnumType.name :+ '[' :<<
     d EnumEntry.index stringValue :+
     ']' :<<
     end-case
-  DeclareableType TUPLE . case
+  TUPLE case
     d Tuple.tupleType Type.strAppend
     end-case
-  DeclareableType FINAL_VARIABLE . DeclareableType VARIABLE_ID . case
+  FINAL_VARIABLE VARIABLE_ID case
     d VariableId.strAppend
     end-case
-  DeclareableType PREDECLARED_PROCEDURE . case
+  PREDECLARED_PROCEDURE case
     "unimplemented\n" eputs 1 exit
     end-case
-  DeclareableType PROCEDURE . case
+  PROCEDURE case
     "unimplemented\n" eputs 1 exit
     end-case
   end
@@ -404,13 +410,13 @@ ProcContext.curried proc ProcContext => CurriedVariable list : 4 [] end
 Context.isGlobal proc Context => bool :
   Context context =:
   context Context.type switch
-  ContextType ROOT_CONTEXT . case
+  ROOT_CONTEXT case
     true return
     end-case
-  ContextType PROC_CONTEXT . case
+  PROC_CONTEXT case
     false return
     end-case
-  ContextType BLOCK_CONTEXT . case
+  BLOCK_CONTEXT case
     context BlockContext.parent Context.isGlobal return
     end-case
   end
@@ -418,13 +424,13 @@ end
 Context.procContext proc Context => ProcContext optional :
   Context context =:
   context Context.type switch
-  ContextType ROOT_CONTEXT . case
+  ROOT_CONTEXT case
     ProcContext empty return
     end-case
-  ContextType PROC_CONTEXT . case
+  PROC_CONTEXT case
     context ProcContext cast wrap return
     end-case
-  ContextType BLOCK_CONTEXT . case
+  BLOCK_CONTEXT case
     context BlockContext.parent Context.procContext return
     end-case
   end
@@ -432,10 +438,10 @@ end
 Context.level proc Context => int :
   Context context =:
   context Context.type switch
-  ContextType ROOT_CONTEXT . ContextType PROC_CONTEXT . case
+  ROOT_CONTEXT PROC_CONTEXT case
     0 return
     end-case
-  ContextType BLOCK_CONTEXT . case
+  BLOCK_CONTEXT case
     context BlockContext.parent Context.level 1 + return
     end-case
   end
@@ -482,7 +488,7 @@ Context.getDeclareable proc #+context+# Context #+name+# string => Declareable o
     string name =:
     Context context =:
     context Context.type switch
-    ContextType ROOT_CONTEXT . case
+    ROOT_CONTEXT case
       context RootContext.currentPaths string list paths =:
       paths length 1 - int i =:
       while i 0 >= do ##go through all namespaces
@@ -493,7 +499,7 @@ Context.getDeclareable proc #+context+# Context #+name+# string => Declareable o
       end
       context Context.elements name HashMap.get return
       end-case
-    ContextType PROC_CONTEXT . ContextType BLOCK_CONTEXT . case
+    PROC_CONTEXT BLOCK_CONTEXT case
       context Context.elements name HashMap.get ?? if
         #+element+# Declareable optional cast return
       else drop
@@ -799,27 +805,27 @@ Token.strAppend proc string Token => string :
 
   TokenType type.fields token Token.type [] +: ": " +:
   token Token.type switch
-  TokenType WORD . TokenType KEY_WORD . TokenType PROCEDURE_START . TokenType ENUM_START . case
+  WORD KEY_WORD PROCEDURE_START ENUM_START case
     token WordToken.value :+
     end-case
-  TokenType VALUE . case
+  VALUE case
     token ValueToken.value Value.strAppend
     end-case
-  TokenType BLOCK_TOKEN . case
+  BLOCK_TOKEN case
     BlockTokenType type.fields token BlockToken.type [] :+ '(' :<< token BlockToken.target stringValue :+ ')' :<<
     end-case
-  TokenType IDENTIFIER . case
+  IDENTIFIER case
     IdentifierType type.fields token IdentifierToken.idType [] :+ ": " :+ token IdentifierToken.value :+
     end-case
-  TokenType OPERATOR . case
+  OPERATOR case
     OperatorType type.fields token OperatorToken.opType [] :+
     end-case
-  TokenType VARIABLE . case
+  VARIABLE case
     AccessType type.fields token VariableToken.accessType [] :+ " " :+
     token VariableToken.id VariableId.strAppend " " :+
     end-case
-  TokenType CONTEXT_CLOSE . case end-case
-  TokenType CONTEXT_OPEN . case
+  CONTEXT_CLOSE case end-case
+  CONTEXT_OPEN case
     token ContextToken.varCount stringValue :+
     end-case
   end
@@ -1063,7 +1069,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         tokens tokens length 1 - [] Token prev =:
         prev Token.type TokenType IDENTIFIER . == if
           prev IdentifierToken.idType switch
-          IdentifierType DECLARE . IdentifierType CONST_DECLARE . case
+          DECLARE CONST_DECLARE case
             context
             prev IdentifierToken.value
             prev IdentifierToken.idType IdentifierType DECLARE . !=
@@ -1075,7 +1081,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             TokenType VARIABLE . prev Token.pos aType id VariableToken new
             tokens length 1 - [] =
             end-case
-          IdentifierType WRITE . case
+          WRITE case
             context prev IdentifierToken.value Context.getDeclareable if
               Declareable d =:
               d Declareable.type DeclareableType VARIABLE_ID . != if
@@ -1094,7 +1100,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               1 exit
             end
             end-case
-          IdentifierType ADDRESS_OF . case
+          ADDRESS_OF case
             ##TODO address of
             "unimplemented\n" eputs
             1 exit
@@ -1104,7 +1110,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           context prev WordToken.value Context.getDeclareable if
             Declareable d =:
             d Declareable.type switch
-            DeclareableType MACRO . case
+            MACRO case
               tokens tokens length 1 - tokens length [:] clear ##remove prev
               0 int i =:
               while i d Macro.words length < do
@@ -1117,22 +1123,22 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               ## update identifiers at end of macro
               END_OF_SECTION next prev Token.pos openBlocks program parseWord
               end-case
-            DeclareableType ENUM . case
+            ENUM case
               tokens
               TokenType VALUE . fPos d Enum.enumType Value.ofType ValueToken new
               tokens length 1 - [] =
               end-case
-            DeclareableType ENUM_ENTRY . case
+            ENUM_ENTRY case
               tokens
               TokenType VALUE . fPos d EnumEntry.enumType d Value new ValueToken new
               tokens length 1 - [] =
               end-case
-            DeclareableType TUPLE . case
+            TUPLE case
               tokens
               TokenType VALUE . fPos d Tuple.tupleType Value.ofType ValueToken new
               tokens length 1 - [] =
               end-case
-            DeclareableType FINAL_VARIABLE . DeclareableType VARIABLE_ID . case
+            FINAL_VARIABLE VARIABLE_ID case
               ##addLater wrap curried variables
               ##id=context.wrapCurried(identifier.name,id,identifier.pos);
               ##addLater pre-evaluate global constants
@@ -1140,11 +1146,11 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               TokenType VARIABLE . prev Token.pos AccessType READ_VAR . d VariableToken new
               tokens length 1 - [] =
             end-case
-            DeclareableType PREDECLARED_PROCEDURE . case
+            PREDECLARED_PROCEDURE case
               "resolving procedures is currently unimplemented\n" eputs
               1 exit
               end-case
-            DeclareableType PROCEDURE . case
+            PROCEDURE case
               "resolving procedures is currently unimplemented\n" eputs
               1 exit
               end-case
@@ -1178,33 +1184,33 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
       off word length < && word off [] base valueOfDigit 0 >= end if ##number starts with digit after prefixes
         word word length 1 - [] 'u' == || word word length 1 - [] 'U' == end if ##unsigned
           word off word length 1 - [:] base false stringToInt switch
-          StringParseError ERR_NONE . case
+          ERR_NONE case
             sgn if -_ end uint val =:
             tokens TokenType VALUE . fPos val Value.ofUInt ValueToken new :<< tokens =
             return
             end-case
-          StringParseError ERR_OVERFLOW . case
+          ERR_OVERFLOW case
             "value does not fit in an unsigned int: \"" word :+ "\" " :+
                 fPos FilePosition.strAppend '\n' :<< eputs
             1 exit
             end-case
-          StringParseError ERR_BASE . StringParseError ERR_EMPTY . StringParseError ERR_ILLEGAL_CHAR . case
+          ERR_BASE ERR_EMPTY ERR_ILLEGAL_CHAR case
             drop
             end-case
           end
         else
           word off word length [:] base true stringToInt switch
-          StringParseError ERR_NONE . case
+          ERR_NONE case
               sgn if -_ end int val =:
               tokens TokenType VALUE . fPos val Value.ofInt ValueToken new :<< tokens =
               return
             end-case
-          StringParseError ERR_OVERFLOW . case
+          ERR_OVERFLOW case
             "value does not fit in a signed int: \"" word :+ "\" " :+
                 fPos FilePosition.strAppend '\n' :<< eputs
             1 exit
             end-case
-          StringParseError ERR_BASE . StringParseError ERR_EMPTY . StringParseError ERR_ILLEGAL_CHAR . case
+          ERR_BASE ERR_EMPTY ERR_ILLEGAL_CHAR case
             drop
             end-case
           end
@@ -1395,7 +1401,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - openBlocks OpenBlocks.blocks length [:] clear
         block CodeBlock.type switch
-        BlockType IF_BLOCK . case
+        IF_BLOCK case
           block IfBlock.prevIf -1 != if
             ##close if-context
             context BlockContext.parent context =
@@ -1429,7 +1435,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           end
           tokens TokenType BLOCK_TOKEN . fPos BlockTokenType END-IF . 0 BlockToken new :<< tokens =
           end-case
-        BlockType WHILE_BLOCK . case
+        WHILE_BLOCK case
           block WhileBlock.forkPos -1 == if
             "while block at " block CodeBlock.startPos FilePosition.strAppend " does not contain a 'do' statement " :+
             fPos FilePosition.strAppend eputs
@@ -1453,15 +1459,15 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             tmp tokens length block WhileBlock.forkPos - BlockToken.target=
           end
           end-case
-        BlockType SWITCH_BLOCK . case
+        SWITCH_BLOCK case
           ## TODO close switch block
           "Waring closing switch-blocks is currently not implemented\n" eputs
           end-case
-        BlockType PROC_BLOCK . case
+        PROC_BLOCK case
           ## TODO close proc block
           "Waring closing proc-blocks is currently not implemented\n" eputs
           end-case
-        BlockType ENUM_BLOCK . case
+        ENUM_BLOCK case
           tokens length block CodeBlock.start > if
             "Invalid token in enum: " tokens block CodeBlock.start [] Token.strAppend ' '
               :<< tokens block CodeBlock.start [] Token.pos FilePosition.strAppend '\n' :<< eputs
@@ -1469,7 +1475,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           end
           context block RootContext.declareEnum
           end-case
-        BlockType TUPLE_BLOCK . case
+        TUPLE_BLOCK case
           tokens block CodeBlock.start tokens length [:] Token list subList =:
           subList constEvaluate Token list values =:
           subList clear
@@ -1640,7 +1646,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
   while reader ParserReader.nextByte do
     #+next-char+#
     state switch
-      ParseState STATE_WORD . case
+      STATE_WORD case
         byte next =:
         next ?WhiteSpace if
           reader ParserReader.word length 0 > if
@@ -1717,7 +1723,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
           end
         end
       end-case
-      ParseState STATE_STRING . ParseState STATE_USTRING . case
+      STATE_STRING STATE_USTRING case
         byte next =:
         next '"' == if
           prevWord length 0 > if
@@ -1741,7 +1747,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
           reader ParserReader.word next :<< drop
         end
       end-case
-      ParseState STATE_CHAR . ParseState STATE_UCHAR . case
+      STATE_CHAR STATE_UCHAR case
         byte next =:
         next '\'' == if
           prevWord length 0 > if
@@ -1779,7 +1785,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
           reader ParserReader.word next :<< drop
         end
       end-case
-      ParseState STATE_COMMENT . case
+      STATE_COMMENT case
         #+input-char+# '+' == if
           reader ParserReader.nextByte if
             '#' == if
@@ -1788,7 +1794,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
           end
         end
       end-case
-      ParseState STATE_LINE_COMMENT . case
+      STATE_LINE_COMMENT case
         #+input-char+# '\n' == if
           ParseState STATE_WORD . state =
         end
@@ -1797,7 +1803,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
   end
 
   state switch
-    ParseState STATE_WORD . case
+    STATE_WORD case
       reader ParserReader.word clone string nextWord =:
       prevWord length 0 > if
         prevWord nextWord prevPos openBlocks program parseWord
@@ -1807,22 +1813,22 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
       END_OF_SECTION "" reader ParserReader.wordPos clone openBlocks program parseWord
       reader ParserReader.nextWord
       end-case
-    ParseState STATE_CHAR . ParseState STATE_UCHAR . case
+    STATE_CHAR STATE_UCHAR case
      "unfinished char-literal " reader ParserReader.wordPos FilePosition.strAppend '\n' :<<
       eputs
       1 exit
       end-case
-    ParseState STATE_STRING . ParseState STATE_USTRING . case
+    STATE_STRING STATE_USTRING case
      "unfinished string-literal " reader ParserReader.wordPos FilePosition.strAppend '\n' :<<
       eputs
       1 exit
       end-case
-    ParseState STATE_COMMENT . case
+    STATE_COMMENT case
      "unfinished comment " reader ParserReader.wordPos FilePosition.strAppend '\n' :<<
       eputs
       1 exit
       end-case
-    ParseState STATE_LINE_COMMENT . case
+    STATE_LINE_COMMENT case
       ##do nothing
       end-case
   end
@@ -1835,36 +1841,36 @@ constEvaluate proc Token list => Token list :
   0 int i =:
   while i tokens length < do
     tokens i [] Token.type switch
-      TokenType VALUE . case
+      VALUE case
         res tokens i [] :<< res =
         end-case
-      TokenType OPERATOR . case
+      OPERATOR case
         tokens i [] OperatorToken.opType switch
-          OperatorType PLUS .
-          OperatorType MINUS .
-          OperatorType NEGATE .
-          OperatorType INVERT .
-          OperatorType MULTIPLY .
-          OperatorType DIVIDE .
-          OperatorType MOD .
+          PLUS
+          MINUS
+          NEGATE
+          INVERT
+          MULTIPLY
+          DIVIDE
+          MOD
 
-          OperatorType NOT .
-          OperatorType FLIP .
-          OperatorType AND .
-          OperatorType OR .
-          OperatorType XOR .
+          NOT
+          FLIP
+          AND
+          OR
+          XOR
 
-          OperatorType SHIFT_L .
-          OperatorType SHIFT_R .
+          SHIFT_L
+          SHIFT_R
 
-          OperatorType LT .
-          OperatorType LE .
-          OperatorType EQ .
-          OperatorType REF_EQ .
-          OperatorType REF_NE .
-          OperatorType NE .
-          OperatorType GE .
-          OperatorType GT . case
+          LT
+          LE
+          EQ
+          REF_EQ
+          REF_NE
+          NE
+          GE
+          GT case
             "operators of type:" OperatorType type.fields tokens i [] OperatorToken.opType [] :+
             " are currently not supported in constant evaluation " :+
             tokens i [] Token.pos FilePosition.strAppend '\n' :<< eputs
@@ -1872,15 +1878,15 @@ constEvaluate proc Token list => Token list :
             end-case
         end
         end-case
-      TokenType WORD .
-      TokenType KEY_WORD .
-      TokenType PROCEDURE_START .
-      TokenType ENUM_START .
-      TokenType IDENTIFIER .
-      TokenType VARIABLE .
-      TokenType BLOCK_TOKEN .
-      TokenType CONTEXT_OPEN .
-      TokenType CONTEXT_CLOSE . case
+      WORD
+      KEY_WORD
+      PROCEDURE_START
+      ENUM_START
+      IDENTIFIER
+      VARIABLE
+      BLOCK_TOKEN
+      CONTEXT_OPEN
+      CONTEXT_CLOSE case
         "tokens of type:" TokenType type.fields tokens i [] Token.type [] :+
         " are currently not supported in constant evaluation " :+
         tokens i [] Token.pos FilePosition.strAppend '\n' :<< eputs

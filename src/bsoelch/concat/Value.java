@@ -1789,7 +1789,7 @@ public abstract class Value {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             EnumEntry enumEntry = (EnumEntry) o;
-            return index == enumEntry.index && Objects.equals(declaredAt, enumEntry.declaredAt);
+            return type.equals(enumEntry.type) && index == enumEntry.index;
         }
         @Override
         public int hashCode() {
