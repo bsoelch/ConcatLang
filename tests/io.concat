@@ -3,7 +3,10 @@ test/io :
 stack   #include
 valueIO #include
 core #import
-"./tests/testIO.txt" "rw" io open . unwrap io FILE . file =:
+"./tests/testIO.txt" "rw" io open . if #+auto-unwrap+# else
+  "unable to open file " eputs 1 exit
+end
+io FILE . file =:
 64 byte list new byte list IO_Buff =:
 file IO_Buff 0 64 io read . int n =:
 n 0 > if

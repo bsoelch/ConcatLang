@@ -39,10 +39,10 @@ _EMPTY_TUPLE tuple end
     end
     res ']' :<< return
   else value typeof (optional) <= _if
-    value (optional) cast ?? if
-      unwrap <<s " wrap" :+ return
+    value (optional) cast if
+      #+value+# <<s " wrap" :+ return
     else
-      typeof content <<s " empty" :+ return
+      value (optional) cast typeof content <<s " empty" :+ return
     end
   else value typeof isEnum _if
     value typeof type.name :+ ' ' :<< value typeof type.fields value uint cast [] :+ " ." :+ return

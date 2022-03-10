@@ -1900,9 +1900,8 @@ public class Interpreter {
                 case "()"     -> tokens.add(new CallPtrToken(null, pos));
 
                 case "wrap"   -> tokens.add(new OperatorToken(OperatorType.WRAP,           pos));
-                case "unwrap" -> tokens.add(new OperatorToken(OperatorType.UNWRAP,         pos));
-                case "??"     -> tokens.add(new OperatorToken(OperatorType.HAS_VALUE,      pos));
                 case "empty"  -> tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL, pos));
+                case "??"     -> tokens.add(new OperatorToken(OperatorType.HAS_VALUE,      pos));
 
                 case "new"       -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
                 case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
@@ -2153,12 +2152,15 @@ public class Interpreter {
                         case IF ->{
                             IfBlock ifBlock = new IfBlock(ret.size(), t.pos, context);
                             TypeFrame f = typeStack.pop();
-                            if(f.type!=Type.BOOL){
-                                throw new SyntaxError("argument of 'if' has to be 'bool' got "+f.type,t.pos);
-                            }
                             ifBlock.elseTypes = typeStack;
                             typeStack = typeStack.clone();
-
+                            if(f.type!=Type.BOOL){
+                                if(f.type.isOptional()){
+                                    typeStack.push(new TypeFrame(f.type.content(),null,t.pos));
+                                }else {
+                                    throw new SyntaxError("argument of 'if' has to be an optional or 'bool' got " + f.type, t.pos);
+                                }
+                            }
                             openBlocks.add(ifBlock);
                             ret.add(t);
                             context=ifBlock.context();
@@ -2196,12 +2198,15 @@ public class Interpreter {
                                 throw new SyntaxError("'_if' can only be used in if-blocks",t.pos);
                             }
                             TypeFrame f = typeStack.pop();
-                            if(f.type!=Type.BOOL){
-                                throw new SyntaxError("argument of '_if' has to be 'bool' got "+f.type,t.pos);
-                            }
                             ifBlock.elseTypes = typeStack;
                             typeStack = typeStack.clone();
-
+                            if(f.type!=Type.BOOL){
+                                if(f.type.isOptional()){
+                                    typeStack.push(new TypeFrame(f.type.content(),null,t.pos));
+                                }else {
+                                    throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, t.pos);
+                                }
+                            }
                             context=ifBlock.newBranch(ret.size(),t.pos);
                             ret.add(t);
                             ret.add(new ContextOpen(context,t.pos));
@@ -2224,11 +2229,15 @@ public class Interpreter {
                                 throw new SyntaxError("do can only be used in while- blocks",t.pos);
                             }
                             TypeFrame f = typeStack.pop();
-                            if(f.type!=Type.BOOL){
-                                throw new SyntaxError("argument of 'do' has to be 'bool' got "+f.type,t.pos);
-                            }
                             whileBlock.forkTypes=typeStack;
                             typeStack=typeStack.clone();
+                            if(f.type!=Type.BOOL){
+                                if(f.type.isOptional()){
+                                    typeStack.push(new TypeFrame(f.type.content(),null,t.pos));
+                                }else {
+                                    throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, t.pos);
+                                }
+                            }
 
                             ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
                             int forkPos=ret.size();
@@ -2244,7 +2253,7 @@ public class Interpreter {
                             }
                             TypeFrame f = typeStack.pop();
                             if(f.type!=Type.BOOL){
-                                throw new SyntaxError("argument of 'do' has to be 'bool' got "+f.type,t.pos);
+                                throw new SyntaxError("argument of 'do end' has to be 'bool' got "+f.type,t.pos);
                             }//no else
                             if(notAssignable(typeStack, ((WhileBlock) open).loopTypes)){
                                 throw new SyntaxError("do-while body modifies the stack",t.pos);
@@ -2490,7 +2499,7 @@ public class Interpreter {
                 }
                 case IDENTIFIER ->
                     typeCheckIdentifier(t, ret, context, globalConstants, typeStack, ioContext);
-                case ASSERT -> {
+                case ASSERT -> {//TODO possiblity to mark unreachable statements
                     assert t instanceof AssertToken;
                     TypeFrame f=typeStack.pop();
                     if(f.type!=Type.BOOL){
@@ -2720,11 +2729,14 @@ public class Interpreter {
                 ret.add(t);
             }
             case NOT -> {
-                TypeFrame f = typeStack.peek();
-                if(f.type!=Type.BOOL){
-                    throw new SyntaxError("unexpected type for operator '"+opName(op.opType)+"': "+f.type,op.pos);
+                TypeFrame f = typeStack.pop();
+                if(f.type==Type.BOOL){
+                    typeStack.push(new TypeFrame(Type.BOOL,f.value==null?null:f.value.asBool()?Value.FALSE:Value.TRUE,t.pos));
+                }else if(f.type.isOptional()){
+                    typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
+                }else {
+                    throw new SyntaxError("unexpected type for operator '" + opName(op.opType) + "': " + f.type, op.pos);
                 }
-
                 ret.add(t);
             }
             case FLIP -> {
@@ -2929,16 +2941,6 @@ public class Interpreter {
                     typeStack.push(new TypeFrame(Type.optionalOf(f.type),null,t.pos));//TODO mark optional as nonempty
                 } catch (ConcatRuntimeError e) {
                     throw new SyntaxError(e,op.pos);
-                }
-
-                ret.add(t);
-            }
-            case UNWRAP -> {
-                TypeFrame f = typeStack.pop();
-                if(f.type.isOptional()){
-                    typeStack.push(new TypeFrame(f.type.content(),null,t.pos));//TODO test if optional is nonempty
-                }else{
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
                 }
 
                 ret.add(t);
@@ -3452,7 +3454,6 @@ public class Interpreter {
             case IS_ENUM -> { return "isEnum";}
             case OPTIONAL_OF -> { return "optional";}
             case WRAP -> { return "wrap"; }
-            case UNWRAP -> { return "unwrap";}
             case HAS_VALUE -> { return "??";}
             case EMPTY_OPTIONAL -> { return "empty"; }
             case CLEAR -> { return "clear";}
@@ -3715,10 +3716,6 @@ public class Interpreter {
             case WRAP -> {
                 Value value= stack.pop();
                 stack.push(Value.wrap(value));
-            }
-            case UNWRAP -> {
-                Value value= stack.pop();
-                stack.push(value.unwrap());
             }
             case HAS_VALUE -> {
                 Value value= stack.peek();
@@ -4002,7 +3999,14 @@ public class Interpreter {
                         switch(((BlockToken)next).blockType){
                             case IF,_IF,DO -> {
                                 Value c = stack.pop();
-                                if (!c.asBool()) {
+                                if(c.type.isOptional()){
+                                    if(c.hasValue()){
+                                        stack.push(c.unwrap());
+                                    }else{
+                                        ip+=((BlockToken) next).delta;
+                                        incIp = false;
+                                    }
+                                }else if (!c.asBool()) {
                                     ip+=((BlockToken) next).delta;
                                     incIp = false;
                                 }

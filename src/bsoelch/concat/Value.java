@@ -1694,6 +1694,12 @@ public abstract class Value {
         public boolean hasValue() {
             return wrapped!=null;
         }
+
+        @Override
+        public boolean asBool(){
+            return hasValue();
+        }
+
         @Override
         public Value unwrap() throws ConcatRuntimeError {
             if(wrapped==null){

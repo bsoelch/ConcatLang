@@ -63,17 +63,17 @@ HashMap.put proc K <?> V <?> #+map+# K V HashMap #+key+# K #+value+# V => #+prev
   ## key   map _Map.keyType cast key =
   key hashCode uint hash =:
   hash map _Map.data length % uint i =:
-  map _Map.data i [] ?? if
-    unwrap K V _Entry entry =:
-    while entry _Entry.next ?? do
+  map _Map.data i [] if
+    K V _Entry entry =:
+    while entry _Entry.next do
       entry MapEntry.key key == if drop ##drop next
         ##replace does not change size
         entry MapEntry.value
         entry value _Entry.val=
         wrap return
       end
-      unwrap entry =
-    end drop ##drop last entry
+      entry =
+    end ##drop last entry
     entry MapEntry.key key == if
       ##replace does not change size
       entry MapEntry.value
@@ -84,7 +84,7 @@ HashMap.put proc K <?> V <?> #+map+# K V HashMap #+key+# K #+value+# V => #+prev
       map _Map.incSize
       V empty return
     end
-  else drop
+  else
     map _Map.data  key value K V _Entry empty K V _Entry new wrap i [] =
     map _Map.incSize
     V empty return
@@ -97,13 +97,13 @@ HashMap.contains proc K <?> V <?> #+map+# K V HashMap #+key+# K => bool :
   key hashCode uint hash =:
   hash map _Map.data length % uint i =:
   map _Map.data i [] K V _Entry optional entry =:
-  while entry ?? do
-    unwrap K V _Entry unwrapped =:
+  while entry do
+    K V _Entry unwrapped =:
     unwrapped MapEntry.key key == if
       true return
     end
     unwrapped _Entry.next entry =
-  end drop
+  end
   false return
 end
 
@@ -113,13 +113,13 @@ HashMap.get proc K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# V option
   key hashCode uint hash =:
   hash map _Map.data length % uint i =:
   map _Map.data i [] K V _Entry optional entry =:
-  while entry ?? do
-    unwrap K V _Entry unwrapped =:
+  while entry do
+    K V _Entry unwrapped =:
     unwrapped MapEntry.key key == if
       unwrapped MapEntry.value wrap return
     end
     unwrapped _Entry.next entry =
-  end drop
+  end
   V empty return
 end
 
@@ -128,27 +128,27 @@ HashMap.remove proc K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevVal+# V o
   K V HashMap map =:
   key hashCode uint hash =:
   hash map _Map.data length % uint i =:
-  map _Map.data i [] ?? if
-    unwrap K V _Entry entry =:
+  map _Map.data i [] if
+    K V _Entry entry =:
     entry MapEntry.key key == if
       map _Map.decSize
       entry MapEntry.value ## get previous value
       map _Map.data   entry _Entry.next K V _Entry optional cast i [] = ## remove entry
       wrap return
     else
-      while entry _Entry.next ?? do
-        unwrap K V _Entry next =:
+      while entry _Entry.next do
+        K V _Entry next =:
         next MapEntry.key key == if
           map _Map.decSize
           next MapEntry.value ## get previous value
           entry   next _Entry.next  _Entry.next= ## remove entry
           wrap return
         end
-        entry _Entry.next unwrap entry =
-      end drop
+        next entry =
+      end
       V empty return
     end
-  else drop
+  else
     V empty return
   end
 end
@@ -165,15 +165,19 @@ HashMap.itr proc K <?> V <?> K V HashMap => K V HashMapItr :
 end
 HashMapItr.next proc K <?> V <?> K V HashMapItr => K V HashMapItr K V MapEntry optional :
   K V HashMapItr itr =:
-  while itr _HashMapItr.next ?? ! do drop ##drop empty-entry
+  while itr _HashMapItr.next ! do
     itr _HashMapItr.incI
     itr _HashMapItr.i itr _HashMapItr.map _Map.data length >= if
       itr K V MapEntry empty return
     end
     itr  itr _HashMapItr.map _Map.data itr _HashMapItr.i []  _HashMapItr.next=
   end
-  #+ itr _HashMapItr.next +# K V MapEntry optional res =:
-  itr  itr _HashMapItr.next unwrap _Entry.next _HashMapItr.next=
+  itr _HashMapItr.next K V MapEntry optional res =:
+  itr  itr _HashMapItr.next if
+    _Entry.next _HashMapItr.next=
+  else
+    1 exit ##TODO mark as unreachable
+  end
   itr res return
 end
 

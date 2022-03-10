@@ -15,7 +15,7 @@ core #import ## to use puts in global scope
 ```
 
 Recursive Fibonacci Numbers:
-```Julia
+```
 stack #include ## for usage of dup and swap
 valueIO #include ## for println
 core #import ## to use println in global scope
@@ -203,19 +203,30 @@ false
 
 ### Optionals 
 Optionals hold an optional value.
-Optionals are defined in the standard library and
-can be included with `optional #include`
+
+operators for interacting with optionals
 
 - `wrap`   wraps the top value on the stack in an optional
-- `unwrap` unwraps an optional value
-  - if the value is present it will be pushed on the stack
-  - if no value is present the program will exit
 - `??` checks if the optional is present
   - if the optional has a value it will push true
   - if no value is present it will push false 
   - this operation does not consume the optional
+- `!` consumes the optional and pushes 
+  `true` if the optional is empty and `false` otherwise
 
-### iterators
+
+unwrapping optionals:
+
+If a nonempty optional is used as the parameter of
+`if` `_if` or `do` the unwrapped value of the optional 
+is pushed on the stack 
+(if the optional is empty no value will be pushed on the stack)
+
+
+examples for interacting with optional can be found 
+in the next section.
+
+### Iterators
 Iterators simplify iterating over all elements of a list,
 they are designed to work well with for-each loops.
 Iterators are defined in the standard library and 
@@ -239,35 +250,34 @@ the current element (the current element has to be a list)
 
 Examples:
 template of for-each loop:
-```Julia
+```
 array ^.. ## create iterator
-while ^> ?? do   ## iterate over all elements
-  unwrap println ## do something with data
+while ^> do   ## iterate over all elements
+  println ## do something with data
 end 
-drop ## Drop empty element
-drop ## Drop iterator
+drop ## drop the iterator
 ```
 
 reverse a list:
-```Julia
+```
 reverse proc (list) => (list) :
   (list) toReverse =:
   ## store type and length of the list
   toReverse length toReverse typeof new toReverse typeof res =:
   ## Iterate though the elements in reverse order
-  toReverse ..^ while <^ ?? do
-    unwrap res swap :<< res =
-  end drop drop
+  toReverse ..^ while <^ do
+    res swap :<< res =
+  end drop
   res return
 end
 ```
 Sum all elements of a list
-```Julia
+```
 0 var tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
-^.. while ^> ?? do
- unwrap tmp swap + tmp =
-end drop drop
+^.. while ^> do
+ tmp swap + tmp =
+end drop
 tmp ## load the total sum onto the stack
 ```
 

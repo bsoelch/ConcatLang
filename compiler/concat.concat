@@ -447,8 +447,8 @@ Context.ensureDeclareable proc #+context+# Context #+name+#string #+type+# Decla
   string name =:
   Context context =:
   context Context.type ContextType ROOT_CONTEXT . == if context name RootContext.inCurrentModule else name end  string localName =:
-  context Context.elements localName HashMap.get ?? if
-    unwrap Declareable prev =:
+  context Context.elements localName HashMap.get if
+    Declareable prev =:
     ## procedures can overwrite predeclared procedures
     prev Declareable.type DeclareableType PREDECLARED_PROCEDURE . != || prev Declareable.type DeclareableType PROCEDURE . != end if
       "cannot declare " false dType DeclareableType.strAppend ' ' :<< name :+
@@ -456,14 +456,14 @@ Context.ensureDeclareable proc #+context+# Context #+name+#string #+type+# Decla
       " (declared at " prev Declareable.pos FilePosition.strAppend ") at " :+ fPos FilePosition.strAppend '\n' :<< eputs
       1 exit
     end
-  else drop end
-  context name Context.getDeclareable ?? if
-    unwrap Declareable shadowed =:
+  end
+  context name Context.getDeclareable if
+    Declareable shadowed =:
     "Warning: " false dType DeclareableType.strAppend " " :+ name :+
      " declared at " :+ fPos FilePosition.strAppend "\n     shadows existing " :+
      false shadowed Declareable.type DeclareableType.strAppend " declared at " :+
      shadowed Declareable.pos FilePosition.strAppend '\n' :<< eputs
-  else drop end
+  end
   localName return
 end
 Context.declareVariable proc #+context+# Context #+name+# string #+isConst+# bool #+pos+# FilePosition => VariableId :
@@ -536,14 +536,14 @@ RootContext.startModule proc RootContext #+name+# string #+declaredAt+# FilePosi
   FilePosition fPos =:
   string name =:
   RootContext context =:
-  context Context.elements context name RootContext.inCurrentModule HashMap.get ?? if
-    unwrap Declareable d =:
+  context Context.elements context name RootContext.inCurrentModule HashMap.get if
+    Declareable d =:
     "cannot declare namespace " name :+ ", the identifier is already used by " :+
     true d Declareable.type DeclareableType.strAppend
     " (declared at " :+ d Declareable.pos FilePosition.strAppend ")\n at " :+
     fPos  FilePosition.strAppend '\n' :<< eputs
     1 exit
-  else drop end
+  end
   context "" RootContext.inCurrentModule string fullPath =:
   16 string list new string list path =:
   "" string tmp =:
@@ -576,14 +576,13 @@ RootContext.addImport proc RootContext #+name+# string #+declaredAt+# FilePositi
      else
          file OpenFile.globalImports name :<< drop
      end
-  else context Context.elements name HashMap.get ?? _if
-    unwrap
+  else context Context.elements name HashMap.get _if
     ##addLater static imports
     drop
     "static imports are currently unimplemented"
     1 exit
-  else drop
-  context RootContext.namespaces
+  else
+    context RootContext.namespaces
     "namespace " name0 :+ " does not exist " :+ fPos FilePosition.strAppend '\n' :<< eputs
     1 exit
   end
@@ -600,10 +599,10 @@ RootContext.endModule proc RootContext FilePosition => :
   file OpenFile.openModules file OpenFile.openModules length 1 - file OpenFile.openModules length [:] clear
   removed OpenModule.predeclared HashMap.size 0 > if
     "Syntax Error: missing variables/procedures" string message =:
-    removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
-       unwrap string PredeclaredProc MapEntry e =:
+    removed OpenModule.predeclared HashMap.itr while HashMapItr.next do
+       string PredeclaredProc MapEntry e =:
        message "\n- " :+ e MapEntry.key string cast :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<< drop
-    end drop drop
+    end drop
     message fPos FilePosition.strAppend '\n' :<< eputs
     1 exit
   end
@@ -620,10 +619,10 @@ RootContext.endFile proc RootContext FilePosition => :
       closed OpenFile.openModules i [] OpenModule removed =:
       removed OpenModule.predeclared HashMap.size 0 > if
         "Syntax Error: missing variables/procedures" string message =:
-        removed OpenModule.predeclared HashMap.itr while HashMapItr.next ?? do
-           unwrap string PredeclaredProc MapEntry e =:
+        removed OpenModule.predeclared HashMap.itr while HashMapItr.next do
+           string PredeclaredProc MapEntry e =:
            message "\n- " :+ e MapEntry.key string cast :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<< drop
-        end drop drop
+        end drop
         message fPos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
@@ -634,10 +633,10 @@ RootContext.endFile proc RootContext FilePosition => :
   end
   closed OpenFile.globalPredeclared HashMap.size 0 > if
     "Syntax Error: missing variables/procedures" string message =:
-    closed OpenFile.globalPredeclared HashMap.itr while HashMapItr.next ?? do
-       unwrap string PredeclaredProc MapEntry e =:
+    closed OpenFile.globalPredeclared HashMap.itr while HashMapItr.next do
+       string PredeclaredProc MapEntry e =:
        message "\n- " :+ e MapEntry.key string cast :+ " (at " :+ e MapEntry.value Declareable.pos FilePosition.strAppend ')' :<< drop
-    end drop drop
+    end drop
     message fPos FilePosition.strAppend '\n' :<< eputs
     1 exit
   end
@@ -695,8 +694,8 @@ RootContext.removeMacro proc #+context+# RootContext #+name+# string #+pos+# Fil
   FilePosition fPos =:
   string name =:
   RootContext context =:
-  context Context.elements context name RootContext.inCurrentModule HashMap.remove ?? if
-    unwrap Declareable removed =:
+  context Context.elements context name RootContext.inCurrentModule HashMap.remove if
+    Declareable removed =:
     removed Declareable.type DeclareableType MACRO . != if
       "macro " name :+ " does not exists, or is shadowed by " :+
       false removed Declareable.type DeclareableType.strAppend
@@ -704,7 +703,7 @@ RootContext.removeMacro proc #+context+# RootContext #+name+# string #+pos+# Fil
       fPos FilePosition.strAppend '\n' :<< eputs
       1 exit
     end
-  else drop
+  else
     "macro " name :+ " does not exists in the current namespace " :+ fPos FilePosition.strAppend '\n' :<< eputs
     1 exit
   end
@@ -840,14 +839,12 @@ end
 ParserReader.nextByte proc ParserReader => byte optional :
   ParserReader reader =:
   reader ParserReader.in BufferedInput.nextByte byte optional next =:
-  next ?? if
-    unwrap '\n' == if
+  next if
+    '\n' == if
       reader ParserReader.pos FilePosition.newLine
     else
       reader ParserReader.pos FilePosition.nextChar
     end
-  else
-    drop
   end
   next return
 end
@@ -1079,8 +1076,8 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             tokens length 1 - [] =
             end-case
           IdentifierType WRITE . case
-            context prev IdentifierToken.value Context.getDeclareable ?? if
-              unwrap Declareable d =:
+            context prev IdentifierToken.value Context.getDeclareable if
+              Declareable d =:
               d Declareable.type DeclareableType VARIABLE_ID . != if
                 "" false d Declareable.type DeclareableType.strAppend " " :+ prev IdentifierToken.value :+
                 " (declared at " :+ d Declareable.pos FilePosition.strAppend ") is not a variable" :+
@@ -1092,7 +1089,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               tokens
               TokenType VARIABLE . prev Token.pos AccessType WRITE_VAR . d VariableToken new
               tokens length 1 - [] =
-            else drop
+            else
               "variable " prev IdentifierToken.value :+ " does not exist " :+ fPos FilePosition.strAppend '\n' :<< eputs
               1 exit
             end
@@ -1104,8 +1101,8 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             end-case
           end
         else  prev Token.type TokenType WORD . == _if
-          context prev WordToken.value Context.getDeclareable ?? if
-            unwrap Declareable d =:
+          context prev WordToken.value Context.getDeclareable if
+            Declareable d =:
             d Declareable.type switch
             DeclareableType MACRO . case
               tokens tokens length 1 - tokens length [:] clear ##remove prev
@@ -1152,7 +1149,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               1 exit
               end-case
             end
-          else drop
+          else
             ##TODO resolve missing declarable
           end
         end
@@ -1580,41 +1577,41 @@ end
 
 readEscapeChar proc ParserReader => :
   ParserReader reader =:
-  reader ParserReader.nextByte ?? if
-  unwrap byte next =:
-  next switch
-  '\\' '\'' '"' case
-   reader ParserReader.word next :<< drop
-   end-case
-  'n' case
-   reader ParserReader.word '\n' :<< drop
-   end-case
-  't' case
-   reader ParserReader.word '\t' :<< drop
-   end-case
-  'r' case
-   reader ParserReader.word '\r' :<< drop
-   end-case
-  'b' case
-   reader ParserReader.word '\b' :<< drop
-   end-case
-  'f' case
-   reader ParserReader.word '\f' :<< drop
-   end-case
-  '0' case
-   reader ParserReader.word '\0' :<< drop
-   end-case
-  'u' 'U' case
-   "\\u is currently unimplemented" eputs
-   1 exit
-   end-case
-  default
-   "The escape sequence: '\\" next :<< "' is not supported ":+ reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
-   1 exit
-  end
-  else drop
-  "unexpected end of file " reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
-  1 exit
+  reader ParserReader.nextByte if
+    byte next =:
+    next switch
+    '\\' '\'' '"' case
+     reader ParserReader.word next :<< drop
+     end-case
+    'n' case
+     reader ParserReader.word '\n' :<< drop
+     end-case
+    't' case
+     reader ParserReader.word '\t' :<< drop
+     end-case
+    'r' case
+     reader ParserReader.word '\r' :<< drop
+     end-case
+    'b' case
+     reader ParserReader.word '\b' :<< drop
+     end-case
+    'f' case
+     reader ParserReader.word '\f' :<< drop
+     end-case
+    '0' case
+     reader ParserReader.word '\0' :<< drop
+     end-case
+    'u' 'U' case
+     "\\u is currently unimplemented" eputs
+     1 exit
+     end-case
+    default
+     "The escape sequence: '\\" next :<< "' is not supported ":+ reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
+     1 exit
+    end
+  else
+    "unexpected end of file " reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
+    1 exit
   end
 end
 
@@ -1623,11 +1620,9 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
   program Program.context Context context =:
   program Program.tokens Token list tokens =:
   string fileName =:
-  fileName "r" open ?? ! if
+  fileName "r" open if #+auto-unwrap+# else
     "file \"" fileName "\" not found\n" :+ :+ eputs
     1 exit
-  else
-    unwrap
   end
   16 newBufferedInput #+input+#
   fileName 1 1 FilePosition new       #+pos+#
@@ -1642,8 +1637,8 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
   "" string prevWord =:
   fileName 1 1 FilePosition new FilePosition prevPos =:
 
-  while reader ParserReader.nextByte ?? do
-    unwrap #+next-char+#
+  while reader ParserReader.nextByte do
+    #+next-char+#
     state switch
       ParseState STATE_WORD . case
         byte next =:
@@ -1686,8 +1681,8 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
               end
             end-case
           '#' case
-              reader ParserReader.nextByte ?? if
-                unwrap next =
+              reader ParserReader.nextByte if
+                next =
                 next '#' == if
                   reader ParserReader.word clone string nextWord =:
                   nextWord length 0 > if
@@ -1713,7 +1708,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
                 else
                   reader ParserReader.word '#' :<< next :<< drop
                 end
-              else drop
+              else
                 reader ParserReader.word '#' :<< drop
               end
             end-case
@@ -1786,12 +1781,10 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
       end-case
       ParseState STATE_COMMENT . case
         #+input-char+# '+' == if
-          reader ParserReader.nextByte ?? if
-            unwrap '#' == if
+          reader ParserReader.nextByte if
+            '#' == if
               ParseState STATE_WORD . state =
             end
-          else
-            drop
           end
         end
       end-case
@@ -1801,7 +1794,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
         end
       end-case
     end
-  end drop
+  end
 
   state switch
     ParseState STATE_WORD . case
@@ -1925,8 +1918,8 @@ main proc string list => :
   end
   "\n" puts
   "declared values:\n" puts
-  context Context.elements HashMap.itr while HashMapItr.next ?? do
-      unwrap string Declareable MapEntry e =:
+  context Context.elements HashMap.itr while HashMapItr.next do
+      string Declareable MapEntry e =:
       e MapEntry.key print ": " e MapEntry.value Declareable.strAppend println
-   end drop drop
+   end drop
 end
