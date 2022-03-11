@@ -19,7 +19,7 @@ _EMPTY_TUPLE tuple end
   else value .type _EMPTY_TUPLE <= _if
     '(' :<< string res =:
     0 int i =:
-    while i value _EMPTY_TUPLE cast length < do
+    while i value _EMPTY_TUPLE cast .length < do
       i 0 > if
         res ", " :+ res =
       end
@@ -30,7 +30,7 @@ _EMPTY_TUPLE tuple end
   else value .type (list) <= _if ##TODO use generic function for printing list (once available)
     '[' :<< string res =:
     0 int i =:
-    while i value (list) cast length < do
+    while i value (list) cast .length < do
       i 0 > if
         res ", " :+ res =
       end
@@ -60,14 +60,14 @@ _EMPTY_TUPLE tuple end
         "( " :+ string res =:
         value type cast inTypes type list args =:
         0 int i =:
-        while i args length < do
+        while i args .length < do
           res args i [] <<s " " :+ res =
           i 1 + i =
         end
         res "=> " :+ res =
         value type cast outTypes args =
         0 i =
-        while i args length < do
+        while i args .length < do
           res args i [] <<s " " :+ res =
           i 1 + i =
         end
@@ -143,10 +143,10 @@ end
 
 byteListToString proc byte list => string :
   byte list bytes =:
-  bytes length 6 * string new string res =:
+  bytes .length 6 * string new string res =:
   res "[" :+ res =
   0 int i =:
-  while i bytes length < do
+  while i bytes .length < do
     i 0 > if
       res ", " :+ res =
     end
@@ -317,8 +317,8 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     format __IO.format  " is no valid format specifier\n" >>: eputs
     1 exit
   end string res =:
-  res length width < if
-    width res length - int count =:
+  res .length width < if
+    width res .length - int count =:
     format __IO.flags __IO_FLAG_PAD_0 & 0 != if '0' else ' ' end byte padChar =:
     count string new string padding =:
     padding 0 count padChar fill
@@ -335,7 +335,7 @@ isFormatChar proc #+char+# byte => bool :
   byte c =:
   "bBiIuUdxXfFeEcsS%" string formats =:
   0 int i =:
-  while i formats length < do
+  while i formats .length < do
     formats i [] c == if
       true return
     end
@@ -348,37 +348,37 @@ sprintf proc #+args+# var list #+format+# string => string :
   string format =:
   var list args =:
 
-  format length 4 / _IO_Format list new _IO_Format list parts =:
+  format .length 4 / _IO_Format list new _IO_Format list parts =:
   0 int i0 =:
   0 int i  =:
-  format length int n  =:
+  format .length int n  =:
    0 int count =:
   -1 int maxFormat =:
   0 byte tmpC =:
   0 string new string tmp =:
   while i0 n < do
     i0 i =
-    while i format length < && format i [] '%' != end do
+    while i format .length < && format i [] '%' != end do
       i 1 + i =
     end
-    i format length >= if
-      parts   false format i0 format length [:] __IO_FormatString new   :<< parts =
+    i format .length >= if
+      parts   false format i0 format .length [:] __IO_FormatString new   :<< parts =
       n i0 =
     else
       parts   false format i0 i [:] __IO_FormatString new   :<< parts =
       i 1 + dup i0 = i =
-      while i0 format length < && format i0 [] isFormatChar ! end do
+      while i0 format .length < && format i0 [] isFormatChar ! end do
         i0 1 + i0 =
       end
-      i0 format length >= if
-        "printf: unfinished or invalid format String: "  format i format length [:] stringValue  :+ '\n' :<< eputs
+      i0 format .length >= if
+        "printf: unfinished or invalid format String: "  format i format .length [:] stringValue  :+ '\n' :<< eputs
         1 exit
       end
       format i0 [] byte _formatChar =:
       format i i0 [:] string _formatString =:
       i0 1 + i0 =
       _formatChar '%' == if
-        _formatString length 0 > if
+        _formatString .length 0 > if
           "printf: invalid Format String: \"" _formatString :+
            "\" format '%' does not allow any additional parameters\n" :+ eputs
            1 exit
@@ -396,13 +396,13 @@ sprintf proc #+args+# var list #+format+# string => string :
         false bool b_ptr =:
         0 i =
         tmp clear
-        tmp _formatString length ensureCap
+        tmp _formatString .length ensureCap
         ## ([0-9]+$)?  index
-        while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
+        while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
           _formatString i [] :<<
           i 1 + i =
         end tmp =
-        i _formatString length < && _formatString i [] '$' == end if
+        i _formatString .length < && _formatString i [] '$' == end if
           tmp parseInt index =
           tmp clear
         end
@@ -412,13 +412,13 @@ sprintf proc #+args+# var list #+format+# string => string :
         ## ' '  The result will include a leading space for positive values
         ## '0'  The result will be zero-padded
         0 int i1 =:
-        while i1 tmp length < && tmp i1 [] '0' == end do
+        while i1 tmp .length < && tmp i1 [] '0' == end do
           flags __IO_FLAG_PAD_0 | flags =
           i1 1 + i1 =
         end
         tmp 0 i1 [:] clear
-        tmp length 0 == if
-          true while #+ loop condition (on stack) +#&& i _formatString length < end do
+        tmp .length 0 == if
+          true while #+ loop condition (on stack) +#&& i _formatString .length < end do
             _formatString i [] tmpC =
             tmpC '-' == if
               flags __IO_FLAG_ALIGN_LEFT | flags =
@@ -440,31 +440,31 @@ sprintf proc #+args+# var list #+format+# string => string :
               false ## break loop
             end
           end
-          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
+          tmp while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
             _formatString i [] :<<
             i 1 + i =
           end tmp =
         end
         ## ([0-9]+)? width
-        tmp length 0 > if
+        tmp .length 0 > if
           tmp parseInt w =
           tmp clear ## clear tmp
-        else i _formatString length < && _formatString i [] '*' == end _if ## *(<index>).
+        else i _formatString .length < && _formatString i [] '*' == end _if ## *(<index>).
           i 1 + i =
           true w_ptr =
           count w =
           count 1 + count =
-          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
+          tmp while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
             _formatString i [] :<<
             i 1 + i =
           end tmp =
-          tmp length 0 > if
+          tmp .length 0 > if
             tmp parseInt w =
             tmp clear ## clear tmp
           end
         end
         ## (.[0-9]+)? precision
-        i _formatString length < && _formatString i [] '.' == end if
+        i _formatString .length < && _formatString i [] '.' == end if
                _formatChar 'f' ==  if else _formatChar 'F' == _if
           else _formatChar 'e' == _if else _formatChar 'E' == _if
           else
@@ -473,23 +473,23 @@ sprintf proc #+args+# var list #+format+# string => string :
             1 exit
           end
           i 1 + i =
-          i _formatString length < && _formatString i [] '*' == end if
+          i _formatString .length < && _formatString i [] '*' == end if
             i 1 + i =
             true p_ptr =
             count p =
             count 1 + count =
           end
-          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
+          tmp while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
             _formatString i [] :<<
             i 1 + i =
           end tmp =
-          p_ptr ! || tmp length 0 > end if
+          p_ptr ! || tmp .length 0 > end if
             tmp parseInt p =
             tmp clear ## clear tmp
           end
         end
         ## '('[0-9]+')' base
-        i _formatString length < && _formatString i [] '(' == end if
+        i _formatString .length < && _formatString i [] '(' == end if
                _formatChar 'i' ==  if else _formatChar 'I' == _if
           else _formatChar 'u' == _if else _formatChar 'U' == _if
           else _formatChar 'f' == _if else _formatChar 'F' == _if
@@ -500,18 +500,18 @@ sprintf proc #+args+# var list #+format+# string => string :
             1 exit
           end
           i 1 + i =
-          i _formatString length < && _formatString i [] '*' == end if
+          i _formatString .length < && _formatString i [] '*' == end if
             i 1 + i =
             true b_ptr =
             count b =
             count 1 + count =
           end
-          tmp while i _formatString length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
+          tmp while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
             _formatString i [] :<<
             i 1 + i =
           end tmp =
-          i _formatString length < && _formatString i [] ')' == end if
-            b_ptr ! || tmp length 0 > end if
+          i _formatString .length < && _formatString i [] ')' == end if
+            b_ptr ! || tmp .length 0 > end if
               tmp parseInt b =
               tmp clear ## clear tmp
             end
@@ -521,7 +521,7 @@ sprintf proc #+args+# var list #+format+# string => string :
             1 exit
           end
         end
-        i _formatString length < || tmp length 0 > end if
+        i _formatString .length < || tmp .length 0 > end if
           "printf: invalid Format String: \"" _formatString :+ _formatChar :<< "\"\n" :+ eputs
           1 exit
         end
@@ -548,13 +548,13 @@ sprintf proc #+args+# var list #+format+# string => string :
     end
   end
   maxFormat 1 + count =
-  count args length != if
-    "wrong number of arguments: " args length <<i " expected " :+ count <<i
+  count args .length != if
+    "wrong number of arguments: " args .length <<i " expected " :+ count <<i
     '\n' :<< eputs
     1 exit
   end
   0 i =
-  while i parts length < do
+  while i parts .length < do
     tmp
     parts i [] __IO.isValue if   ## Value format
       parts i [] args __IO_printValue

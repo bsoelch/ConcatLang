@@ -1897,7 +1897,6 @@ public class Interpreter {
                 case "[]"    -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,      pos));
                 //<array> <off> <to> [:]
                 case "[:]"   -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,      pos));
-                case "length" -> tokens.add(new OperatorToken(OperatorType.LENGTH,   pos));
 
                 case "()"     -> tokens.add(new CallPtrToken(null, pos));
 
@@ -2976,15 +2975,8 @@ public class Interpreter {
 
                 ret.add(t);
             }
-            case LENGTH -> {
-                TypeFrame f = typeStack.pop();
-                if(!(f.type.isList()||f.type instanceof Type.Tuple)){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }
-                typeStack.push(new TypeFrame(Type.UINT,null,t.pos));
-
-                ret.add(t);
-            }
+            case LENGTH ->
+                throw new RuntimeException("Operators of type LENGTH should not exist at this stage of compilation "+t.pos);
             case CLEAR ->{
                 TypeFrame f = typeStack.pop();
                 if(!f.type.isList()){
@@ -3345,6 +3337,13 @@ public class Interpreter {
                             }
                         }
                     }else{
+                        if(identifier.name.equals("length")){
+                            if(f.type.isList()||f.type instanceof Type.Tuple){
+                                typeStack.push(new TypeFrame(Type.UINT,null,t.pos));
+                                ret.add(new OperatorToken(OperatorType.LENGTH, t.pos));
+                                break;
+                            }
+                        }
                         throw new SyntaxError("getField is currently not implemented for "+f.type,t.pos);
                     }
                 } catch (TypeError e) {
@@ -3471,7 +3470,7 @@ public class Interpreter {
             case LT -> { return "<";}
             case REF_EQ -> { return "===";}
             case REF_NE -> { return "!=";}
-            case TYPE_OF -> { return "typeOf";}
+            case TYPE_OF -> { return ".type";}
             case LIST_OF -> { return "list";}
             case CONTENT -> { return "content";}
             case IN_TYPES -> { return "inTypes";}

@@ -8,7 +8,7 @@ core #import
 reverse proc string => string :
   string toReverse =:
   ## store type and length of the list
-  toReverse length string new string res =:
+  toReverse .length string new string res =:
   ## Iterate though the elements in reverse order
   toReverse _^ while <^ do
     byte cast res swap :<< res =

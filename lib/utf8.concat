@@ -40,9 +40,9 @@ end
 string:+ustring proc string ustring => string :
   ustring append =:
   string  value  =:
-  value value length append length + ensureCap drop
+  value value .length append .length + ensureCap drop
   0 int i =:
-  while i append length < do
+  while i append .length < do
     value append i [] string<<codepoint value =
     i 1 + i =
   end
@@ -52,8 +52,8 @@ end
 ustring+:string proc ustring string => string :
   string  value  =:
   ustring append =:
-  value value length append length + ensureCap drop
-  append length 1 - int i =:
+  value value .length append .length + ensureCap drop
+  append .length 1 - int i =:
   while i 0 >= do
     append i [] value codepoint>>string value =
     i 1 - i =
@@ -64,7 +64,7 @@ end
 ustring:+string proc ustring string => ustring :
   string  append  =:
   ustring value   =:
-  value value length append length + ensureCap drop
+  value value .length append .length + ensureCap drop
   append 0u
   while nextCodepoint do
     value swap :<< value =
@@ -96,10 +96,10 @@ followed by the index after the next codepoint and the string
 nextCodepoint proc string #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool :
   uint   index =:
   string value =:
-  while index value length < && value index [] int cast 0xc0 & 0x80 == end do
+  while index value .length < && value index [] int cast 0xc0 & 0x80 == end do
     index 1 + index = ## skip parts of unfinished codepoint
   end
-  while index value length < do
+  while index value .length < do
     value index [] int char =:
     char 0x80 & 0 == if ## ascii - character
       value  index 1u +  char codepoint cast  true return
@@ -110,8 +110,8 @@ nextCodepoint proc string #+index+# uint => string #+end+# uint #+next+# codepoi
       end
       int count =:
       char 0xff & count >> int res =:
-      index count + value length > if
-        value value length  0 codepoint cast  false return
+      index count + value .length > if
+        value value .length  0 codepoint cast  false return
       end
       count 1 - count =
       while

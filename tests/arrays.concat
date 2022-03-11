@@ -35,7 +35,7 @@ lists #import
 lenCmp proc string string => int :
   string a =:
   string b =:
-  a length b length - int cast return
+  a .length b .length - int cast return
 end
 
 { "sorting" "with" "comparator" "is" "now" "supported" } dup @lenCmp generic_mergesort println

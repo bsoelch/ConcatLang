@@ -11,13 +11,13 @@ end
 
 _^ proc A <?> A list => A Iterator :
   A list elements =:
-  elements elements length A Iterator new
+  elements elements .length A Iterator new
 end
 
 ^> proc A <?> A Iterator => A Iterator A optional :
   A Iterator mItr =:
   mItr
-  mItr 1 [] mItr 0 [] length < if
+  mItr 1 [] mItr 0 [] .length < if
     mItr 0 [] mItr 1 [] [] wrap ## push element
     mItr  mItr 1 [] 1 +  1 [] = ## increment iterator
   else

@@ -9,8 +9,8 @@ core #import
 reverse proc A <?> A list  => :
   A list toReverse =:
   0 int i =:
-  toReverse length 1 - int maxId =:
-  while i toReverse length 2 / < do
+  toReverse .length 1 - int maxId =:
+  while i toReverse .length 2 / < do
     toReverse i [] A tmp =:
     toReverse toReverse maxId i - [] i [] =
     toReverse tmp maxId i - [] =
@@ -61,7 +61,7 @@ end
 
 mergesort proc int list => : #+ TODO make generic once restricted generics implemented +#
   int list input =:
-  #+list+# input #+off+#0 #+to+# input length 1 - #+buffer+# input length 2 / int list new
+  #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / int list new
   __LISTS_mergesort_helper
 end
 
@@ -109,7 +109,7 @@ end
 generic_mergesort proc A <?> A list ( A A => int ) => :
   ( A A => int ) cmp =:
   A list input =:
-  #+list+# input #+cmp+# cmp #+off+# 0 #+to+# input length 1 - #+buffer+# input length 2 / A list new
+  #+list+# input #+cmp+# cmp #+off+# 0 #+to+# input .length 1 - #+buffer+# input .length 2 / A list new
   __LISTS_generic_mergesort_helper
 end
 

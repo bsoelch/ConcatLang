@@ -14,7 +14,7 @@ hashCode proc var => uint :
   valType (list) <= if
     0 uint hash =:
     0 uint i =:
-    while i value (list) cast length < do
+    while i value (list) cast .length < do
       hash 31 * value (list) cast i [] hashCode + hash =
       i 1 + i =
     end
@@ -22,7 +22,7 @@ hashCode proc var => uint :
   else valType _Empty_Tuple <= _if ## addLater? use list-hash for tuple/enum-types
     0 uint hash =:
     0 uint i =:
-    while i value _Empty_Tuple cast length < do
+    while i value _Empty_Tuple cast .length < do
       hash 31 * value _Empty_Tuple cast i [] hashCode + hash =
       i 1 + i =
     end
@@ -62,7 +62,7 @@ HashMap.put proc K <?> V <?> #+map+# K V HashMap #+key+# K #+value+# V => #+prev
   ## value map _Map.valType cast value =
   ## key   map _Map.keyType cast key =
   key hashCode uint hash =:
-  hash map _Map.data length % uint i =:
+  hash map _Map.data .length % uint i =:
   map _Map.data i [] if
     K V _Entry entry =:
     while entry _Entry.next do
@@ -95,7 +95,7 @@ HashMap.contains proc K <?> V <?> #+map+# K V HashMap #+key+# K => bool :
   K key =:
   K V HashMap map =:
   key hashCode uint hash =:
-  hash map _Map.data length % uint i =:
+  hash map _Map.data .length % uint i =:
   map _Map.data i [] K V _Entry optional entry =:
   while entry do
     K V _Entry unwrapped =:
@@ -111,7 +111,7 @@ HashMap.get proc K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# V option
   K key =:
   K V HashMap map =:
   key hashCode uint hash =:
-  hash map _Map.data length % uint i =:
+  hash map _Map.data .length % uint i =:
   map _Map.data i [] K V _Entry optional entry =:
   while entry do
     K V _Entry unwrapped =:
@@ -127,7 +127,7 @@ HashMap.remove proc K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevVal+# V o
   K key =:
   K V HashMap map =:
   key hashCode uint hash =:
-  hash map _Map.data length % uint i =:
+  hash map _Map.data .length % uint i =:
   map _Map.data i [] if
     K V _Entry entry =:
     entry MapEntry.key key == if
@@ -167,7 +167,7 @@ HashMapItr.next proc K <?> V <?> K V HashMapItr => K V HashMapItr K V MapEntry o
   K V HashMapItr itr =:
   while itr _HashMapItr.next ! do
     itr _HashMapItr.incI
-    itr _HashMapItr.i itr _HashMapItr.map _Map.data length >= if
+    itr _HashMapItr.i itr _HashMapItr.map _Map.data .length >= if
       itr K V MapEntry empty return
     end
     itr  itr _HashMapItr.map _Map.data itr _HashMapItr.i []  _HashMapItr.next=

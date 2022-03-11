@@ -23,7 +23,7 @@ io #import
 fputs proc string FILE => bool :
   FILE file =:
   string str =:
-  file str 0 str length io .write
+  file str 0 str .length io .write
 end
 
 ## specialized procedures for writing to stdout and stderr

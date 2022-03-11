@@ -17,20 +17,20 @@ end
 
 uintFromBytes proc byte list => uint :
   byte list rawData =:
-  rawData length 8 > if
-    "too much bytes from convert to int:" puts rawData length print " maximum: 8\n" puts
+  rawData .length 8 > if
+    "too much bytes from convert to int:" puts rawData .length print " maximum: 8\n" puts
     1 exit
   end
   0 uint val =:
-  rawData length 0 > if
+  rawData .length 0 > if
     0 uint shift =:
     0 uint i =:
-    while i rawData length < do
+    while i rawData .length < do
       val rawData i [] uint cast shift << | val =
       shift 8 + shift =
       i 1 + i =
     end
-    rawData length 8 < && rawData rawData length 1 - [] uint cast 0x80 & 0 != end if
+    rawData .length 8 < && rawData rawData .length 1 - [] uint cast 0x80 & 0 != end if
       val -1 shift << | val =
     end
   end

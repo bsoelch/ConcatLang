@@ -278,7 +278,7 @@ stringToInt proc #+source+# string #+base+# int #+signed+# bool => #+val+# int #
   base 2 < || base 62 > end if
     0 StringParseError .ERR_BASE return
   end
-  source length 0 == if
+  source .length 0 == if
     0 StringParseError .ERR_EMPTY return
   end
   0 int res =:
@@ -291,7 +291,7 @@ stringToInt proc #+source+# string #+base+# int #+signed+# bool => #+val+# int #
     1 i =
   end
   signed if int_MAX uint cast else uint_MAX end base uint cast / int max =:
-  while i source length < do
+  while i source .length < do
     res max > if
       res  sgn if -_ end StringParseError .ERR_OVERFLOW return
     end
@@ -367,7 +367,7 @@ stringToFloat proc #+str+# string #+base+# int => #+val+# float #+err-code+# Str
   base 2 < || base 62 > end if
     float_NaN StringParseError .ERR_BASE return
   end
-  str length 0 == if
+  str .length 0 == if
     0.0 StringParseError .ERR_EMPTY return
   end
   0 int val =:
@@ -383,7 +383,7 @@ stringToFloat proc #+str+# string #+base+# int => #+val+# float #+err-code+# Str
   0  int d =:
   -1 int e =:
   1 53 << int max =: ## maximum precision of ieee float64
-  while i str length < do
+  while i str .length < do
     str i [] '.' == if ## str[i] == '.'
       d 0 != if
         float_NaN StringParseError .ERR_ILLEGAL_CHAR return
@@ -391,7 +391,7 @@ stringToFloat proc #+str+# string #+base+# int => #+val+# float #+err-code+# Str
       1 d =
     else str i [] base _isExpChar _if
       i 1 + e =
-      i str length + i =  ## break Loop by setting index to value >= str.length
+      i str .length + i =  ## break Loop by setting index to value >= str.length
     else
       str i [] base valueOfDigit int tmp =:
       tmp 0 < if
@@ -407,7 +407,7 @@ stringToFloat proc #+str+# string #+base+# int => #+val+# float #+err-code+# Str
     i 1 + i =
   end
   e 0 > if
-    str e str length [:] base true stringToInt
+    str e str .length [:] base true stringToInt
     StringParseError err_code =:
     int exponent =:
     err_code StringParseError .ERR_NONE != if
