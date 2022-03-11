@@ -8,18 +8,23 @@ core #import
 
 _Empty_Tuple tuple end
 
+listHash proc A <?> A list => uint :
+  A list value =:
+  0 uint hash =:
+  0 uint i =:
+  while i value .length < do
+    hash 31 * value i [] hashCode + hash =
+    i 1 + i =
+  end
+  hash return
+end
 hashCode proc var => uint :
   var value =:
   value .type type valType =:
-  valType (list) <= if
-    0 uint hash =:
-    0 uint i =:
-    while i value (list) cast .length < do
-      hash 31 * value (list) cast i [] hashCode + hash =
-      i 1 + i =
-    end
-    hash
-  else valType _Empty_Tuple <= _if ## addLater? use list-hash for tuple/enum-types
+  ## addLater? use list-hash for tuple/enum-types
+  valType .isList if
+    value listHash return
+  else valType _Empty_Tuple <= _if
     0 uint hash =:
     0 uint i =:
     while i value _Empty_Tuple cast .length < do

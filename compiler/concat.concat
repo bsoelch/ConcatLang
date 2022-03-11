@@ -803,7 +803,7 @@ VariableToken.id         proc VariableToken => VariableId : 3 [] end
 Token.strAppend proc string Token => string :
   Token token =:
 
-  TokenType type.fields token Token.type [] +: ": " +:
+  TokenType .fieldNames token Token.type [] +: ": " +:
   token Token.type switch
   WORD KEY_WORD PROCEDURE_START ENUM_START case
     token WordToken.value :+
@@ -812,16 +812,16 @@ Token.strAppend proc string Token => string :
     token ValueToken.value Value.strAppend
     end-case
   BLOCK_TOKEN case
-    BlockTokenType type.fields token BlockToken.type [] :+ '(' :<< token BlockToken.target stringValue :+ ')' :<<
+    BlockTokenType .fieldNames token BlockToken.type [] :+ '(' :<< token BlockToken.target stringValue :+ ')' :<<
     end-case
   IDENTIFIER case
-    IdentifierType type.fields token IdentifierToken.idType [] :+ ": " :+ token IdentifierToken.value :+
+    IdentifierType .fieldNames token IdentifierToken.idType [] :+ ": " :+ token IdentifierToken.value :+
     end-case
   OPERATOR case
-    OperatorType type.fields token OperatorToken.opType [] :+
+    OperatorType .fieldNames token OperatorToken.opType [] :+
     end-case
   VARIABLE case
-    AccessType type.fields token VariableToken.accessType [] :+ " " :+
+    AccessType .fieldNames token VariableToken.accessType [] :+ " " :+
     token VariableToken.id VariableId.strAppend " " :+
     end-case
   CONTEXT_CLOSE case end-case
@@ -1483,7 +1483,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           0 int i =:
           while i values .length < do
             values i [] Token.type TokenType .VALUE != if
-              "tokens of type:" TokenType type.fields values i [] Token.type [] :+ " are not allowed in tuple signatures " :+
+              "tokens of type:" TokenType .fieldNames values i [] Token.type [] :+ " are not allowed in tuple signatures " :+
               values i [] Token.pos FilePosition.strAppend '\n' :<< eputs
               1 exit
             else values i [] ValueToken.value Value.type Type.TYPE != _if
@@ -1871,7 +1871,7 @@ constEvaluate proc Token list => Token list :
           NE
           GE
           GT case
-            "operators of type:" OperatorType type.fields tokens i [] OperatorToken.opType [] :+
+            "operators of type:" OperatorType .fieldNames tokens i [] OperatorToken.opType [] :+
             " are currently not supported in constant evaluation " :+
             tokens i [] Token.pos FilePosition.strAppend '\n' :<< eputs
             1 exit
@@ -1887,7 +1887,7 @@ constEvaluate proc Token list => Token list :
       BLOCK_TOKEN
       CONTEXT_OPEN
       CONTEXT_CLOSE case
-        "tokens of type:" TokenType type.fields tokens i [] Token.type [] :+
+        "tokens of type:" TokenType .fieldNames tokens i [] Token.type [] :+
         " are currently not supported in constant evaluation " :+
         tokens i [] Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit

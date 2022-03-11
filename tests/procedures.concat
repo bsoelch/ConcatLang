@@ -30,7 +30,7 @@ end
  1 +
 end drop
 
-lambda int => bool : 0 != end *->* intToBool =$
+lambda int => bool : 0 != end ( int => bool ) intToBool =$
 
 3 intToBool () println
 0 intToBool () println

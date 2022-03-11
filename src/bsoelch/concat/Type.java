@@ -36,29 +36,6 @@ public class Type {
     public static final Type TYPE  = new Type("type", false);
     public static final Type BOOL  = new Type("bool", false);
 
-    //addLater remove untyped ... types
-    public static final Type UNTYPED_LIST      = new Type("(list)", false) {
-        @Override
-        public boolean isList() {
-            return true;
-        }
-        @Override
-        public Type content() {
-            return ANY;
-        }
-    };
-    public static final Type UNTYPED_OPTIONAL = new Type("(optional)", false) {
-        @Override
-        public boolean isOptional() {
-            return true;
-        }
-        @Override
-        public Type content() {
-            return ANY;
-        }
-    };
-    public static final Type UNTYPED_PROCEDURE = new Type("*->*", false);
-
     /**blank type that could contain any value*/
     public static final Type ANY = new Type("var", false) {};
 
@@ -243,8 +220,7 @@ public class Type {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
                 return content().isSubtype(t.content(),bounds);
             }else{
-                return (wrapperName.equals(LIST)&&t==UNTYPED_LIST)||(wrapperName.equals(OPTIONAL)&&t== UNTYPED_OPTIONAL)||
-                        super.isSubtype(t,bounds);
+                return super.isSubtype(t,bounds);
             }
         }
 
@@ -253,8 +229,7 @@ public class Type {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
                 return content().canCastTo(t.content(),bounds);
             }else{
-                return (wrapperName.equals(LIST)&&t==UNTYPED_LIST)||(wrapperName.equals(OPTIONAL)&&t== UNTYPED_OPTIONAL)||
-                        super.canCastTo(t,bounds);
+                return super.canCastTo(t,bounds);
             }
         }
 
@@ -556,7 +531,7 @@ public class Type {
                 }
                 return false;
             }
-            return t== UNTYPED_PROCEDURE ||super.isSubtype(t,bounds);
+            return super.isSubtype(t,bounds);
         }
         //addLater? overwrite canCastTo
 

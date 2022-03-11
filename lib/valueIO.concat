@@ -62,37 +62,25 @@ end
     else value type cast .isTuple _if
       value type cast .name :+ return ## return tuple-name
     else value type cast .isProc _if
-      value *->* == if
-        "*->*" :+ return
-      else
-        "( " :+ string res =:
-        value type cast .inTypes type list args =:
-        0 int i =:
-        while i args .length < do
-          res args i [] <<s " " :+ res =
-          i 1 + i =
-        end
-        res "=> " :+ res =
-        value type cast .outTypes args =
-        0 i =
-        while i args .length < do
-          res args i [] <<s " " :+ res =
-          i 1 + i =
-        end
-        res ")" :+ return
+      "( " :+ string res =:
+      value type cast .inTypes type list args =:
+      0 int i =:
+      while i args .length < do
+        res args i [] <<s " " :+ res =
+        i 1 + i =
       end
+      res "=> " :+ res =
+      value type cast .outTypes args =
+      0 i =
+      while i args .length < do
+        res args i [] <<s " " :+ res =
+        i 1 + i =
+      end
+      res ")" :+ return
     else value type cast .isList _if
-      value (list) == if
-        "(list)" :+ return
-      else
-        value type cast .content <<s " list" :+ return
-      end
+      value type cast .content <<s " list" :+ return
     else value type cast .isOptional _if
-      value (optional) == if
-        "(optional)" :+ return
-      else
-        value type cast .content <<s " optional" :+ return
-      end
+      value type cast .content <<s " optional" :+ return
     else value type cast .isEnum _if
       value type cast .name :+ return ## return enum-name
     else value type == _if
@@ -111,7 +99,7 @@ end
       "codepoint" :+ return
     else value var == _if
       "var" :+ return
-    else
+    else ## TODO printing of generic types
       "unreachable\n" eputs
       1 exit
     end
@@ -131,7 +119,7 @@ end
     value <<f return
   else value .type codepoint == _if
     value string<<codepoint return
-  else value .type *->* <= _if
+  else value .type .isProc _if
     ## procedure
     value .type <<s "@" :+ value refId <<X return
   else
@@ -190,8 +178,8 @@ __IO.b      proc __IO_FormatValue => int  : 7 [] end
 __IO.b_ptr  proc __IO_FormatValue => bool : 8 [] end
 __IO.format proc __IO_FormatValue => byte : 9 [] end
 
-__IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime checks for correct types
-  (list) values =:
+__IO_printValue proc A <?> __IO_FormatValue A list => string : ## addLater runtime checks for correct types
+  A list values =:
   __IO_FormatValue format =:
   format __IO.flags __IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
   format __IO.w_ptr if values format __IO.w [] int cast else format __IO.w end int width =:
@@ -352,9 +340,9 @@ isFormatChar proc #+char+# byte => bool :
   false
 end
 
-sprintf proc #+args+# var list #+format+# string => string :
+sprintf proc A <?> #+args+# A list #+format+# string => string :
   string format =:
-  var list args =:
+  A list args =:
 
   format .length 4 / _IO_Format list new _IO_Format list parts =:
   0 int i0 =:

@@ -1621,7 +1621,7 @@ public class Interpreter {
                             Type[] ins=((ProcedureBlock) block).inTypes;
                             Type[] outs=((ProcedureBlock) block).outTypes;
                             ArrayList<Type.GenericParameter> generics=((ProcedureBlock) block).context.generics;
-                            Type procType;
+                            Type.Procedure procType;
                             if(ins!=null) {
                                 if (outs == null) {
                                     throw new SyntaxError("procedure supplies inTypes but no outTypes", pos);
@@ -1635,8 +1635,9 @@ public class Interpreter {
                                     //ensure that all named procedures have a signature
                                     throw new SyntaxError("named procedure "+((ProcedureBlock) block).name+
                                             " does not have a signature",block.startPos);
+                                }else{
+                                    throw new SyntaxError("procedure does not have a signature",block.startPos);
                                 }
-                                procType=Type.UNTYPED_PROCEDURE;
                             }
                             if(((ProcedureBlock) block).isNative){
                                 assert ((ProcedureBlock) block).name!=null;
@@ -1644,7 +1645,7 @@ public class Interpreter {
                                     throw new SyntaxError("unexpected token: "+subList.get(0)+
                                             " (at "+subList.get(0).pos+") native procedures have to have an empty body",pos);
                                 }
-                                Value.NativeProcedure proc=Value.createNativeProcedure((Type.Procedure) procType,block.startPos,
+                                Value.NativeProcedure proc=Value.createNativeProcedure(procType,block.startPos,
                                         ((ProcedureBlock) block).name);
                                 pState.rootContext.declareNamedDeclareable(proc,ioContext);
                             }else{
@@ -1816,10 +1817,7 @@ public class Interpreter {
                 case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos, false));
                 case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
                 case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
-                case "*->*"       -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_PROCEDURE), pos, false));
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
-                case "(list)"     -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_LIST),      pos, false));
-                case "(optional)" -> tokens.add(new ValueToken(Value.ofType(Type.UNTYPED_OPTIONAL),  pos, false));
 
                 case "list"       -> tokens.add(new OperatorToken(OperatorType.LIST_OF, pos));
                 case "optional"   -> tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF, pos));
@@ -3298,7 +3296,7 @@ public class Interpreter {
                                     typeStack.push(new TypeFrame(Type.listOf(Type.RAW_STRING()), null, t.pos));
                                     ret.add(new OperatorToken(OperatorType.TYPE_FIELDS, t.pos));
                                 }
-                                case "isEnum" -> {
+                                case "isEnum" -> {//TODO values of type 'var' may lead to wrong value in preevaluation
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType() instanceof Type.Enum ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new OperatorToken(OperatorType.IS_ENUM, t.pos));

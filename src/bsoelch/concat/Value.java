@@ -1565,13 +1565,9 @@ public abstract class Value {
         }
     }
 
-    public static Procedure createProcedure(Type procType, ArrayList<Interpreter.Token> tokens,FilePosition declaredAt,
+    public static Procedure createProcedure(Type.Procedure procType, ArrayList<Interpreter.Token> tokens,FilePosition declaredAt,
                                             Interpreter.ProcedureContext variableContext) {
-        if(procType instanceof Type.Procedure||procType==Type.UNTYPED_PROCEDURE){
-            return new Procedure(procType, tokens, null, new IdentityHashMap<>(), declaredAt, variableContext);
-        }else{
-            throw new IllegalArgumentException(procType+" is no valid procedure Type");
-        }
+        return new Procedure(procType, tokens, null, new IdentityHashMap<>(), declaredAt, variableContext);
     }
     static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Declareable {
         final FilePosition declaredAt;
@@ -1599,7 +1595,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type==Type.UNTYPED_PROCEDURE &&(type instanceof Type.Procedure)){
+            if(type instanceof Type.Procedure){
                 //addLater type-check body
                 return new Procedure(type, tokens, curriedArgs, genericArgs, declaredAt, context);
             }
@@ -1655,7 +1651,7 @@ public abstract class Value {
     public static Value wrap(Value v) throws ConcatRuntimeError {
         return new OptionalValue(v);
     }
-    public static Value emptyOptional(Type t) throws ConcatRuntimeError {
+    public static Value emptyOptional(Type t){
         return new OptionalValue(t);
     }
     static class OptionalValue extends Value{
@@ -1664,7 +1660,7 @@ public abstract class Value {
             super(Type.optionalOf(wrapped.type));
             this.wrapped = wrapped;
         }
-        private OptionalValue(Type t) throws ConcatRuntimeError {
+        private OptionalValue(Type t){
             super(Type.optionalOf(t));
             this.wrapped = null;
         }
