@@ -23,7 +23,7 @@ fib proc int => int :
 end
 
 2.0 sqrt println
-3 sqrt @() () println
+3 @sqrt () println
 
 0 while dup 15 < do
  dup fib println

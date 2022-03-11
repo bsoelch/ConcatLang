@@ -12,11 +12,11 @@ _EMPTY_TUPLE tuple end
 
 <<s proc string var => string :
   var value =:
-  value typeof string == if
+  value .type string == if
     value string cast :+ return
-  else value typeof ustring == _if
+  else value .type ustring == _if
     value string:+ustring return
-  else value typeof _EMPTY_TUPLE <= _if
+  else value .type _EMPTY_TUPLE <= _if
     '(' :<< string res =:
     0 int i =:
     while i value _EMPTY_TUPLE cast length < do
@@ -27,7 +27,7 @@ _EMPTY_TUPLE tuple end
       i 1 + i =
     end
     res ')' :<< return
-  else value typeof (list) <= _if ##TODO use generic function for printing list (once available)
+  else value .type (list) <= _if ##TODO use generic function for printing list (once available)
     '[' :<< string res =:
     0 int i =:
     while i value (list) cast length < do
@@ -38,15 +38,15 @@ _EMPTY_TUPLE tuple end
       i 1 + i =
     end
     res ']' :<< return
-  else value typeof (optional) <= _if
+  else value .type (optional) <= _if
     value (optional) cast if
       #+value+# <<s " wrap" :+ return
     else
-      value (optional) cast typeof content <<s " empty" :+ return
+      value (optional) cast .type content <<s " empty" :+ return
     end
-  else value typeof isEnum _if
-    value typeof type.name :+ ' ' :<< value typeof type.fields value uint cast [] :+ " ." :+ return
-  else value typeof type == _if
+  else value .type isEnum _if
+    value .type type.name :+ ' ' :<< value .type type.fields value uint cast [] :+ " ." :+ return
+  else value .type type == _if
     value string == if
       "string" :+ return
     else value ustring == _if
@@ -107,25 +107,25 @@ _EMPTY_TUPLE tuple end
       "unreachable\n" eputs
       1 exit
     end
-  else value typeof bool == _if
+  else value .type bool == _if
     value bool cast if "true" else "false" end :+ return
-  else value typeof byte == _if
+  else value .type byte == _if
     value byte cast 0x80 byte cast < if
       value byte cast :<< return ## print valid ascii-characters as character
     else
       value byteToString :+ return ## print all other bytes as their byte-code
     end
-  else value typeof  int == _if
+  else value .type  int == _if
     value <<i return
-  else value typeof uint == _if
+  else value .type uint == _if
     value  <<u return
-  else value typeof float == _if
+  else value .type float == _if
     value <<f return
-  else value typeof codepoint == _if
+  else value .type codepoint == _if
     value string<<codepoint return
-  else value typeof *->* <= _if
+  else value .type *->* <= _if
     ## procedure
-    value typeof <<s "@" :+ value refId <<X return
+    value .type <<s "@" :+ value refId <<X return
   else
     "unreachable\n" eputs
     1 exit
@@ -156,9 +156,9 @@ byteListToString proc byte list => string :
   res "]" :+ return
 end
 
-print   proc var      =>      : core stringValue .           core puts .         end
-println proc var      =>      : core stringValue . '\n' :<<  core puts .         end
-fprint  proc var FILE => bool : swap core stringValue . swap core fputs . return end
+print   proc var      =>      :      stringValue           puts        end
+println proc var      =>      :      stringValue '\n' :<<  puts        end
+fprint  proc var FILE => bool : swap stringValue swap     fputs return end
 
 1 int __IO_FLAG_PAD_0 =$
 2 int __IO_FLAG_ALIGN_LEFT =$

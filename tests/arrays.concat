@@ -38,4 +38,4 @@ lenCmp proc string string => int :
   a length b length - int cast return
 end
 
-{ "sorting" "with" "comparator" "is" "now" "supported" } dup lenCmp @() generic_mergesort println
+{ "sorting" "with" "comparator" "is" "now" "supported" } dup @lenCmp generic_mergesort println

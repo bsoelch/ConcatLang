@@ -3,17 +3,17 @@ test/io :
 stack   #include
 valueIO #include
 core #import
-"./tests/testIO.txt" "rw" io open . if #+auto-unwrap+# else
+"./tests/testIO.txt" "rw" io .open if #+auto-unwrap+# else
   "unable to open file " eputs 1 exit
 end
-io FILE . file =:
+io .FILE file =:
 64 byte list new byte list IO_Buff =:
-file IO_Buff 0 64 io read . int n =:
+file IO_Buff 0 64 io .read int n =:
 n 0 > if
-  file IO_Buff 0 n io write .
+  file IO_Buff 0 n io .write
   #+return value of write+# if
     "copied " puts n print " bytes\n" puts
   end
-  file io truncate . drop
-  file io close . drop
+  file io .truncate drop
+  file io .close drop
 end

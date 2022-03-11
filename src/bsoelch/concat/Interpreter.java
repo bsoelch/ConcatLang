@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 public class Interpreter {
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
     //use ' as separator for namespaces, as it cannot be part of identifiers
-    public static final String MODULE_SEPARATOR = "'";
+    public static final String NAMESPACE_SEPARATOR = "'";
 
     /**
      * Context for running the program
@@ -59,18 +59,20 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NATIVE_DECLARE
+        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NATIVE_DECLARE,GET_FIELD
     }
     static class IdentifierToken extends Token {
         final IdentifierType type;
         final String name;
         IdentifierToken(IdentifierType type, String name,FilePosition pos) throws SyntaxError {
             super(TokenType.IDENTIFIER, pos);
+            if(name.startsWith(".")||name.startsWith("@")){
+                throw new SyntaxError("Identifiers cannot start with '.' or '@'",pos);
+            }else if(name.isEmpty()){
+                throw new SyntaxError("Identifiers have to be nonempty",pos);
+            }
             this.name = name;
             this.type=type;
-            if(name.isEmpty()){
-                throw new SyntaxError("empty variable name",pos);
-            }
         }
         @Override
         public String toString() {
@@ -823,7 +825,7 @@ public class Interpreter {
         abstract int level();
     }
 
-    record ModuleBlock(String[] path,ArrayList<String> imports,FilePosition declaredAt){
+    record NamespaceBlock(String[] path, ArrayList<String> imports, FilePosition declaredAt){
         @Override
         public String toString() {
             return Arrays.toString(path) +" declaredAt " + declaredAt;
@@ -832,7 +834,7 @@ public class Interpreter {
     /**File specific part of namespace parsing*/
     private static class FileContext{
         final ArrayList<String> globalImports=new ArrayList<>();
-        final ArrayList<ModuleBlock> openModules=new ArrayList<>();
+        final ArrayList<NamespaceBlock> openNamespaces =new ArrayList<>();
         final HashMap<String,Declareable> declared =new HashMap<>();
     }
     private static class RootContext extends VariableContext{
@@ -846,32 +848,32 @@ public class Interpreter {
         void startFile(){
             openFiles.addLast(new FileContext());
         }
-        void startModule(String namespaceName,FilePosition declaredAt) throws SyntaxError {
-            Declareable d=elements.get(inCurrentModule(namespaceName));
+        void startNamespace(String namespaceName, FilePosition declaredAt) throws SyntaxError {
+            Declareable d=elements.get(inCurrentNamespace(namespaceName));
             if(d!=null){
                 throw new SyntaxError("cannot declare namespace "+namespaceName+
                         ", the identifier is already used by " + declarableName(d.declarableType(), true)
                         + " (declared at " + d.declaredAt() + ")",declaredAt);
             }
             StringBuilder fullPath=new StringBuilder();
-            for(ModuleBlock m:file().openModules){
+            for(NamespaceBlock m:file().openNamespaces){
                 for(String s:m.path){
-                    fullPath.append(s).append(MODULE_SEPARATOR);
+                    fullPath.append(s).append(NAMESPACE_SEPARATOR);
                 }
             }
-            String[] path = namespaceName.split(MODULE_SEPARATOR);
+            String[] path = namespaceName.split(NAMESPACE_SEPARATOR);
             for(String s:path){
                 fullPath.append(s);
                 namespaces.add(fullPath.toString());
-                fullPath.append(MODULE_SEPARATOR);
+                fullPath.append(NAMESPACE_SEPARATOR);
             }
-            file().openModules.add(new ModuleBlock(path,new ArrayList<>(),declaredAt));
+            file().openNamespaces.add(new NamespaceBlock(path,new ArrayList<>(),declaredAt));
         }
         void addImport(String path,FilePosition pos) throws SyntaxError {
             if(namespaces.contains(path)){
                 path+="'";
-                if(file().openModules.size()>0){
-                    file().openModules.get(file().openModules.size()-1).imports.add(path);
+                if(file().openNamespaces.size()>0){
+                    file().openNamespaces.get(file().openNamespaces.size()-1).imports.add(path);
                 }else{
                     file().globalImports.add(path);
                 }
@@ -883,28 +885,28 @@ public class Interpreter {
                 throw new SyntaxError("namespace "+path+" does not exist",pos);
             }
         }
-        void endModule(FilePosition pos) throws SyntaxError {
-            if(file().openModules.isEmpty()){
+        void endNamespace(FilePosition pos) throws SyntaxError {
+            if(file().openNamespaces.isEmpty()){
                 throw new SyntaxError("Unexpected End of namespace",pos);
             }
-            file().openModules.remove(file().openModules.size() - 1);
+            file().openNamespaces.remove(file().openNamespaces.size() - 1);
         }
         void endFile(IOContext context){
             FileContext ctx=openFiles.removeLast();
-            if(ctx.openModules.size()>0) {
+            if(ctx.openNamespaces.size()>0) {
                 context.stdErr.println("unclosed namespaces at end of File:");
-                while(ctx.openModules.size()>0){
-                    ModuleBlock removed=ctx.openModules.remove(ctx.openModules.size()-1);
+                while(ctx.openNamespaces.size()>0){
+                    NamespaceBlock removed=ctx.openNamespaces.remove(ctx.openNamespaces.size()-1);
                     context.stdErr.println(" - "+removed);
                 }
             }
         }
-        private String inCurrentModule(String name){
-            if(file().openModules.size()>0){
+        private String inCurrentNamespace(String name){
+            if(file().openNamespaces.size()>0){
                 StringBuilder path=new StringBuilder();
-                for(ModuleBlock b:file().openModules){
+                for(NamespaceBlock b:file().openNamespaces){
                     for(String s:b.path){
-                        path.append(s).append(MODULE_SEPARATOR);
+                        path.append(s).append(NAMESPACE_SEPARATOR);
                     }
                 }
                 return path.append(name).toString();
@@ -914,9 +916,9 @@ public class Interpreter {
         private ArrayDeque<String> currentPaths() {
             ArrayDeque<String> paths = new ArrayDeque<>(file().globalImports);
             StringBuilder path=new StringBuilder();
-            for(ModuleBlock m:file().openModules){
+            for(NamespaceBlock m:file().openNamespaces){
                 for(String s:m.path){
-                    path.append(s).append(MODULE_SEPARATOR);
+                    path.append(s).append(NAMESPACE_SEPARATOR);
                     paths.add(path.toString());
                 }
                 String top=paths.removeLast();
@@ -949,14 +951,14 @@ public class Interpreter {
 
         void declareProcedure(String name, Value.Procedure proc,IOContext ioContext) throws SyntaxError {
             String name0=name;
-            name=inCurrentModule(name);
+            name= inCurrentNamespace(name);
             ensureDeclareable(name,DeclareableType.PROCEDURE,proc.declaredAt);
             checkShadowed(proc,name0,proc.declaredAt,ioContext);
             elements.put(name,proc);
         }
 
         void declareEnum(EnumBlock source, IOContext ioContext) throws SyntaxError {
-            String localName=inCurrentModule(source.name);
+            String localName= inCurrentNamespace(source.name);
             Type.Enum anEnum=new Type.Enum(source.name,source.elements.toArray(new String[0]),
                     source.elementPositions,source.startPos);
             ensureDeclareable(localName,DeclareableType.ENUM,anEnum.declaredAt);
@@ -964,7 +966,7 @@ public class Interpreter {
             elements.put(localName,anEnum);
             for(int i = 0; i<anEnum.entryNames.length; i++){
                 String fieldName = anEnum.entryNames[i];
-                String path = localName + MODULE_SEPARATOR + fieldName;
+                String path = localName + NAMESPACE_SEPARATOR + fieldName;
                 Value.EnumEntry entry = anEnum.entries[i];
                 ensureDeclareable(path,DeclareableType.ENUM,entry.declaredAt);
                 checkShadowed(entry, fieldName, entry.declaredAt,ioContext);
@@ -972,7 +974,7 @@ public class Interpreter {
             }
         }
         void declareNamedDeclareable(NamedDeclareable declareable, IOContext ioContext) throws SyntaxError {
-            String localName=inCurrentModule(declareable.name());
+            String localName= inCurrentNamespace(declareable.name());
             ensureDeclareable(localName,declareable.declarableType(),declareable.declaredAt());
             checkShadowed(declareable,declareable.name(),declareable.declaredAt(),ioContext);
             elements.put(localName,declareable);
@@ -981,7 +983,7 @@ public class Interpreter {
         @Override
         VariableId declareVariable(String name, Type type, boolean isConstant, FilePosition pos, IOContext ioContext) throws SyntaxError {
             String name0=name;
-            name=inCurrentModule(name);
+            name= inCurrentNamespace(name);
             VariableId id = super.declareVariable(name, type, isConstant, pos,ioContext);
             checkShadowed(id,name0,pos,ioContext);
             return id;
@@ -994,7 +996,7 @@ public class Interpreter {
         @Override
         Declareable unsafeGetDeclared(String name) {
             String name0=name;
-            name=inCurrentModule(name);
+            name= inCurrentNamespace(name);
             Declareable id= elements.get(name);
             if(id==null){
                 id= file().declared.get(name0);
@@ -1444,7 +1446,7 @@ public class Interpreter {
                     if(prevId != null){
                         tokens.remove(tokens.size()-1);
                         finishParsing(pState, ioContext,true);
-                        pState.rootContext.startModule(prevId,pos);
+                        pState.rootContext.startNamespace(prevId,pos);
                     }else{
                         throw new SyntaxError("namespace name has to be an identifier",pos);
                     }
@@ -1454,7 +1456,7 @@ public class Interpreter {
                         throw new SyntaxError("namespaces can only be closed at root-level",pos);
                     }else{
                         finishParsing(pState, ioContext,true);
-                        pState.rootContext.endModule(pos);
+                        pState.rootContext.endNamespace(pos);
                     }
                 }
                 case "#import"-> {
@@ -1840,7 +1842,7 @@ public class Interpreter {
                 case "isEnum"     -> tokens.add(new OperatorToken(OperatorType.IS_ENUM,pos));
 
                 case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
-                case "typeof" -> tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
+                case ".type" -> tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
                 //stack modifiers
                 //<count> $drop
                 case "$drop" ->{
@@ -1928,28 +1930,6 @@ public class Interpreter {
                         throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
                     }
                 }
-                case "."->{ //FIXME '.' is evaluated after macro expansion -> fields with same name as macro cannot be reached
-                    if(prev==null||tokens.size()<2){
-                        throw new SyntaxError("not enough tokens tokens for '.' modifier",pos);
-                    }else if(prevId!=null){
-                        Token prePrev=tokens.get(tokens.size()-2);
-                        if(!(prePrev instanceof IdentifierToken && ((IdentifierToken) prePrev).type==IdentifierType.WORD)){
-                            throw new SyntaxError("invalid token for '.' modifier: "+prePrev,prePrev.pos);
-                        }
-                        String newName=((IdentifierToken)prePrev).name+ MODULE_SEPARATOR +prevId;
-                        tokens.remove(tokens.size()-1);
-                        Declareable d=pState.rootContext.getDeclareable(newName);
-                        if(d instanceof Macro){
-                            tokens.remove(tokens.size()-1);
-                            expandMacro(pState,(Macro)d,pos,ioContext);
-                        }else{
-                            prev=new IdentifierToken(IdentifierType.WORD, newName,pos);
-                            tokens.set(tokens.size()-1,prev);
-                        }
-                    }else{
-                        throw new SyntaxError("invalid token for '.' modifier: "+prev,prev.pos);
-                    }
-                }
                 case "=:"->{
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '=:' modifier",pos);
@@ -1982,15 +1962,6 @@ public class Interpreter {
                     }
                     tokens.set(tokens.size()-1,prev);
                 }
-                case "@()"->{
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '@()' modifier",pos);
-                    }else if(prevId!=null){
-                        tokens.set(tokens.size()-1,new IdentifierToken(IdentifierType.PROC_ID,prevId,prev.pos));
-                    }else{
-                        throw new SyntaxError("invalid token for '@()' modifier: "+prev,prev.pos);
-                    }
-                }
                 case "<>", "<?>" ->{
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
@@ -2006,15 +1977,34 @@ public class Interpreter {
                     }
                 }
                 default -> {
-                    Declareable d=pState.rootContext.getDeclareable(str);
-                    if(d instanceof Macro){
-                        expandMacro(pState,(Macro)d,pos,ioContext);
-                    }else{
-                        CodeBlock last= pState.openBlocks.peekLast();
-                        if(last instanceof EnumBlock){
-                            ((EnumBlock) last).add(str,pos);
+                    if(str.startsWith(".")){
+                        String name=str.substring(1);
+                        boolean isPtr=false;
+                        if(name.startsWith("@")){
+                            name=name.substring(1);
+                            isPtr=true;
+                        }
+                        prev=tokens.get(tokens.size()-1);
+                        if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.WORD&&
+                                pState.rootContext.namespaces.contains(((IdentifierToken) prev).name)){
+                            tokens.set(tokens.size()-1,new IdentifierToken(isPtr?IdentifierType.PROC_ID:IdentifierType.WORD,
+                                    ((IdentifierToken) prev).name+NAMESPACE_SEPARATOR +name,pos));
                         }else{
-                            tokens.add(new IdentifierToken(IdentifierType.WORD, str, pos));
+                            tokens.add(new IdentifierToken(IdentifierType.GET_FIELD,name,pos));
+                        }
+                    }else if(str.startsWith("@")){
+                        tokens.add(new IdentifierToken(IdentifierType.PROC_ID, str.substring(1), pos));
+                    }else{
+                        Declareable d=pState.rootContext.getDeclareable(str);
+                        if(d instanceof Macro){
+                            expandMacro(pState,(Macro)d,pos,ioContext);
+                        }else{
+                            CodeBlock last= pState.openBlocks.peekLast();
+                            if(last instanceof EnumBlock){
+                                ((EnumBlock) last).add(str,pos);
+                            }else{
+                                tokens.add(new IdentifierToken(IdentifierType.WORD, str, pos));
+                            }
                         }
                     }
                 }
@@ -2501,7 +2491,7 @@ public class Interpreter {
                 }
                 case IDENTIFIER ->
                     typeCheckIdentifier(t, ret, context, globalConstants, typeStack, ioContext);
-                case ASSERT -> {//TODO possiblity to mark unreachable statements
+                case ASSERT -> {//TODO possibility to mark unreachable statements
                     assert t instanceof AssertToken;
                     TypeFrame f=typeStack.pop();
                     if(f.type!=Type.BOOL){
@@ -3319,7 +3309,9 @@ public class Interpreter {
             }
             case PROC_ID -> {
                 Declareable d= context.getDeclareable(identifier.name);
-                if(d instanceof Value.NativeProcedure proc){
+                if(d==null){
+                    throw new SyntaxError("procedure "+identifier.name+" does not exist", t.pos);
+                }else if(d instanceof Value.NativeProcedure proc){
                     ValueToken token=new ValueToken(proc, t.pos,false);
                     typeStack.push(new TypeFrame(token.value.type,token.value,t.pos));
                     ret.add(token);
@@ -3330,6 +3322,33 @@ public class Interpreter {
                 }else{
                     throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
                             identifier.name+" (declared at "+d.declaredAt()+") is not a procedure", t.pos);
+                }
+            }
+            case GET_FIELD -> {
+                TypeFrame f=typeStack.pop();
+                try {
+                    if(f.type==Type.TYPE&&f.value.asType() instanceof Type.Enum anEnum){
+                        int p=0;
+                        for(;p<anEnum.entryNames.length;p++){
+                            if(anEnum.entryNames[p].equals(identifier.name)){
+                                typeStack.push(new TypeFrame(anEnum,anEnum.entries[p],t.pos));
+                                ValueToken entry = new ValueToken(anEnum.entries[p], t.pos, false);
+                                prev=ret.get(ret.size()-1);
+                                if(prev instanceof ValueToken&&((ValueToken) prev).value.type==Type.TYPE&&
+                                        ((ValueToken) prev).value.asType().equals(anEnum)) {
+                                    ret.set(ret.size()-1,entry);
+                                }else{//addLater? better way to replace previous token
+                                    ret.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{1},t.pos));
+                                    ret.add(entry);
+                                }
+                                break;
+                            }
+                        }
+                    }else{
+                        throw new SyntaxError("getField is currently not implemented for "+f.type,t.pos);
+                    }
+                } catch (TypeError e) {
+                    throw new SyntaxError(e,t.pos);
                 }
             }
         }

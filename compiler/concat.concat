@@ -59,7 +59,7 @@ TupleType.types proc TupleType => Type list : 2 [] end
 newTupleType proc #+name+# string #+types+# Type list => TupleType :
   Type list elements =:
   string name =:
-  TypeType TUPLE_TYPE . name elements TupleType new return
+  TypeType .TUPLE_TYPE name elements TupleType new return
 end
 
 EnumType tuple TypeType #+name+# string #+fields+# NameWithPos list end
@@ -68,7 +68,7 @@ EnumType.fields proc EnumType => NameWithPos list : 2 [] end
 newEnumType proc #+name+# string #+fields+# NameWithPos list => EnumType :
   NameWithPos list fields =:
   string name =:
-  TypeType ENUM_TYPE . name fields EnumType new return
+  TypeType .ENUM_TYPE name fields EnumType new return
 end
 
 WrapperTypeType enum LIST OPTIONAL VAR_ARGS end
@@ -113,17 +113,17 @@ Type.strAppend proc string Type => string :
   end
 end
 
-TypeType PRIMITIVE_TYPE .      bool PrimitiveType new Type Type.BOOL      =$
-TypeType PRIMITIVE_TYPE .      byte PrimitiveType new Type Type.BYTE      =$
-TypeType PRIMITIVE_TYPE . codepoint PrimitiveType new Type Type.CODEPOINT =$
-TypeType PRIMITIVE_TYPE .      uint PrimitiveType new Type Type.UINT      =$
-TypeType PRIMITIVE_TYPE .       int PrimitiveType new Type Type.INT       =$
-TypeType PRIMITIVE_TYPE .     float PrimitiveType new Type Type.FLOAT     =$
-TypeType PRIMITIVE_TYPE .      type PrimitiveType new Type Type.TYPE      =$
-TypeType PRIMITIVE_TYPE .       var PrimitiveType new Type Type.VAR       =$
+TypeType .PRIMITIVE_TYPE      bool PrimitiveType new Type Type.BOOL      =$
+TypeType .PRIMITIVE_TYPE      byte PrimitiveType new Type Type.BYTE      =$
+TypeType .PRIMITIVE_TYPE codepoint PrimitiveType new Type Type.CODEPOINT =$
+TypeType .PRIMITIVE_TYPE      uint PrimitiveType new Type Type.UINT      =$
+TypeType .PRIMITIVE_TYPE       int PrimitiveType new Type Type.INT       =$
+TypeType .PRIMITIVE_TYPE     float PrimitiveType new Type Type.FLOAT     =$
+TypeType .PRIMITIVE_TYPE      type PrimitiveType new Type Type.TYPE      =$
+TypeType .PRIMITIVE_TYPE       var PrimitiveType new Type Type.VAR       =$
 
-TypeType WRAPPER_TYPE . WrapperTypeType LIST . Type.BYTE      WrapperType new Type Type.STRING  =$
-TypeType WRAPPER_TYPE . WrapperTypeType LIST . Type.CODEPOINT WrapperType new Type Type.USTRING =$
+TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.BYTE      WrapperType new Type Type.STRING  =$
+TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.CODEPOINT WrapperType new Type Type.USTRING =$
 
 Value tuple Type var end
 Value.type proc Value => Type : 0 [] end
@@ -186,7 +186,7 @@ WhileBlock.forkPos= proc WhileBlock int => : 3 [] = end
 newWhileBlock proc #+startPos+# FilePosition #+start+# int => WhileBlock :
   int start =:
   FilePosition startPos =:
-  BlockType WHILE_BLOCK . startPos start -1 WhileBlock new return
+  BlockType .WHILE_BLOCK startPos start -1 WhileBlock new return
 end
 
 IfBlock tuple  #+type+# BlockType #+startPos+# FilePosition #+start+# int #+prev_if+# int #+else_positions+# uint list end
@@ -196,7 +196,7 @@ IfBlock.else_positions proc IfBlock => uint list : 4 []   end
 newIfBlock proc #+startPos+# FilePosition #+start+# int => IfBlock :
   int start =:
   FilePosition startPos =:
-  BlockType IF_BLOCK . startPos start start 16 int list new IfBlock new return
+  BlockType .IF_BLOCK startPos start start 16 int list new IfBlock new return
 end
 
 EnumBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int
@@ -207,7 +207,7 @@ newEnumBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => Enu
   int start =:
   FilePosition startPos =:
   string name =:
-  BlockType ENUM_BLOCK . startPos start name 16 NameWithPos list new EnumBlock new return
+  BlockType .ENUM_BLOCK startPos start name 16 NameWithPos list new EnumBlock new return
 end
 TupleBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int #+name+# string end
 TupleBlock.name proc TupleBlock => string : 3 [] end
@@ -215,7 +215,7 @@ newTupleBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => Tu
   int start =:
   FilePosition startPos =:
   string name =:
-  BlockType TUPLE_BLOCK . startPos start name TupleBlock new return
+  BlockType .TUPLE_BLOCK startPos start name TupleBlock new return
 end
 
 
@@ -279,7 +279,7 @@ Macro.words proc Macro => NameWithPos list : 3 []   end
 newMacro proc FilePosition string => Macro :
   string name =:
   FilePosition mPos =:
-  DeclareableType MACRO . mPos name 16 NameWithPos list new Macro new return
+  DeclareableType .MACRO mPos name 16 NameWithPos list new Macro new return
 end
 
 VariableId tuple #+type+# DeclareableType #+pos+# FilePosition #+global+# bool #+level+# int #+varId+# int end
@@ -287,7 +287,7 @@ VariableId.global  proc VariableId => bool : 2 [] end
 VariableId.level   proc VariableId => int  : 3 [] end
 VariableId.varId   proc VariableId => int  : 4 [] end
 VariableId.isConst proc VariableId => bool :
-  Declareable.type DeclareableType FINAL_VARIABLE . ==
+  Declareable.type DeclareableType .FINAL_VARIABLE ==
 end
 
 CurriedVariable tuple #+type+# DeclareableType #+pos+# FilePosition end ##TODO curried variable
@@ -299,7 +299,7 @@ Enum.enumType proc Enum => EnumType : 2 [] end
 newEnum proc #+pos+# FilePosition #+name+# string #+fields+# NameWithPos list => Enum :
   #+fields+# #+name+# newEnumType EnumType enumType =:
   FilePosition fPos =:
-  DeclareableType ENUM . fPos enumType Enum new return
+  DeclareableType .ENUM fPos enumType Enum new return
 end
 EnumEntry tuple #+type+# DeclareableType #+pos+# FilePosition #+enum-type+# EnumType #+index+# int end
 EnumEntry.enumType proc EnumEntry => EnumType : 2 [] end
@@ -307,7 +307,7 @@ EnumEntry.index proc EnumEntry => int : 3 [] end
 newEnumEntry proc #+enumType+# EnumType #+index+# int => EnumEntry :
   int index =:
   EnumType enumType =:
-  DeclareableType ENUM_ENTRY . enumType EnumType.fields index [] NameWithPos.pos enumType index EnumEntry new return
+  DeclareableType .ENUM_ENTRY enumType EnumType.fields index [] NameWithPos.pos enumType index EnumEntry new return
 end
 
 Tuple tuple #+type+# DeclareableType #+pos+# FilePosition #+tupleType+# TupleType end
@@ -390,7 +390,7 @@ RootContext.namespaces proc RootContext => string bool HashMap : 4 [] end
 newRootContext proc => RootContext :
   16 string Declareable newHashMap
   0
-  ContextType ROOT_CONTEXT .
+  ContextType .ROOT_CONTEXT
   16 OpenFile list new
   16 string bool newHashMap
   RootContext new return
@@ -400,7 +400,7 @@ BlockContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+co
 BlockContext.parent proc BlockContext => Context : 3 [] end
 newBlockContext proc #+parent+# Context => BlockContext :
   Context parent =:
-  16 string Declareable newHashMap 0 ContextType BLOCK_CONTEXT . parent BlockContext new return
+  16 string Declareable newHashMap 0 ContextType .BLOCK_CONTEXT parent BlockContext new return
 end
 
 ProcContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context
@@ -452,11 +452,11 @@ Context.ensureDeclareable proc #+context+# Context #+name+#string #+type+# Decla
   DeclareableType dType =:
   string name =:
   Context context =:
-  context Context.type ContextType ROOT_CONTEXT . == if context name RootContext.inCurrentModule else name end  string localName =:
+  context Context.type ContextType .ROOT_CONTEXT == if context name RootContext.inCurrentModule else name end  string localName =:
   context Context.elements localName HashMap.get if
     Declareable prev =:
     ## procedures can overwrite predeclared procedures
-    prev Declareable.type DeclareableType PREDECLARED_PROCEDURE . != || prev Declareable.type DeclareableType PROCEDURE . != end if
+    prev Declareable.type DeclareableType .PREDECLARED_PROCEDURE != || prev Declareable.type DeclareableType .PROCEDURE != end if
       "cannot declare " false dType DeclareableType.strAppend ' ' :<< name :+
       ", the identifier is already used by " :+ true prev Declareable.type DeclareableType.strAppend
       " (declared at " prev Declareable.pos FilePosition.strAppend ") at " :+ fPos FilePosition.strAppend '\n' :<< eputs
@@ -477,7 +477,7 @@ Context.declareVariable proc #+context+# Context #+name+# string #+isConst+# boo
     bool isConst =:
     string name =:
     Context context =:
-    isConst if DeclareableType FINAL_VARIABLE . else DeclareableType VARIABLE_ID . end DeclareableType dType =:
+    isConst if DeclareableType .FINAL_VARIABLE else DeclareableType .VARIABLE_ID end DeclareableType dType =:
     context name dType fPos Context.ensureDeclareable name =
     dType fPos context Context.isGlobal context Context.level context Context.varCount VariableId new VariableId varId =:
     context Context.incVarCount
@@ -680,7 +680,7 @@ RootContext.declareProcedure proc #+context+# RootContext #+name+# string #+proc
   Procedure aProc =:
   string name =:
   RootContext context =:
-  context name DeclareableType PROCEDURE . aProc Declareable.pos Context.ensureDeclareable name =
+  context name DeclareableType .PROCEDURE aProc Declareable.pos Context.ensureDeclareable name =
   context RootContext.predeclared name HashMap.remove ?? if
     ##TODO handle predeclared procedure
     drop
@@ -693,7 +693,7 @@ RootContext.declareMacro proc #+context+# RootContext #+macro+# Macro => :
   Macro macro =:
   macro Macro.name string name =:
   RootContext context =:
-  context name DeclareableType MACRO . macro Declareable.pos Context.ensureDeclareable name =
+  context name DeclareableType .MACRO macro Declareable.pos Context.ensureDeclareable name =
   context Context.elements name macro HashMap.put drop
 end
 RootContext.removeMacro proc #+context+# RootContext #+name+# string #+pos+# FilePosition => :
@@ -702,7 +702,7 @@ RootContext.removeMacro proc #+context+# RootContext #+name+# string #+pos+# Fil
   RootContext context =:
   context Context.elements context name RootContext.inCurrentModule HashMap.remove if
     Declareable removed =:
-    removed Declareable.type DeclareableType MACRO . != if
+    removed Declareable.type DeclareableType .MACRO != if
       "macro " name :+ " does not exists, or is shadowed by " :+
       false removed Declareable.type DeclareableType.strAppend
       " (declared at " :+ removed Declareable.pos FilePosition.strAppend ") "
@@ -719,14 +719,14 @@ RootContext.declareEnum proc #+context+# RootContext #+source+# EnumBlock => :
   source EnumBlock.name string name =:
   RootContext context =:
   source CodeBlock.startPos name source EnumBlock.elements newEnum Enum anEnum =:
-  context name DeclareableType ENUM . anEnum Declareable.pos Context.ensureDeclareable name =
+  context name DeclareableType .ENUM anEnum Declareable.pos Context.ensureDeclareable name =
   context Context.elements name anEnum HashMap.put drop
   ##declare enum entries
   0 int i =:
   anEnum Enum.enumType EnumType.fields NameWithPos list fields =:
   while i fields length < do
     source EnumBlock.name clone MODULE_SEPARATOR :<< fields i [] NameWithPos.name :+ string fieldName =:
-    context fieldName DeclareableType ENUM_ENTRY . fields i [] NameWithPos.pos Context.ensureDeclareable fieldName =
+    context fieldName DeclareableType .ENUM_ENTRY fields i [] NameWithPos.pos Context.ensureDeclareable fieldName =
     context Context.elements fieldName anEnum Enum.enumType i newEnumEntry HashMap.put drop
     i 1 + i =
   end
@@ -735,7 +735,7 @@ RootContext.declareTuple proc #+context+# RootContext #+tuple+# Tuple => :
   Tuple aTuple =:
   aTuple Tuple.tupleType TupleType.name string name =:
   RootContext context =:
-  context name DeclareableType TUPLE . aTuple Declareable.pos Context.ensureDeclareable name =
+  context name DeclareableType .TUPLE aTuple Declareable.pos Context.ensureDeclareable name =
   context Context.elements name aTuple HashMap.put drop
 end
 ##TODO RootContext.declareNativeProc
@@ -911,50 +911,50 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
       end
       tokens tokens length 2 - [] Token prePrev =:
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for '.' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
-      prePrev Token.type TokenType WORD . != if
+      prePrev Token.type TokenType .WORD != if
         "invalid token for '.' modifier: " prePrev Token.strAppend ' ' :<< prePrev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
-      tokens TokenType WORD . fPos prePrev WordToken.value '\'' :<< prev WordToken.value :+ WordToken new tokens length 2 - [] =
+      tokens TokenType .WORD fPos prePrev WordToken.value '\'' :<< prev WordToken.value :+ WordToken new tokens length 2 - [] =
       tokens tokens length 1 - tokens length [:] clear
       end-case
     "="  case
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for '=' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
-      tokens TokenType IDENTIFIER . fPos IdentifierType WRITE . prev WordToken.value IdentifierToken new tokens length 1 - [] =
+      tokens TokenType .IDENTIFIER fPos IdentifierType .WRITE prev WordToken.value IdentifierToken new tokens length 1 - [] =
       end-case
     "=:" case
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for '=:' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
-      tokens TokenType IDENTIFIER . fPos IdentifierType DECLARE . prev WordToken.value IdentifierToken new tokens length 1 - [] =
+      tokens TokenType .IDENTIFIER fPos IdentifierType .DECLARE prev WordToken.value IdentifierToken new tokens length 1 - [] =
       end-case
     "=$" case
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for '=$' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
-      tokens TokenType IDENTIFIER . fPos
-        IdentifierType CONST_DECLARE . prev WordToken.value IdentifierToken new tokens length 1 - [] =
+      tokens TokenType .IDENTIFIER fPos
+        IdentifierType .CONST_DECLARE prev WordToken.value IdentifierToken new tokens length 1 - [] =
       end-case
     "@()" case
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for '@()' modifier: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
-      tokens TokenType IDENTIFIER . fPos
-        IdentifierType ADDRESS_OF . prev WordToken.value IdentifierToken new tokens length 1 - [] =
+      tokens TokenType .IDENTIFIER fPos
+        IdentifierType .ADDRESS_OF prev WordToken.value IdentifierToken new tokens length 1 - [] =
       end-case
     ## macro&namespace key-words
     "#define" case
@@ -963,7 +963,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         1 exit
       end
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for macro name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
@@ -977,7 +977,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         1 exit
       end
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token preceding #undef: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend
         " expected macro-name \n" :+ eputs
         1 exit
@@ -991,7 +991,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         1 exit
       end
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for namespace name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
@@ -1012,7 +1012,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         1 exit
       end
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "imported namespace name has to be an identifier, got "
            prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
@@ -1031,12 +1031,12 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         1 exit
       end
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for procedure name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
-      tokens TokenType PROCEDURE_START . fPos prev WordToken.value WordToken new tokens length 1 - [] =
-      openBlocks OpenBlocks.blocks BlockType PROC_BLOCK . fPos tokens length CodeBlock new :<< drop
+      tokens TokenType .PROCEDURE_START fPos prev WordToken.value WordToken new tokens length 1 - [] =
+      openBlocks OpenBlocks.blocks BlockType .PROC_BLOCK fPos tokens length CodeBlock new :<< drop
       end-case
     "enum" case
       tokens length 0 == if
@@ -1044,7 +1044,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         1 exit
       end
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for enum name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
@@ -1057,7 +1057,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         1 exit
       end
       tokens tokens length 1 - [] Token prev =:
-      prev Token.type TokenType WORD . != if
+      prev Token.type TokenType .WORD != if
         "invalid token for tuple name: " prev Token.strAppend ' ' :<< prev Token.pos FilePosition.strAppend '\n' :<< eputs
         1 exit
       end
@@ -1067,24 +1067,24 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
     default
       tokens length 0 > && next "." != end if
         tokens tokens length 1 - [] Token prev =:
-        prev Token.type TokenType IDENTIFIER . == if
+        prev Token.type TokenType .IDENTIFIER == if
           prev IdentifierToken.idType switch
           DECLARE CONST_DECLARE case
             context
             prev IdentifierToken.value
-            prev IdentifierToken.idType IdentifierType DECLARE . !=
+            prev IdentifierToken.idType IdentifierType .DECLARE !=
             prev Token.pos
             Context.declareVariable VariableId id =:
-            prev IdentifierToken.idType IdentifierType DECLARE . != if
-              AccessType DECLARE_VAR . else AccessType DECLARE_CONST . end AccessType aType =:
+            prev IdentifierToken.idType IdentifierType .DECLARE != if
+              AccessType .DECLARE_VAR else AccessType .DECLARE_CONST end AccessType aType =:
             tokens
-            TokenType VARIABLE . prev Token.pos aType id VariableToken new
+            TokenType .VARIABLE prev Token.pos aType id VariableToken new
             tokens length 1 - [] =
             end-case
           WRITE case
             context prev IdentifierToken.value Context.getDeclareable if
               Declareable d =:
-              d Declareable.type DeclareableType VARIABLE_ID . != if
+              d Declareable.type DeclareableType .VARIABLE_ID != if
                 "" false d Declareable.type DeclareableType.strAppend " " :+ prev IdentifierToken.value :+
                 " (declared at " :+ d Declareable.pos FilePosition.strAppend ") is not a variable" :+
                 fPos FilePosition.strAppend '\n' :<< eputs
@@ -1093,7 +1093,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               ##TODO check for curried variables
               ##context.wrapCurried(identifier.name,id,identifier.pos);
               tokens
-              TokenType VARIABLE . prev Token.pos AccessType WRITE_VAR . d VariableToken new
+              TokenType .VARIABLE prev Token.pos AccessType .WRITE_VAR d VariableToken new
               tokens length 1 - [] =
             else
               "variable " prev IdentifierToken.value :+ " does not exist " :+ fPos FilePosition.strAppend '\n' :<< eputs
@@ -1106,7 +1106,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             1 exit
             end-case
           end
-        else  prev Token.type TokenType WORD . == _if
+        else  prev Token.type TokenType .WORD == _if
           context prev WordToken.value Context.getDeclareable if
             Declareable d =:
             d Declareable.type switch
@@ -1125,17 +1125,17 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               end-case
             ENUM case
               tokens
-              TokenType VALUE . fPos d Enum.enumType Value.ofType ValueToken new
+              TokenType .VALUE fPos d Enum.enumType Value.ofType ValueToken new
               tokens length 1 - [] =
               end-case
             ENUM_ENTRY case
               tokens
-              TokenType VALUE . fPos d EnumEntry.enumType d Value new ValueToken new
+              TokenType .VALUE fPos d EnumEntry.enumType d Value new ValueToken new
               tokens length 1 - [] =
               end-case
             TUPLE case
               tokens
-              TokenType VALUE . fPos d Tuple.tupleType Value.ofType ValueToken new
+              TokenType .VALUE fPos d Tuple.tupleType Value.ofType ValueToken new
               tokens length 1 - [] =
               end-case
             FINAL_VARIABLE VARIABLE_ID case
@@ -1143,7 +1143,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               ##id=context.wrapCurried(identifier.name,id,identifier.pos);
               ##addLater pre-evaluate global constants
               tokens
-              TokenType VARIABLE . prev Token.pos AccessType READ_VAR . d VariableToken new
+              TokenType .VARIABLE prev Token.pos AccessType .READ_VAR d VariableToken new
               tokens length 1 - [] =
             end-case
             PREDECLARED_PROCEDURE case
@@ -1186,7 +1186,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           word off word length 1 - [:] base false stringToInt switch
           ERR_NONE case
             sgn if -_ end uint val =:
-            tokens TokenType VALUE . fPos val Value.ofUInt ValueToken new :<< tokens =
+            tokens TokenType .VALUE fPos val Value.ofUInt ValueToken new :<< tokens =
             return
             end-case
           ERR_OVERFLOW case
@@ -1202,7 +1202,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           word off word length [:] base true stringToInt switch
           ERR_NONE case
               sgn if -_ end int val =:
-              tokens TokenType VALUE . fPos val Value.ofInt ValueToken new :<< tokens =
+              tokens TokenType .VALUE fPos val Value.ofInt ValueToken new :<< tokens =
               return
             end-case
           ERR_OVERFLOW case
@@ -1214,9 +1214,9 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             drop
             end-case
           end
-          word off word length [:] base stringToFloat StringParseError ERR_NONE . == if
+          word off word length [:] base stringToFloat StringParseError .ERR_NONE == if
             sgn if -_ end float val =:
-            tokens TokenType VALUE . fPos val Value.ofFloat ValueToken new :<< tokens =
+            tokens TokenType .VALUE fPos val Value.ofFloat ValueToken new :<< tokens =
             return
           else
             drop
@@ -1231,43 +1231,43 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         end-case
       ## detect true and false
       "true" case
-        tokens TokenType VALUE . fPos Value.TRUE  ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Value.TRUE  ValueToken new :<< tokens =
         end-case
       "false" case
-        tokens TokenType VALUE . fPos Value.FALSE ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Value.FALSE ValueToken new :<< tokens =
         end-case
       ## detect primitive type-names
       "bool" case
-        tokens TokenType VALUE . fPos Type.BOOL Value.ofType ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Type.BOOL Value.ofType ValueToken new :<< tokens =
         end-case
       "byte" case
-        tokens TokenType VALUE . fPos Type.BYTE Value.ofType ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Type.BYTE Value.ofType ValueToken new :<< tokens =
         end-case
       "codepoint" case
-        tokens TokenType VALUE . fPos Type.CODEPOINT Value.ofType ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Type.CODEPOINT Value.ofType ValueToken new :<< tokens =
         end-case
       "int" case
-        tokens TokenType VALUE . fPos Type.INT  Value.ofType ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Type.INT  Value.ofType ValueToken new :<< tokens =
         end-case
       "uint" case
-        tokens TokenType VALUE . fPos Type.UINT Value.ofType ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Type.UINT Value.ofType ValueToken new :<< tokens =
         end-case
       "float" case
-        tokens TokenType VALUE . fPos Type.FLOAT Value.ofType ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Type.FLOAT Value.ofType ValueToken new :<< tokens =
         end-case
       "type" case
-        tokens TokenType VALUE . fPos Type.TYPE Value.ofType ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Type.TYPE Value.ofType ValueToken new :<< tokens =
         end-case
       "var" case
-        tokens TokenType VALUE . fPos Type.VAR Value.ofType ValueToken new :<< tokens =
+        tokens TokenType .VALUE fPos Type.VAR Value.ofType ValueToken new :<< tokens =
         end-case
       ## control-flow key-words
       "lambda" "λ" case
-        openBlocks OpenBlocks.blocks BlockType PROC_BLOCK . fPos tokens length CodeBlock new :<< drop
-        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        openBlocks OpenBlocks.blocks BlockType .PROC_BLOCK fPos tokens length CodeBlock new :<< drop
+        tokens TokenType .KEY_WORD fPos word WordToken new :<< tokens =
         end-case
       "return" "exit" case
-        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        tokens TokenType .KEY_WORD fPos word WordToken new :<< tokens =
         end-case
       "=>" ":" case
         openBlocks OpenBlocks.blocks length 0 == if
@@ -1275,16 +1275,16 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           1 exit
         end
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType PROC_BLOCK . != if
+        block CodeBlock.type BlockType .PROC_BLOCK != if
           word " can only be used in (lambda-)procedures " :+ fPos FilePosition.strAppend '\n' :<< eputs
           1 exit
         end
         ##TODO update procedure-block
-        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        tokens TokenType .KEY_WORD fPos word WordToken new :<< tokens =
         end-case
       "while" case
         openBlocks OpenBlocks.blocks  fPos tokens length newWhileBlock  :<< drop
-        tokens TokenType BLOCK_TOKEN . fPos BlockTokenType WHILE . 0 BlockToken new :<< tokens =
+        tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .WHILE 0 BlockToken new :<< tokens =
         end-case
       "do" case
         openBlocks OpenBlocks.blocks length 0 == if
@@ -1292,7 +1292,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           1 exit
         end
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType PROC_BLOCK . != && block CodeBlock.type BlockType WHILE_BLOCK . != end if
+        block CodeBlock.type BlockType .PROC_BLOCK != && block CodeBlock.type BlockType .WHILE_BLOCK != end if
           word " can only be used in while-statement " :+ fPos FilePosition.strAppend '\n' :<< eputs
           1 exit
         end
@@ -1302,19 +1302,19 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           1 exit
         end
         block tokens length WhileBlock.forkPos=
-        tokens TokenType BLOCK_TOKEN . fPos BlockTokenType DO . -1 BlockToken new :<< tokens =
+        tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .DO -1 BlockToken new :<< tokens =
         ##open while-context
         context newBlockContext context =
         program context Program.context=
-        tokens TokenType CONTEXT_OPEN . fPos context ContextToken new :<< tokens =
+        tokens TokenType .CONTEXT_OPEN fPos context ContextToken new :<< tokens =
         end-case
       "if" case
         openBlocks OpenBlocks.blocks  fPos tokens length newIfBlock  :<< drop
-        tokens TokenType BLOCK_TOKEN . fPos BlockTokenType IF . 0 BlockToken new :<< tokens =
+        tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .IF 0 BlockToken new :<< tokens =
         ##open if-context
         context newBlockContext context =
         program context Program.context=
-        tokens TokenType CONTEXT_OPEN . fPos context ContextToken new :<< tokens =
+        tokens TokenType .CONTEXT_OPEN fPos context ContextToken new :<< tokens =
         end-case
       "else" case
         openBlocks OpenBlocks.blocks length 0 == if
@@ -1322,7 +1322,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           1 exit
         end
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType IF_BLOCK . != if
+        block CodeBlock.type BlockType .IF_BLOCK != if
           word " can only be used in if-blocks " :+ fPos FilePosition.strAppend '\n' :<< eputs
           1 exit
         end
@@ -1334,16 +1334,16 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         ##close if-context
         context BlockContext.parent context =
         program context Program.context=
-        tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+        tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
         block IfBlock.else_positions length 0 > if
           ##close else-context
-          tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+          tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
         end
         block IfBlock.else_positions tokens length :<< drop
-        tokens TokenType BLOCK_TOKEN . fPos BlockTokenType ELSE . -1 BlockToken new :<< tokens =
+        tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .ELSE -1 BlockToken new :<< tokens =
         tokens block IfBlock.prevIf [] Token tmp =:
-        tmp Token.type TokenType BLOCK_TOKEN . == &&
-          tmp BlockToken.type BlockTokenType IF . == || tmp BlockToken.type BlockTokenType _IF . == end end
+        tmp Token.type TokenType .BLOCK_TOKEN == &&
+          tmp BlockToken.type BlockTokenType .IF == || tmp BlockToken.type BlockTokenType ._IF == end end
           "token at fork-pos of If-statement has to be BlockToken:'if' or BlockToken:'_if'" assert
         tmp tokens length block IfBlock.prevIf - BlockToken.target=
         block -1 IfBlock.prevIf=
@@ -1351,7 +1351,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           ##open else-context
           context newBlockContext context =
           program context Program.context=
-          tokens TokenType CONTEXT_OPEN . fPos context ContextToken new :<< tokens =
+          tokens TokenType .CONTEXT_OPEN fPos context ContextToken new :<< tokens =
         end
         end-case
       "_if" case
@@ -1360,7 +1360,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           1 exit
         end
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType IF_BLOCK . != if
+        block CodeBlock.type BlockType .IF_BLOCK != if
           word " can only be used in if-blocks " :+ fPos FilePosition.strAppend '\n' :<< eputs
           1 exit
         end
@@ -1370,15 +1370,15 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           1 exit
         end
         block tokens length IfBlock.prevIf=
-        tokens TokenType BLOCK_TOKEN . fPos BlockTokenType _IF . 0 BlockToken new :<< tokens =
+        tokens TokenType .BLOCK_TOKEN fPos BlockTokenType ._IF 0 BlockToken new :<< tokens =
         ##open if-context
         context newBlockContext context =
         program context Program.context=
-        tokens TokenType CONTEXT_OPEN . fPos context ContextToken new :<< tokens =
+        tokens TokenType .CONTEXT_OPEN fPos context ContextToken new :<< tokens =
         end-case
       "switch" case
-        openBlocks OpenBlocks.blocks BlockType SWITCH_BLOCK . fPos tokens length CodeBlock new :<< drop
-        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        openBlocks OpenBlocks.blocks BlockType .SWITCH_BLOCK fPos tokens length CodeBlock new :<< drop
+        tokens TokenType .KEY_WORD fPos word WordToken new :<< tokens =
         end-case
       "case" "end-case" "default" case
         openBlocks OpenBlocks.blocks length 0 == if
@@ -1386,12 +1386,12 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           1 exit
         end
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType SWITCH_BLOCK . != if
+        block CodeBlock.type BlockType .SWITCH_BLOCK != if
           word " can only be used in switch-blocks " :+  fPos FilePosition.strAppend '\n' :<< eputs
           1 exit
         end
         ##TODO update switch-block
-        tokens TokenType KEY_WORD . fPos word WordToken new :<< tokens =
+        tokens TokenType .KEY_WORD fPos word WordToken new :<< tokens =
         end-case
       "end" case
         openBlocks OpenBlocks.blocks length 0 == if
@@ -1406,24 +1406,24 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             ##close if-context
             context BlockContext.parent context =
             program context Program.context=
-            tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+            tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
             tokens block IfBlock.prevIf [] Token tmp =:
-            tmp Token.type TokenType BLOCK_TOKEN . == &&
-              tmp BlockToken.type BlockTokenType IF . == || tmp BlockToken.type BlockTokenType _IF . == end end
+            tmp Token.type TokenType .BLOCK_TOKEN == &&
+              tmp BlockToken.type BlockTokenType .IF == || tmp BlockToken.type BlockTokenType ._IF == end end
               "token at fork-pos of If-statement has to be BlockToken:'if' or BlockToken:'_if'" assert
             tmp tokens length block IfBlock.prevIf - BlockToken.target=
             block IfBlock.else_positions length 0 > if
               ## close-else context
-              tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+              tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
             end
           else
             ## close-else context
-            tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+            tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
           end
           0 int i =:
           while i block IfBlock.else_positions length < do
             tokens block IfBlock.else_positions i [] [] Token tmp =:
-            tmp Token.type TokenType BLOCK_TOKEN . == && tmp BlockToken.type BlockTokenType ELSE . == end
+            tmp Token.type TokenType .BLOCK_TOKEN == && tmp BlockToken.type BlockTokenType .ELSE == end
             "token at end of if-branch has to be BlockToken:'else'" assert
             tmp tokens length block IfBlock.else_positions i [] - BlockToken.target=
             i 1 + i =
@@ -1433,7 +1433,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             context BlockContext.parent context =
             program context Program.context=
           end
-          tokens TokenType BLOCK_TOKEN . fPos BlockTokenType END-IF . 0 BlockToken new :<< tokens =
+          tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .END-IF 0 BlockToken new :<< tokens =
           end-case
         WHILE_BLOCK case
           block WhileBlock.forkPos -1 == if
@@ -1444,17 +1444,17 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           ##close context
           context BlockContext.parent context =
           program context Program.context=
-          tokens TokenType CONTEXT_CLOSE . fPos Token new :<< tokens =
+          tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
           tokens block WhileBlock.forkPos [] Token tmp =:
-          tmp Token.type TokenType BLOCK_TOKEN . == && tmp BlockToken.type BlockTokenType DO . == end
+          tmp Token.type TokenType .BLOCK_TOKEN == && tmp BlockToken.type BlockTokenType .DO == end
             "token at fork-pos of While has to be BlockToken:'do'" assert
           block WhileBlock.forkPos tokens length 3 - == if ## do context-open context-close end
             tokens tokens length 2 - tokens length [:] clear ##remove context open/close
-            tokens TokenType BLOCK_TOKEN . fPos BlockTokenType DO-WHILE .
+            tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .DO-WHILE
               block CodeBlock.start tokens length 1 - - BlockToken new
             block WhileBlock.forkPos [] =
           else
-            tokens TokenType BLOCK_TOKEN . fPos BlockTokenType END-WHILE .
+            tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .END-WHILE
               block CodeBlock.start tokens length - BlockToken new :<< tokens =
             tmp tokens length block WhileBlock.forkPos - BlockToken.target=
           end
@@ -1482,7 +1482,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           values length Type list new Type list types =:
           0 int i =:
           while i values length < do
-            values i [] Token.type TokenType VALUE . != if
+            values i [] Token.type TokenType .VALUE != if
               "tokens of type:" TokenType type.fields values i [] Token.type [] :+ " are not allowed in tuple signatures " :+
               values i [] Token.pos FilePosition.strAppend '\n' :<< eputs
               1 exit
@@ -1496,85 +1496,85 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           end
           values clear
           context
-          DeclareableType TUPLE .  block CodeBlock.startPos   block TupleBlock.name  types newTupleType   Tuple new
+          DeclareableType .TUPLE  block CodeBlock.startPos   block TupleBlock.name  types newTupleType   Tuple new
           RootContext.declareTuple
           end-case
         end
         end-case
       ## operators
       "+" case
-        tokens TokenType OPERATOR . fPos OperatorType PLUS . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .PLUS OperatorToken new :<< tokens =
         end-case
       "-" case
-        tokens TokenType OPERATOR . fPos OperatorType MINUS . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .MINUS OperatorToken new :<< tokens =
         end-case
       "-_" case
-        tokens TokenType OPERATOR . fPos OperatorType NEGATE . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .NEGATE OperatorToken new :<< tokens =
         end-case
       "*" case
-        tokens TokenType OPERATOR . fPos OperatorType MULTIPLY . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .MULTIPLY OperatorToken new :<< tokens =
         end-case
       "/" case
-        tokens TokenType OPERATOR . fPos OperatorType DIVIDE . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .DIVIDE OperatorToken new :<< tokens =
         end-case
       "%" case
-        tokens TokenType OPERATOR . fPos OperatorType MOD . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .MOD OperatorToken new :<< tokens =
         end-case
 
       "!" case
-        tokens TokenType OPERATOR . fPos OperatorType NOT . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .NOT OperatorToken new :<< tokens =
         end-case
       "~" case
-        tokens TokenType OPERATOR . fPos OperatorType FLIP . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .FLIP OperatorToken new :<< tokens =
         end-case
       "&" case
-        tokens TokenType OPERATOR . fPos OperatorType AND . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .AND OperatorToken new :<< tokens =
         end-case
       "|" case
-        tokens TokenType OPERATOR . fPos OperatorType OR . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .OR OperatorToken new :<< tokens =
         end-case
       "xor" case
-        tokens TokenType OPERATOR . fPos OperatorType XOR . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .XOR OperatorToken new :<< tokens =
         end-case
 
       "<<" case
-        tokens TokenType OPERATOR . fPos OperatorType SHIFT_L . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .SHIFT_L OperatorToken new :<< tokens =
         end-case
       ">>" case
-        tokens TokenType OPERATOR . fPos OperatorType SHIFT_R . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .SHIFT_R OperatorToken new :<< tokens =
         end-case
 
       "<" case
-        tokens TokenType OPERATOR . fPos OperatorType LT . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .LT OperatorToken new :<< tokens =
         end-case
       "<=" case
-        tokens TokenType OPERATOR . fPos OperatorType LE . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .LE OperatorToken new :<< tokens =
         end-case
       "==" case
-        tokens TokenType OPERATOR . fPos OperatorType EQ . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .EQ OperatorToken new :<< tokens =
         end-case
       "===" case
-        tokens TokenType OPERATOR . fPos OperatorType REF_EQ . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .REF_EQ OperatorToken new :<< tokens =
         end-case
       "=!=" case
-        tokens TokenType OPERATOR . fPos OperatorType REF_NE . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .REF_NE OperatorToken new :<< tokens =
         end-case
       "!=" case
-        tokens TokenType OPERATOR . fPos OperatorType NE . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .NE OperatorToken new :<< tokens =
         end-case
       ">=" case
-        tokens TokenType OPERATOR . fPos OperatorType GE . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .GE OperatorToken new :<< tokens =
         end-case
       ">" case
-        tokens TokenType OPERATOR . fPos OperatorType GT . OperatorToken new :<< tokens =
+        tokens TokenType .OPERATOR fPos OperatorType .GT OperatorToken new :<< tokens =
         end-case
       default
         openBlocks OpenBlocks.blocks length 0 >
-          && openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock.type BlockType ENUM_BLOCK . == end
+          && openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] CodeBlock.type BlockType .ENUM_BLOCK == end
           if
           openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks length 1 - [] EnumBlock.elements word fPos NameWithPos new :<< drop
         else
-          tokens TokenType WORD . fPos word WordToken new :<< tokens =
+          tokens TokenType .WORD fPos word WordToken new :<< tokens =
         end
       end
     end
@@ -1637,7 +1637,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
   ParserReader new ParserReader reader =:
   ## FIXME detect file header
   context RootContext.startFile
-  ParseState STATE_WORD . ParseState state =:
+  ParseState .STATE_WORD ParseState state =:
   reader ParserReader.pos "" newMacro 16 CodeBlock list new OpenBlocks new OpenBlocks openBlocks =:
 
   "" string prevWord =:
@@ -1664,10 +1664,10 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
           next switch
           '"' case
               reader ParserReader.word "u" == if
-                ParseState STATE_USTRING . state =
+                ParseState .STATE_USTRING state =
                 reader ParserReader.word clear
               else reader ParserReader.word length 0 == _if
-                ParseState STATE_STRING . state =
+                ParseState .STATE_STRING state =
               else
                 "illegal string-prefix: \"" reader ParserReader.word :+ "\" " :+
                    reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
@@ -1676,10 +1676,10 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
             end-case
           '\'' case
               reader ParserReader.word "u" == if
-                ParseState STATE_UCHAR . state =
+                ParseState .STATE_UCHAR state =
                 reader ParserReader.word clear
               else reader ParserReader.word length 0 == _if
-                ParseState STATE_CHAR . state =
+                ParseState .STATE_CHAR state =
               else
                 "illegal char-prefix: \"" reader ParserReader.word :+ "\" " :+
                    reader ParserReader.pos FilePosition.strAppend '\n' :<< eputs
@@ -1699,7 +1699,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
                     reader ParserReader.wordPos clone prevPos =
                   end
                   reader ParserReader.nextWord
-                  ParseState STATE_LINE_COMMENT . state =
+                  ParseState .STATE_LINE_COMMENT state =
                 else next '+' == _if
                   reader ParserReader.word clone string nextWord =:
                   nextWord length 0 > if
@@ -1710,7 +1710,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
                     reader ParserReader.wordPos clone prevPos =
                   end
                   reader ParserReader.nextWord
-                  ParseState STATE_COMMENT . state =
+                  ParseState .STATE_COMMENT state =
                 else
                   reader ParserReader.word '#' :<< next :<< drop
                 end
@@ -1732,15 +1732,15 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
             "" prevWord =
           end
           tokens
-            TokenType VALUE . reader ParserReader.wordPos clone
-            state ParseState STATE_USTRING . == if
+            TokenType .VALUE reader ParserReader.wordPos clone
+            state ParseState .STATE_USTRING == if
               reader ParserReader.word codepoints Value.ofUString
             else
               reader ParserReader.word clone Value.ofString
             end
           ValueToken new :<< tokens =
           reader ParserReader.nextWord
-          ParseState STATE_WORD . state =
+          ParseState .STATE_WORD state =
         else next '\\' == _if
           reader readEscapeChar
         else
@@ -1756,8 +1756,8 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
             "" prevWord =
           end
           tokens
-            TokenType VALUE . reader ParserReader.wordPos clone
-            state ParseState STATE_UCHAR . == if
+            TokenType .VALUE reader ParserReader.wordPos clone
+            state ParseState .STATE_UCHAR == if
               reader ParserReader.word codepoints
               dup length 1 != if
                 reader ParserReader.word " is not a valid unicode character " :+
@@ -1778,7 +1778,7 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
             end
           ValueToken new :<< tokens =
           reader ParserReader.nextWord
-          ParseState STATE_WORD . state =
+          ParseState .STATE_WORD state =
         else next '\\' == _if
           reader readEscapeChar
         else
@@ -1789,14 +1789,14 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
         #+input-char+# '+' == if
           reader ParserReader.nextByte if
             '#' == if
-              ParseState STATE_WORD . state =
+              ParseState .STATE_WORD state =
             end
           end
         end
       end-case
       STATE_LINE_COMMENT case
         #+input-char+# '\n' == if
-          ParseState STATE_WORD . state =
+          ParseState .STATE_WORD state =
         end
       end-case
     end

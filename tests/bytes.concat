@@ -6,7 +6,7 @@ math    #include
 core #import
 math #import
 
-{ 255 byte cast dup typeof swap byteToString } "%s: %s\n" printf
+{ 255 byte cast dup .type swap byteToString } "%s: %s\n" printf
 0x123456789abcdef uintToBytes byteListToString println
 0x123456789abcdef uintToBytes bytesToFloat println
 { 3.14159263358979 floatToBytes uintFromBytes } "%x\n" printf

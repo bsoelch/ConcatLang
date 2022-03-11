@@ -10,7 +10,7 @@ _Empty_Tuple tuple end
 
 hashCode proc var => uint :
   var value =:
-  value typeof type valType =:
+  value .type type valType =:
   valType (list) <= if
     0 uint hash =:
     0 uint i =:
