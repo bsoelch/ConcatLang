@@ -233,9 +233,9 @@ Iterators are defined in the standard library and
 can be included with `iterators include`, iterators 
 also includes [optional](https://github.com/bsoelch/ConcatLang#optionals)
 
-- `^..` created a new iterator at the start of 
+- `^_` created a new iterator at the start of 
 the current element (the current element has to be a list)
-- `..^` created a new iterator at the end of
+- `_^` created a new iterator at the end of
   the current element (the current element has to be a list)
 - `^>` moves the iterator to the next element,
   - if the list has a next element the iterator pushes
@@ -251,21 +251,21 @@ the current element (the current element has to be a list)
 Examples:
 template of for-each loop:
 ```
-array ^.. ## create iterator
+array ^_ ## create iterator
 while ^> do   ## iterate over all elements
   println ## do something with data
 end 
 drop ## drop the iterator
 ```
 
-reverse a list:
+reverse a string:
 ```
-reverse proc (list) => (list) :
-  (list) toReverse =:
+reverse proc string => string :
+  string toReverse =:
   ## store type and length of the list
-  toReverse length toReverse typeof new toReverse typeof res =:
+  toReverse length string new string res =:
   ## Iterate though the elements in reverse order
-  toReverse ..^ while <^ do
+  toReverse _^ while <^ do
     res swap :<< res =
   end drop
   res return
@@ -275,7 +275,7 @@ Sum all elements of a list
 ```
 0 var tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
-^.. while ^> do
+^_ while ^> do
  tmp swap + tmp =
 end drop
 tmp ## load the total sum onto the stack

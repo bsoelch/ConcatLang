@@ -10,7 +10,7 @@ reverse proc string => string :
   ## store type and length of the list
   toReverse length string new string res =:
   ## Iterate though the elements in reverse order
-  toReverse ..^ while <^ do
+  toReverse _^ while <^ do
     byte cast res swap :<< res =
   end drop
   res return
@@ -21,7 +21,7 @@ end
 sum proc float list => float :
   0 float tmp =: ## Initialize sum to 0
   ## Iterate though all elements of the list
-  ^.. while ^> do
+  ^_ while ^> do
     float cast tmp swap + tmp =
   end drop
   tmp ## load the total sum onto the stack
@@ -30,7 +30,7 @@ end
 { 1 2 3 4 5 6 7 8 9 } sum println
 { 1.5 2.5 3.5 4.5   } sum println
 
-"Hello" ^..
+"Hello" ^_
 while ^> do
   println
 end drop ## iterator and optional

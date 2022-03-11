@@ -4,12 +4,12 @@ core #namespace
 
 Iterator tuple (list) int end
 
-^.. proc (list) => Iterator :
+^_ proc (list) => Iterator :
   (list) elements =:
   elements 0 Iterator new
 end
 
-..^ proc (list) => Iterator :
+_^ proc (list) => Iterator :
   (list) elements =:
   elements elements length Iterator new
 end
