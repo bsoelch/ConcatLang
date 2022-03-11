@@ -186,11 +186,11 @@ public class Type {
     }
 
 
-    public static Type listOf(Type contentType) throws ConcatRuntimeError {
+    public static Type listOf(Type contentType){
         return WrapperType.create(WrapperType.LIST,contentType);
     }
 
-    public static Type optionalOf(Type contentType) throws ConcatRuntimeError {
+    public static Type optionalOf(Type contentType){
         return WrapperType.create(WrapperType.OPTIONAL,contentType);
     }
 

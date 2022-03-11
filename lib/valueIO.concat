@@ -10,6 +10,27 @@ utf8 #include
 
 _EMPTY_TUPLE tuple end
 
+<<list proc A <?> string A list => string :
+  A list value =:
+  '[' :<< string res =:
+  0 int i =:
+  while i value .length < do
+    i 0 > if
+      res ", " :+ res =
+    end
+    res value i [] <<s res =
+    i 1 + i =
+  end
+  res ']' :<< return
+end
+<<optional proc A <?> string A optional => string :
+  A optional value =:
+  value if
+    #+value+# <<s " wrap" :+ return
+  else
+    value .type .content <<s " empty" :+ return
+  end
+end
 <<s proc string var => string :
   var value =:
   value .type string == if
@@ -27,45 +48,32 @@ _EMPTY_TUPLE tuple end
       i 1 + i =
     end
     res ')' :<< return
-  else value .type (list) <= _if ##TODO use generic function for printing list (once available)
-    '[' :<< string res =:
-    0 int i =:
-    while i value (list) cast .length < do
-      i 0 > if
-        res ", " :+ res =
-      end
-      res value (list) cast i [] <<s res =
-      i 1 + i =
-    end
-    res ']' :<< return
-  else value .type (optional) <= _if
-    value (optional) cast if
-      #+value+# <<s " wrap" :+ return
-    else
-      value (optional) cast .type content <<s " empty" :+ return
-    end
-  else value .type isEnum _if
-    value .type type.name :+ ' ' :<< value .type type.fields value uint cast [] :+ " ." :+ return
+  else value .type .isList _if
+    value <<list return
+  else value .type .isOptional _if
+    value <<optional return
+  else value .type .isEnum _if
+    value .type .name :+ ' ' :<< value .type .fieldNames value uint cast [] :+ " ." :+ return
   else value .type type == _if
     value string == if
       "string" :+ return
     else value ustring == _if
       "ustring" :+ return
-    else value type cast _EMPTY_TUPLE <= _if
-      value type cast type.name :+ return ## return tuple-name
-    else value type cast *->* <= _if
+    else value type cast .isTuple _if
+      value type cast .name :+ return ## return tuple-name
+    else value type cast .isProc _if
       value *->* == if
         "*->*" :+ return
       else
         "( " :+ string res =:
-        value type cast inTypes type list args =:
+        value type cast .inTypes type list args =:
         0 int i =:
         while i args .length < do
           res args i [] <<s " " :+ res =
           i 1 + i =
         end
         res "=> " :+ res =
-        value type cast outTypes args =
+        value type cast .outTypes args =
         0 i =
         while i args .length < do
           res args i [] <<s " " :+ res =
@@ -73,20 +81,20 @@ _EMPTY_TUPLE tuple end
         end
         res ")" :+ return
       end
-    else value type cast (list) <= _if
+    else value type cast .isList _if
       value (list) == if
         "(list)" :+ return
       else
-        value type cast content <<s " list" :+ return
+        value type cast .content <<s " list" :+ return
       end
-    else value type cast (optional) <= _if
+    else value type cast .isOptional _if
       value (optional) == if
         "(optional)" :+ return
       else
-        value type cast content <<s " optional" :+ return
+        value type cast .content <<s " optional" :+ return
       end
-    else value type cast isEnum _if
-      value type cast type.name :+ return ## return enum-name
+    else value type cast .isEnum _if
+      value type cast .name :+ return ## return enum-name
     else value type == _if
       "type"  :+ return
     else value bool == _if

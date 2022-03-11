@@ -871,7 +871,7 @@ public class Interpreter {
         }
         void addImport(String path,FilePosition pos) throws SyntaxError {
             if(namespaces.contains(path)){
-                path+="'";
+                path+=NAMESPACE_SEPARATOR;
                 if(file().openNamespaces.size()>0){
                     file().openNamespaces.get(file().openNamespaces.size()-1).imports.add(path);
                 }else{
@@ -958,20 +958,9 @@ public class Interpreter {
         }
 
         void declareEnum(EnumBlock source, IOContext ioContext) throws SyntaxError {
-            String localName= inCurrentNamespace(source.name);
             Type.Enum anEnum=new Type.Enum(source.name,source.elements.toArray(new String[0]),
                     source.elementPositions,source.startPos);
-            ensureDeclareable(localName,DeclareableType.ENUM,anEnum.declaredAt);
-            checkShadowed(anEnum,anEnum.name,anEnum.declaredAt,ioContext);
-            elements.put(localName,anEnum);
-            for(int i = 0; i<anEnum.entryNames.length; i++){
-                String fieldName = anEnum.entryNames[i];
-                String path = localName + NAMESPACE_SEPARATOR + fieldName;
-                Value.EnumEntry entry = anEnum.entries[i];
-                ensureDeclareable(path,DeclareableType.ENUM,entry.declaredAt);
-                checkShadowed(entry, fieldName, entry.declaredAt,ioContext);
-                elements.put(path,entry);
-            }
+            declareNamedDeclareable(anEnum,ioContext);
         }
         void declareNamedDeclareable(NamedDeclareable declareable, IOContext ioContext) throws SyntaxError {
             String localName= inCurrentNamespace(declareable.name());
@@ -1834,12 +1823,6 @@ public class Interpreter {
 
                 case "list"       -> tokens.add(new OperatorToken(OperatorType.LIST_OF, pos));
                 case "optional"   -> tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF, pos));
-                case "content"    -> tokens.add(new OperatorToken(OperatorType.CONTENT, pos));
-                case "inTypes"    -> tokens.add(new OperatorToken(OperatorType.IN_TYPES, pos));
-                case "outTypes"   -> tokens.add(new OperatorToken(OperatorType.OUT_TYPES, pos));
-                case "type.name"   -> tokens.add(new OperatorToken(OperatorType.TYPE_NAME, pos));
-                case "type.fields" -> tokens.add(new OperatorToken(OperatorType.TYPE_FIELDS, pos));
-                case "isEnum"     -> tokens.add(new OperatorToken(OperatorType.IS_ENUM,pos));
 
                 case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
                 case ".type" -> tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
@@ -2886,44 +2869,6 @@ public class Interpreter {
                     ret.add(t);
                 }
             }
-            case CONTENT -> {
-                TypeFrame f = typeStack.pop();
-                if(f.type!=Type.TYPE){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }else if(f.value!=null){
-                    f=new TypeFrame(Type.TYPE,Value.ofType(f.value.asType().content()),t.pos);
-                }
-                typeStack.push(f);
-
-                ret.add(t);
-            }
-            case IN_TYPES,OUT_TYPES -> {
-                TypeFrame f = typeStack.pop();
-                if(f.type!=Type.TYPE){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }
-                typeStack.push(new TypeFrame(Type.listOf(Type.TYPE),null,t.pos));
-
-                ret.add(t);
-            }
-            case TYPE_NAME -> {
-                TypeFrame f = typeStack.pop();
-                if(f.type!=Type.TYPE){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }
-                typeStack.push(new TypeFrame(Type.RAW_STRING(),null,t.pos));
-
-                ret.add(t);
-            }
-            case TYPE_FIELDS -> {
-                TypeFrame f = typeStack.pop();
-                if(f.type!=Type.TYPE){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }
-                typeStack.push(new TypeFrame(Type.listOf(Type.RAW_STRING()),null,t.pos));
-
-                ret.add(t);
-            }
             case TYPE_OF -> {
                 TypeFrame f = typeStack.pop();
                 typeStack.push(new TypeFrame(Type.TYPE,Value.ofType(f.type),t.pos));
@@ -2931,26 +2876,9 @@ public class Interpreter {
                 ret.add(t);
             }
 
-
-            case IS_ENUM -> {
-                TypeFrame f = typeStack.pop();
-                if(f.type!=Type.TYPE){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }
-                typeStack.push(new TypeFrame(Type.BOOL,f.value==null?null:
-                        f.value.asType() instanceof Type.Enum?Value.TRUE:Value.FALSE,t.pos));
-
-                ret.add(t);
-            }
-
             case WRAP -> {
                 TypeFrame f = typeStack.pop();
-                try {
-                    typeStack.push(new TypeFrame(Type.optionalOf(f.type),null,t.pos));//TODO mark optional as nonempty
-                } catch (ConcatRuntimeError e) {
-                    throw new SyntaxError(e,op.pos);
-                }
-
+                typeStack.push(new TypeFrame(Type.optionalOf(f.type),null,t.pos));//TODO mark optional as nonempty
                 ret.add(t);
             }
             case HAS_VALUE -> {
@@ -2975,8 +2903,8 @@ public class Interpreter {
 
                 ret.add(t);
             }
-            case LENGTH ->
-                throw new RuntimeException("Operators of type LENGTH should not exist at this stage of compilation "+t.pos);
+            case CONTENT,IN_TYPES,OUT_TYPES,TYPE_NAME,TYPE_FIELDS,IS_ENUM,IS_LIST,IS_PROC,IS_OPTIONAL,IS_TUPLE,LENGTH ->
+                throw new RuntimeException("Operators of type "+op.opType+" should not exist at this stage of compilation "+t.pos);
             case CLEAR ->{
                 TypeFrame f = typeStack.pop();
                 if(!f.type.isList()){
@@ -3318,11 +3246,13 @@ public class Interpreter {
             }
             case GET_FIELD -> {
                 TypeFrame f=typeStack.pop();
+                boolean hasField=false;
                 try {
-                    if(f.type==Type.TYPE&&f.value.asType() instanceof Type.Enum anEnum){
+                    if(f.type==Type.TYPE&&f.value!=null&&f.value.asType() instanceof Type.Enum anEnum){
                         int p=0;
                         for(;p<anEnum.entryNames.length;p++){
                             if(anEnum.entryNames[p].equals(identifier.name)){
+                                hasField=true;
                                 typeStack.push(new TypeFrame(anEnum,anEnum.entries[p],t.pos));
                                 ValueToken entry = new ValueToken(anEnum.entries[p], t.pos, false);
                                 prev=ret.get(ret.size()-1);
@@ -3336,15 +3266,68 @@ public class Interpreter {
                                 break;
                             }
                         }
-                    }else{
-                        if(identifier.name.equals("length")){
-                            if(f.type.isList()||f.type instanceof Type.Tuple){
-                                typeStack.push(new TypeFrame(Type.UINT,null,t.pos));
-                                ret.add(new OperatorToken(OperatorType.LENGTH, t.pos));
-                                break;
+                    }
+                    if(!hasField) {
+                        if (identifier.name.equals("length") && (f.type.isList() || f.type instanceof Type.Tuple)) {
+                            typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
+                            ret.add(new OperatorToken(OperatorType.LENGTH, t.pos));
+                            hasField = true;
+                        } else if (f.type == Type.TYPE) {
+                            hasField = true;
+                            switch (identifier.name) {//TODO don't allow type fields as enum entry names
+                                case "content" -> {
+                                    if (f.value != null) {
+                                        f = new TypeFrame(Type.TYPE, Value.ofType(f.value.asType().content()), t.pos);
+                                    }
+                                    typeStack.push(f);
+                                    ret.add(new OperatorToken(OperatorType.CONTENT, t.pos));
+                                }
+                                case "inTypes" -> {
+                                    typeStack.push(new TypeFrame(Type.listOf(Type.TYPE), null, t.pos));
+                                    ret.add(new OperatorToken(OperatorType.IN_TYPES, t.pos));
+                                }
+                                case "outTypes" -> {
+                                    typeStack.push(new TypeFrame(Type.listOf(Type.TYPE), null, t.pos));
+                                    ret.add(new OperatorToken(OperatorType.OUT_TYPES, t.pos));
+                                }
+                                case "name" -> {
+                                    typeStack.push(new TypeFrame(Type.RAW_STRING(), null, t.pos));
+                                    ret.add(new OperatorToken(OperatorType.TYPE_NAME, t.pos));
+                                }
+                                case "fieldNames" -> {
+                                    typeStack.push(new TypeFrame(Type.listOf(Type.RAW_STRING()), null, t.pos));
+                                    ret.add(new OperatorToken(OperatorType.TYPE_FIELDS, t.pos));
+                                }
+                                case "isEnum" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType() instanceof Type.Enum ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new OperatorToken(OperatorType.IS_ENUM, t.pos));
+                                }
+                                case "isList" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType().isList() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new OperatorToken(OperatorType.IS_LIST, t.pos));
+                                }
+                                case "isProc" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType() instanceof Type.Procedure ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new OperatorToken(OperatorType.IS_PROC, t.pos));
+                                }
+                                case "isOptional" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType().isOptional() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new OperatorToken(OperatorType.IS_OPTIONAL, t.pos));
+                                }
+                                case "isTuple" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType() instanceof Type.Tuple ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new OperatorToken(OperatorType.IS_TUPLE, t.pos));
+                                }
+                                default -> hasField = false;
                             }
                         }
-                        throw new SyntaxError("getField is currently not implemented for "+f.type,t.pos);
+                        if(!hasField)
+                            throw new SyntaxError(f.type+" does not have a field "+identifier.name,t.pos);
                     }
                 } catch (TypeError e) {
                     throw new SyntaxError(e,t.pos);
@@ -3472,12 +3455,12 @@ public class Interpreter {
             case REF_NE -> { return "!=";}
             case TYPE_OF -> { return ".type";}
             case LIST_OF -> { return "list";}
-            case CONTENT -> { return "content";}
-            case IN_TYPES -> { return "inTypes";}
-            case OUT_TYPES -> { return "outTypes";}
-            case TYPE_NAME -> { return "type.name";}
-            case TYPE_FIELDS -> { return "type.fields";}
-            case LENGTH -> { return "length";}
+            case CONTENT -> { return ".content";}
+            case IN_TYPES -> { return ".inTypes";}
+            case OUT_TYPES -> { return ".outTypes";}
+            case TYPE_NAME -> { return ".name";}
+            case TYPE_FIELDS -> { return ".fields";}
+            case LENGTH -> { return ".length";}
             case ENSURE_CAP -> { return "ensureCap";}
             case FILL -> { return "fill";}
             case GET_INDEX -> { return "[]";}
@@ -3488,7 +3471,11 @@ public class Interpreter {
             case PUSH_ALL_FIRST -> { return "+:";}
             case PUSH_LAST -> { return ":<<";}
             case PUSH_ALL_LAST -> { return ":+";}
-            case IS_ENUM -> { return "isEnum";}
+            case IS_ENUM     -> { return ".isEnum";}
+            case IS_LIST     -> { return ".isList";}
+            case IS_PROC     -> { return ".isProc";}
+            case IS_OPTIONAL -> { return ".isOptional";}
+            case IS_TUPLE    -> { return ".isTuple";}
             case OPTIONAL_OF -> { return "optional";}
             case WRAP -> { return "wrap"; }
             case HAS_VALUE -> { return "??";}
@@ -3738,9 +3725,25 @@ public class Interpreter {
                 a.pushAll(b,false);
                 stack.push(a);
             }
+            case IS_LIST -> {
+                Type type = stack.pop().asType();
+                stack.push(type.isList()?Value.TRUE:Value.FALSE);
+            }
+            case IS_OPTIONAL -> {
+                Type type = stack.pop().asType();
+                stack.push(type.isOptional()?Value.TRUE:Value.FALSE);
+            }
             case IS_ENUM -> {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.Enum?Value.TRUE:Value.FALSE);
+            }
+            case IS_PROC -> {
+                Type type = stack.pop().asType();
+                stack.push(type instanceof Type.Procedure?Value.TRUE:Value.FALSE);
+            }
+            case IS_TUPLE -> {
+                Type type = stack.pop().asType();
+                stack.push(type instanceof Type.Tuple?Value.TRUE:Value.FALSE);
             }
             case OPTIONAL_OF -> {
                 Type contentType = stack.pop().asType();
