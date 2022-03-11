@@ -2,37 +2,37 @@ lib/iterator :
 
 core #namespace
 
-Iterator tuple (list) int end
+Iterator tuple A <> A list int end
 
-^_ proc (list) => Iterator :
-  (list) elements =:
-  elements 0 Iterator new
+^_ proc A <?> A list => A Iterator :
+  A list elements =:
+  elements 0 A Iterator new
 end
 
-_^ proc (list) => Iterator :
-  (list) elements =:
-  elements elements length Iterator new
+_^ proc A <?> A list => A Iterator :
+  A list elements =:
+  elements elements length A Iterator new
 end
 
-^> proc Iterator => Iterator var optional :
-  Iterator mItr =:
+^> proc A <?> A Iterator => A Iterator A optional :
+  A Iterator mItr =:
   mItr
   mItr 1 [] mItr 0 [] length < if
     mItr 0 [] mItr 1 [] [] wrap ## push element
     mItr  mItr 1 [] 1 +  1 [] = ## increment iterator
   else
-    mItr 0 [] .type empty return
+    A empty return
   end
 end
 
-<^ proc Iterator => Iterator var optional :
-  Iterator mItr =:
+<^ proc A <?> A Iterator => A Iterator A optional :
+  A Iterator mItr =:
   mItr
   mItr 1 [] 0 > if
     mItr  mItr 1 [] 1 -  1 [] = ## decrement iterator
     mItr 0 [] mItr 1 [] [] wrap ## push element
   else
-    mItr 0 [] .type empty return
+    A empty return
   end
 end
 ## addLater allow iterators to modify the underlying list
