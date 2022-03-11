@@ -7,7 +7,7 @@ is a stack-based [Concatenative programming language](https://en.wikipedia.org/w
 
 Hello World:
 
-```C
+```
 io #include
 core #import ## to use puts in global scope
 
@@ -33,7 +33,6 @@ end
 #+ print 10th Fibonacci Number: +#
 10 fib println
 ```
-!!! `#include` and `#import` are not part of the comments !!!
 
 ## Syntax
 The code is a sequence of instructions 
@@ -113,7 +112,7 @@ in namespace `io`
 - `truncate`
 - `seek`
 - `seekEnd`
-- 
+
 in namespace `core`
 - `fputs` prints a string to a file
 (arguments `<string> <file>`)
@@ -282,14 +281,13 @@ tmp ## load the total sum onto the stack
 ```
 
 ### other operators
-- `typeof` replaces the top element on the stack 
+- `.type` replaces the top element on the stack 
 with its type
 - `cast` typecast `val type cast` casts `val` to 
 type `type` and pushes the result
 - `list`  wraps a type in the corresponding list-type
-- `content` unwraps list and stream types
-- `{}` creates a new list (syntax:
-`<elements> <count> <type> {}`)
+- `optional`  wraps a type in the corresponding optional-type
+- `.content` unwraps list and optional types
 - `>>:` `:<<` add a new element at the start/end of a list
 - `:+` `+:`   concatenates two lists, changes the value of 
 the argument on the side of the `:`
@@ -308,19 +306,14 @@ and `<to>` excluded
   - syntax: `<list> <value> <off> <to> [:] =`
   - all the specified section of the list will be replaced 
 with the new value cast to the type of the list
-- `@()` get a pointer to a procedure
 - `()` call a procedure pointer
 
 Examples:
 ```C++
-1 typeof println
+1 .type println
 3.1 int cast println
 int list list drop ## list of list of ints
-1 2 3   3 float {} dup println
-1 [] println
 "Hello" ' ' "World" >>: ++ '!' :<< println
-4 fib () #+ call procedure at the procedure-pointer fib 
-with argument 4 +#
 "Hello World!" 7 9 [:] println
 "Hello World?" '!' 11 [] = println
 "Hello World!" "Programmer" 6 11 [:] = println
@@ -330,8 +323,6 @@ prints
 ```C++
 int
 3
-[1.0, 2.0, 3.0]
-2.0
 Hello World!
 or
 Hello World!
@@ -342,7 +333,9 @@ Hello!
 ### Stack Manipulation
 These Operations directly manipulate the stack without
 interacting with the specific values
-[//]: # (TODO $dup $drop)
+
+[//]: # (TODO $dup $drop $set)
+
 - `dup`  duplicates the top element on the stack
   (can be included with `stack #include`)
 - `drop` removes the top element from the stack
@@ -400,7 +393,7 @@ else dup 1 == _if drop
 else 2 == _if
  "two"
 else 
- "may"
+ "many"
 end string count =:
 ```
 
@@ -448,9 +441,9 @@ instead of proc, unlike normal procedures lambda-procedures
 push a procedure-pointer procedure onto the stack
 
 If the name of a procedure appears in the code, 
-that procedure is called unless it is followed by 
-`@()` in which case a pointer to that procedure 
-will be pushed onto the stack.
+that procedure is called directly,
+if the name is prefixed with a `@` then a pointer to 
+that procedure will be pushed onto the stack.
 
 Procedure pointers can be called with the call-operator `()`
 
@@ -489,10 +482,10 @@ end
 10 isEven println
 -143 isEven println
 1 
-isEven @() isOdd @() 2 *->* {} 
+{ @isEven @isOdd } 
 1 [] () println 
 
-lambda dup * end *->* square =:
+lambda int => int : dup * end ( int => int ) square =:
 4 square () println
 
 ```
