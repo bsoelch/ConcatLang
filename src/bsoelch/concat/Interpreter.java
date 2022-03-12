@@ -1078,7 +1078,6 @@ public class Interpreter {
         final boolean allowImplicit;
 
         boolean locked=false;
-        boolean closed=false;
 
         public GenericContext(VariableContext parent, boolean allowImplicit) {
             super(parent);
@@ -1109,20 +1108,18 @@ public class Interpreter {
             }
             locked=true;
         }
+        /**binds all generics declared in this context*/
+        void bind(){
+            for(Type.GenericParameter p:generics){
+                p.bind();
+            }
+        }
         /**unbinds all generics declared in this context*/
-        void unbind(){//FIXME generics should be bound when the procedure body is type-checked
-            if(closed){
-                throw new RuntimeException("unbind can only be called once");
-            }
-            if(!locked){
-                lock();
-            }
-            closed=true;
+        void unbind(){
             for(Type.GenericParameter p:generics){
                 p.unbind();
             }
         }
-
     }
 
     static class ProcedureContext extends GenericContext {
@@ -2070,7 +2067,9 @@ public class Interpreter {
                 for(Type t:((Type.Procedure)p.type).inTypes){
                     typeStack.push(new TypeFrame(t,null,p.declaredAt));
                 }
+                p.context.bind();
                 res=typeCheck(p.tokens,p.context,pState.globalVariables,typeStack,((Type.Procedure)p.type).outTypes,ioContext);
+                p.context.unbind();
                 p.tokens=res.tokens;
                 typeStack=res.types;
                 checkReturnValue(typeStack, ((Type.Procedure) p.type).outTypes,
@@ -2646,7 +2645,9 @@ public class Interpreter {
         for(Type in:t.inTypes){
             procTypes.push(new TypeFrame(in,null, t.pos));
         }
+        t.context.bind();
         TypeCheckResult res=typeCheck(t.tokens,t.context, globalConstants,procTypes,t.outTypes, ioContext);
+        t.context.unbind();
         Type[] outTypes;
         if(t.outTypes!=null){
             outTypes=t.outTypes;

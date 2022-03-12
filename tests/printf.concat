@@ -10,4 +10,4 @@ core #import
 1.3 7 'c' ( float int byte ) new dup .type stringValue print ":" puts stringValue println
 u"a°💻" stringValue println
 u'💻' stringValue println
-lambda var list string => string : sprintf end #+@sprintf+# .type println
+@sprintf .type println

@@ -735,8 +735,11 @@ public class Type {
             this.isImplicit = isImplicit;
             this.declaredAt=pos;
         }
+        void bind(){
+            isBound = true;
+        }
         void unbind(){
-            isBound =false;
+            isBound = false;
         }
 
         @Override

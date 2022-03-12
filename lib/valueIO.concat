@@ -178,8 +178,8 @@ __IO.b      proc __IO_FormatValue => int  : 7 [] end
 __IO.b_ptr  proc __IO_FormatValue => bool : 8 [] end
 __IO.format proc __IO_FormatValue => byte : 9 [] end
 
-__IO_printValue proc A <?> __IO_FormatValue A list => string : ## addLater runtime checks for correct types
-  A list values =:
+__IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime checks for correct types
+  var list values =:
   __IO_FormatValue format =:
   format __IO.flags __IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
   format __IO.w_ptr if values format __IO.w [] int cast else format __IO.w end int width =:
@@ -340,9 +340,9 @@ isFormatChar proc #+char+# byte => bool :
   false
 end
 
-sprintf proc A <?> #+args+# A list #+format+# string => string :
+sprintf proc #+args+# var list #+format+# string => string :
   string format =:
-  A list args =:
+  var list args =:
 
   format .length 4 / _IO_Format list new _IO_Format list parts =:
   0 int i0 =:
