@@ -1600,7 +1600,7 @@ public abstract class Value {
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type instanceof Type.Procedure){
-                //addLater type-check body
+                //TODO update generics
                 return new Procedure(type, tokens, curriedArgs, genericArgs, context, declaredAt, endPos);
             }
             return super.castTo(type);

@@ -2941,9 +2941,9 @@ public class Interpreter {
                 ret.add(t);
             }
 
-            case WRAP -> {
+            case WRAP -> {//addLater? static check if optional is guaranteed to be nonempty + possibility to explicitly unwrap such optionals
                 TypeFrame f = typeStack.pop();
-                typeStack.push(new TypeFrame(Type.optionalOf(f.type),null,t.pos));//TODO mark optional as nonempty
+                typeStack.push(new TypeFrame(Type.optionalOf(f.type),null,t.pos));
                 ret.add(t);
             }
             case HAS_VALUE -> {
