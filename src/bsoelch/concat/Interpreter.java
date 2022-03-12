@@ -17,7 +17,7 @@ public class Interpreter {
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
     enum TokenType {
-        VALUE, LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,UPDATE_GENERICS,NEW,NEW_LIST,
+        VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,UPDATE_GENERICS,NEW,NEW_LIST,
         STACK_DROP,STACK_DUP,STACK_SET,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
@@ -59,7 +59,7 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NATIVE_DECLARE,GET_FIELD
+        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NATIVE_DECLARE,GET_FIELD,IMPLICIT_DECLARE
     }
     static class IdentifierToken extends Token {
         final IdentifierType type;
@@ -233,6 +233,21 @@ public class Interpreter {
             this.update = update;
         }
     }
+    static class DeclareLambdaToken extends Token{
+        final Type[] inTypes;
+        final Type[] outTypes;
+        final ArrayList<Type.GenericParameter> generics;
+        final ArrayList<Token> tokens;
+        final ProcedureContext context;
+        DeclareLambdaToken(Type[] inTypes, Type[] outTypes, ArrayList<Type.GenericParameter> generics, ArrayList<Token> tokens, ProcedureContext context, FilePosition pos) {
+            super(TokenType.DECLARE_LAMBDA, pos);
+            this.inTypes = inTypes;
+            this.outTypes = outTypes;
+            this.generics=generics;
+            this.tokens = tokens;
+            this.context = context;
+        }
+    }
 
     static class VariableToken extends Token{
         final VariableType variableType;
@@ -294,9 +309,12 @@ public class Interpreter {
         abstract VariableContext context();
     }
     static class ProcedureBlock extends CodeBlock{
+        static final int STATE_IN=0,STATE_OUT=1,STATE_BODY=2;
+
         final String name;
         final ProcedureContext context;
         Type[] inTypes=null,outTypes=null;
+        int state=STATE_IN;
         final boolean isNative;
 
         ProcedureBlock(String name, int startToken, FilePosition pos, VariableContext parentContext, boolean isNative) {
@@ -332,20 +350,28 @@ public class Interpreter {
             return types;
         }
         void addIns(List<Token> ins,FilePosition pos) throws SyntaxError {
-            if(inTypes!=null){
+            if(state!=STATE_IN){
                 throw new SyntaxError("Procedure already has input arguments",pos);
             }
             inTypes = getSignature(ins,false);
             ins.clear();
+            state=STATE_OUT;
         }
         void addOuts(List<Token> outs,FilePosition pos) throws SyntaxError {
-            if(inTypes==null){
-                throw new SyntaxError("procedure declares output arguments but no input arguments",pos);
-            }else if(outTypes!=null){
+            if(state==STATE_IN){
+                if(name==null){
+                    inTypes = getSignature(outs,false);
+                    outs.clear();
+                }else{
+                    throw new SyntaxError("named procedures cannot have implicit output arguments",pos);
+                }
+            }else if(state==STATE_OUT){
+                outTypes = getSignature(outs,false);
+                outs.clear();
+            }else{
                 throw new SyntaxError("Procedure already has output arguments",pos);
             }
-            outTypes = getSignature(outs,false);
-            outs.clear();
+            state=STATE_BODY;
         }
         @Override
         ProcedureContext context() {
@@ -1084,7 +1110,7 @@ public class Interpreter {
             locked=true;
         }
         /**unbinds all generics declared in this context*/
-        void unbind(){
+        void unbind(){//FIXME generics should be bound when the procedure body is type-checked
             if(closed){
                 throw new RuntimeException("unbind can only be called once");
             }
@@ -1621,25 +1647,22 @@ public class Interpreter {
                             Type[] ins=((ProcedureBlock) block).inTypes;
                             Type[] outs=((ProcedureBlock) block).outTypes;
                             ArrayList<Type.GenericParameter> generics=((ProcedureBlock) block).context.generics;
-                            Type.Procedure procType;
-                            if(ins!=null) {
-                                if (outs == null) {
-                                    throw new SyntaxError("procedure supplies inTypes but no outTypes", pos);
-                                } else {
+                            Type.Procedure procType=null;
+                            if(((ProcedureBlock) block).state==ProcedureBlock.STATE_BODY) {
+                                if (outs != null) {
                                     procType=(generics.size()>0)?
-                                        Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),ins,outs):
-                                        Type.Procedure.create(ins,outs);
+                                            Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),ins,outs):
+                                            Type.Procedure.create(ins,outs);
                                 }
                             }else{
-                                if(((ProcedureBlock) block).name!=null){
-                                    //ensure that all named procedures have a signature
-                                    throw new SyntaxError("named procedure "+((ProcedureBlock) block).name+
-                                            " does not have a signature",block.startPos);
-                                }else{
+                                if(((ProcedureBlock) block).state==ProcedureBlock.STATE_IN){
                                     throw new SyntaxError("procedure does not have a signature",block.startPos);
+                                }else{
+                                    throw new SyntaxError("procedure does not provide output arguments",block.startPos);
                                 }
                             }
                             if(((ProcedureBlock) block).isNative){
+                                assert procType!=null;
                                 assert ((ProcedureBlock) block).name!=null;
                                 if(content.size()>0){
                                     throw new SyntaxError("unexpected token: "+subList.get(0)+
@@ -1649,13 +1672,14 @@ public class Interpreter {
                                         ((ProcedureBlock) block).name);
                                 pState.rootContext.declareNamedDeclareable(proc,ioContext);
                             }else{
-                                Value.Procedure proc=Value.createProcedure(procType, content,block.startPos, context);
-                                assert context.curried.isEmpty();
                                 if(((ProcedureBlock) block).name!=null){
+                                    assert procType!=null;
+                                    Value.Procedure proc=Value.createProcedure(procType, content,block.startPos, context);
+                                    assert context.curried.isEmpty();
                                     pState.unparsedProcs.add(proc);
                                     pState.rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
                                 }else{
-                                    tokens.add(new ValueToken(TokenType.LAMBDA,proc, block.startPos, false));
+                                    tokens.add(new DeclareLambdaToken(ins,outs,generics,content,context,block.startPos));
                                 }
                             }
                         }
@@ -1917,6 +1941,16 @@ public class Interpreter {
                         prev=new IdentifierToken(IdentifierType.DECLARE,prevId,prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '=:' modifier "+prev,prev.pos);
+                    }
+                    tokens.set(tokens.size()-1,prev);
+                }
+                case "=::"->{
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '=::' modifier",pos);
+                    }else if(prevId!=null){
+                        prev=new IdentifierToken(IdentifierType.IMPLICIT_DECLARE,prevId,prev.pos);
+                    }else{
+                        throw new SyntaxError("invalid token for '=::' modifier "+prev,prev.pos);
                     }
                     tokens.set(tokens.size()-1,prev);
                 }
@@ -2495,9 +2529,9 @@ public class Interpreter {
                     typeCheckOperator(t, ret, typeStack, ioContext);
                 case NEW ->
                     typeCheckNew(typeStack, ret, t);
-                case LAMBDA -> {//parse lambda-procedures
-                    assert t instanceof ValueToken;
-                    typeCheckLambda(globalConstants, typeStack, ioContext, ret, (ValueToken)t);
+                case DECLARE_LAMBDA -> {//parse lambda-procedures
+                    assert t instanceof DeclareLambdaToken;
+                    typeCheckLambda(globalConstants, typeStack, ioContext, ret, (DeclareLambdaToken)t);
                 }
                 case VALUE -> {
                     assert t instanceof ValueToken;
@@ -2570,7 +2604,7 @@ public class Interpreter {
                     ret.add(new CallPtrToken(generics,t.pos));
                 }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,
-                        CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,UPDATE_GENERICS ->
+                        CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,UPDATE_GENERICS,LAMBDA ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -2607,23 +2641,34 @@ public class Interpreter {
     }
 
     private void typeCheckLambda(HashMap<VariableId, Value> globalConstants, RandomAccessStack<TypeFrame> typeStack
-            , IOContext ioContext, ArrayList<Token> ret, ValueToken t) throws SyntaxError {
-        Value.Procedure lambda = (Value.Procedure) t.value;
-        if(!(lambda.type instanceof Type.Procedure)){
-            throw new SyntaxError("untyped lambdas are currently not supported", t.pos);
-        }
+            , IOContext ioContext, ArrayList<Token> ret, DeclareLambdaToken t) throws SyntaxError {
         RandomAccessStack<TypeFrame> procTypes=new RandomAccessStack<>(8);
-        for(Type in:((Type.Procedure)lambda.type).inTypes){
+        for(Type in:t.inTypes){
             procTypes.push(new TypeFrame(in,null, t.pos));
         }
-        TypeCheckResult res=typeCheck(lambda.tokens(),lambda.context, globalConstants,procTypes,
-                ((Type.Procedure) lambda.type).outTypes, ioContext);
-        lambda.tokens=res.tokens;
-        checkReturnValue(res.types, ((Type.Procedure) lambda.type).outTypes,"procedure does not match signature",t.pos);
+        TypeCheckResult res=typeCheck(t.tokens,t.context, globalConstants,procTypes,t.outTypes, ioContext);
+        Type[] outTypes;
+        if(t.outTypes!=null){
+            outTypes=t.outTypes;
+            checkReturnValue(res.types, t.outTypes,"procedure does not match signature",t.pos);
+        }else{
+            outTypes=new Type[res.types.size()];
+            for(int i= outTypes.length-1;i>=0;i--){
+                try {
+                    outTypes[i]=res.types.pop().type;
+                } catch (RandomAccessStack.StackUnderflow e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        Type.Procedure procType=t.generics.size()>0?
+                Type.GenericProcedure.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes):
+                Type.Procedure.create(t.inTypes, outTypes);
+        Value.Procedure lambda=Value.createProcedure(procType,res.tokens,t.pos,t.context);
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
-        if(lambda.context.curried.isEmpty()){
-            ret.add(t);
+        if(t.context.curried.isEmpty()){
+            ret.add(new ValueToken(TokenType.LAMBDA,lambda, t.pos,false));
         }else{
             ret.add(new ValueToken(TokenType.CURRIED_LAMBDA,lambda, t.pos,false));
         }
@@ -3052,63 +3097,67 @@ public class Interpreter {
         IdentifierToken identifier=(IdentifierToken) t;
         switch (identifier.type) {
             case NATIVE -> throw new SyntaxError("native modifier can only be used in declarations",t.pos);
-            case DECLARE, CONST_DECLARE, NATIVE_DECLARE -> {
-                if (ret.size() > 0 && (prev = ret.remove(ret.size() - 1)) instanceof ValueToken) {
-                    try {//remember constant declarations
-                        Type type = ((ValueToken) prev).value.asType();
+            case DECLARE, CONST_DECLARE, NATIVE_DECLARE,IMPLICIT_DECLARE -> {
+                try {//remember constant declarations
+                    Type type;
+                    if(identifier.type==IdentifierType.IMPLICIT_DECLARE){
+                        type=typeStack.peek().type;
+                    }else if (ret.size() > 0 && (prev = ret.remove(ret.size() - 1)) instanceof ValueToken) {
+                        type = ((ValueToken) prev).value.asType();
                         if(typeStack.pop().type != Type.TYPE){
                             throw new RuntimeException("type stack out of sync with token list");
                         }
-                        VariableId id = context.declareVariable(
-                                identifier.name, type, identifier.type != IdentifierType.DECLARE,
-                                identifier.pos, ioContext);
-                        AccessType accessType = identifier.type == IdentifierType.DECLARE ?
-                                AccessType.DECLARE : AccessType.CONST_DECLARE;
-                        //only remember root-level constants
-                        if (identifier.type == IdentifierType.NATIVE_DECLARE) {
-                            globalConstants.put(id, Value.loadNativeConstant(type, identifier.name, t.pos));
-                            break;
-                        }
-                        TypeFrame val = typeStack.pop();
-                        Type.BoundMaps bounds=new Type.BoundMaps();
-                        if(!val.type.isSubtype(id.type,bounds)){//cast to correct type if necessary
-                            bounds=new Type.BoundMaps();
-                            if(!val.type.canCastTo(id.type,bounds)){
-                                throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
-                            }
-                            ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
-                        }
-                        if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
-                            IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
-                            for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
-                                if(e.getValue().min()!=null){
-                                    if(e.getValue().max()==null||e.getValue().min().isSubtype(e.getValue().max())){
-                                        update.put(e.getKey(),e.getValue().min());
-                                    }else{
-                                        throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
-                                    }
-                                }else if(e.getValue().max()!=null){
-                                    update.put(e.getKey(),e.getValue().max());
-                                }
-                            }
-                            ret.add(new GenericUpdateToken(update,t.pos));
-                        }
-                        if (id.isConstant && id.context.procedureContext() == null
-                                && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
-                            globalConstants.put(id, ((ValueToken) prev).value.clone(true).castTo(type));
-                            if(val.type != ((ValueToken) prev).value.type){
-                                throw new RuntimeException("type stack out of sync with token list");
-                            }
-                            ret.remove(ret.size() - 1);
-                            break;//don't add token to code
-                        }
-                        ret.add(new VariableToken(identifier.pos, identifier.name, id,
-                                accessType, context));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e.getMessage(), prev.pos);
+                    }else {
+                        throw new SyntaxError("Token before declaration has to be a type", identifier.pos);
                     }
-                } else {
-                    throw new SyntaxError("Token before declaration has to be a type", identifier.pos);
+                    AccessType accessType =
+                            (identifier.type == IdentifierType.DECLARE||identifier.type==IdentifierType.IMPLICIT_DECLARE) ?
+                                    AccessType.DECLARE : AccessType.CONST_DECLARE;
+                    VariableId id = context.declareVariable(
+                            identifier.name, type, accessType != AccessType.DECLARE,
+                            identifier.pos, ioContext);
+                    //only remember root-level constants
+                    if (identifier.type == IdentifierType.NATIVE_DECLARE) {
+                        globalConstants.put(id, Value.loadNativeConstant(type, identifier.name, t.pos));
+                        break;
+                    }
+                    TypeFrame val = typeStack.pop();
+                    Type.BoundMaps bounds=new Type.BoundMaps();
+                    if(!val.type.isSubtype(id.type,bounds)){//cast to correct type if necessary
+                        bounds=new Type.BoundMaps();
+                        if(!val.type.canCastTo(id.type,bounds)){
+                            throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
+                        }
+                        ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
+                    }
+                    if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
+                        IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
+                        for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
+                            if(e.getValue().min()!=null){
+                                if(e.getValue().max()==null||e.getValue().min().isSubtype(e.getValue().max())){
+                                    update.put(e.getKey(),e.getValue().min());
+                                }else{
+                                    throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
+                                }
+                            }else if(e.getValue().max()!=null){
+                                update.put(e.getKey(),e.getValue().max());
+                            }
+                        }
+                        ret.add(new GenericUpdateToken(update,t.pos));
+                    }
+                    if (id.isConstant && id.context.procedureContext() == null
+                            && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
+                        globalConstants.put(id, ((ValueToken) prev).value.clone(true).castTo(type));
+                        if(val.type != ((ValueToken) prev).value.type){
+                            throw new RuntimeException("type stack out of sync with token list");
+                        }
+                        ret.remove(ret.size() - 1);
+                        break;//don't add token to code
+                    }
+                    ret.add(new VariableToken(identifier.pos, identifier.name, id,
+                            accessType, context));
+                } catch (ConcatRuntimeError e) {
+                    throw new SyntaxError(e.getMessage(), t.pos);
                 }
             }
             case WORD -> {
@@ -3964,7 +4013,7 @@ public class Interpreter {
                             throw new ConcatRuntimeError("assertion failed: "+((AssertToken)next).message);
                         }
                     }
-                    case IDENTIFIER ->
+                    case DECLARE_LAMBDA, IDENTIFIER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN -> {
