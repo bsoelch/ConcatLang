@@ -38,6 +38,7 @@ testDefault proc int => string :
   default
     "default case" return
   end
+  unreachable
 end
 
 -1 test println

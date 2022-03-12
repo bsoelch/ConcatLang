@@ -25,7 +25,7 @@ public class Interpreter {
         CALL_PROC, CALL_PTR,
         CALL_NATIVE_PROC,
         RETURN,
-        DEBUG_PRINT,ASSERT,//debug time operations, may be replaced with drop in compiled code
+        DEBUG_PRINT,ASSERT,UNREACHABLE,//debug operations, may be removed at compile time
         BLOCK_TOKEN,//jump commands only for internal representation
         SWITCH,
         EXIT,
@@ -1829,6 +1829,8 @@ public class Interpreter {
                     String message=((ValueToken) prev).value.stringValue();
                     tokens.add(new AssertToken(message, pos));
                 }
+                case "unreachable" ->
+                    tokens.add(new Token(TokenType.UNREACHABLE,pos));
                 //constants
                 case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos, false));
                 case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos, false));
@@ -2144,8 +2146,9 @@ public class Interpreter {
         for(int i=0;i<tokens.size();i++){
             Token t=tokens.get(i);
             if(finishedBranch){
-                if((!(t instanceof BlockToken block))||(block.blockType!=BlockTokenType.ELSE&&block.blockType!=BlockTokenType.END_CASE
-                        &&block.blockType!=BlockTokenType.END)){//end of branch that is not always executed
+                if(t.tokenType!=TokenType.UNREACHABLE&&((!(t instanceof BlockToken block))
+                        ||(block.blockType!=BlockTokenType.ELSE&&block.blockType!=BlockTokenType.END_CASE
+                        &&block.blockType!=BlockTokenType.END))){//end of branch that is not always executed
                     throw new SyntaxError("unreachable statement: "+t,t.pos);
                 }
             }
@@ -2512,12 +2515,12 @@ public class Interpreter {
                 }
                 case IDENTIFIER ->
                     typeCheckIdentifier(t, ret, context, globalConstants, typeStack, ioContext);
-                case ASSERT -> {//TODO possibility to mark unreachable statements
+                case ASSERT -> {
                     assert t instanceof AssertToken;
                     TypeFrame f=typeStack.pop();
                     if(f.type!=Type.BOOL){
                         throw new SyntaxError("parameter of assertion has to be a bool got "+f.type,t.pos);
-                    }else if(f.value!=null&&!f.value.asBool()){//TODO replace assert with drop if condition is always true
+                    }else if(f.value!=null&&!f.value.asBool()){//addLater replace assert with drop if condition is always true
                         throw new SyntaxError("assertion failed: "+ ((AssertToken)t).message,t.pos);
                     }
                     if((prev=ret.get(ret.size()-1)) instanceof ValueToken){
@@ -2531,6 +2534,10 @@ public class Interpreter {
                     }else{
                         ret.add(t);
                     }
+                }
+                case UNREACHABLE -> {
+                    ret.add(t);
+                    finishedBranch=true;
                 }
                 case OPERATOR ->
                     typeCheckOperator(t, ret, typeStack, ioContext);
@@ -4034,6 +4041,10 @@ public class Interpreter {
                         if(!stack.pop().asBool()){
                             throw new ConcatRuntimeError("assertion failed: "+((AssertToken)next).message);
                         }
+                    }
+                    case UNREACHABLE -> {
+                        context.stdErr.println("reached unreachable statement:"+next.pos);
+                        return ExitType.ERROR;
                     }
                     case DECLARE_LAMBDA, IDENTIFIER ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +

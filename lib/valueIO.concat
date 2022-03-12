@@ -99,10 +99,7 @@ end
       "codepoint" :+ return
     else value var == _if
       "var" :+ return
-    else ## TODO printing of generic types
-      "unreachable\n" eputs
-      1 exit
-    end
+    else unreachable end ## TODO printing of generic types
   else value .type bool == _if
     value bool cast if "true" else "false" end :+ return
   else value .type byte == _if
@@ -122,10 +119,7 @@ end
   else value .type .isProc _if
     ## procedure
     value .type <<s "@" :+ value refId <<X return
-  else
-    "unreachable\n" eputs
-    1 exit
-  end
+  else unreachable end
 end
 stringValue proc var => string :
   var val =:

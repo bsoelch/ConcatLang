@@ -180,9 +180,7 @@ HashMapItr.next proc K <?> V <?> K V HashMapItr => K V HashMapItr K V MapEntry o
   itr _HashMapItr.next K V MapEntry optional res =:
   itr  itr _HashMapItr.next if
     _Entry.next _HashMapItr.next=
-  else
-    1 exit ##TODO mark as unreachable
-  end
+  else unreachable end
   itr res return
 end
 

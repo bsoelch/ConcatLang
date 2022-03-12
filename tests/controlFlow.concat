@@ -10,18 +10,18 @@ true if
 end
 false if
   0 int test =:
-  1 exit
+  unreachable
 end
 true if
   0 int test =:
   "if(true)-else-end\n" puts
 else
   0 int test =:
-  1 exit
+  unreachable
 end
 false if
   0 int test =:
-  1 exit
+  unreachable
 else
   0 int test =:
   "if(false)-else-end\n" puts
@@ -31,48 +31,48 @@ true if
   "if(true)-elif-end\n" puts
 else true _if
   0 int test =:
-  1 exit
+  unreachable
 end
 false if
   0 int test =:
-  1 exit
+  unreachable
 else true _if
   0 int test =:
   "if(false)-elif(true)-end\n" puts
 end
 false if
   0 int test =:
-  1 exit
+  unreachable
 else false _if
   0 int test =:
-  1 exit
+  unreachable
 end
 true if
   0 int test =:
   "if(true)-elif-else-end\n" puts
 else false _if
   0 int test =:
-  1 exit
+  unreachable
 else
   0 int test =:
-  1 exit
+  unreachable
 end
 false if
   0 int test =:
-  1 exit
+  unreachable
 else true _if
   0 int test =:
   "if(false)-elif(true)-else-end\n" puts
 else
   0 int test =:
-  1 exit
+  unreachable
 end
 false if
   0 int test =:
-  1 exit
+  unreachable
 else false _if
   0 int test =:
-  1 exit
+  unreachable
 else
   0 int test =:
   "if(false)-elif(false)-else-end\n" puts
@@ -89,7 +89,7 @@ end
 "A " puts false || "B " puts false  end println
 
 while false do
-  1 exit
+  unreachable
 end
 "do-while\n"
 while dup puts false do end drop
