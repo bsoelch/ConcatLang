@@ -30,22 +30,22 @@ end
  1 +
 end drop
 
-lambda int => bool : 0 != end ( int => bool ) intToBool =$
+lambda int => bool : 0 != end intToBool =::
 
 3 intToBool () println
 0 intToBool () println
 
 2 3 lambda int int => float : + 2.0 / end () println
 
-lambda => ( => ( => ( => ( => ) ) ) ) :
+lambda :
   "currying" string a =$
-  lambda => ( => ( => ( => ) ) ) :
+  lambda :
     " is"    string b =$
-    lambda => ( => ( => ) ) :
+    lambda :
       " now" string c =$
-      lambda => ( => ) :
+      lambda  :
         " supported!" string d =$
-        lambda => :
+        lambda :
           a b :+ c :+ d :+ println
         end
       end
@@ -61,6 +61,6 @@ curriedMinus proc int => ( int => int ) :
  end
 end
 
-1 curriedMinus ( int => int ) oneMinus =:
+1 curriedMinus oneMinus =::
 2 3 curriedMinus () println
 4 oneMinus () println
