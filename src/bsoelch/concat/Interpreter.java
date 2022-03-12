@@ -239,13 +239,16 @@ public class Interpreter {
         final ArrayList<Type.GenericParameter> generics;
         final ArrayList<Token> tokens;
         final ProcedureContext context;
-        DeclareLambdaToken(Type[] inTypes, Type[] outTypes, ArrayList<Type.GenericParameter> generics, ArrayList<Token> tokens, ProcedureContext context, FilePosition pos) {
+        final FilePosition endPos;
+        DeclareLambdaToken(Type[] inTypes, Type[] outTypes, ArrayList<Type.GenericParameter> generics, ArrayList<Token> tokens,
+                           ProcedureContext context, FilePosition pos, FilePosition endPos) {
             super(TokenType.DECLARE_LAMBDA, pos);
             this.inTypes = inTypes;
             this.outTypes = outTypes;
             this.generics=generics;
             this.tokens = tokens;
             this.context = context;
+            this.endPos=endPos;
         }
     }
 
@@ -378,6 +381,7 @@ public class Interpreter {
             return context;
         }
     }
+    record BranchWithEnd(RandomAccessStack<TypeFrame> types,FilePosition end){}
     static class IfBlock extends CodeBlock{
         ArrayList<Integer> elsePositions = new ArrayList<>();
         int forkPos;
@@ -386,7 +390,7 @@ public class Interpreter {
         VariableContext elseContext;
 
         RandomAccessStack<TypeFrame> elseTypes;
-        final ArrayDeque<RandomAccessStack<TypeFrame>> branchTypes=new ArrayDeque<>();
+        final ArrayDeque<BranchWithEnd> branchTypes=new ArrayDeque<>();
 
         IfBlock(int startToken,FilePosition pos, VariableContext parentContext) {
             super(startToken, BlockType.IF,pos, parentContext);
@@ -463,7 +467,7 @@ public class Interpreter {
         VariableContext context;
 
         RandomAccessStack<TypeFrame> defaultTypes;
-        final ArrayDeque<RandomAccessStack<TypeFrame>> caseTypes=new ArrayDeque<>();
+        final ArrayDeque<BranchWithEnd> caseTypes=new ArrayDeque<>();
 
         SwitchCaseBlock(Type type, int start, FilePosition startPos, VariableContext parentContext) throws SyntaxError {
             super(start, BlockType.SWITCH_CASE, startPos, parentContext);
@@ -1358,7 +1362,7 @@ public class Interpreter {
             case STRING,UNICODE_STRING ->throw new SyntaxError("unfinished string", reader.currentPos());
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
-        finishParsing(pState, ioContext,true);
+        finishParsing(pState, ioContext,reader.currentPos(),true);
 
         if(pState.openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+pState.openBlocks.getLast(),pState.openBlocks.getLast().startPos);
@@ -1445,7 +1449,7 @@ public class Interpreter {
                     }
                     if(prevId!=null){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,false);
+                        finishParsing(pState, ioContext,pos,false);
                         pState.currentMacro=new Macro(pos,prevId,new ArrayList<>());
                     }else{
                         throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
@@ -1457,7 +1461,7 @@ public class Interpreter {
                     }
                     if(prevId != null){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,true);
+                        finishParsing(pState, ioContext,pos,true);
                         pState.rootContext.startNamespace(prevId,pos);
                     }else{
                         throw new SyntaxError("namespace name has to be an identifier",pos);
@@ -1467,7 +1471,7 @@ public class Interpreter {
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("namespaces can only be closed at root-level",pos);
                     }else{
-                        finishParsing(pState, ioContext,true);
+                        finishParsing(pState, ioContext,pos,true);
                         pState.rootContext.endNamespace(pos);
                     }
                 }
@@ -1477,7 +1481,7 @@ public class Interpreter {
                     }
                     if(prevId != null){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,false);
+                        finishParsing(pState, ioContext,pos,false);
                         pState.rootContext.addImport(prevId,pos);
                     }else{
                         throw new SyntaxError("imported namespace name has to be an identifier",pos);
@@ -1489,7 +1493,7 @@ public class Interpreter {
                     }
                     if(prev instanceof ValueToken){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,false);
+                        finishParsing(pState, ioContext,pos,false);
                         String name=((ValueToken) prev).value.stringValue();
                         File file=new File(name);
                         if(file.exists()){
@@ -1503,7 +1507,7 @@ public class Interpreter {
                         }
                     }else if(prevId != null){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,false);
+                        finishParsing(pState, ioContext,pos,false);
                         String path=libPath+File.separator+ prevId +DEFAULT_FILE_EXTENSION;
                         File file=new File(path);
                         if(file.exists()){
@@ -1528,7 +1532,7 @@ public class Interpreter {
                         throw new SyntaxError("missing enum name",pos);
                     }
                     prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, ioContext,false);
+                    finishParsing(pState, ioContext,pos,false);
                     if(!(prev instanceof IdentifierToken)){
                         throw new SyntaxError("token before root level tuple has to be an identifier",pos);
                     }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
@@ -1547,7 +1551,7 @@ public class Interpreter {
                         throw new SyntaxError("missing enum name",pos);
                     }
                     prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, ioContext,false);
+                    finishParsing(pState, ioContext,pos,false);
                     if(!(prev instanceof IdentifierToken)){
                         throw new SyntaxError("token before 'enum' has to be an identifier",pos);
                     }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
@@ -1564,7 +1568,7 @@ public class Interpreter {
                         throw new SyntaxError("missing procedure name",pos);
                     }
                     prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, ioContext,false);
+                    finishParsing(pState, ioContext,pos,false);
                     boolean isNative=false;
                     if(!(prev instanceof IdentifierToken)){
                         throw new SyntaxError("token before 'proc' has to be an identifier",pos);
@@ -1588,7 +1592,7 @@ public class Interpreter {
                     if(block instanceof ProcedureBlock proc) {
                         List<Token> ins = tokens.subList(proc.start, tokens.size());
                         proc.addIns(typeCheck(ins,block.context(),pState.globalVariables,
-                                new RandomAccessStack<>(8),null,ioContext).tokens,pos);
+                                new RandomAccessStack<>(8),null,pos,ioContext).tokens,pos);
                         ins.clear();
                         proc.context().lock();
                     }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
@@ -1608,7 +1612,7 @@ public class Interpreter {
                         ProcedureBlock proc=(ProcedureBlock) block;
                         List<Token> outs = tokens.subList(proc.start, tokens.size());
                         proc.addOuts(typeCheck(outs,block.context(),pState.globalVariables,
-                                new RandomAccessStack<>(8),null,ioContext).tokens,pos);
+                                new RandomAccessStack<>(8),null,pos,ioContext).tokens,pos);
                         outs.clear();
                     }else{
                         throw new SyntaxError(": can only be used in proc- and lambda- blocks", pos);
@@ -1671,12 +1675,12 @@ public class Interpreter {
                             }else{
                                 if(((ProcedureBlock) block).name!=null){
                                     assert procType!=null;
-                                    Value.Procedure proc=Value.createProcedure(procType, content,block.startPos, context);
+                                    Value.Procedure proc=Value.createProcedure(procType, content,block.startPos,pos,context);
                                     assert context.curried.isEmpty();
                                     pState.unparsedProcs.add(proc);
                                     pState.rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
                                 }else{
-                                    tokens.add(new DeclareLambdaToken(ins,outs,generics,content,context,block.startPos));
+                                    tokens.add(new DeclareLambdaToken(ins,outs,generics,content,context,block.startPos,pos));
                                 }
                             }
                         }
@@ -1696,7 +1700,7 @@ public class Interpreter {
                             List<Token> subList = tokens.subList(block.start, tokens.size());
                             Type[] types=ProcedureBlock.getSignature(
                                     typeCheck(subList, block.context(), pState.globalVariables,
-                                            new RandomAccessStack<>(8),null,ioContext).tokens,true);
+                                            new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
                             subList.clear();
                             if(generics.size()>0){
                                 GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,
@@ -1783,11 +1787,11 @@ public class Interpreter {
                         List<Token> subList=tokens.subList(open.start, ((ProcTypeBlock)open).separatorPos);
                         Type[] inTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
-                                        new RandomAccessStack<>(8),null,ioContext).tokens,false);
+                                        new RandomAccessStack<>(8),null,pos,ioContext).tokens,false);
                         subList=tokens.subList(((ProcTypeBlock)open).separatorPos, tokens.size());
                         Type[] outTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
-                                        new RandomAccessStack<>(8),null,ioContext).tokens,false);
+                                        new RandomAccessStack<>(8),null,pos,ioContext).tokens,false);
                         subList=tokens.subList(open.start,tokens.size());
                         subList.clear();
                         ArrayList<Type.GenericParameter> generics=((GenericContext)open.context()).generics;
@@ -1799,7 +1803,7 @@ public class Interpreter {
                         List<Token> subList=tokens.subList(open.start, tokens.size());
                         Type[] tupleTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
-                                        new RandomAccessStack<>(8),null,ioContext).tokens,true);
+                                        new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
                         subList.clear();
                         if(((GenericContext)open.context()).generics.size()>0){
                             throw new SyntaxError("generic parameters are not allowed in anonymous tuples",
@@ -2055,9 +2059,9 @@ public class Interpreter {
             finishWord(s.str,pState,new FilePosition(s.start, pos),ioContext);
         }
     }
-    private void finishParsing(ParserState pState, IOContext ioContext,boolean parseProcs) throws SyntaxError {
+    private void finishParsing(ParserState pState, IOContext ioContext,FilePosition blockEnd,boolean parseProcs) throws SyntaxError {
         TypeCheckResult res=typeCheck(pState.tokens, pState.rootContext,pState.globalVariables,
-                pState.typeStack, null, ioContext);
+                pState.typeStack, null,blockEnd,ioContext);
         pState.globalCode.addAll(res.tokens);
         pState.typeStack=res.types;
         if(parseProcs){
@@ -2068,25 +2072,35 @@ public class Interpreter {
                     typeStack.push(new TypeFrame(t,null,p.declaredAt));
                 }
                 p.context.bind();
-                res=typeCheck(p.tokens,p.context,pState.globalVariables,typeStack,((Type.Procedure)p.type).outTypes,ioContext);
+                res=typeCheck(p.tokens,p.context,pState.globalVariables,typeStack,((Type.Procedure)p.type).outTypes,
+                        p.endPos,ioContext);
                 p.context.unbind();
                 p.tokens=res.tokens;
-                typeStack=res.types;
-                checkReturnValue(typeStack, ((Type.Procedure) p.type).outTypes,
-                        "procedure body does not match signature",p.declaredAt);
             }
         }
         pState.tokens.clear();
     }
 
-    private void checkReturnValue(RandomAccessStack<TypeFrame> typeStack, Type[] outTypes,String message,FilePosition pos) throws SyntaxError {
-        int k= typeStack.size();
-        if(typeStack.size()!= outTypes.length){
-            throw new SyntaxError(message, pos);
+    private String typesToString(RandomAccessStack<TypeFrame> types){
+        StringBuilder str=new StringBuilder("[");
+        for(TypeFrame f:types){
+            if(str.length()>1){
+                str.append(", ");
+            }
+            str.append(f.type);
+        }
+        return str.append("]").toString();
+    }
+    private void checkReturnValue(RandomAccessStack<TypeFrame> typeStack, Type[] outTypes,FilePosition pos) throws SyntaxError {
+        int k = typeStack.size();
+        if(typeStack.size() != outTypes.length){
+            throw new SyntaxError("return value "+typesToString(typeStack)+" does not match signature "
+                    +Arrays.toString(outTypes), pos);
         }
         for(Type t: outTypes){
             if(!typeStack.get(k--).type().isSubtype(t)){
-                throw new SyntaxError(message, pos);
+                throw new SyntaxError("return value "+typesToString(typeStack)+" does not match signature "
+                        +Arrays.toString(outTypes), pos);
             }
         }
     }
@@ -2102,24 +2116,11 @@ public class Interpreter {
         }
         return false;
     }
-    private void merge(RandomAccessStack<TypeFrame> main, RandomAccessStack<TypeFrame> branch, String name) throws SyntaxError {
+    private void merge(RandomAccessStack<TypeFrame> main,FilePosition endMain,RandomAccessStack<TypeFrame> branch,FilePosition endBranch,
+                       String name) throws SyntaxError {
         if(branch.size()!= main.size()){
-            try {
-                if(branch.size()>0&&main.size()>0){
-                    throw new SyntaxError("branch of "+name+"-statement at "+branch.pop().pushedAt+
-                            " cannot be merged into the main branch",main.pop().pushedAt);
-                }else if(branch.size()>0){//TODO handling of the case where one branch is empty
-                    FilePosition branchPos = branch.pop().pushedAt;
-                    throw new SyntaxError("branch of "+name+"-statement at "+ branchPos +
-                            " cannot be merged into the main branch",branchPos);
-                }else{
-                    FilePosition mainPos = main.pop().pushedAt;
-                    throw new SyntaxError("empty branch of "+name+"-statement at "+ mainPos +
-                            " cannot be merged into the main branch",mainPos);
-                }
-            } catch (RandomAccessStack.StackUnderflow e) {
-                throw new RuntimeException(e);
-            }
+            throw new SyntaxError("branch of "+name+"-statement "+typesToString(branch)+" at "+endBranch+
+                    " cannot be merged into the main branch "+typesToString(main),endMain);
         }
         for(int p = 1; p <= branch.size(); p++){
             TypeFrame t1= main.get(p);
@@ -2133,10 +2134,11 @@ public class Interpreter {
     }
     record TypeCheckResult(ArrayList<Token> tokens,RandomAccessStack<TypeFrame> types){}
     public TypeCheckResult typeCheck(List<Token> tokens,VariableContext context,HashMap<VariableId,Value> globalConstants,
-                                      RandomAccessStack<TypeFrame> typeStack,Type[] expectedReturnTypes,IOContext ioContext) throws SyntaxError {
+                                      RandomAccessStack<TypeFrame> typeStack,Type[] expectedReturnTypes,FilePosition blockEnd,
+                                     IOContext ioContext) throws SyntaxError {
         ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
         ArrayList<Token> ret=new ArrayList<>(tokens.size());
-        ArrayDeque<RandomAccessStack<TypeFrame>> retStacks=new ArrayDeque<>();
+        ArrayDeque<BranchWithEnd> retStacks=new ArrayDeque<>();
         boolean finishedBranch=false;
         Token prev;
         for(int i=0;i<tokens.size();i++){
@@ -2177,7 +2179,7 @@ public class Interpreter {
                             if(finishedBranch) {
                                 finishedBranch=false;
                             }else{
-                                ifBlock.branchTypes.add(typeStack);
+                                ifBlock.branchTypes.add(new BranchWithEnd(typeStack,t.pos));
                             }
                             typeStack = ifBlock.elseTypes;
 
@@ -2291,7 +2293,8 @@ public class Interpreter {
                             List<Token> caseValues=tokens.subList(i+1,j);
                             findEnumFields(switchBlock, caseValues);
                             context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
-                                            new RandomAccessStack<>(8),null,ioContext).tokens,tokens.get(j).pos);
+                                            new RandomAccessStack<>(8),null,t.pos,ioContext).tokens,
+                                    tokens.get(j).pos);
                             ret.add(new ContextOpen(context,t.pos));
                             i=j;
                             if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
@@ -2306,7 +2309,7 @@ public class Interpreter {
                             if(finishedBranch) {
                                 finishedBranch=false;
                             }else{
-                                switchBlock.caseTypes.add(typeStack);
+                                switchBlock.caseTypes.add(new BranchWithEnd(typeStack,t.pos));
                             }
                             typeStack=switchBlock.defaultTypes;
 
@@ -2328,7 +2331,7 @@ public class Interpreter {
                                 List<Token> caseValues=tokens.subList(i+1,j);
                                 findEnumFields(switchBlock, caseValues);
                                 context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
-                                                new RandomAccessStack<>(8),null,ioContext).tokens,tokens.get(j).pos);
+                                                new RandomAccessStack<>(8),null,t.pos,ioContext).tokens,tokens.get(j).pos);
                                 ret.add(new ContextOpen(context,t.pos));
 
                                 if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
@@ -2344,8 +2347,8 @@ public class Interpreter {
                                     Token tmp=ret.get(p);
                                     ((BlockToken)tmp).delta=ret.size()-p;
                                 }
-                                for(RandomAccessStack<TypeFrame> branch:switchBlock.caseTypes){
-                                    merge(typeStack,branch,"switch");
+                                for(BranchWithEnd branch:switchBlock.caseTypes){
+                                    merge(typeStack,t.pos,branch.types,branch.end,"switch");
                                 }
                             }else{
                                 throw new SyntaxError("unexpected statement after end-case at "+tokens.get(i).pos+": "+
@@ -2369,7 +2372,7 @@ public class Interpreter {
                                         if(finishedBranch){
                                             finishedBranch=false;
                                         }else {
-                                            ((IfBlock) open).branchTypes.add(typeStack);
+                                            ((IfBlock) open).branchTypes.add(new BranchWithEnd(typeStack,t.pos));
                                         }
                                         typeStack = ((IfBlock) open).elseTypes;
 
@@ -2391,17 +2394,20 @@ public class Interpreter {
                                         ((BlockToken)tmp).delta=ret.size()-branch;
                                     }
                                     ret.add(new BlockToken(BlockTokenType.END_IF,t.pos,-1));
+                                    FilePosition mainEnd=t.pos;
                                     if(finishedBranch){
                                         if(((IfBlock) open).branchTypes.size()>0){
                                             finishedBranch=false;
-                                            typeStack=((IfBlock) open).branchTypes.removeLast();
+                                            BranchWithEnd bWe=((IfBlock) open).branchTypes.removeLast();
+                                            typeStack=bWe.types;
+                                            mainEnd=bWe.end;
                                         }else{
                                             break;//exit on all branches of if statement
                                         }
                                     }
                                     //merge Types
-                                    for(RandomAccessStack<TypeFrame> branch:((IfBlock) open).branchTypes){
-                                        merge(typeStack, branch,"if");
+                                    for(BranchWithEnd branch:((IfBlock) open).branchTypes){
+                                        merge(typeStack,mainEnd,branch.types,branch.end,"if");
                                     }
                                 }
                                 case WHILE -> {
@@ -2430,17 +2436,19 @@ public class Interpreter {
                                         tmp=ret.get(p);
                                         ((BlockToken)tmp).delta=ret.size()-p;
                                     }
-
+                                    FilePosition mainEnd=t.pos;
                                     if(finishedBranch){
                                         if(((SwitchCaseBlock)open).caseTypes.size()>0){
                                             finishedBranch=false;
-                                            typeStack=((SwitchCaseBlock)open).caseTypes.removeLast();
+                                            BranchWithEnd bWe=((SwitchCaseBlock)open).caseTypes.removeLast();
+                                            typeStack=bWe.types;
+                                            mainEnd=bWe.end;
                                         }else{
                                             break;//exit on all branches of if statement
                                         }
                                     }
-                                    for(RandomAccessStack<TypeFrame> branch:((SwitchCaseBlock)open).caseTypes){
-                                        merge(typeStack,branch,"switch");
+                                    for(BranchWithEnd branch:((SwitchCaseBlock)open).caseTypes){
+                                        merge(typeStack,mainEnd,branch.types,branch.end,"switch");
                                     }
                                 }
                                 case PROCEDURE,PROC_TYPE,CONST_LIST,ANONYMOUS_TUPLE,TUPLE,ENUM ->
@@ -2553,9 +2561,9 @@ public class Interpreter {
                 case RETURN -> {
                     if(expectedReturnTypes!=null){
                         //addLater? implicit casting of return values ( int <-> uint -> float )
-                        checkReturnValue(typeStack,expectedReturnTypes,"return value does not match signature",t.pos);
+                        checkReturnValue(typeStack,expectedReturnTypes,t.pos);
                     }else{
-                        retStacks.addLast(typeStack.clone());
+                        retStacks.addLast(new BranchWithEnd(typeStack.clone(),t.pos));
                     }
                     finishedBranch=true;
                     ret.add(t);
@@ -2615,9 +2623,23 @@ public class Interpreter {
                 throw e;
             }
         }
-
-        for(RandomAccessStack<TypeFrame> branch:retStacks){
-            merge(typeStack,branch,"procedure");
+        if(expectedReturnTypes!=null){
+            if(!finishedBranch) {
+                checkReturnValue(typeStack, expectedReturnTypes,blockEnd);
+            }
+            return new TypeCheckResult(ret,null);
+        }else if(finishedBranch){
+            if(retStacks.size()>0){
+                BranchWithEnd bWe=retStacks.removeLast();
+                typeStack=bWe.types;
+                blockEnd=bWe.end;//true block end is not needed after this position
+            }else{//procedure exits on every execution path
+                //addLater mark functions that exit on every path of execution
+                return new TypeCheckResult(ret,typeStack);
+            }
+        }
+        for(BranchWithEnd branch:retStacks){
+            merge(typeStack,blockEnd,branch.types,branch.end,"return");
         }
         return new TypeCheckResult(ret,typeStack);
     }
@@ -2646,12 +2668,11 @@ public class Interpreter {
             procTypes.push(new TypeFrame(in,null, t.pos));
         }
         t.context.bind();
-        TypeCheckResult res=typeCheck(t.tokens,t.context, globalConstants,procTypes,t.outTypes, ioContext);
+        TypeCheckResult res=typeCheck(t.tokens,t.context, globalConstants,procTypes,t.outTypes,t.endPos, ioContext);
         t.context.unbind();
         Type[] outTypes;
         if(t.outTypes!=null){
             outTypes=t.outTypes;
-            checkReturnValue(res.types, t.outTypes,"procedure does not match signature",t.pos);
         }else{
             outTypes=new Type[res.types.size()];
             for(int i= outTypes.length-1;i>=0;i--){
@@ -2665,7 +2686,7 @@ public class Interpreter {
         Type.Procedure procType=t.generics.size()>0?
                 Type.GenericProcedure.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes):
                 Type.Procedure.create(t.inTypes, outTypes);
-        Value.Procedure lambda=Value.createProcedure(procType,res.tokens,t.pos,t.context);
+        Value.Procedure lambda=Value.createProcedure(procType,res.tokens,t.pos,t.endPos, t.context);
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
         if(t.context.curried.isEmpty()){
@@ -3346,7 +3367,7 @@ public class Interpreter {
                                     typeStack.push(new TypeFrame(Type.listOf(Type.RAW_STRING()), null, t.pos));
                                     ret.add(new OperatorToken(OperatorType.TYPE_FIELDS, t.pos));
                                 }
-                                case "isEnum" -> {//TODO values of type 'var' may lead to wrong value in preevaluation
+                                case "isEnum" -> {//TODO values of type 'var' may lead to wrong value in pre-evaluation
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType() instanceof Type.Enum ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new OperatorToken(OperatorType.IS_ENUM, t.pos));
