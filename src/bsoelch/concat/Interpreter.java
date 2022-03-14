@@ -1875,7 +1875,7 @@ public class Interpreter {
                 case "optional"   -> tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF, pos));
 
                 case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
-                case ".type" -> tokens.add(new OperatorToken(OperatorType.TYPE_OF, pos));
+
                 //stack modifiers
                 //<count> $drop
                 case "$drop" ->{
@@ -1893,14 +1893,8 @@ public class Interpreter {
                     tokens.add(new StackModifierToken(TokenType.STACK_SET,args,pos));
                 }
                 //operators
-                case "refId"  -> tokens.add(new OperatorToken(OperatorType.REF_ID,     pos));
-                case "clone"  -> tokens.add(new OperatorToken(OperatorType.CLONE,      pos));
-                case "clone!" -> tokens.add(new OperatorToken(OperatorType.DEEP_CLONE, pos));
-
                 case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,          pos));
                 case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,         pos));
-                case "-_"  -> tokens.add(new OperatorToken(OperatorType.NEGATE,        pos));
-                case "/_"  -> tokens.add(new OperatorToken(OperatorType.INVERT,        pos));
                 case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
                 case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
                 case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
@@ -1911,10 +1905,6 @@ public class Interpreter {
                 case "xor" -> tokens.add(new OperatorToken(OperatorType.XOR,           pos));
                 case "<"   -> tokens.add(new OperatorToken(OperatorType.LT,            pos));
                 case "<="  -> tokens.add(new OperatorToken(OperatorType.LE,            pos));
-                case "=="  -> tokens.add(new OperatorToken(OperatorType.EQ,            pos));
-                case "!="  -> tokens.add(new OperatorToken(OperatorType.NE,            pos));
-                case "===" -> tokens.add(new OperatorToken(OperatorType.REF_EQ,        pos));
-                case "=!=" -> tokens.add(new OperatorToken(OperatorType.REF_NE,        pos));
                 case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,            pos));
                 case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,            pos));
 
@@ -1925,7 +1915,6 @@ public class Interpreter {
                 case ":<<"   -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
                 case "+:"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, pos));
                 case ":+"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_LAST,  pos));
-                case "clear" -> tokens.add(new OperatorToken(OperatorType.CLEAR,          pos));
                 //<array> <index> []
                 case "[]"    -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,      pos));
                 //<array> <off> <to> [:]
@@ -1938,8 +1927,6 @@ public class Interpreter {
                 case "??"     -> tokens.add(new OperatorToken(OperatorType.HAS_VALUE,      pos));
 
                 case "new"       -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
-                case "ensureCap" -> tokens.add(new OperatorToken(OperatorType.ENSURE_CAP, pos));
-                case "fill"      -> tokens.add(new OperatorToken(OperatorType.FILL,       pos));
 
                 //identifiers
                 case "="->{
@@ -2565,7 +2552,7 @@ public class Interpreter {
                     finishedBranch=true;
                 }
                 case OPERATOR ->
-                    typeCheckOperator(t, ret, typeStack, ioContext);
+                    typeCheckOperator(t, ret, typeStack);
                 case NEW ->
                     typeCheckNew(typeStack, ret, t);
                 case DECLARE_LAMBDA -> {//parse lambda-procedures
@@ -2783,39 +2770,12 @@ public class Interpreter {
         }
     }
 
-    private void typeCheckOperator(Token t, ArrayList<Token> ret, RandomAccessStack<TypeFrame> typeStack, IOContext ioContext)
+    private void typeCheckOperator(Token t, ArrayList<Token> ret, RandomAccessStack<TypeFrame> typeStack)
             throws RandomAccessStack.StackUnderflow, SyntaxError, ConcatRuntimeError {
         Token prev;
         //addLater pre-evaluation for all operations
         OperatorToken op=(OperatorToken) t;
         switch (op.opType){
-            case REF_ID ->{
-                typeStack.pop();
-                typeStack.push(new TypeFrame(Type.UINT,null,t.pos));
-
-                ret.add(t);
-            }
-            case CLONE,DEEP_CLONE -> ret.add(t);//type-signature is not changed
-            case NEGATE -> {
-                TypeFrame f = typeStack.peek();
-                if(f.type!=Type.INT&&f.type!=Type.FLOAT){
-                    if(f.type==Type.UINT){
-                        ioContext.stdErr.println("Waring: negation of unsigned int (at "+op.pos+")");
-                    }else{
-                        throw new SyntaxError("Cannot apply '"+opName(op.opType)+"': "+ t,op.pos);
-                    }
-                }
-
-                ret.add(t);
-            }
-            case INVERT -> {
-                TypeFrame f = typeStack.peek();
-                if(f.type!=Type.FLOAT){
-                    throw new SyntaxError("unexpected type for operator '"+opName(op.opType)+"': "+f.type,op.pos);
-                }
-
-                ret.add(t);
-            }
             case NOT -> {
                 TypeFrame f = typeStack.pop();
                 if(f.type==Type.BOOL){
@@ -2858,17 +2818,6 @@ public class Interpreter {
                 }else{
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
                 }
-
-                ret.add(t);
-            }
-            case EQ,NE,REF_EQ,REF_NE ->{
-                TypeFrame f2 = typeStack.pop();
-                TypeFrame f1 = typeStack.pop();
-                Type a=f1.type,b=f2.type;
-                if(!(a.canCastTo(b)||b.canCastTo(a))){
-                    ioContext.stdErr.println("Warning: equality check for incompatible types:"+a+" and "+b+" (at "+op.pos+")");
-                }
-                typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
 
                 ret.add(t);
             }
@@ -2966,12 +2915,6 @@ public class Interpreter {
                     ret.add(t);
                 }
             }
-            case TYPE_OF -> {
-                TypeFrame f = typeStack.pop();
-                typeStack.push(new TypeFrame(Type.TYPE,Value.ofType(f.type),t.pos));
-
-                ret.add(t);
-            }
 
             case WRAP -> {//addLater? static check if optional is guaranteed to be nonempty + possibility to explicitly unwrap such optionals
                 TypeFrame f = typeStack.pop();
@@ -3000,37 +2943,8 @@ public class Interpreter {
 
                 ret.add(t);
             }
-            case CONTENT,IN_TYPES,OUT_TYPES,TYPE_NAME,TYPE_FIELDS,IS_ENUM,IS_LIST,IS_PROC,IS_OPTIONAL,IS_TUPLE,LENGTH ->
+            case TYPE_OF,CONTENT,IN_TYPES,OUT_TYPES,TYPE_NAME,TYPE_FIELDS,IS_ENUM,IS_LIST,IS_PROC,IS_OPTIONAL,IS_TUPLE,LENGTH ->
                 throw new RuntimeException("Operators of type "+op.opType+" should not exist at this stage of compilation "+t.pos);
-            case CLEAR ->{
-                TypeFrame f = typeStack.pop();
-                if(!f.type.isList()){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }
-
-                ret.add(t);
-            }
-            case ENSURE_CAP -> {
-                TypeFrame b = typeStack.pop();
-                TypeFrame a = typeStack.peek();
-                if(!a.type.isList()||(b.type!=Type.INT&&b.type!=Type.UINT)){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a.type+" "+b.type,op.pos);
-                }
-
-                ret.add(t);
-            }
-            case FILL -> {
-                Type val   = typeStack.pop().type;
-                Type count = typeStack.pop().type;
-                Type off   = typeStack.pop().type;
-                Type list  = typeStack.pop().type;
-                if((count!=Type.INT&&count!=Type.UINT)||(off!=Type.INT&&off!=Type.UINT)||
-                        !list.isList()||!val.isSubtype(list.content())){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+off+" "+count+" "+val,op.pos);
-                }
-
-                ret.add(t);
-            }
             case GET_INDEX -> {
                 TypeFrame index = typeStack.pop();
                 TypeFrame container  = typeStack.pop();
@@ -3369,7 +3283,12 @@ public class Interpreter {
                         }
                     }
                     if(!hasField) {
-                        if (identifier.name.equals("length") && (f.type.isList() || f.type instanceof Type.Tuple)) {
+                        if(identifier.name.equals("type")){
+                            typeStack.push(new TypeFrame(Type.TYPE,Value.ofType(f.type),t.pos));
+                            ret.add(new OperatorToken(OperatorType.TYPE_OF, t.pos));
+
+                            hasField = true;
+                        }else if (identifier.name.equals("length") && (f.type.isList() || f.type instanceof Type.Tuple)) {
                             typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
                             ret.add(new OperatorToken(OperatorType.LENGTH, t.pos));
                             hasField = true;
@@ -3598,7 +3517,11 @@ public class Interpreter {
                                         c=-1;
                                     }
                                 }else{
-                                    c=1;
+                                    if(m2.type.inTypes[i].isSubtype(m1.type.inTypes[i])){
+                                        c=1;
+                                    }else{
+                                        return 0;
+                                    }
                                 }
                             }else if(c<0){
                                 if(!m1.type.inTypes[i].isSubtype(m2.type.inTypes[i])){
@@ -3661,13 +3584,8 @@ public class Interpreter {
 
     String opName(OperatorType type){
         switch (type){
-            case REF_ID -> { return "refId"; }
-            case CLONE -> {  return "clone";}
-            case DEEP_CLONE -> {return "clone!";}
-            case NEGATE -> {return "-_"; }
             case PLUS -> { return "+";}
             case MINUS -> { return "-";}
-            case INVERT -> {return "/_";}
             case MULTIPLY -> {return "*"; }
             case DIV -> { return "/"; }
             case MOD -> {return "%"; }
@@ -3681,12 +3599,8 @@ public class Interpreter {
             case RSHIFT -> { return ">>";}
             case GT -> { return ">"; }
             case GE -> { return ">="; }
-            case EQ -> { return "==";}
-            case NE -> { return "!=";}
             case LE -> { return "<=";}
             case LT -> { return "<";}
-            case REF_EQ -> { return "===";}
-            case REF_NE -> { return "!=";}
             case TYPE_OF -> { return ".type";}
             case LIST_OF -> { return "list";}
             case CONTENT -> { return ".content";}
@@ -3695,8 +3609,6 @@ public class Interpreter {
             case TYPE_NAME -> { return ".name";}
             case TYPE_FIELDS -> { return ".fields";}
             case LENGTH -> { return ".length";}
-            case ENSURE_CAP -> { return "ensureCap";}
-            case FILL -> { return "fill";}
             case GET_INDEX -> { return "[]";}
             case SET_INDEX -> { return "[] =";}
             case GET_SLICE -> { return "[:]";}
@@ -3714,7 +3626,6 @@ public class Interpreter {
             case WRAP -> { return "wrap"; }
             case HAS_VALUE -> { return "??";}
             case EMPTY_OPTIONAL -> { return "empty"; }
-            case CLEAR -> { return "clear";}
         }
         throw new RuntimeException("unreachable");
     }
@@ -3762,24 +3673,6 @@ public class Interpreter {
     private void executeOperator(OperatorToken op, RandomAccessStack<Value> stack)
             throws RandomAccessStack.StackUnderflow, ConcatRuntimeError {
         switch (op.opType) {
-            case REF_ID ->
-                    stack.push(Value.ofInt(stack.pop().id(),true));
-            case CLONE -> {
-                Value t = stack.pop();
-                stack.push(t.clone(false));
-            }
-            case DEEP_CLONE -> {
-                Value t = stack.pop();
-                stack.push(t.clone(true));
-            }
-            case NEGATE -> {
-                Value v = stack.pop();
-                stack.push(v.negate());
-            }
-            case INVERT -> {
-                Value v = stack.pop();
-                stack.push(v.invert());
-            }
             case NOT -> {
                 Value v = stack.pop();
                 stack.push(v.asBool() ? Value.FALSE : Value.TRUE);
@@ -3833,7 +3726,7 @@ public class Interpreter {
                         (x, y) -> Value.ofInt(longPow(x, y),true),
                         (x, y) -> Value.ofFloat(Math.pow(x, y))));
             }
-            case EQ, NE, GT, GE, LE, LT,REF_EQ,REF_NE -> {
+            case GT, GE, LE, LT -> {
                 Value b = stack.pop();
                 Value a = stack.pop();
                 stack.push(Value.compare(a, op.opType, b));
@@ -3897,19 +3790,6 @@ public class Interpreter {
             case LENGTH -> {
                 Value val = stack.pop();
                 stack.push(Value.ofInt(val.length(),true));
-            }
-            case CLEAR ->
-                    stack.pop().clear();
-            case ENSURE_CAP -> {
-                long newCap= stack.pop().asLong();
-                stack.peek().ensureCap(newCap);
-            }
-            case FILL -> {
-                Value val   = stack.pop();
-                long  count = stack.pop().asLong();
-                long  off   = stack.pop().asLong();
-                Value list  = stack.pop();
-                list.fill(val,off,count);
             }
             case GET_INDEX -> {//array index []
                 long index = stack.pop().asLong();

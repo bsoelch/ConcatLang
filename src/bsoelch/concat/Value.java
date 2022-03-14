@@ -83,12 +83,6 @@ public abstract class Value {
         return equals(v);
     }
 
-    public Value negate() throws TypeError {
-        throw new TypeError("Cannot negate values of type "+type);
-    }
-    public Value invert() throws TypeError {
-        throw new TypeError("Cannot invert values of type "+type);
-    }
     public Value flip() throws TypeError {
         throw new TypeError("Cannot invert values of type "+type);
     }
@@ -265,14 +259,8 @@ public abstract class Value {
             }
         }
 
-        public Value negate(){
-            return ofInt(-intValue,false);
-        }
         public Value flip(){
             return ofInt(~intValue,type==Type.UINT);
-        }
-        public Value invert(){
-            return ofFloat(1.0/intValue);
         }
 
         @Override
@@ -361,13 +349,6 @@ public abstract class Value {
         @Override
         Object rawData() {
             return floatValue;
-        }
-
-        public Value negate(){
-            return ofFloat(-floatValue);
-        }
-        public Value invert(){
-            return ofFloat(1/floatValue);
         }
 
         @Override
@@ -1841,9 +1822,13 @@ public abstract class Value {
         public abstract String stringValue();
     }
     public abstract static class InternalProcedure extends NativeProcedure{
-        protected InternalProcedure(Type[] inTypes,Type[] outTypes,String name) {
-            //TODO generics
-            super(Type.Procedure.create(inTypes, outTypes), name, new FilePosition("internal",0,0));
+        public static final FilePosition POSITION = new FilePosition("internal", 0, 0);
+
+        protected InternalProcedure(Type[] inTypes, Type[] outTypes, String name) {
+            super(Type.Procedure.create(inTypes, outTypes), name, POSITION);
+        }
+        protected InternalProcedure(Type.GenericParameter[] generics,Type[] inTypes, Type[] outTypes, String name) {
+            super(Type.GenericProcedure.create(generics,inTypes, outTypes), name, POSITION);
         }
         @Override
         abstract Value[] callWith(Value[] values) throws ConcatRuntimeError;
@@ -1863,6 +1848,108 @@ public abstract class Value {
                 return new Value[]{Value.ofInt(values[0].id(),true)};
             }
         });
+        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"-_") {
+            @Override
+            Value[] callWith(Value[] values) throws TypeError {
+                return new Value[]{Value.ofInt(-(values[0].asLong()),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"-_") {
+            @Override
+            Value[] callWith(Value[] values) throws TypeError {
+                return new Value[]{Value.ofFloat(-(values[0].asDouble()))};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"/_") {
+            @Override
+            Value[] callWith(Value[] values) throws TypeError {
+                return new Value[]{Value.ofFloat(1.0/values[0].asDouble())};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"===") {
+            @Override
+            Value[] callWith(Value[] values){
+                return new Value[]{values[0].isEqualTo(values[1])?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"=!=") {
+            @Override
+            Value[] callWith(Value[] values){
+                return new Value[]{values[0].isEqualTo(values[1])?FALSE:TRUE};
+            }
+        });
+        //addLater? implement equals in standard library
+        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"==") {
+            @Override
+            Value[] callWith(Value[] values){
+                return new Value[]{values[0].equals(values[1])?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"!=") {
+            @Override
+            Value[] callWith(Value[] values){
+                return new Value[]{values[0].equals(values[1])?FALSE:TRUE};
+            }
+        });
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone") {
+                @Override
+                Value[] callWith(Value[] values){
+                    return new Value[]{values[0].clone(false)};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone!") {
+                @Override
+                Value[] callWith(Value[] values){//addLater? implement deep clone in standard library
+                    return new Value[]{values[0].clone(true)};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT},
+                    new Type[]{Type.listOf(a)},"ensureCap") {//addLater? remove return value
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    values[0].ensureCap(values[1].asLong());
+                    return new Value[]{values[0]};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT,Type.UINT,a},
+                    new Type[]{},"fill") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list off count val
+                    values[0].fill(values[3],values[1].asLong(),values[2].asLong());
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a)},new Type[]{},"clear") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    values[0].clear();
+                    return new Value[0];
+                }
+            });
+        }
+
+
+
         return procs;
     }
 
@@ -2046,12 +2133,6 @@ public abstract class Value {
             case GE -> {
                 return c >= 0 ? TRUE : FALSE;
             }
-            case EQ -> {
-                return c == 0 ? TRUE : FALSE;
-            }
-            case NE -> {
-                return c != 0 ? TRUE : FALSE;
-            }
             case LE -> {
                 return c <= 0 ? TRUE : FALSE;
             }
@@ -2064,15 +2145,7 @@ public abstract class Value {
     }
 
     public static Value compare(Value a, OperatorType opType, Value b) throws TypeError {
-        if(opType==OperatorType.REF_EQ){
-            return a.isEqualTo(b)?TRUE:FALSE;
-        }else if(opType==OperatorType.REF_NE){
-            return a.isEqualTo(b)?FALSE:TRUE;
-        }else if(opType==OperatorType.EQ){
-            return a.equals(b)?TRUE:FALSE;
-        }else if(opType==OperatorType.NE){
-            return a.equals(b)?FALSE:TRUE;
-        }else if(a.isString()&&b.isString()){
+        if(a.isString()&&b.isString()){
             int c=a.stringValue().compareTo(b.stringValue());
             return cmpToValue(c, opType);
         }else if(a instanceof ByteValue &&b instanceof ByteValue){
