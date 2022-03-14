@@ -7,21 +7,20 @@ import java.util.IdentityHashMap;
 public class OverloadedProcedure implements Interpreter.Declareable {
     final String name;
     final FilePosition declaredAt;
-    final ArrayList<Value.Procedure> procedures;
+    final ArrayList<Interpreter.Callable> procedures;
 
     final int nArgs;
     final int nGenericParams;
 
-    //TODO overloading of native procedures
-    public OverloadedProcedure(String name, Value.Procedure p0) {
+    public OverloadedProcedure(String name, Interpreter.Callable p0) {
         this.name = name;
-        this.declaredAt = p0.declaredAt;
+        this.declaredAt = p0.declaredAt();
         procedures=new ArrayList<>();
         procedures.add(p0);
-        nArgs=((Type.Procedure)p0.type).inTypes.length;
-        nGenericParams=p0.type instanceof Type.GenericProcedure?((Type.GenericProcedure)p0.type).explicitGenerics.length:0;
-
+        nArgs= p0.type().inTypes.length;
+        nGenericParams=p0.type() instanceof Type.GenericProcedure?((Type.GenericProcedure)p0.type()).explicitGenerics.length:0;
     }
+
     public OverloadedProcedure(OverloadedProcedure src) {
         this.name = src.name;
         this.declaredAt = src.declaredAt;
@@ -31,24 +30,24 @@ public class OverloadedProcedure implements Interpreter.Declareable {
     }
 
 
-    public void addProcedure(Value.Procedure newProc) throws SyntaxError{
-        Type.Procedure t1=((Type.Procedure)newProc.type);
+    public void addProcedure(Interpreter.Callable newProc) throws SyntaxError{
+        Type.Procedure t1=newProc.type();
         if(nArgs!=t1.inTypes.length){//check number of arguments
             throw new SyntaxError("all procedures of the same name must have the same number of arguments got:"+
-                    t1.inTypes.length+" expected:"+nArgs,newProc.declaredAt);
+                    t1.inTypes.length+" expected:"+nArgs,newProc.declaredAt());
         }
         {//check number of generic arguments
             int gen1 = 0;
-            if (newProc.type instanceof Type.GenericProcedure genP) {
+            if (newProc.type() instanceof Type.GenericProcedure genP) {
                 gen1 = genP.explicitGenerics.length;
             }//no else
             if (nGenericParams != gen1) {
                 throw new SyntaxError("all procedures of the same name must have the same number of generic arguments" +
-                        " got:" +gen1 + " expected:" + nGenericParams, newProc.declaredAt);
+                        " got:" +gen1 + " expected:" + nGenericParams, newProc.declaredAt());
             }
         }
-        for(Value.Procedure p:procedures){//check for procedures with the same signature
-            Type.Procedure t0=((Type.Procedure)p.type);
+        for(Interpreter.Callable p:procedures){//check for procedures with the same signature
+            Type.Procedure t0=p.type();
             boolean isEqual=true;
             IdentityHashMap<Type.GenericParameter, Type.GenericParameter> generics=new IdentityHashMap<>();
             for(int i=0;i<t0.inTypes.length;i++){
@@ -59,7 +58,7 @@ public class OverloadedProcedure implements Interpreter.Declareable {
             }
             if(isEqual){
                 throw new SyntaxError("procedure "+name+" already has the signature "+ Arrays.toString(t1.inTypes)+
-                        " at "+p.declaredAt,newProc.declaredAt);
+                        " at "+p.declaredAt(),newProc.declaredAt());
             }
         }
         procedures.add(newProc);

@@ -153,16 +153,16 @@ public class Interpreter {
         }
     }
     static class CallToken extends Token {
-        final Value.Procedure procedure;
+        final Callable called;
         final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
-        CallToken(Value.Procedure procedure, IdentityHashMap<Type.GenericParameter, Type> genericArgs, FilePosition pos) {
+        CallToken(Callable called, IdentityHashMap<Type.GenericParameter, Type> genericArgs, FilePosition pos) {
             super(TokenType.CALL_PROC, pos);
-            this.procedure = procedure;
+            this.called = called;
             this.genericArgs = genericArgs;
         }
         @Override
         public String toString() {
-            return tokenType.toString()+": "+ procedure;
+            return tokenType.toString()+": "+ called;
         }
     }
     static class CallPtrToken extends Token {
@@ -172,19 +172,7 @@ public class Interpreter {
             this.genericArgs = genericArgs;
         }
     }
-    static class NativeCallToken extends Token {
-        final Value.NativeProcedure value;
-        final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
-        NativeCallToken(Value.NativeProcedure value, IdentityHashMap<Type.GenericParameter, Type> genericArgs, FilePosition pos) {
-            super(TokenType.CALL_NATIVE_PROC, pos);
-            this.value=value;
-            this.genericArgs = genericArgs;
-        }
-        @Override
-        public String toString() {
-            return tokenType.toString()+": "+value;
-        }
-    }
+
     static class TypedToken extends Token {
         final Type target;
         TypedToken(TokenType tokenType,Type target, FilePosition pos) {
@@ -762,6 +750,9 @@ public class Interpreter {
     interface NamedDeclareable extends Declareable{
         String name();
     }
+    interface Callable extends Declareable{
+        Type.Procedure type();
+    }
     record Macro(FilePosition pos, String name,
                  ArrayList<StringWithPos> content) implements NamedDeclareable{
         @Override
@@ -871,7 +862,23 @@ public class Interpreter {
         final HashMap<String,Declareable> declared =new HashMap<>();
     }
     private static class RootContext extends VariableContext{
-        RootContext(){}
+        RootContext() throws SyntaxError {
+            for(Value.InternalProcedure proc:Value.internalProcedures()){
+                Declareable prev=elements.get(proc.name);
+                if(prev==null){
+                    elements.put(proc.name,proc);
+                }else if(prev instanceof Callable){
+                    OverloadedProcedure overload=new OverloadedProcedure(proc.name,(Callable)prev);
+                    overload.addProcedure(proc);
+                    elements.put(proc.name,overload);
+                }else if(prev instanceof OverloadedProcedure overload){
+                    overload.addProcedure(proc);
+                }else{
+                    throw new UnsupportedOperationException("multiple declarations of internal constant "+proc.name+":\n"
+                            +prev+", "+proc);
+                }
+            }
+        }
         HashSet<String> namespaces=new HashSet<>();
         ArrayDeque<FileContext> openFiles=new ArrayDeque<>();
 
@@ -982,12 +989,12 @@ public class Interpreter {
             file().declared.put(name,declared);
         }
 
-        void declareProcedure(String name, Value.Procedure proc,IOContext ioContext) throws SyntaxError {
+        void declareProcedure(String name, Callable proc,IOContext ioContext) throws SyntaxError {
             String name0=name;
             Declareable prev=getDeclareable(name);
             name= inCurrentNamespace(name);
-            if(prev instanceof Value.Procedure){
-                OverloadedProcedure overloaded=new OverloadedProcedure(name0,(Value.Procedure)prev);
+            if(prev instanceof Callable){
+                OverloadedProcedure overloaded=new OverloadedProcedure(name0,(Callable)prev);
                 overloaded.addProcedure(proc);
                 elements.put(name,overloaded);
             }else if(prev instanceof OverloadedProcedure overloaded){
@@ -999,8 +1006,8 @@ public class Interpreter {
                 }
                 overloaded.addProcedure(proc);
             }else{
-                ensureDeclareable(name,DeclareableType.PROCEDURE,proc.declaredAt);
-                checkShadowed(proc,name0,proc.declaredAt,ioContext);
+                ensureDeclareable(name,proc.declarableType(),proc.declaredAt());
+                checkShadowed(proc,name0,proc.declaredAt(),ioContext);
                 elements.put(name,proc);
             }
         }
@@ -1687,9 +1694,9 @@ public class Interpreter {
                                     throw new SyntaxError("unexpected token: "+subList.get(0)+
                                             " (at "+subList.get(0).pos+") native procedures have to have an empty body",pos);
                                 }
-                                Value.NativeProcedure proc=Value.createNativeProcedure(procType,block.startPos,
+                                Value.NativeProcedure proc=Value.createExternalProcedure(procType,block.startPos,
                                         ((ProcedureBlock) block).name);
-                                pState.rootContext.declareNamedDeclareable(proc,ioContext);
+                                pState.rootContext.declareProcedure(proc.name,proc,ioContext);
                             }else{
                                 if(((ProcedureBlock) block).name!=null){
                                     assert procType!=null;
@@ -3214,18 +3221,11 @@ public class Interpreter {
                 }
                 DeclareableType type = d.declarableType();
                 switch (type) {
-                    case PROCEDURE -> {
-                        Value.Procedure proc = (Value.Procedure) d;
+                    case PROCEDURE,NATIVE_PROC -> {
+                        Callable proc = (Callable) d;
                         IdentityHashMap<Type.GenericParameter,Type> generics = typeCheckCall("procedure "+identifier.name,
-                                typeStack, (Type.Procedure) proc.type,ret,t.pos, false);
+                                typeStack, proc.type(),ret,t.pos, false);
                         CallToken token = new CallToken( proc, generics, identifier.pos);
-                        ret.add(token);
-                    }
-                    case NATIVE_PROC -> {
-                        Value.NativeProcedure proc = (Value.NativeProcedure) d;
-                        IdentityHashMap<Type.GenericParameter,Type> generics = typeCheckCall("procedure "+identifier.name,
-                                typeStack, (Type.Procedure) proc.type,ret,t.pos, false);
-                        NativeCallToken token = new NativeCallToken( proc, generics, identifier.pos);
                         ret.add(token);
                     }
                     case VARIABLE, CONSTANT, CURRIED_VARIABLE -> {
@@ -3504,7 +3504,7 @@ public class Interpreter {
         return generics;
     }
 
-    record CallMatch(Value.Procedure called,Type.Procedure type,IdentityHashMap<Type.GenericParameter,Type> genericParams,
+    record CallMatch(Callable called,Type.Procedure type,IdentityHashMap<Type.GenericParameter,Type> genericParams,
                      int nCasts,int nImplicit){}
     private CallMatch typeCheckOverloadedCall(String procName,
             RandomAccessStack<TypeFrame> typeStack, OverloadedProcedure proc, ArrayList<Token> tokens, FilePosition pos,
@@ -3540,8 +3540,8 @@ public class Interpreter {
         }
         ArrayList<CallMatch> matchingCalls=new ArrayList<>();
         boolean isMatch;
-        for(Value.Procedure p1:proc.procedures){
-            Type.Procedure type=(Type.Procedure)p1.type;
+        for(Callable p1:proc.procedures){
+            Type.Procedure type=p1.type();
             isMatch=true;
             IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
             int nCasts=0,nImplicit=0;
@@ -3620,7 +3620,7 @@ public class Interpreter {
             if(i>1){
                 ioContext.stdErr.println("more than one version of "+proc.name+" matches the given arguments "+Arrays.toString(inTypes));
                 for(int k=0;k<i;k++){
-                    ioContext.stdErr.println(proc.name+":"+matchingCalls.get(k).type+" at "+matchingCalls.get(k).called.declaredAt);
+                    ioContext.stdErr.println(proc.name+":"+matchingCalls.get(k).type+" at "+matchingCalls.get(k).called.declaredAt());
                 }
                 throw new SyntaxError("cannot resolve procedure call",pos);
             }
@@ -4089,7 +4089,7 @@ public class Interpreter {
                         Value v=stack.pop();
                         if(v instanceof Value.Procedure proc){
                             stack.push(proc.withTypeArgs(((GenericUpdateToken)next).update));
-                        }else if(v instanceof Value.NativeProcedure){
+                        }else if(v instanceof Value.ExternalProcedure){
                             //TODO? generic update for native procedures
                             throw new UnsupportedOperationException("generic update for native procedures is not implemented");
                         }else{
@@ -4218,20 +4218,20 @@ public class Interpreter {
                         variables.remove(variables.size()-1);
                     }
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
-                        Value called;
+                        Callable called;
                         IdentityHashMap<Type.GenericParameter,Type> generics;
                         if(next.tokenType==TokenType.CALL_PROC){
                             assert next instanceof CallToken;
-                            called=((CallToken) next).procedure;
+                            called=((CallToken) next).called;
                             generics=((CallToken) next).genericArgs;
-                        }else if(next.tokenType==TokenType.CALL_NATIVE_PROC){
-                            assert next instanceof NativeCallToken;
-                            called=((NativeCallToken) next).value;
-                            generics=((NativeCallToken) next).genericArgs;
                         }else{
                             assert next instanceof CallPtrToken;
-                            called = stack.pop();
+                            Value ptr = stack.pop();
                             generics=((CallPtrToken)next).genericArgs;
+                            if(!(ptr instanceof Callable)){
+                                throw new ConcatRuntimeError("cannot call objects of type "+ptr.type);
+                            }
+                            called=(Callable) ptr;
                             assert generics!=null;
                         }
                         if(called instanceof Value.NativeProcedure nativeProc){
@@ -4266,7 +4266,7 @@ public class Interpreter {
                                 return e;
                             }
                         }else{
-                            throw new ConcatRuntimeError("cannot call objects of type "+called.type);
+                            throw new RuntimeException("unexpected callable type: "+called.getClass());
                         }//no else
                     }
                     case RETURN -> {

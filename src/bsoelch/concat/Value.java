@@ -1569,7 +1569,7 @@ public abstract class Value {
                                             FilePosition endPos, Interpreter.ProcedureContext variableContext) {
         return new Procedure(procType, tokens, null, new IdentityHashMap<>(), variableContext, declaredAt, endPos);
     }
-    static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Declareable {
+    static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Callable {
         final FilePosition declaredAt;
         //for position reporting in type-checker
         final FilePosition endPos;
@@ -1649,6 +1649,11 @@ public abstract class Value {
         @Override
         public FilePosition declaredAt() {
             return declaredAt;
+        }
+
+        @Override
+        public Type.Procedure type() {
+            return (Type.Procedure) type;
         }
     }
 
@@ -1797,6 +1802,71 @@ public abstract class Value {
         }
     }
 
+    static abstract class NativeProcedure extends Value implements Interpreter.NamedDeclareable, Interpreter.Callable {
+        final String name;
+        final FilePosition declaredAt;
+        protected NativeProcedure(Type.Procedure type, String name, FilePosition declaredAt) {
+            super(type);
+            this.name = name;
+            this.declaredAt = declaredAt;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public Type.Procedure type() {
+            return (Type.Procedure) type;
+        }
+
+        @Override
+        public Interpreter.DeclareableType declarableType() {
+            return Interpreter.DeclareableType.NATIVE_PROC;
+        }
+
+        @Override
+        public FilePosition declaredAt() {
+            return declaredAt;
+        }
+
+        int argCount() {
+            return ((Type.Procedure) type).inTypes.length;
+        }
+
+        abstract Value[] callWith(Value[] values) throws ConcatRuntimeError;
+
+        @Override
+        public abstract String stringValue();
+    }
+    public abstract static class InternalProcedure extends NativeProcedure{
+        protected InternalProcedure(Type[] inTypes,Type[] outTypes,String name) {
+            //TODO generics
+            super(Type.Procedure.create(inTypes, outTypes), name, new FilePosition("internal",0,0));
+        }
+        @Override
+        abstract Value[] callWith(Value[] values) throws ConcatRuntimeError;
+
+        @Override
+        public String stringValue() {
+            return name;
+        }
+    }
+
+    static ArrayList<InternalProcedure> internalProcedures(){
+        ArrayList<InternalProcedure> procs=new ArrayList<>();
+        //TODO transfer operators to internal procedures
+        procs.add(new InternalProcedure(new Type[]{Type.ANY},new Type[]{Type.UINT},"refId") {
+            @Override
+            Value[] callWith(Value[] values){
+                return new Value[]{Value.ofInt(values[0].id(),true)};
+            }
+        });
+        return procs;
+    }
+
+
     static final HashMap<String,URLClassLoader> classLoaders=new HashMap<>();
     static URLClassLoader getLoader(String path) throws MalformedURLException {
         File file = new File(path+"native.jar");
@@ -1842,7 +1912,7 @@ public abstract class Value {
                     return wrap(fromJValue(type.content(),o.get()));
                 }
             }else if(type instanceof Type.NativeType){
-                return new NativeValue((Type.NativeType)type,((Type.NativeType) type).jClass.cast(jValue));
+                return new ExternalValue((Type.NativeType)type,((Type.NativeType) type).jClass.cast(jValue));
             }else{
                 throw new ConcatRuntimeError("type "+type+" is not supported for native values");
             }
@@ -1894,8 +1964,8 @@ public abstract class Value {
             throw new SyntaxError("Error while loading native value "+name+": "+e,pos);
         }
     }
-    public static NativeProcedure createNativeProcedure(Type.Procedure procType, FilePosition declaredAt,
-                                                  String name) throws SyntaxError {
+    public static ExternalProcedure createExternalProcedure(Type.Procedure procType, FilePosition declaredAt,
+                                                          String name) throws SyntaxError {
         try {
             String path = declaredAt.path;
             String dir = path.substring(0, path.lastIndexOf('/') + 1);
@@ -1908,14 +1978,14 @@ public abstract class Value {
                 signature[i]=jClass(procType.inTypes[i]);
             }
             Method m=cls.getMethod("nativeImpl_"+name,signature);
-            return new NativeProcedure(procType,m,name,declaredAt);
+            return new ExternalProcedure(procType,m,name,declaredAt);
         } catch (MalformedURLException | ClassNotFoundException | NoSuchMethodException | TypeError e) {
             throw new SyntaxError("Error while loading native procedure "+name+": "+e,declaredAt);
         }
     }
-    static class NativeValue extends Value{
+    static class ExternalValue extends Value{
         final Object nativeValue;
-        protected NativeValue(Type.NativeType type, Object nativeValue) {
+        protected ExternalValue(Type.NativeType type, Object nativeValue) {
             super(type);
             this.nativeValue = nativeValue;
         }
@@ -1930,36 +2000,13 @@ public abstract class Value {
             return "native value @"+System.identityHashCode(nativeValue);
         }
     }
-    static class NativeProcedure extends Value implements Interpreter.NamedDeclareable {
+    static class ExternalProcedure extends NativeProcedure {
         final Method nativeMethod;
-        final String name;
-        final FilePosition declaredAt;
-
-        protected NativeProcedure(Type.Procedure type, Method nativeMethod, String name, FilePosition declaredAt) {
-            super(type);
+        private ExternalProcedure(Type.Procedure type, Method nativeMethod, String name, FilePosition declaredAt) {
+            super(type, name, declaredAt);
             this.nativeMethod = nativeMethod;
-            this.name = name;
-            this.declaredAt = declaredAt;
         }
-
         @Override
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public Interpreter.DeclareableType declarableType() {
-            return Interpreter.DeclareableType.NATIVE_PROC;
-        }
-
-        @Override
-        public FilePosition declaredAt() {
-            return declaredAt;
-        }
-
-        int argCount(){
-            return ((Type.Procedure)type).inTypes.length;
-        }
         Value[] callWith(Value[] values) throws ConcatRuntimeError {
             Object[] nativeArgs=new Object[values.length];
             for(int i=0;i<values.length;i++){
@@ -1984,12 +2031,10 @@ public abstract class Value {
                 throw new ConcatRuntimeError(e.getCause().toString());
             }
         }
-
         @Override
         public String stringValue() {
-            return name+" native proc";
+            return name + " native proc";
         }
-
     }
 
 
