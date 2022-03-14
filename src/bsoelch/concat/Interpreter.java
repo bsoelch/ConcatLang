@@ -3586,7 +3586,7 @@ public class Interpreter {
             }
         }
         if(matchingCalls.size()==0){
-            throw new SyntaxError("no version of "+proc.name+" matches the given signature"+Arrays.toString(inTypes),pos);
+            throw new SyntaxError("no version of "+proc.name+" matches the given arguments "+Arrays.toString(inTypes),pos);
         }else if(matchingCalls.size()>1){
             Comparator<CallMatch> matchSort= Comparator.comparingInt((CallMatch m) -> m.nCasts)
                     .thenComparingInt(m -> m.nImplicit).thenComparing((m1,m2)->{
@@ -3618,7 +3618,7 @@ public class Interpreter {
                 i++;
             }
             if(i>1){
-                ioContext.stdErr.println("more than one version of "+proc.name+" matches the given signature "+Arrays.toString(inTypes));
+                ioContext.stdErr.println("more than one version of "+proc.name+" matches the given arguments "+Arrays.toString(inTypes));
                 for(int k=0;k<i;k++){
                     ioContext.stdErr.println(proc.name+":"+matchingCalls.get(k).type+" at "+matchingCalls.get(k).called.declaredAt);
                 }

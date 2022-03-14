@@ -34,7 +34,7 @@ public class OverloadedProcedure implements Interpreter.Declareable {
     public void addProcedure(Value.Procedure newProc) throws SyntaxError{
         Type.Procedure t1=((Type.Procedure)newProc.type);
         if(nArgs!=t1.inTypes.length){//check number of arguments
-            throw new SyntaxError("overloaded procedures all must have the same number of arguments got:"+
+            throw new SyntaxError("all procedures of the same name must have the same number of arguments got:"+
                     t1.inTypes.length+" expected:"+nArgs,newProc.declaredAt);
         }
         {//check number of generic arguments
@@ -43,8 +43,8 @@ public class OverloadedProcedure implements Interpreter.Declareable {
                 gen1 = genP.explicitGenerics.length;
             }//no else
             if (nGenericParams != gen1) {
-                throw new SyntaxError("overloaded procedures all must have the same number of generic arguments got:" +
-                        gen1 + " expected:" + nGenericParams, newProc.declaredAt);
+                throw new SyntaxError("all procedures of the same name must have the same number of generic arguments" +
+                        " got:" +gen1 + " expected:" + nGenericParams, newProc.declaredAt);
             }
         }
         for(Value.Procedure p:procedures){//check for procedures with the same signature
