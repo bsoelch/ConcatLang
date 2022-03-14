@@ -715,7 +715,7 @@ public class Interpreter {
 
     enum DeclareableType{
         VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, ENUM_ENTRY, GENERIC, NATIVE_PROC,
-        GENERIC_TUPLE,
+        GENERIC_TUPLE, OVERLOADED_PROCEDURE
     }
     static String declarableName(DeclareableType t, boolean a){
         switch (t){
@@ -748,6 +748,9 @@ public class Interpreter {
             }
             case NATIVE_PROC -> {
                 return a?"a native procedure":"native procedure";
+            }
+            case OVERLOADED_PROCEDURE -> {
+                return a?"an overloaded procedure":"overloaded procedure";
             }
         }
         throw new RuntimeException("unreachable");
@@ -981,10 +984,26 @@ public class Interpreter {
 
         void declareProcedure(String name, Value.Procedure proc,IOContext ioContext) throws SyntaxError {
             String name0=name;
+            Declareable prev=getDeclareable(name);
             name= inCurrentNamespace(name);
-            ensureDeclareable(name,DeclareableType.PROCEDURE,proc.declaredAt);
-            checkShadowed(proc,name0,proc.declaredAt,ioContext);
-            elements.put(name,proc);
+            if(prev instanceof Value.Procedure){
+                OverloadedProcedure overloaded=new OverloadedProcedure(name0,(Value.Procedure)prev);
+                overloaded.addProcedure(proc);
+                elements.put(name,overloaded);
+            }else if(prev instanceof OverloadedProcedure){
+                OverloadedProcedure overloaded=(OverloadedProcedure) prev;
+                if(elements.get(name) !=overloaded){//ensure that prev is same namespace,  otherwise create local copy
+                    overloaded=new OverloadedProcedure(overloaded);
+                    if(elements.put(name,overloaded)!=null){
+                        throw new RuntimeException("unexpected value for declareable at "+name);
+                    }
+                }
+                overloaded.addProcedure(proc);
+            }else{
+                ensureDeclareable(name,DeclareableType.PROCEDURE,proc.declaredAt);
+                checkShadowed(proc,name0,proc.declaredAt,ioContext);
+                elements.put(name,proc);
+            }
         }
 
         void declareEnum(EnumBlock source, IOContext ioContext) throws SyntaxError {
@@ -3262,6 +3281,14 @@ public class Interpreter {
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
                         ret.add(new ValueToken(tupleType,identifier.pos, false));
                     }
+                    case OVERLOADED_PROCEDURE -> {
+                        System.err.println("unable to resolve overloaded procedure "+((OverloadedProcedure)d).name+":");
+                        for(Value.Procedure p:((OverloadedProcedure)d).procedures){
+                            System.err.println(" "+p.type+" at "+p.declaredAt);
+                        }
+                        //TODO implement resolving of overloaded procedures
+                        throw new UnsupportedOperationException("unimplemented");
+                    }
                 }
             }
             case VAR_WRITE -> {
@@ -3315,7 +3342,7 @@ public class Interpreter {
                     ValueToken token=new ValueToken(proc, t.pos,false);
                     typeStack.push(new TypeFrame(token.value.type,token.value,t.pos));
                     ret.add(token);
-                }else{
+                }else{//TODO resolve overloaded procedure pointers
                     throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
                             identifier.name+" (declared at "+d.declaredAt()+") is not a procedure", t.pos);
                 }
