@@ -1,13 +1,6 @@
 package bsoelch.concat;
 
 public enum OperatorType {
-    //operations on numbers (need union{int,uint} to be transformed into internal procedures)
-    PLUS,MINUS,
-    MULTIPLY,DIV,MOD,
-    POW,
-    FLIP,AND,OR,XOR,
-    LSHIFT,RSHIFT,
-    GT,GE,LE,LT,
     //operations with results that are directly used in type-checking
     LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
     //"internal fields"

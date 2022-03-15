@@ -337,7 +337,7 @@ public class Interpreter {
             try {
                 while(i>0){
                     ValueToken v=stack.pop();
-                    if(v.value.type.isSubtype(Type.TYPE)){
+                    if(v.value.type.canAssignTo(Type.TYPE)){
                         types[--i]=v.value.asType();
                     }else{
                         throw new SyntaxError("Elements in "+(tupleMode?"tuple":"procedure")+" signature have to evaluate to types",v.pos);
@@ -496,7 +496,7 @@ public class Interpreter {
                             token.tokenType+")", token.pos);
                 }
                 Value v = ((ValueToken) token).value;
-                if(!v.type.isSubtype(switchType)) {
+                if(!v.type.canAssignTo(switchType)) {
                     throw new SyntaxError("values of type " + v.type +
                             " cannot be used in "+switchType+" switch-case statements", token.pos);
                 } //no else
@@ -1900,23 +1900,6 @@ public class Interpreter {
                     int[] args = getArgInts(str, 2, tokens, pos);
                     tokens.add(new StackModifierToken(TokenType.STACK_SET,args,pos));
                 }
-                //operators
-                case "+"   -> tokens.add(new OperatorToken(OperatorType.PLUS,          pos));
-                case "-"   -> tokens.add(new OperatorToken(OperatorType.MINUS,         pos));
-                case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
-                case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
-                case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
-                case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          pos));
-                case "&"   -> tokens.add(new OperatorToken(OperatorType.AND,           pos));
-                case "|"   -> tokens.add(new OperatorToken(OperatorType.OR,            pos));
-                case "xor" -> tokens.add(new OperatorToken(OperatorType.XOR,           pos));
-                case "<"   -> tokens.add(new OperatorToken(OperatorType.LT,            pos));
-                case "<="  -> tokens.add(new OperatorToken(OperatorType.LE,            pos));
-                case ">="  -> tokens.add(new OperatorToken(OperatorType.GE,            pos));
-                case ">"   -> tokens.add(new OperatorToken(OperatorType.GT,            pos));
-
-                case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
-                case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  pos));
 
                 case "()"     -> tokens.add(new CallPtrToken(null, pos));
 
@@ -2104,7 +2087,7 @@ public class Interpreter {
                     +Arrays.toString(outTypes), pos);
         }
         for(Type t: outTypes){
-            if(!typeStack.get(k--).type().isSubtype(t)){
+            if(!typeStack.get(k--).type().canAssignTo(t)){
                 throw new SyntaxError("return value "+typesToString(typeStack)+" does not match signature "
                         +Arrays.toString(outTypes), pos);
             }
@@ -2116,7 +2099,7 @@ public class Interpreter {
             return true;
         }
         for(int i=1;i<=a.size();i++){
-            if(!a.get(i).type.isSubtype(b.get(i).type)){
+            if(!a.get(i).type.canAssignTo(b.get(i).type)){
                 return true;
             }
         }
@@ -2765,93 +2748,8 @@ public class Interpreter {
     private void typeCheckOperator(Token t, ArrayList<Token> ret, RandomAccessStack<TypeFrame> typeStack)
             throws RandomAccessStack.StackUnderflow, SyntaxError, ConcatRuntimeError {
         Token prev;
-        //addLater pre-evaluation for all operations
         OperatorToken op=(OperatorToken) t;
         switch (op.opType){
-            case FLIP -> {
-                TypeFrame f = typeStack.peek();
-                if(f.type!=Type.INT&&f.type!=Type.UINT){
-                    throw new SyntaxError("unexpected type for operator '"+opName(op.opType)+"': "+f.type,op.pos);
-                }
-
-                ret.add(t);
-            }
-            case PLUS,MINUS,MULTIPLY,DIV,MOD,POW -> {
-                TypeFrame f2 = typeStack.pop();
-                TypeFrame f1 = typeStack.pop();
-                Type a=f1.type,b=f2.type;
-                if(a ==Type.UINT&& b ==Type.UINT){//TODO? uint + int -> uint
-                    typeStack.push(new TypeFrame(Type.UINT,null,t.pos));
-                }else if(a ==Type.INT|| a ==Type.UINT || a ==Type.BYTE){//addLater? isInt/isUInt functions
-                    if(b ==Type.INT|| b ==Type.UINT || b ==Type.BYTE){
-                        typeStack.push(new TypeFrame(Type.INT,null,t.pos));
-                    }else if(b ==Type.FLOAT){
-                        typeStack.push(new TypeFrame(Type.FLOAT,null,t.pos));
-                    }else{
-                        throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
-                    }
-                }else if(a ==Type.FLOAT){
-                    if(b ==Type.FLOAT|| b ==Type.INT|| b ==Type.UINT || b ==Type.BYTE){
-                        typeStack.push(new TypeFrame(Type.FLOAT,null,t.pos));
-                    }else{
-                        throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
-                    }
-                }else{
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
-                }
-
-                ret.add(t);
-            }
-            case GT, GE, LE, LT -> {
-                TypeFrame f2 = typeStack.pop();
-                TypeFrame f1 = typeStack.pop();
-                Type a=f1.type,b=f2.type;
-                if((a.equals(Type.RAW_STRING())||a.equals(Type.UNICODE_STRING()))&&
-                        (b.equals(Type.RAW_STRING())||b.equals(Type.UNICODE_STRING()))){
-                    typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
-                }else if(a==Type.BYTE&&b==Type.BYTE){
-                    typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
-                }else if(a==Type.CODEPOINT&&b==Type.CODEPOINT){
-                    typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
-                }else if((a==Type.INT||a==Type.UINT||a==Type.FLOAT)&&(b==Type.INT||b==Type.UINT||b==Type.FLOAT)){
-                    typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
-                }else if(a==Type.TYPE&&b==Type.TYPE&&(op.opType==OperatorType.LE||op.opType==OperatorType.GE)){
-                    typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
-                }else{
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
-                }
-
-                ret.add(t);
-            }
-            case AND,OR,XOR -> {
-                TypeFrame f2 = typeStack.pop();
-                TypeFrame f1 = typeStack.pop();
-                Type a=f1.type,b=f2.type;
-                if(a==Type.BOOL&&b==Type.BOOL){
-                    typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
-                }else if(a==Type.UINT&&b==Type.UINT){
-                    typeStack.push(new TypeFrame(Type.UINT,null,t.pos));
-                }else if((a==Type.INT||a==Type.UINT||a==Type.BYTE)&&(b==Type.INT||b==Type.UINT||b==Type.BYTE)){
-                    typeStack.push(new TypeFrame(Type.INT,null,t.pos));
-                }else{
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
-                }
-
-                ret.add(t);
-            }
-            case LSHIFT,RSHIFT -> {
-                TypeFrame f2 = typeStack.pop();
-                TypeFrame f1 = typeStack.pop();
-                Type a=f1.type,b=f2.type;
-                if((a==Type.UINT||a==Type.INT)&&(b==Type.UINT||b==Type.INT)){
-                    typeStack.push(new TypeFrame(a,null,t.pos));
-                }else{
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+ a +" and "+ b, op.pos);
-                }
-
-                ret.add(t);
-            }
-
             case LIST_OF -> {
                 TypeFrame f = typeStack.pop();
                 if(f.type!=Type.TYPE){
@@ -2947,7 +2845,7 @@ public class Interpreter {
                     }
                     TypeFrame val = typeStack.pop();
                     Type.BoundMaps bounds=new Type.BoundMaps();
-                    if(!val.type.isSubtype(id.type,bounds)){//cast to correct type if necessary
+                    if(!val.type.canAssignTo(id.type,bounds)){//cast to correct type if necessary
                         bounds=new Type.BoundMaps();
                         if(!val.type.canCastTo(id.type,bounds)){
                             throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
@@ -2958,7 +2856,7 @@ public class Interpreter {
                         IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
                         for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
                             if(e.getValue().min()!=null){
-                                if(e.getValue().max()==null||e.getValue().min().isSubtype(e.getValue().max())){
+                                if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
                                     update.put(e.getKey(),e.getValue().min());
                                 }else{
                                     throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
@@ -3069,7 +2967,7 @@ public class Interpreter {
                     assert !globalConstants.containsKey(id);
                     TypeFrame f = typeStack.pop();
                     Type.BoundMaps bounds=new Type.BoundMaps();
-                    if(!f.type.isSubtype(id.type,bounds)){//cast to correct type if necessary
+                    if(!f.type.canAssignTo(id.type,bounds)){//cast to correct type if necessary
                         bounds=new Type.BoundMaps();
                         if(!f.type.canCastTo(id.type,bounds)){
                             throw new SyntaxError("cannot cast from "+f.type+" to "+id.type,t.pos);
@@ -3080,7 +2978,7 @@ public class Interpreter {
                         IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
                         for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
                             if(e.getValue().min()!=null){
-                                if(e.getValue().max()==null||e.getValue().min().isSubtype(e.getValue().max())){
+                                if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
                                     update.put(e.getKey(),e.getValue().min());
                                 }else{
                                     throw new SyntaxError("cannot cast from "+f.type+" to "+id.type,t.pos);
@@ -3239,7 +3137,7 @@ public class Interpreter {
                         int index = Integer.parseInt(identifier.name);
                         if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
                             Type fieldType = ((Type.Tuple) f.type).elements[index];
-                            if(!val.type.isSubtype(fieldType)) {//TODO generics
+                            if(!val.type.canAssignTo(fieldType)) {//TODO generics
                                 if(!val.type.canCastTo(fieldType)){
                                     throw new SyntaxError("cannot cast "+val.type+" to "+fieldType,t.pos);
                                 }
@@ -3291,7 +3189,7 @@ public class Interpreter {
         }
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
-            if(!inTypes[i].isSubtype(type.inTypes[i],bounds)){
+            if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
                 if(inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
                     tokens.add(new ArgCastToken(inTypes.length-i+offset,type.inTypes[i],pos));
                 }else{
@@ -3304,7 +3202,7 @@ public class Interpreter {
             IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
             for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.r.entrySet()){
                 if(e.getValue().min()!=null){
-                    if(e.getValue().max()==null||e.getValue().min().isSubtype(e.getValue().max())){
+                    if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
                         implicitGenerics.put(e.getKey(),e.getValue().min());
                     }else{
                         throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
@@ -3372,7 +3270,7 @@ public class Interpreter {
             }
             Type.BoundMaps bounds=new Type.BoundMaps();
             for(int i=0;i<inTypes.length;i++){
-                if(!inTypes[i].isSubtype(type.inTypes[i],bounds)){
+                if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
                     nCasts++;
                     if(!inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
                         isMatch=false;
@@ -3386,7 +3284,7 @@ public class Interpreter {
                     IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
                     for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.r.entrySet()){
                         if(e.getValue().min()!=null){
-                            if(e.getValue().max()==null||e.getValue().min().isSubtype(e.getValue().max())){
+                            if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
                                 implicitGenerics.put(e.getKey(),e.getValue().min());
                             }else{
                                 isMatch=false;
@@ -3412,23 +3310,23 @@ public class Interpreter {
                         int c=0;
                         for(int i=0;i<m1.type.inTypes.length;i++){
                             if (c == 0) {
-                                if(m1.type.inTypes[i].isSubtype(m2.type.inTypes[i])){
-                                    if(!m2.type.inTypes[i].isSubtype(m1.type.inTypes[i])){
+                                if(m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])){
+                                    if(!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])){
                                         c=-1;
                                     }
                                 }else{
-                                    if(m2.type.inTypes[i].isSubtype(m1.type.inTypes[i])){
+                                    if(m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])){
                                         c=1;
                                     }else{
                                         return 0;
                                     }
                                 }
                             }else if(c<0){
-                                if(!m1.type.inTypes[i].isSubtype(m2.type.inTypes[i])){
+                                if(!m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])){
                                     return 0;
                                 }
                             }else{
-                                if(!m2.type.inTypes[i].isSubtype(m1.type.inTypes[i])){
+                                if(!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])){
                                     return 0;
                                 }
                             }
@@ -3450,7 +3348,7 @@ public class Interpreter {
         }
         CallMatch match = matchingCalls.get(0);
         for(int i=0;i< inTypes.length;i++){
-            if(!inTypes[i].isSubtype(match.type.inTypes[i])){
+            if(!inTypes[i].canAssignTo(match.type.inTypes[i])){
                 tokens.add(new ArgCastToken(inTypes.length-i+offset,match.type.inTypes[i],pos));
             }
         }
@@ -3484,22 +3382,6 @@ public class Interpreter {
 
     String opName(OperatorType type){
         switch (type){
-            case PLUS -> { return "+";}
-            case MINUS -> { return "-";}
-            case MULTIPLY -> {return "*"; }
-            case DIV -> { return "/"; }
-            case MOD -> {return "%"; }
-            case POW -> { return "**"; }
-            case FLIP -> { return "~"; }
-            case AND -> { return "&"; }
-            case OR -> { return "|"; }
-            case XOR -> { return "xor";}
-            case LSHIFT -> { return "<<"; }
-            case RSHIFT -> { return ">>";}
-            case GT -> { return ">"; }
-            case GE -> { return ">="; }
-            case LE -> { return "<=";}
-            case LT -> { return "<";}
             case TYPE_OF -> { return ".type";}
             case LIST_OF -> { return "list";}
             case CONTENT -> { return ".content";}
@@ -3563,85 +3445,6 @@ public class Interpreter {
     private void executeOperator(OperatorToken op, RandomAccessStack<Value> stack)
             throws RandomAccessStack.StackUnderflow, ConcatRuntimeError {
         switch (op.opType) {
-            case FLIP -> {
-                Value v = stack.pop();
-                stack.push(v.flip());
-            }
-            case PLUS -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x + y,false),
-                        (x, y) -> Value.ofInt(x + y,true),
-                        (x, y) -> Value.ofFloat(x + y)));
-            }
-            case MINUS -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x - y,false),
-                        (x, y) -> Value.ofInt(x - y,true),
-                        (x, y) -> Value.ofFloat(x - y)));
-            }
-            case MULTIPLY -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.mathOp(a, b, (x, y) -> Value.ofInt(x * y,false),
-                        (x, y) -> Value.ofInt(x * y,true),
-                        (x, y) -> Value.ofFloat(x * y)));
-            }
-            case DIV -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.mathOp(a, b,
-                        (x, y) -> Value.ofInt(x / y,false),
-                        (x, y) -> Value.ofInt(Long.divideUnsigned(x,y),true),
-                        (x, y) -> Value.ofFloat(x / y)));
-            }
-            case MOD -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.mathOp(a, b,
-                        (x, y) -> Value.ofInt(x % y,false),
-                        (x, y) -> Value.ofInt(Long.remainderUnsigned(x,y),true),
-                        (x, y) -> Value.ofFloat(x % y)));
-            }
-            case POW -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.mathOp(a, b,
-                        (x, y) -> Value.ofInt(longPow(x, y),false),
-                        (x, y) -> Value.ofInt(longPow(x, y),true),
-                        (x, y) -> Value.ofFloat(Math.pow(x, y))));
-            }
-            case GT, GE, LE, LT -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.compare(a, op.opType, b));
-            }
-            case AND -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.logicOp(a, b, (x, y) -> x && y, (x, y) -> x & y));
-            }
-            case OR -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.logicOp(a, b, (x, y) -> x || y, (x, y) -> x | y));
-            }
-            case XOR -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.logicOp(a, b, (x, y) -> x ^ y, (x, y) -> x ^ y));
-            }
-            case LSHIFT -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.shift(a, b,true));
-            }
-            case RSHIFT -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                stack.push(Value.shift(a, b,false));
-            }
             case LIST_OF -> {
                 Type contentType = stack.pop().asType();
                 stack.push(Value.ofType(Type.listOf(contentType)));
@@ -4072,22 +3875,6 @@ public class Interpreter {
             }
         }
         return ExitType.NORMAL;
-    }
-
-    private long longPow(Long x, Long y) {
-        long pow=1;
-        if(y<0){
-            return 0;
-        }else{
-            while(y>0){
-                if((y&1)==1){
-                    pow*=x;
-                }
-                x*=x;
-                y>>=1;
-            }
-            return pow;
-        }
     }
 
     static void compileAndRun(String path,String[] arguments,IOContext context) throws IOException {

@@ -8,8 +8,6 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.function.BiFunction;
-import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
 public abstract class Value {
@@ -83,9 +81,6 @@ public abstract class Value {
         return equals(v);
     }
 
-    public Value flip() throws TypeError {
-        throw new TypeError("Cannot invert values of type "+type);
-    }
     public int length() throws TypeError {
         throw new TypeError(type+" does not have a length");
     }
@@ -135,7 +130,7 @@ public abstract class Value {
         return this;
     }
     public Value castTo(Type type) throws ConcatRuntimeError {
-        if(this.type.isSubtype(type)){
+        if(this.type.canAssignTo(type)){
             return this;
         }else{
             throw new TypeError("cannot cast from "+this.type+" to "+type);
@@ -257,10 +252,6 @@ public abstract class Value {
             }else{
                 return super.castTo(type);
             }
-        }
-
-        public Value flip(){
-            return ofInt(~intValue,type==Type.UINT);
         }
 
         @Override
@@ -776,7 +767,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type.isSubtype(type)){
+            if(this.type.canAssignTo(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -986,7 +977,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type.isSubtype(type)){
+            if(this.type.canAssignTo(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1275,7 +1266,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type.isSubtype(type)){
+            if(this.type.canAssignTo(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1438,7 +1429,7 @@ public abstract class Value {
         }
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type.isSubtype(type)){
+            if(this.type.canAssignTo(type)){
                 return this;
             }else if(type.isList()){
                 Type c=type.content();
@@ -1662,7 +1653,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type.isSubtype(type)){
+            if(this.type.canAssignTo(type)){
                 return this;
             }else if(type.isOptional()){
                 if(wrapped==null){
@@ -1841,7 +1832,6 @@ public abstract class Value {
 
     static ArrayList<InternalProcedure> internalProcedures(){
         ArrayList<InternalProcedure> procs=new ArrayList<>();
-        //TODO transfer operators to internal procedures
         procs.add(new InternalProcedure(new Type[]{Type.ANY},new Type[]{Type.UINT},"refId") {
             @Override
             Value[] callWith(Value[] values){
@@ -1894,6 +1884,109 @@ public abstract class Value {
             });
         }
 
+        //addLater make union types accessible in program
+        Type unsigned = Type.UnionType.create(new Type[]{Type.BYTE,Type.CODEPOINT,Type.UINT});
+        Type integer = Type.UnionType.create(new Type[]{unsigned,Type.INT});
+        Type number  = Type.UnionType.create(new Type[]{integer,Type.FLOAT});
+
+        procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!") {
+            @Override
+            Value[] callWith(Value[] values) throws TypeError {
+                return new Value[]{values[0].asBool()?FALSE:TRUE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"~") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(~values[0].asLong(),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.UINT},new Type[]{Type.UINT},"~") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(~values[0].asLong(),true)};
+            }
+        });
+
+        procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"&") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{values[0].asBool()&&values[1].asBool()?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"|") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{values[0].asBool()||values[1].asBool()?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"xor") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{values[0].asBool()^values[1].asBool()?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"&") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()&values[1].asLong(),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"&") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()&values[1].asLong(),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"|") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()|values[1].asLong(),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"|") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()|values[1].asLong(),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"xor") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()^values[1].asLong(),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"xor") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()^values[1].asLong(),false)};
+            }
+        });
+
+        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"<<") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()<<values[1].asLong(),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"<<") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(Value.signedLeftShift(values[0].asLong(),values[1].asLong()),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},">>") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()>>>values[1].asLong(),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},">>") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()>>values[1].asLong(),false)};
+            }
+        });
 
         procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"-_") {
             @Override
@@ -1913,10 +2006,144 @@ public abstract class Value {
                 return new Value[]{Value.ofFloat(1.0/values[0].asDouble())};
             }
         });
-        procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!") {
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"+") {
             @Override
-            Value[] callWith(Value[] values) throws TypeError {
-                return new Value[]{values[0].asBool()?FALSE:TRUE};
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()+values[1].asLong(),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"+") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()+values[1].asLong(),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"+") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofFloat(values[0].asDouble()+values[1].asDouble())};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"-") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()-values[1].asLong(),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"-") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()-values[1].asLong(),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"-") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofFloat(values[0].asDouble()-values[1].asDouble())};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"*") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()*values[1].asLong(),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"*") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()*values[1].asLong(),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"*") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofFloat(values[0].asDouble()*values[1].asDouble())};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"/") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"/") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()/values[1].asLong(),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"/") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofFloat(values[0].asDouble()/values[1].asDouble())};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"%") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(Long.remainderUnsigned(values[0].asLong(),values[1].asLong()),true)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"%") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofInt(values[0].asLong()%values[1].asLong(),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"%") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{ofFloat(values[0].asDouble()%values[1].asDouble())};
+            }
+        });
+
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{compareNumbers(values[0],values[1])>0?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">=") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{compareNumbers(values[0],values[1])>=0?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{compareNumbers(values[0],values[1])<0?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<=") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{compareNumbers(values[0],values[1])<=0?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"==") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{compareNumbers(values[0],values[1])==0?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"!=") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{compareNumbers(values[0],values[1])!=0?TRUE:FALSE};
+            }
+        });
+
+        procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},"<=") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{values[0].asType().canAssignTo(values[1].asType())?TRUE:FALSE};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},">=") {
+            @Override
+            Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                return new Value[]{values[1].asType().canAssignTo(values[0].asType())?TRUE:FALSE};
             }
         });
 
@@ -2264,102 +2491,34 @@ public abstract class Value {
         }
     }
 
-
-    private static Value cmpToValue(int c, OperatorType opType) {
-        switch (opType){
-            case GT -> {
-                return c > 0 ? TRUE : FALSE;
+    static int compareNumbers(Value n1,Value n2) throws ConcatRuntimeError{
+        if(n1 instanceof ByteValue||n1 instanceof CodepointValue||n1 instanceof IntValue){
+            if(n2 instanceof ByteValue||n2 instanceof CodepointValue||n2 instanceof IntValue){
+                if(n1.type==Type.UINT){
+                    if(n2.type==Type.UINT){
+                        return Long.compareUnsigned(n1.asLong(),n2.asLong());
+                    }else{
+                        return n2.asLong()<0?1:Long.compareUnsigned(n1.asLong(),n2.asLong());
+                    }
+                }else{
+                    if(n2.type==Type.UINT){
+                        return n1.asLong()<0?-1:Long.compareUnsigned(n1.asLong(),n2.asLong());
+                    }else{
+                        return Long.compare(n1.asLong(),n2.asLong());
+                    }
+                }
+            }else if(n2 instanceof FloatValue){
+                return Double.compare(n1.asDouble(),n2.asDouble());
             }
-            case GE -> {
-                return c >= 0 ? TRUE : FALSE;
-            }
-            case LE -> {
-                return c <= 0 ? TRUE : FALSE;
-            }
-            case LT -> {
-                return c < 0 ? TRUE : FALSE;
-            }
-            default ->
-                    throw new RuntimeException(opType +" is no valid comparison operator");
-        }
-    }
-
-    public static Value compare(Value a, OperatorType opType, Value b) throws TypeError {
-        if(a.isString()&&b.isString()){
-            int c=a.stringValue().compareTo(b.stringValue());
-            return cmpToValue(c, opType);
-        }else if(a instanceof ByteValue &&b instanceof ByteValue){
-            return cmpToValue(Integer.compare(((ByteValue) a).byteValue&0xff,((ByteValue) b).byteValue&0xff), opType);
-        }else if(a instanceof CodepointValue &&b instanceof CodepointValue){
-            return cmpToValue(Integer.compare(((CodepointValue) a).codePoint,((CodepointValue) b).codePoint), opType);
-        }else if(a instanceof NumberValue&&b instanceof NumberValue){
-            return mathOp(a,b,
-                    (x,y)->cmpToValue(x.compareTo(y),opType),
-                    (x,y)->cmpToValue(Long.compareUnsigned(x,y),opType),
-                    (x,y)->cmpToValue(x.compareTo(y),opType));
-        }else if(a instanceof TypeValue&&b instanceof TypeValue&&(opType==OperatorType.GE||opType==OperatorType.LE)){
-            if(opType==OperatorType.LE){
-                return a.asType().isSubtype(b.asType())?TRUE:FALSE;
-            }else {
-                return b.asType().isSubtype(a.asType())?TRUE:FALSE;
-            }
-        }else{
-            throw new TypeError("cannot compare "+a.type+" and "+b.type);
-        }
-    }
-
-    public static Value mathOp(Value a, Value b, BiFunction<Long,Long,Value> intOp,  BiFunction<Long,Long,Value> uintOp,
-                               BiFunction<Double,Double,Value> floatOp) throws TypeError {
-        if(a instanceof IntValue||a.type==Type.BYTE){//addLater? isInt/isUInt functions
-            if(b instanceof IntValue||b.type==Type.BYTE){
-                return (a.type==Type.UINT?uintOp:intOp).apply(a.asLong(), b.asLong());
-            }else if(b instanceof FloatValue){
-                return floatOp.apply(a.asDouble(), b.asDouble());
-            }
-        }else if(a instanceof FloatValue){
-            if(b instanceof IntValue||b.type==Type.BYTE){
-                return floatOp.apply(a.asDouble(),b.asDouble());
-            }else if(b instanceof FloatValue){
-                return floatOp.apply(a.asDouble(),b.asDouble());
+        }else if(n1 instanceof FloatValue){
+            if(n2 instanceof ByteValue||n2 instanceof CodepointValue||n2 instanceof IntValue||n2 instanceof FloatValue){
+                return Double.compare(n1.asDouble(),n2.asDouble());
             }
         }
-        throw new TypeError("invalid parameters for arithmetic operation:"+a.type+" "+b.type);
-    }
-    public static Value logicOp(Value a, Value b, BinaryOperator<Boolean> boolOp,BinaryOperator<Long> intOp) throws TypeError {
-        if(a.type==Type.BOOL&&b.type==Type.BOOL){
-            return boolOp.apply(a.asBool(),b.asBool())?TRUE:FALSE;
-        }else{
-            if((a instanceof IntValue||a.type==Type.BYTE)&&(b instanceof IntValue||b.type==Type.BYTE)){
-                return ofInt(intOp.apply(a.asLong(), b.asLong()),a.type==Type.UINT);
-            }
-            throw new TypeError("invalid parameters for int operator:"+a.type+" "+b.type);
-        }
+        throw new ConcatRuntimeError("cannot compare "+n1.type+" and "+n2.type);
     }
 
     private static long signedLeftShift(long x, long y) {
         return x&0x8000000000000000L|(x<<y&0x7fffffffffffffffL);
-    }
-    public static Value shift(Value a,Value b,boolean left) throws TypeError {
-        if(a instanceof IntValue&&b instanceof IntValue){
-            long x=((IntValue) a).intValue,y=((IntValue) b).intValue;
-            if(y<0&&b.type==Type.INT){
-                left=!left;//negative b => flip direction
-                y=-y;
-            }
-            if(left){
-                if(a.type==Type.UINT){
-                    return ofInt(x<<y,true);
-                }else{
-                    return ofInt(signedLeftShift(x,y),false);
-                }
-            }else{
-                if(a.type==Type.UINT){
-                    return ofInt(x>>>y,true);
-                }else{
-                    return ofInt(x>>y,false);
-                }
-            }
-        }
-        throw new TypeError("invalid parameters for int operator:"+a.type+" "+b.type);
     }
 }
