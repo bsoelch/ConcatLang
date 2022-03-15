@@ -31,6 +31,7 @@ public class Interpreter {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
+        LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,//compile time operations
     }
 
     record StringWithPos(String str,FilePosition start){
@@ -80,9 +81,9 @@ public class Interpreter {
             return type.toString()+": \""+ name +"\"";
         }
     }
-    static class OperatorToken extends Token {
-        final OperatorType opType;
-        OperatorToken(OperatorType opType, FilePosition pos) {
+    static class InternalFieldToken extends Token {
+        final InternalFieldName opType;
+        InternalFieldToken(InternalFieldName opType, FilePosition pos) {
             super(TokenType.OPERATOR, pos);
             this.opType=opType;
         }
@@ -1879,8 +1880,9 @@ public class Interpreter {
                 case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
 
-                case "list"       -> tokens.add(new OperatorToken(OperatorType.LIST_OF, pos));
-                case "optional"   -> tokens.add(new OperatorToken(OperatorType.OPTIONAL_OF, pos));
+                case "list"     -> tokens.add(new Token(TokenType.LIST_OF,        pos));
+                case "optional" -> tokens.add(new Token(TokenType.OPTIONAL_OF,    pos));
+                case "empty"    -> tokens.add(new Token(TokenType.EMPTY_OPTIONAL, pos));
 
                 case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
 
@@ -1903,7 +1905,6 @@ public class Interpreter {
 
                 case "()"     -> tokens.add(new CallPtrToken(null, pos));
 
-                case "empty"  -> tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL, pos));
 
                 case "new"       -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
 
@@ -2527,7 +2528,7 @@ public class Interpreter {
                     finishedBranch=true;
                 }
                 case OPERATOR ->
-                    typeCheckOperator(t, ret, typeStack);
+                        throw new RuntimeException("internal field access operations should not exist at this stage of compilation "+t.pos);
                 case NEW ->
                     typeCheckNew(typeStack, ret, t);
                 case DECLARE_LAMBDA -> {//parse lambda-procedures
@@ -2598,11 +2599,88 @@ public class Interpreter {
                 case CALL_PTR -> {
                     TypeFrame f=typeStack.pop();
                     if(!(f.type instanceof Type.Procedure)){
-                        throw new SyntaxError("unexpected type for operator '()': "+f.type,t.pos);
+                        throw new SyntaxError("invalid argument for operator '()': "+f.type,t.pos);
                     }
                     IdentityHashMap<Type.GenericParameter,Type> generics =
                             typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
                     ret.add(new CallPtrToken(generics,t.pos));
+                }
+
+                case LIST_OF -> {
+                    TypeFrame f = typeStack.pop();
+                    String name="list";
+                    if(f.type!=Type.TYPE){
+                        throw new SyntaxError("invalid argument-type for '"+name+"':" +f.type+
+                                " argument has to be a constant type",t.pos);
+                    }else if(f.value!=null){
+                        f=new TypeFrame(Type.TYPE,Value.ofType(Type.listOf(f.value.asType())),t.pos);
+                    }else{
+                        throw new SyntaxError("argument of '"+name+"' has to be a constant type",t.pos);
+                    }
+                    typeStack.push(f);
+
+                    if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
+                        try {
+                            ret.set(ret.size()-1,
+                                    new ValueToken(Value.ofType(
+                                            Type.listOf(((ValueToken)prev).value.asType())),
+                                            t.pos, false));
+                        } catch (ConcatRuntimeError e) {
+                            throw new SyntaxError(e, t.pos);
+                        }
+                    }else{
+                        throw new SyntaxError("token before of '"+name+"' has to be a constant type",t.pos);
+                    }
+                }
+                case OPTIONAL_OF -> {
+                    TypeFrame f = typeStack.pop();
+                    String name="optional";
+                    if(f.type!=Type.TYPE){
+                        throw new SyntaxError("invalid argument-type for '"+name+"':" +f.type+
+                                " argument has to be a constant type",t.pos);
+                    }else if(f.value!=null){
+                        f=new TypeFrame(Type.TYPE,Value.ofType(Type.optionalOf(f.value.asType())),t.pos);
+                    }else{
+                        throw new SyntaxError("argument of '"+name+"' has to be a constant type",t.pos);
+                    }
+                    typeStack.push(f);
+
+                    if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
+                        try {
+                            ret.set(ret.size()-1,
+                                    new ValueToken(Value.ofType(
+                                            Type.optionalOf(((ValueToken)prev).value.asType())),
+                                            t.pos, false));
+                        } catch (ConcatRuntimeError e) {
+                            throw new SyntaxError(e, t.pos);
+                        }
+                    }else{
+                        throw new SyntaxError("token before of '"+name+"' has to be a constant type",t.pos);
+                    }
+                }
+                case EMPTY_OPTIONAL ->{
+                    TypeFrame f = typeStack.pop();
+                    String name="empty";
+                    if(f.type!=Type.TYPE){
+                        throw new SyntaxError("invalid argument-type for '"+name+"':" +f.type+
+                                " argument has to be a constant type",t.pos);
+                    }else if(f.value!=null) {
+                        typeStack.push(new TypeFrame(Type.optionalOf(f.value.asType()), Value.emptyOptional(f.value.asType()),t.pos));
+                    }else{
+                        throw new SyntaxError("argument of '"+name+"' has to be a constant type",t.pos);
+                    }
+
+                    if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
+                        try {
+                            ret.set(ret.size()-1,
+                                    new ValueToken(Value.emptyOptional(((ValueToken)prev).value.asType()),
+                                            t.pos, false));
+                        } catch (ConcatRuntimeError e) {
+                            throw new SyntaxError(e, t.pos);
+                        }
+                    }else{
+                        throw new SyntaxError("token before of '"+name+"' has to be a constant type",t.pos);
+                    }
                 }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,
                         CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,UPDATE_GENERICS,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
@@ -2742,74 +2820,6 @@ public class Interpreter {
             ret.add(new TypedToken(TokenType.NEW,type, t.pos));
         } catch (ConcatRuntimeError e) {
             throw new SyntaxError(e.getMessage(), prev.pos);
-        }
-    }
-
-    private void typeCheckOperator(Token t, ArrayList<Token> ret, RandomAccessStack<TypeFrame> typeStack)
-            throws RandomAccessStack.StackUnderflow, SyntaxError, ConcatRuntimeError {
-        Token prev;
-        OperatorToken op=(OperatorToken) t;
-        switch (op.opType){
-            case LIST_OF -> {
-                TypeFrame f = typeStack.pop();
-                if(f.type!=Type.TYPE){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }else if(f.value!=null){
-                    f=new TypeFrame(Type.TYPE,Value.ofType(Type.listOf(f.value.asType())),t.pos);
-                }
-                typeStack.push(f);
-
-                if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
-                    try {
-                        ret.set(ret.size()-1,
-                                new ValueToken(Value.ofType(
-                                        Type.listOf(((ValueToken)prev).value.asType())),
-                                        t.pos, false));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e, t.pos);
-                    }
-                }else{
-                    ret.add(t);
-                }
-            }
-            case OPTIONAL_OF -> {
-                TypeFrame f = typeStack.pop();
-                if(f.type!=Type.TYPE){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }else if(f.value!=null){
-                    f=new TypeFrame(Type.TYPE,Value.ofType(Type.optionalOf(f.value.asType())),t.pos);
-                }
-                typeStack.push(f);
-
-                if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
-                    try {
-                        ret.set(ret.size()-1,
-                                new ValueToken(Value.ofType(
-                                        Type.optionalOf(((ValueToken)prev).value.asType())),
-                                        t.pos, false));
-                    } catch (ConcatRuntimeError e) {
-                        throw new SyntaxError(e, t.pos);
-                    }
-                }else{
-                    ret.add(t);
-                }
-            }
-
-            case EMPTY_OPTIONAL ->{
-                TypeFrame f = typeStack.pop();
-                if(f.type!=Type.TYPE){
-                    throw new SyntaxError("unexpected type for operator '"+opName(op.opType)+"': "+f.type,op.pos);
-                }else if(f.value!=null) {
-                    typeStack.push(new TypeFrame(Type.optionalOf(f.value.asType()), Value.emptyOptional(f.value.asType()),t.pos));
-                }else{
-                    throw new SyntaxError("dynamic empty optional are not allowed",op.pos);
-                }
-
-                ret.add(t);
-            }
-            case TYPE_OF,CONTENT,IN_TYPES,OUT_TYPES,TYPE_NAME,TYPE_FIELDS,
-                    IS_ENUM,IS_LIST,IS_PROC,IS_OPTIONAL,IS_TUPLE,LENGTH,HAS_VALUE ->
-                throw new RuntimeException("Operators of type "+op.opType+" should not exist at this stage of compilation "+t.pos);
         }
     }
 
@@ -3039,12 +3049,12 @@ public class Interpreter {
                     if(!hasField) {
                         if(identifier.name.equals("type")){
                             typeStack.push(new TypeFrame(Type.TYPE,Value.ofType(f.type),t.pos));
-                            ret.add(new OperatorToken(OperatorType.TYPE_OF, t.pos));
+                            ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
 
                             hasField = true;
                         }else if (identifier.name.equals("length") && (f.type.isList() || f.type instanceof Type.Tuple)) {
                             typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
-                            ret.add(new OperatorToken(OperatorType.LENGTH, t.pos));
+                            ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
                             hasField = true;
                         } else if (f.type == Type.TYPE) {
                             hasField = true;
@@ -3054,48 +3064,48 @@ public class Interpreter {
                                         f = new TypeFrame(Type.TYPE, Value.ofType(f.value.asType().content()), t.pos);
                                     }
                                     typeStack.push(f);
-                                    ret.add(new OperatorToken(OperatorType.CONTENT, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.CONTENT, t.pos));
                                 }
                                 case "inTypes" -> {
                                     typeStack.push(new TypeFrame(Type.listOf(Type.TYPE), null, t.pos));
-                                    ret.add(new OperatorToken(OperatorType.IN_TYPES, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IN_TYPES, t.pos));
                                 }
                                 case "outTypes" -> {
                                     typeStack.push(new TypeFrame(Type.listOf(Type.TYPE), null, t.pos));
-                                    ret.add(new OperatorToken(OperatorType.OUT_TYPES, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.OUT_TYPES, t.pos));
                                 }
                                 case "name" -> {
                                     typeStack.push(new TypeFrame(Type.RAW_STRING(), null, t.pos));
-                                    ret.add(new OperatorToken(OperatorType.TYPE_NAME, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.TYPE_NAME, t.pos));
                                 }
                                 case "fieldNames" -> {
                                     typeStack.push(new TypeFrame(Type.listOf(Type.RAW_STRING()), null, t.pos));
-                                    ret.add(new OperatorToken(OperatorType.TYPE_FIELDS, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.TYPE_FIELDS, t.pos));
                                 }
                                 case "isEnum" -> {//TODO values of type 'var' may lead to wrong value in pre-evaluation
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType() instanceof Type.Enum ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new OperatorToken(OperatorType.IS_ENUM, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_ENUM, t.pos));
                                 }
                                 case "isList" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType().isList() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new OperatorToken(OperatorType.IS_LIST, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_LIST, t.pos));
                                 }
                                 case "isProc" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType() instanceof Type.Procedure ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new OperatorToken(OperatorType.IS_PROC, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_PROC, t.pos));
                                 }
                                 case "isOptional" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType().isOptional() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new OperatorToken(OperatorType.IS_OPTIONAL, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_OPTIONAL, t.pos));
                                 }
                                 case "isTuple" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType() instanceof Type.Tuple ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new OperatorToken(OperatorType.IS_TUPLE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_TUPLE, t.pos));
                                 }
                                 default -> hasField = false;
                             }
@@ -3103,7 +3113,7 @@ public class Interpreter {
                             if(identifier.name.equals("hasValue")){
                                 typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                         f.value.hasValue() ? Value.TRUE : Value.FALSE, t.pos));
-                                ret.add(new OperatorToken(OperatorType.HAS_VALUE, t.pos));
+                                ret.add(new InternalFieldToken(InternalFieldName.HAS_VALUE, t.pos));
                                 hasField=true;
                             }else if(identifier.name.equals("value")){
                                 typeStack.push(new TypeFrame(f.type.content(), null, t.pos));
@@ -3380,28 +3390,6 @@ public class Interpreter {
         NORMAL,FORCED,ERROR
     }
 
-    String opName(OperatorType type){
-        switch (type){
-            case TYPE_OF -> { return ".type";}
-            case LIST_OF -> { return "list";}
-            case CONTENT -> { return ".content";}
-            case IN_TYPES -> { return ".inTypes";}
-            case OUT_TYPES -> { return ".outTypes";}
-            case TYPE_NAME -> { return ".name";}
-            case TYPE_FIELDS -> { return ".fields";}
-            case LENGTH -> { return ".length";}
-            case IS_ENUM     -> { return ".isEnum";}
-            case IS_LIST     -> { return ".isList";}
-            case IS_PROC     -> { return ".isProc";}
-            case IS_OPTIONAL -> { return ".isOptional";}
-            case IS_TUPLE    -> { return ".isTuple";}
-            case OPTIONAL_OF -> { return "optional";}
-            case HAS_VALUE -> { return ".hasValue";}
-            case EMPTY_OPTIONAL -> { return "empty"; }
-        }
-        throw new RuntimeException("unreachable");
-    }
-
     public RandomAccessStack<Value> run(Program program, String[] arguments,IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
         Declareable main=program.rootContext.elements.get("main");
@@ -3442,13 +3430,9 @@ public class Interpreter {
         return stack;
     }
 
-    private void executeOperator(OperatorToken op, RandomAccessStack<Value> stack)
+    private void getInternalField(InternalFieldToken op, RandomAccessStack<Value> stack)
             throws RandomAccessStack.StackUnderflow, ConcatRuntimeError {
         switch (op.opType) {
-            case LIST_OF -> {
-                Type contentType = stack.pop().asType();
-                stack.push(Value.ofType(Type.listOf(contentType)));
-            }
             case CONTENT -> {
                 Type wrappedType = stack.pop().asType();
                 stack.push(Value.ofType(wrappedType.content()));
@@ -3500,14 +3484,6 @@ public class Interpreter {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.Tuple?Value.TRUE:Value.FALSE);
             }
-            case OPTIONAL_OF -> {
-                Type contentType = stack.pop().asType();
-                stack.push(Value.ofType(Type.optionalOf(contentType)));
-            }
-            case EMPTY_OPTIONAL -> {
-                Type t= stack.pop().asType();
-                stack.push(Value.emptyOptional(t));
-            }
             case HAS_VALUE -> {
                 Value value= stack.peek();
                 stack.push(value.hasValue()?Value.TRUE:Value.FALSE);
@@ -3540,12 +3516,19 @@ public class Interpreter {
                         assert next instanceof ValueToken;
                         ValueToken value = (ValueToken) next;
                         if(value.value.type==Type.TYPE){
-                            //resolve generic types in procedure signatures
+                            //resolve generic types
                             Type t=value.value.asType();
                             for(IdentityHashMap<Type.GenericParameter,Type> args:genArgs){
                                 t=t.replaceGenerics(args);
                             }
                             stack.push(Value.ofType(t));
+                        }else if(value.value.type.isOptional()&&!value.value.hasValue()){
+                            //resolve generic types of empty optionals
+                            Type t=value.value.type.content();
+                            for(IdentityHashMap<Type.GenericParameter,Type> args:genArgs){
+                                t=t.replaceGenerics(args);
+                            }
+                            stack.push(Value.emptyOptional(t));
                         }else if(value.cloneOnCreate){
                             stack.push(value.value.clone(true));
                         }else{
@@ -3572,8 +3555,8 @@ public class Interpreter {
                         stack.push(proc.withCurried(curried2));
                     }
                     case OPERATOR -> {
-                        assert next instanceof OperatorToken;
-                        executeOperator((OperatorToken) next, stack);
+                        assert next instanceof InternalFieldToken;
+                        getInternalField((InternalFieldToken) next, stack);
                     }
                     case NEW_LIST -> {//{ e1 e2 ... eN }
                         assert next instanceof ListCreatorToken;
@@ -3721,7 +3704,7 @@ public class Interpreter {
                         context.stdErr.println("reached unreachable statement:"+next.pos);
                         return ExitType.ERROR;
                     }
-                    case DECLARE_LAMBDA, IDENTIFIER ->
+                    case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN -> {
