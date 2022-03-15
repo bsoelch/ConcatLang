@@ -293,7 +293,7 @@ public class Interpreter {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST
+        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST,UNION
     }
     static abstract class CodeBlock{
         final int start;
@@ -1749,7 +1749,7 @@ public class Interpreter {
                         case IF,WHILE,SWITCH_CASE ->
                                 throw new SyntaxError("blocks of type "+block.type+
                                         " should not exist at this stage of compilation",pos);
-                        case ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST ->
+                        case UNION,ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST ->
                                 throw new SyntaxError("unexpected 'end' statement",pos);
                     }
                 }
@@ -1803,6 +1803,11 @@ public class Interpreter {
                 }
                 case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
                 case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
+                case "union(" ->{
+                    ListBlock block = new ListBlock(tokens.size(), BlockType.UNION, pos, pState.getContext());
+                    pState.openBlocks.add(block);
+                    pState.openedContexts.add(block.context());
+                }
                 case "(" ->{
                     ListBlock block = new ListBlock(tokens.size(), BlockType.ANONYMOUS_TUPLE, pos, pState.getContext());
                     pState.openBlocks.add(block);
@@ -1810,14 +1815,14 @@ public class Interpreter {
                 }
                 case ")" -> {
                     CodeBlock open=pState.openBlocks.pollLast();
-                    if(open==null||(open.type!=BlockType.ANONYMOUS_TUPLE&&open.type!=BlockType.PROC_TYPE)){
+                    if(open==null||(open.type!=BlockType.ANONYMOUS_TUPLE&&open.type!=BlockType.PROC_TYPE&&open.type!=BlockType.UNION)){
                         throw new SyntaxError("unexpected ')' statement ",pos);
                     }
                     if(open.context() != pState.openedContexts.pollLast()){
                         throw new RuntimeException("openedProcs is out of sync with openBlocks");
                     }
-                    ((GenericContext)open.context()).unbind();
                     if(open.type==BlockType.PROC_TYPE){
+                        ((GenericContext)open.context()).unbind();
                         List<Token> subList=tokens.subList(open.start, ((ProcTypeBlock)open).separatorPos);
                         Type[] inTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
@@ -1833,7 +1838,8 @@ public class Interpreter {
                                 Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),inTypes,outTypes):
                                 Type.Procedure.create(inTypes,outTypes);
                         tokens.add(new ValueToken(Value.ofType(procType),pos,false));
-                    }else {
+                    }else if(open.type==BlockType.ANONYMOUS_TUPLE){
+                        ((GenericContext)open.context()).unbind();
                         List<Token> subList=tokens.subList(open.start, tokens.size());
                         Type[] tupleTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
@@ -1844,6 +1850,17 @@ public class Interpreter {
                                     ((GenericContext)open.context()).generics.get(0).declaredAt);
                         }
                         tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null,tupleTypes,pos)),
+                                pos,false));
+                    }else /*if(open.type==BlockType.UNION)*/{
+                        List<Token> subList=tokens.subList(open.start, tokens.size());
+                        Type[] elements=ProcedureBlock.getSignature(
+                                typeCheck(subList,open.context(),pState.globalVariables,
+                                        new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
+                        if(elements.length==0){
+                            throw new SyntaxError("union has to contain at least one element",pos);
+                        }
+                        subList.clear();
+                        tokens.add(new ValueToken(Value.ofType(Type.UnionType.create(elements)),
                                 pos,false));
                     }
                 }
@@ -2442,7 +2459,7 @@ public class Interpreter {
                                         merge(typeStack,mainEnd,branch.types,branch.end,"switch");
                                     }
                                 }
-                                case PROCEDURE,PROC_TYPE,CONST_LIST,ANONYMOUS_TUPLE,TUPLE,ENUM ->
+                                case PROCEDURE,PROC_TYPE,CONST_LIST,ANONYMOUS_TUPLE,TUPLE,ENUM,UNION ->
                                         throw new SyntaxError("blocks of type "+open.type+
                                                 " should not exist at this stage of compilation",t.pos);
                             }

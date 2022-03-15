@@ -1,23 +1,26 @@
 lib/io :
 
 io #namespace
-  type FILE native =$
 
-  FILE stdIn  native =$
-  FILE stdOut native =$
-  FILE stdErr native =$
+type FILE native =$
 
-  open     native proc #+path+# string #+flags+#string => FILE optional : end
-  close    native proc FILE => bool : end
-  read     native proc FILE #+buff+# byte list #+off+# int #+count+# int => int  : end
-  write    native proc FILE #+buff+# byte list #+off+# int #+count+# int => bool : end
-  size     native proc FILE => int  : end
-  pos      native proc FILE => int  : end
-  truncate native proc FILE => bool : end
-  seekEnd  native proc FILE => bool : end
-  seek     native proc FILE int => bool : end
+FILE stdIn  native =$
+FILE stdOut native =$
+FILE stdErr native =$
+
+open     native proc #+path+# string #+flags+#string => FILE optional : end
+close    native proc FILE => bool : end
+read     native proc FILE #+buff+# byte list #+off+# int #+count+# int => int  : end
+write    native proc FILE #+buff+# byte list #+off+# int #+count+# int => bool : end
+size     native proc FILE => int  : end
+pos      native proc FILE => int  : end
+truncate native proc FILE => bool : end
+seekEnd  native proc FILE => bool : end
+seek     native proc FILE int => bool : end
+
 #end
 core #namespace
+
 stack #include
 io #import
 fputs proc string FILE => bool :

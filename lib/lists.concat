@@ -18,11 +18,12 @@ reverse proc A <?> A list  => :
   end
 end
 
-__LISTS_mergesort_helper proc int list #+off+# int  #+to+# int #+buffer+# int list => :
-  int list buffer =:
+__LISTS_mergesort_helper proc union( byte codepoint uint int float ) list #+off+# int #+to+# int
+    #+buffer+#  union( byte codepoint uint int float ) list => :
+  union( byte codepoint uint int float ) list buffer =:
   int to =:
   int off =:
-  int list input =:
+  union( byte codepoint uint int float ) list input =:
   off to < if
     off to + 2 / int c =:
     input off c buffer __LISTS_mergesort_helper
@@ -59,9 +60,9 @@ __LISTS_mergesort_helper proc int list #+off+# int  #+to+# int #+buffer+# int li
   end
 end
 
-mergesort proc int list => : #+ TODO make generic once restricted generics implemented +#
-  int list input =:
-  #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / int list new
+mergesort proc union( byte codepoint uint int float ) list => : #+ addLater make generic once restricted generics implemented +#
+  union( byte codepoint uint int float ) list input =:
+  #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / union( byte codepoint uint int float ) list new
   __LISTS_mergesort_helper
 end
 

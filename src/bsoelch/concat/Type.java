@@ -122,7 +122,7 @@ public class Type {
             return true;
         }else if(t instanceof UnionType){
             for(Type t1:((UnionType) t).elements){
-                if(canAssignTo(t1)){
+                if(canAssignTo(t1,bounds)){
                     return true;
                 }
             }
@@ -890,6 +890,9 @@ public class Type {
 
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
+            if(t instanceof GenericParameter){
+                return super.canAssignTo(t, bounds);
+            }
             for(Type e:elements){
                 if(!e.canAssignTo(t,bounds))
                     return false;
@@ -899,11 +902,14 @@ public class Type {
 
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
-            for(Type e:elements){
-                if(!e.canCastTo(t,bounds))
-                    return false;
+            if(t instanceof GenericParameter){
+                return super.canCastTo(t, bounds);
             }
-            return true;
+            for(Type e:elements){
+                if(e.canCastTo(t,bounds))
+                    return true;
+            }
+            return false;
         }
     }
 }

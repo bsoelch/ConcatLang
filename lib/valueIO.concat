@@ -350,7 +350,7 @@ sprintf proc #+args+# var list #+format+# string => string :
   string format =:
   var list args =:
 
-  format .length 4 / _IO_Format list new _IO_Format list parts =:
+  format .length 4 / union( __IO_FormatString __IO_FormatValue ) list new union( __IO_FormatString __IO_FormatValue ) list parts =:
   0 int i0 =:
   0 int i  =:
   format .length int n  =:
@@ -569,16 +569,12 @@ sprintf proc #+args+# var list #+format+# string => string :
   tmp
 end
 
-## variadic  wrappers
-
 printf proc var list string => :
   sprintf puts
 end
-
-## formats string file
 fprintf proc var list string FILE => bool :
   FILE file =:
   sprintf file fputs return
 end
 
-#end ##std
+#end ##core
