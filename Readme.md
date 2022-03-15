@@ -293,8 +293,8 @@ type `type` and pushes the result
 the argument on the side of the `:`
 - `[]` get an element of a list
    - syntax: `<list> <index> []`
-- `[] =`  set an element of a list
-  - syntax: `<list> <value> <index> [] =`
+- `[]=`  set an element of a list
+  - syntax: `<list> <value> <index> []=`
   - the element at index will be set to value cast to 
 the type of the list-elements
 - `[:]`  get a sublist of a list
@@ -302,8 +302,8 @@ the type of the list-elements
   - returns a new list containing the elements 
 of the list with indices between `<off>` included
 and `<to>` excluded
-- `[:] =` replace a sublist of a list
-  - syntax: `<list> <value> <off> <to> [:] =`
+- `[:]=` replace a sublist of a list
+  - syntax: `<list> <value> <off> <to> [:]=`
   - all the specified section of the list will be replaced 
 with the new value cast to the type of the list
 - `()` call a procedure pointer
@@ -315,9 +315,9 @@ Examples:
 int list list drop ## list of list of ints
 "Hello" ' ' "World" >>: ++ '!' :<< println
 "Hello World!" 7 9 [:] println
-"Hello World?" '!' 11 [] = println
-"Hello World!" "Programmer" 6 11 [:] = println
-"Hello World!" "" 5 11 [:] = println
+"Hello World?" '!' 11 []= println
+"Hello World!" "Programmer" 6 11 [:]= println
+"Hello World!" "" 5 11 [:]= println
 ```
 prints 
 ```C++

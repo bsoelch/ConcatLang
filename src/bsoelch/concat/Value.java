@@ -2008,6 +2008,66 @@ public abstract class Value {
                 }
             });
         }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT},
+                    new Type[]{a},"[]") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list index
+                    return new Value[]{values[0].get(values[1].asLong())};
+                }
+            });
+        }
+        {//untyped tuple element access
+            procs.add(new InternalProcedure(new Type[]{Type.Tuple.EMPTY_TUPLE,Type.UINT},new Type[]{Type.ANY},"[]") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list index
+                    return new Value[]{values[0].get(values[1].asLong())};
+                }
+            });
+        }
+        {//addLater? change order of arguments for consistency with set field
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),a,Type.UINT},
+                    new Type[]{},"[]=") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list val index
+                    values[0].set(values[2].asLong(),values[1]);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT,Type.UINT},
+                    new Type[]{Type.listOf(a)},"[:]") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list off to
+                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a),Type.UINT,Type.UINT},
+                    new Type[]{},"[:]=") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list val off to
+                    values[0].setSlice(values[2].asLong(),values[3].asLong(),values[1]);
+                    return new Value[0];
+                }
+            });
+        }
+
 
         {
             Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);

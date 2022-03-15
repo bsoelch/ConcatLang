@@ -251,6 +251,8 @@ public class Type {
     }
 
     public static class Tuple extends Type implements Interpreter.NamedDeclareable{
+        static final Tuple EMPTY_TUPLE=new Tuple(null,new Type[0],Value.InternalProcedure.POSITION);
+
         final FilePosition declaredAt;
         final Type[] elements;
         final boolean named;

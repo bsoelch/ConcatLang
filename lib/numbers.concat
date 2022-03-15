@@ -156,9 +156,9 @@ end
     n 1 - int j =:
     true bool inc =:
     while inc && j 0 >= end do
-      buff   buff j [] 1 +   j [] =
+      buff   buff j [] 1 +   j []=
       buff j [] base >= if
-          buff   buff j [] base -  j [] =
+          buff   buff j [] base -  j []=
       else
           false inc =
       end

@@ -1918,11 +1918,6 @@ public class Interpreter {
                 case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
                 case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  pos));
 
-                //<array> <index> []
-                case "[]"    -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,      pos));
-                //<array> <off> <to> [:]
-                case "[:]"   -> tokens.add(new OperatorToken(OperatorType.GET_SLICE,      pos));
-
                 case "()"     -> tokens.add(new CallPtrToken(null, pos));
 
                 case "empty"  -> tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL, pos));
@@ -1933,12 +1928,6 @@ public class Interpreter {
                 case "="->{
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '=' modifier",pos);
-                    }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_INDEX){
-                        //<array> <val> <index> [] =
-                        tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_INDEX,prev.pos));
-                    }else if(prev instanceof OperatorToken&&((OperatorToken) prev).opType==OperatorType.GET_SLICE){
-                        //<array> <val> <off> <to> [:] =
-                        tokens.set(tokens.size()-1,new OperatorToken(OperatorType.SET_SLICE,prev.pos));
                     }else if(prev instanceof IdentifierToken){
                         if(((IdentifierToken) prev).type == IdentifierType.WORD){
                             prev=new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
@@ -2923,54 +2912,6 @@ public class Interpreter {
             case TYPE_OF,CONTENT,IN_TYPES,OUT_TYPES,TYPE_NAME,TYPE_FIELDS,
                     IS_ENUM,IS_LIST,IS_PROC,IS_OPTIONAL,IS_TUPLE,LENGTH,HAS_VALUE ->
                 throw new RuntimeException("Operators of type "+op.opType+" should not exist at this stage of compilation "+t.pos);
-            case GET_INDEX -> {
-                TypeFrame index = typeStack.pop();
-                TypeFrame container  = typeStack.pop();
-                if(index.type!=Type.INT&&index.type!=Type.UINT&&(!(index.type instanceof Type.Enum))){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+container.type+" "+index.type,op.pos);
-                }
-                if(container.type.isList()) {
-                    typeStack.push(new TypeFrame(container.type.content(), null, t.pos));
-                }else if(container.type instanceof Type.Tuple){
-                    typeStack.push(new TypeFrame(Type.ANY, null, t.pos));
-                }else{
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+container.type+" "+index.type,op.pos);
-                }
-                ret.add(t);
-            }
-            case SET_INDEX -> {
-                TypeFrame index = typeStack.pop();
-                Type val   = typeStack.pop().type;
-                Type list  = typeStack.pop().type;
-                if((index.type!=Type.INT&&index.type!=Type.UINT)||(!(list.isList()&&val.isSubtype(list.content())))){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+val+" "+index,op.pos);
-                }
-                ret.add(t);
-            }
-            case GET_SLICE -> {
-                Type to    = typeStack.pop().type;
-                Type off   = typeStack.pop().type;
-                Type list  = typeStack.pop().type;
-                if((off!=Type.INT&&off!=Type.UINT)||(to!=Type.INT&&to!=Type.UINT)||
-                        !list.isList()){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+off+" "+to,op.pos);
-                }
-                typeStack.push(new TypeFrame(list,null,t.pos));
-
-                ret.add(t);
-            }
-            case SET_SLICE -> {
-                Type to   = typeStack.pop().type;
-                Type off  = typeStack.pop().type;
-                Type val  = typeStack.pop().type;
-                Type list = typeStack.pop().type;
-                if((off!=Type.INT&&off!=Type.UINT)||(to!=Type.INT&&to!=Type.UINT)||
-                        !list.isList()||!val.isSubtype(list)){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+val+" "+off+" "+to,op.pos);
-                }
-
-                ret.add(t);
-            }
         }
     }
 
@@ -3567,10 +3508,6 @@ public class Interpreter {
             case TYPE_NAME -> { return ".name";}
             case TYPE_FIELDS -> { return ".fields";}
             case LENGTH -> { return ".length";}
-            case GET_INDEX -> { return "[]";}
-            case SET_INDEX -> { return "[] =";}
-            case GET_SLICE -> { return "[:]";}
-            case SET_SLICE -> { return "[:] =";}
             case IS_ENUM     -> { return ".isEnum";}
             case IS_LIST     -> { return ".isList";}
             case IS_PROC     -> { return ".isProc";}
@@ -3739,30 +3676,6 @@ public class Interpreter {
             case LENGTH -> {
                 Value val = stack.pop();
                 stack.push(Value.ofInt(val.length(),true));
-            }
-            case GET_INDEX -> {//array index []
-                long index = stack.pop().asLong();
-                Value list = stack.pop();
-                stack.push(list.get(index));
-            }
-            case SET_INDEX -> {//array value index [] =
-                long index = stack.pop().asLong();
-                Value val = stack.pop();
-                Value list = stack.pop();
-                list.set(index,val);
-            }
-            case GET_SLICE -> {
-                long to = stack.pop().asLong();
-                long off = stack.pop().asLong();
-                Value list = stack.pop();
-                stack.push(list.getSlice(off, to));
-            }
-            case SET_SLICE -> {
-                long to = stack.pop().asLong();
-                long off = stack.pop().asLong();
-                Value val = stack.pop();
-                Value list = stack.pop();
-                list.setSlice(off,to,val);
             }
             case IS_LIST -> {
                 Type type = stack.pop().asType();
