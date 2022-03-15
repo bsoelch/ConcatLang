@@ -83,6 +83,18 @@ end
       value type cast .content <<s " optional" <<* return
     else value type cast .isEnum _if
       value type cast .name <<* return ## return enum-name
+    else value type cast .isUnion _if
+      "union( " <<* string res =:
+      value type cast .inTypes type list args =:
+      0 int i =:
+      while i args .length < do
+        res args i [] <<s " " <<* res =
+        i 1 + i =
+      end
+      res ')' << return
+    else value type cast .isGeneric _if
+      ## addLater better printing of generic types
+      '\'' << value refId <<u return
     else value type == _if
       "type"  <<* return
     else value bool == _if
@@ -99,7 +111,7 @@ end
       "codepoint" <<* return
     else value var == _if
       "var" <<* return
-    else unreachable end ## TODO printing of generic types
+    else unreachable end
   else value .type bool == _if
     value bool cast if "true" else "false" end <<* return
   else value .type byte == _if

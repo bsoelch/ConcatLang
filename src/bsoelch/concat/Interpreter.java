@@ -1008,7 +1008,7 @@ public class Interpreter {
                 elements.put(name,overloaded);
             }else if(prev instanceof OverloadedProcedure overloaded){
                 if(elements.get(name) != overloaded){//ensure that prev is same namespace,  otherwise create local copy
-                    overloaded=new OverloadedProcedure(overloaded);
+                    overloaded=new OverloadedProcedure(overloaded);//FIXME overloading of imported procedures
                     if(elements.put(name,overloaded)!=null){
                         throw new RuntimeException("unexpected value for declareable at "+name);
                     }
@@ -3107,6 +3107,16 @@ public class Interpreter {
                                             f.value.asType() instanceof Type.Tuple ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IS_TUPLE, t.pos));
                                 }
+                                case "isUnion" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType() instanceof Type.UnionType ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_UNION, t.pos));
+                                }
+                                case "isGeneric" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType() instanceof Type.GenericParameter ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_GENEIRC, t.pos));
+                                }
                                 default -> hasField = false;
                             }
                         }else if(f.type.isOptional()){
@@ -3483,6 +3493,14 @@ public class Interpreter {
             case IS_TUPLE -> {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.Tuple?Value.TRUE:Value.FALSE);
+            }
+            case IS_UNION -> {
+                Type type = stack.pop().asType();
+                stack.push(type instanceof Type.UnionType?Value.TRUE:Value.FALSE);
+            }
+            case IS_GENEIRC -> {
+                Type type = stack.pop().asType();
+                stack.push(type instanceof Type.GenericParameter?Value.TRUE:Value.FALSE);
             }
             case HAS_VALUE -> {
                 Value value= stack.peek();
