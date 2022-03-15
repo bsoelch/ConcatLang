@@ -60,9 +60,9 @@ public class Type {
         }else if(a==null||b==ANY){
             return b;
         }else {
-            if(a.isSubtype(b)){
+            if(a.canAssignTo(b)){
                 return b;
-            }else if(b.isSubtype(a)){
+            }else if(b.canAssignTo(a)){
                 return a;
             }else if((!strict)&&((a==UINT||a==INT)&&(b==UINT||b==INT))){
                 return a;
@@ -101,18 +101,18 @@ public class Type {
 
     record GenericBound(Type min, Type max) {}
 
-    /**@return true if this type is a subtype of type t (values of this type can be directly assigned to type t)*/
-    public final boolean isSubtype(Type t){
-        return isSubtype(t,new BoundMaps());
+    /**@return true if this type can be directly assigned to type t*/
+    public final boolean canAssignTo(Type t){
+        return canAssignTo(t,new BoundMaps());
     }
 
-    protected boolean isSubtype(Type t, BoundMaps bounds){
+    protected boolean canAssignTo(Type t, BoundMaps bounds){
         if(t instanceof GenericParameter&&!((GenericParameter) t).isBound){
             GenericBound bound=bounds.r.get(t);
             if(bound!=null){
-                if(bound.min==null||bound.min.isSubtype(this,bounds.swapped())) {
+                if(bound.min==null||bound.min.canAssignTo(this,bounds.swapped())) {
                     bound=new GenericBound(this,bound.max);
-                }else if(!isSubtype(bound.min,bounds)){
+                }else if(!canAssignTo(bound.min,bounds)){
                     return false;
                 }
             }else{
@@ -120,6 +120,12 @@ public class Type {
             }
             bounds.r.put((GenericParameter) t,bound);
             return true;
+        }else if(t instanceof UnionType){
+            for(Type t1:((UnionType) t).elements){
+                if(canAssignTo(t1)){
+                    return true;
+                }
+            }
         }
         return this==t||t==ANY;
     }
@@ -129,7 +135,7 @@ public class Type {
         return canCastTo(t,new BoundMaps());
     }
     protected boolean canCastTo(Type t, BoundMaps bounds){
-        return isSubtype(t,bounds)||t.isSubtype(this,bounds.swapped());
+        return canAssignTo(t,bounds)||t.canAssignTo(this,bounds.swapped());
     }
 
     @Override
@@ -216,11 +222,11 @@ public class Type {
 
         //addLater don't allow casts between mutable lists of different type
         @Override
-        public boolean isSubtype(Type t, BoundMaps bounds) {
+        public boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                return content().isSubtype(t.content(),bounds);
+                return content().canAssignTo(t.content(),bounds);
             }else{
-                return super.isSubtype(t,bounds);
+                return super.canAssignTo(t,bounds);
             }
         }
 
@@ -294,16 +300,16 @@ public class Type {
         }
 
         @Override
-        protected boolean isSubtype(Type t, BoundMaps bounds) {
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof Tuple&&((Tuple) t).elementCount()<=elementCount()){
                 for(int i=0;i<((Tuple) t).elements.length;i++){
-                    if(!elements[i].isSubtype(((Tuple) t).elements[i],bounds)){
+                    if(!elements[i].canAssignTo(((Tuple) t).elements[i],bounds)){
                         return false;
                     }
                 }
                 return true;
             }else{
-                return super.isSubtype(t,bounds);
+                return super.canAssignTo(t,bounds);
             }
         }
         @Override
@@ -433,16 +439,16 @@ public class Type {
             return super.equals(t, generics);
         }
         @Override
-        protected boolean isSubtype(Type t, BoundMaps bounds) {
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof GenericTuple){
                 if(((GenericTuple) t).explicitParams.length!= explicitParams.length)
                     return false;
                 for(int i = 0; i< genericArgs.length; i++){//compare generic parameters with their equivalents
-                    if(!genericArgs[i].isSubtype(((GenericTuple) t).genericArgs[i],bounds))
+                    if(!genericArgs[i].canAssignTo(((GenericTuple) t).genericArgs[i],bounds))
                         return false;
                 }
             }
-            return super.isSubtype(t, bounds);
+            return super.canAssignTo(t, bounds);
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
@@ -516,16 +522,16 @@ public class Type {
         }
 
         @Override
-        protected boolean isSubtype(Type t, BoundMaps bounds) {
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof Procedure proc){
                 if(proc.inTypes.length== inTypes.length&&proc.outTypes.length==outTypes.length){
                     for(int i=0;i< inTypes.length;i++){
-                        if(!proc.inTypes[i].isSubtype(inTypes[i],bounds.swapped())){
+                        if(!proc.inTypes[i].canAssignTo(inTypes[i],bounds.swapped())){
                             return false;
                         }
                     }
                     for(int i=0;i< outTypes.length;i++){
-                        if(!outTypes[i].isSubtype(proc.outTypes[i],bounds)){
+                        if(!outTypes[i].canAssignTo(proc.outTypes[i],bounds)){
                             return false;
                         }
                     }
@@ -533,7 +539,7 @@ public class Type {
                 }
                 return false;
             }
-            return super.isSubtype(t,bounds);
+            return super.canAssignTo(t,bounds);
         }
         //addLater? overwrite canCastTo
 
@@ -637,16 +643,16 @@ public class Type {
             return super.equals(t, generics);
         }
         @Override
-        protected boolean isSubtype(Type t, BoundMaps bounds) {
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof GenericProcedure) {
                 if (((GenericProcedure) t).explicitGenerics.length != explicitGenerics.length)
                     return false;
                 for (int i = 0; i < genericArgs.length; i++) {//map generic parameters to their equivalents
-                    if (!genericArgs[i].isSubtype(((GenericProcedure) t).genericArgs[i], bounds))
+                    if (!genericArgs[i].canAssignTo(((GenericProcedure) t).genericArgs[i], bounds))
                         return false;
                 }
             }
-            return super.isSubtype(t, bounds);
+            return super.canAssignTo(t, bounds);
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
@@ -654,7 +660,7 @@ public class Type {
                 if(((GenericProcedure) t).explicitGenerics.length!= explicitGenerics.length)
                     return false;
                 for(int i = 0; i< genericArgs.length; i++){//map generic parameters to their equivalents
-                    if(!genericArgs[i].isSubtype(((GenericProcedure) t).genericArgs[i],bounds))
+                    if(!genericArgs[i].canAssignTo(((GenericProcedure) t).genericArgs[i],bounds))
                         return false;
                 }
             }
@@ -769,16 +775,16 @@ public class Type {
             return false;
         }
         @Override
-        protected boolean isSubtype(Type t, BoundMaps bounds) {
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(this==t)
                 return true;
             if(isBound ||t instanceof GenericParameter)//TODO handling of bounds if both sides are unbound generics
-                return super.isSubtype(t,bounds);
+                return super.canAssignTo(t,bounds);
             GenericBound bound=bounds.l.get(this);
             if(bound!=null){
-                if(bound.max==null||t.isSubtype(bound.max,bounds)) {
+                if(bound.max==null||t.canAssignTo(bound.max,bounds)) {
                     bound=new GenericBound(bound.min,t);
-                }else if(!bound.max.isSubtype(t,bounds.swapped())){
+                }else if(!bound.max.canAssignTo(t,bounds.swapped())){
                     return false;
                 }
             }else{
@@ -821,5 +827,83 @@ public class Type {
             }
         }
         return newArgs;
+    }
+
+    static class UnionType extends Type{
+        final Type[] elements;
+        static Type create(Type[] elements){
+            if(elements.length<=0){
+                throw new RuntimeException("unions cannot be empty");
+            }
+            StringBuilder name=new StringBuilder("union( ");
+            ArrayList<Type> types=new ArrayList<>(elements.length);
+            for(Type t:elements){//TODO merge types with their supertypes
+                if(t instanceof UnionType) {
+                    for(Type t1:((UnionType) t).elements){
+                        types.add(t1);
+                        name.append(t1).append(" ");
+                    }
+                }else{
+                    types.add(t);
+                    name.append(t).append(" ");
+                }
+            }
+            if(types.size()==1){
+                return types.get(0);
+            }
+            return new UnionType(name.append(")").toString(),types.toArray(Type[]::new));
+        }
+        private UnionType(String name, Type[] elements) {
+            super(name, false);
+            this.elements = elements;
+        }
+
+        @Override
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if(!(t instanceof UnionType)||((UnionType) t).elements.length!=elements.length){
+                return false;
+            }
+            for(int i=0;i<elements.length;i++){
+                if(!elements[i].equals(((UnionType) t).elements[i],generics))
+                    return false;
+            }
+            return true;
+        }
+
+        @Override
+        Type replaceGenerics(IdentityHashMap<GenericParameter, Type> generics) {
+            boolean changed=false;
+            Type[] newElements=new Type[elements.length];
+            for(int i=0;i<elements.length;i++){
+                newElements[i]=elements[i].replaceGenerics(generics);
+                if(elements[i]!=newElements[i]){
+                    changed=true;
+                }
+            }
+            return changed?create(newElements):this;
+        }
+
+        @Override
+        public List<Type> inTypes() {
+            return Arrays.asList(elements);
+        }
+
+        @Override
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
+            for(Type e:elements){
+                if(!e.canAssignTo(t,bounds))
+                    return false;
+            }
+            return true;
+        }
+
+        @Override
+        protected boolean canCastTo(Type t, BoundMaps bounds) {
+            for(Type e:elements){
+                if(!e.canCastTo(t,bounds))
+                    return false;
+            }
+            return true;
+        }
     }
 }
