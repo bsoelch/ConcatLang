@@ -1007,7 +1007,7 @@ public class Interpreter {
                 overloaded.addProcedure(proc);
                 elements.put(name,overloaded);
             }else if(prev instanceof OverloadedProcedure overloaded){
-                if(elements.get(name) !=overloaded){//ensure that prev is same namespace,  otherwise create local copy
+                if(elements.get(name) != overloaded){//ensure that prev is same namespace,  otherwise create local copy
                     overloaded=new OverloadedProcedure(overloaded);
                     if(elements.put(name,overloaded)!=null){
                         throw new RuntimeException("unexpected value for declareable at "+name);

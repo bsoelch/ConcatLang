@@ -4,7 +4,7 @@ stack #include
 valueIO #include
 core #import
 
-"Hello" ' ' "World" >>: :+ println
+"Hello" ' ' "World" >> <<* println
 
 "Hello World!" 7 9 [:] println
 
@@ -12,8 +12,8 @@ core #import
 "Hello World!" dup "Programmer" 6 11 [:]= println
 "Hello World!" dup "" 5 11 [:]= println
 
-"Test" dup "A" :+ dup clone "B" :+ println println println
-{ "Test" } dup clone! dup clone 0 [] "C" :+ :<< println println
+"Test" dup "A" <<* dup clone "B" <<* println println println
+{ "Test" } dup clone! dup clone 0 [] "C" <<* << println println
 
 10 int list new dup println
 1000 ensureCap println

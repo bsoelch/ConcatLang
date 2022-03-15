@@ -2183,11 +2183,11 @@ public abstract class Value {
                 }
             });
         }
-        {//addLater rename >>: :<< to << >>
+        {
             Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),a},
-                    new Type[]{Type.listOf(a)},":<<") {
+                    new Type[]{Type.listOf(a)},"<<") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off count val
@@ -2200,7 +2200,7 @@ public abstract class Value {
             Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(a)},
-                    new Type[]{Type.listOf(a)},">>:") {
+                    new Type[]{Type.listOf(a)},">>") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off count val
@@ -2213,7 +2213,7 @@ public abstract class Value {
             Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
-                    new Type[]{Type.listOf(a)},":+") {
+                    new Type[]{Type.listOf(a)},"<<*") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off count val
@@ -2226,7 +2226,7 @@ public abstract class Value {
             Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
-                    new Type[]{Type.listOf(a)},"+:") {
+                    new Type[]{Type.listOf(a)},"*>>") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off count val

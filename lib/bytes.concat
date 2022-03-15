@@ -8,7 +8,7 @@ uintToBytes proc uint => byte list :
   8 byte list new byte list rawData =:
   0 uint i =:
   while i 8 < do
-    rawData val 0xff & byte cast :<< rawData =
+    rawData val 0xff & byte cast << rawData =
     val 8 >> val =
     i 1 + i =
   end

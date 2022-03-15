@@ -36,7 +36,7 @@ __NUMBERS_getDigit proc #+value+# int #+base+# int #+big+# bool => #+char+# byte
     value 0 < || value base >= end if
         ## even though <<i calls this function
         ## this error check should not be activated when <<i is called normally
-        "Digit out of range: " value <<i " base: " :+ base <<i '\n' :<< eputs
+        "Digit out of range: " value <<i " base: " <<* base <<i '\n' << eputs
         1 exit
     end
     value 10 < if
@@ -57,20 +57,20 @@ end
   base 2 < || base 62 > end if
     ## even though printing recursively calls this function
     ## this error check should not be activated when <<i is called normally
-    "Base out of range: " base <<i ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base <<i ", base has to be between 2 and 62\n" <<* eputs
     1 exit
   end
   value 0 == if
-    '0' :<< return
+    '0' << return
   end
   signed && value int cast 0 < end if
-      '-' :<<
+      '-' <<
       value int cast -_ value =
   end
   1u uint p =:
   while value p / base >= do p base * p = end
   while p 0 > do
-      value p /  base big __NUMBERS_getDigit :<<
+      value p /  base big __NUMBERS_getDigit <<
       value p % value =
       p base / p =
   end
@@ -115,7 +115,7 @@ end
   int   precision =:
   float value =:
   base 2 < || base 62 > end if
-    "Base out of range: " base <<i ", base has to be between 2 and 62\n" :+ eputs
+    "Base out of range: " base <<i ", base has to be between 2 and 62\n" <<* eputs
     1 exit
   end
   value float_isFinite ! if
@@ -125,12 +125,12 @@ end
       "[Infinity]"
     else
       "-[Infinity]"
-    end :+ return
+    end <<* return
   else value 0.0 == || value -0.0 == end _if
-    "0" :+ return
+    "0" <<* return
   end
   value 0 < if
-    '-' :<<
+    '-' <<
     value -_ value =
   end
   0b1e-110100 #+2^-52+# value * float eps =: ##? better implementation of eps
@@ -141,7 +141,7 @@ end
   0 int n =:
   while p eps > do
     value p / floor int cast int d =:
-    buff d :<< buff =
+    buff d << buff =
     n 1 + n =
     value d p * - value =
     p base / p =
@@ -165,7 +165,7 @@ end
       j 1 - j =
     end
     inc if
-      1 buff >>: buff =
+      1 buff >> buff =
       e_max 1 + e_max =
       n 1 + n =
     end
@@ -177,33 +177,33 @@ end
     while n 1 - 0 > && buff n 1 - [] 0 == end do
       n 1 - n =
     end
-    buff 0 [] base big __NUMBERS_getDigit :<<
+    buff 0 [] base big __NUMBERS_getDigit <<
     n 1 > if
-      '.' :<<
+      '.' <<
       1 while dup n < do
-         swap over buff swap [] base big __NUMBERS_getDigit :<<
+         swap over buff swap [] base big __NUMBERS_getDigit <<
          swap 1 +
       end drop
     end
-    base 10 <= if 'E' else base 30 <= _if 'X' else '#' end :<<
-    e_max 0 >= if '+' :<< end
+    base 10 <= if 'E' else base 30 <= _if 'X' else '#' end <<
+    e_max 0 >= if '+' << end
     e_max  base true big <<???i
   else e_max 0 >= _if
     0 while dup n < do
-      swap over buff swap [] base big __NUMBERS_getDigit :<<
+      swap over buff swap [] base big __NUMBERS_getDigit <<
       over e_max == && over n 1 - < end if
-        '.' :<<
+        '.' <<
       end
       swap 1 +
     end drop
   else
-    "0." :+
+    "0." <<*
     e_max -_ 1 - while dup 0 > do
-      swap '0' :<<
+      swap '0' <<
       swap 1 -
     end drop
     0 while dup n < do
-      swap over buff swap [] base big __NUMBERS_getDigit :<<
+      swap over buff swap [] base big __NUMBERS_getDigit <<
       swap 1 +
     end drop
   end
@@ -311,19 +311,19 @@ checkErrCode proc #+err-code+# StringParseError #+type-name+# string #+source+# 
   #+err-code+# switch
   ERR_NONE case end-case
   ERR_BASE case
-      "invalid string-format for " typeName :+ " \"" +: source :+ "\" (base outside of allowed rage)\n" :+ eputs
+      "invalid string-format for " typeName <<* " \"" <<* source <<* "\" (base outside of allowed rage)\n" <<* eputs
       1 exit
   end-case
   ERR_EMPTY case
-      "invalid string-format for " typeName :+ " \"" +: source :+ "\" (empty-string)\n" :+ eputs
+      "invalid string-format for " typeName <<* " \"" <<* source <<* "\" (empty-string)\n" <<* eputs
       1 exit
   end-case
   ERR_ILLEGAL_CHAR case
-      "invalid string-format for " typeName :+ " \"" +: source :+ "\" (illegal-character)\n" :+ eputs
+      "invalid string-format for " typeName <<* " \"" <<* source <<* "\" (illegal-character)\n" <<* eputs
       1 exit
   end-case
   ERR_OVERFLOW case
-      "invalid string-format for " typeName :+ " \"" +: source :+ "\" (overflow)\n" :+ eputs
+      "invalid string-format for " typeName <<* " \"" <<* source <<* "\" (overflow)\n" <<* eputs
       1 exit
   end-case
   end

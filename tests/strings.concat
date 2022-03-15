@@ -14,7 +14,7 @@ utf8 #include
 u"a°💻" .length println
 u"a°💻" codepointsToString dup .type print "[" print dup .length print "]:" print println
 
-"a°" u"💻" string:+ustring dup .type print "[" print dup .length print "]:" print println
-u"a°" "💻" ustring+:string dup .type print "[" print dup .length print "]:" print println
-"a°" u"💻" string+:ustring dup .type print "[" print dup .length print "]:" print println
-u"a°" "💻" ustring:+string dup .type print "[" print dup .length print "]:" print println
+"a°" u"💻" <<* dup .type print "[" print dup .length print "]:" print println
+u"a°" "💻" *>> dup .type print "[" print dup .length print "]:" print println
+"a°" u"💻" *>> dup .type print "[" print dup .length print "]:" print println
+u"a°" "💻" <<* dup .type print "[" print dup .length print "]:" print println

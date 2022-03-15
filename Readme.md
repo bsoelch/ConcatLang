@@ -71,7 +71,7 @@ on the stack, the natively supported value types are
   - the type name as plain text
 
 Examples: 
-```C++
+```
 true false
 0xffffffffffffffffu
 1 -0b10
@@ -145,7 +145,7 @@ i.e 1 1 + evaluated to 2
 - `**` power `a b **` evaluates to `pow(a,b)`
 
 Examples:
-```C++
+```
 1 2 + 3 * 4.0 5 / -
 6 -_ 7 % 
 8 9 **
@@ -166,7 +166,7 @@ on the stack
 (signed/unsigned depending on the type of the left integer)
 
 Examples:
-```C++
+```
 false ! false xor true & false |
 1 ~ 7 &
 1 2 <<
@@ -186,14 +186,14 @@ comparison either needs two strings, two chars or
 two numbers
 
 Examples:
-```C++
+```
 int int == println
 1 2.0 > println
 "Hello" "World" <= println
 'A' 'a' > println
 ```
 prints 
-```C++
+```
 true
 false
 true
@@ -265,7 +265,7 @@ reverse proc string => string :
   toReverse length string new string res =:
   ## Iterate though the elements in reverse order
   toReverse _^ while <^ do
-    res swap :<< res =
+    res swap << res =
   end drop
   res return
 end
@@ -288,8 +288,8 @@ type `type` and pushes the result
 - `list`  wraps a type in the corresponding list-type
 - `optional`  wraps a type in the corresponding optional-type
 - `.content` unwraps list and optional types
-- `>>:` `:<<` add a new element at the start/end of a list
-- `:+` `+:`   concatenates two lists, changes the value of 
+- `>>` `<<` add a new element at the start/end of a list
+- `*>>` `<<*`   concatenates two lists, changes the value of 
 the argument on the side of the `:`
 - `[]` get an element of a list
    - syntax: `<list> <index> []`
@@ -309,18 +309,18 @@ with the new value cast to the type of the list
 - `()` call a procedure pointer
 
 Examples:
-```C++
+```
 1 .type println
 3.1 int cast println
 int list list drop ## list of list of ints
-"Hello" ' ' "World" >>: ++ '!' :<< println
+"Hello" ' ' "World" >> <<* '!' << println
 "Hello World!" 7 9 [:] println
 "Hello World?" '!' 11 []= println
 "Hello World!" "Programmer" 6 11 [:]= println
 "Hello World!" "" 5 11 [:]= println
 ```
 prints 
-```C++
+```
 int
 3
 Hello World!

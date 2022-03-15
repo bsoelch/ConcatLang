@@ -46,7 +46,7 @@ lambda :
       lambda  :
         " supported!" string d =$
         lambda :
-          a b :+ c :+ d :+ println
+          a b <<* c <<* d <<* println
         end
       end
     end

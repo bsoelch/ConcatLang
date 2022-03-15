@@ -12,101 +12,101 @@ _EMPTY_TUPLE tuple end
 
 <<list proc A <?> string A list => string :
   A list value =:
-  '[' :<< string res =:
+  '[' << string res =:
   0 int i =:
   while i value .length < do
     i 0 > if
-      res ", " :+ res =
+      res ", " <<* res =
     end
     res value i [] <<s res =
     i 1 + i =
   end
-  res ']' :<< return
+  res ']' << return
 end
 <<optional proc A <?> string A optional => string :
   A optional value =:
   value if
-    #+value+# <<s " wrap" :+ return
+    #+value+# <<s " wrap" <<* return
   else
-    value .type .content <<s " empty" :+ return
+    value .type .content <<s " empty" <<* return
   end
 end
 <<s proc string var => string :
   var value =:
   value .type string == if
-    value string cast :+ return
+    value string cast <<* return
   else value .type ustring == _if
-    value string:+ustring return
+    value <<* return
   else value .type _EMPTY_TUPLE <= _if
-    '(' :<< string res =:
+    '(' << string res =:
     0 int i =:
     while i value _EMPTY_TUPLE cast .length < do
       i 0 > if
-        res ", " :+ res =
+        res ", " <<* res =
       end
       res value _EMPTY_TUPLE cast i [] <<s res =
       i 1 + i =
     end
-    res ')' :<< return
+    res ')' << return
   else value .type .isList _if
     value <<list return
   else value .type .isOptional _if
     value <<optional return
   else value .type .isEnum _if
-    value .type .name :+ ' ' :<< value .type .fieldNames value uint cast [] :+ " ." :+ return
+    value .type .name <<* ' ' << value .type .fieldNames value uint cast [] <<* " ." <<* return
   else value .type type == _if
     value string == if
-      "string" :+ return
+      "string" <<* return
     else value ustring == _if
-      "ustring" :+ return
+      "ustring" <<* return
     else value type cast .isTuple _if
-      value type cast .name :+ return ## return tuple-name
+      value type cast .name <<* return ## return tuple-name
     else value type cast .isProc _if
-      "( " :+ string res =:
+      "( " <<* string res =:
       value type cast .inTypes type list args =:
       0 int i =:
       while i args .length < do
-        res args i [] <<s " " :+ res =
+        res args i [] <<s " " <<* res =
         i 1 + i =
       end
-      res "=> " :+ res =
+      res "=> " <<* res =
       value type cast .outTypes args =
       0 i =
       while i args .length < do
-        res args i [] <<s " " :+ res =
+        res args i [] <<s " " <<* res =
         i 1 + i =
       end
-      res ")" :+ return
+      res ")" <<* return
     else value type cast .isList _if
-      value type cast .content <<s " list" :+ return
+      value type cast .content <<s " list" <<* return
     else value type cast .isOptional _if
-      value type cast .content <<s " optional" :+ return
+      value type cast .content <<s " optional" <<* return
     else value type cast .isEnum _if
-      value type cast .name :+ return ## return enum-name
+      value type cast .name <<* return ## return enum-name
     else value type == _if
-      "type"  :+ return
+      "type"  <<* return
     else value bool == _if
-      "bool"  :+ return
+      "bool"  <<* return
     else value byte == _if
-      "byte"  :+ return
+      "byte"  <<* return
     else value  int == _if
-      "int"   :+ return
+      "int"   <<* return
     else value uint == _if
-      "uint"  :+ return
+      "uint"  <<* return
     else value float == _if
-      "float" :+ return
+      "float" <<* return
     else value codepoint == _if
-      "codepoint" :+ return
+      "codepoint" <<* return
     else value var == _if
-      "var" :+ return
+      "var" <<* return
     else unreachable end ## TODO printing of generic types
   else value .type bool == _if
-    value bool cast if "true" else "false" end :+ return
+    value bool cast if "true" else "false" end <<* return
   else value .type byte == _if
     value byte cast 0x80 byte cast < if
-      value byte cast :<< return ## print valid ascii-characters as character
+      value byte cast << return ## print valid ascii-characters as character
     else
-      value byteToString :+ return ## print all other bytes as their byte-code
+      value byteToString <<* return ## print all other bytes as their byte-code
     end
   else value .type  int == _if
     value <<i return
@@ -115,10 +115,10 @@ end
   else value .type float == _if
     value <<f return
   else value .type codepoint == _if
-    value string<<codepoint return
+    value codepoint cast << return
   else value .type .isProc _if
     ## procedure
-    value .type <<s "@" :+ value refId <<X return
+    value .type <<s "@" <<* value refId <<X return
   else unreachable end
 end
 stringValue proc var => string :
@@ -134,20 +134,20 @@ end
 byteListToString proc byte list => string :
   byte list bytes =:
   bytes .length 6 * string new string res =:
-  res "[" :+ res =
+  res "[" <<* res =
   0 int i =:
   while i bytes .length < do
     i 0 > if
-      res ", " :+ res =
+      res ", " <<* res =
     end
-    res bytes i [] byteToString :+ res =
+    res bytes i [] byteToString <<* res =
     i 1 + i =
   end
-  res "]" :+ return
+  res "]" <<* return
 end
 
 print   proc var      =>      :      stringValue           puts        end
-println proc var      =>      :      stringValue '\n' :<<  puts        end
+println proc var      =>      :      stringValue '\n' <<  puts        end
 fprint  proc var FILE => bool : swap stringValue swap     fputs return end
 
 1 int __IO_FLAG_PAD_0 =$
@@ -207,7 +207,7 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     ""
     plusSgn '\0' != if
       values format __IO.index [] int cast 0 >= if
-        plusSgn :<<
+        plusSgn <<
       end
     end
     values format __IO.index [] int cast base <<?i
@@ -216,7 +216,7 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     ""
     plusSgn '\0' != if
       values format __IO.index [] int cast  0 >= if
-        plusSgn :<<
+        plusSgn <<
       end
     end
     values format __IO.index [] int cast  base <<?I
@@ -224,14 +224,14 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
   'u' case
     ""
     plusSgn '\0' != if
-      plusSgn :<<
+      plusSgn <<
     end
     values format __IO.index [] uint cast base <<?u
     end-case
   'U' case
     ""
     plusSgn '\0' != if
-      plusSgn :<<
+      plusSgn <<
     end
     values format __IO.index [] uint cast base <<?U
     end-case
@@ -239,7 +239,7 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     ""
     plusSgn '\0' != if
       values format __IO.index [] int cast 0 >= if
-        plusSgn :<<
+        plusSgn <<
       end
     end
     values format __IO.index [] int cast <<i
@@ -247,14 +247,14 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
   'x' case
     ""
     plusSgn '\0' != if
-      plusSgn :<<
+      plusSgn <<
     end
     values format __IO.index [] uint cast <<x
    end-case
   'X' case
     ""
     plusSgn '\0' != if
-      plusSgn :<<
+      plusSgn <<
     end
     values format __IO.index [] uint cast <<X
     end-case
@@ -262,7 +262,7 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     ""
     plusSgn '\0' != if
       values format __IO.index [] float cast 0 >= if
-        plusSgn :<<
+        plusSgn <<
       end
     end
     values format __IO.index [] float cast precision base <<??e
@@ -271,7 +271,7 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     ""
     plusSgn '\0' != if
       values format __IO.index [] float cast 0 >= if
-        plusSgn :<<
+        plusSgn <<
       end
     end
     values format __IO.index [] float cast precision base <<??E
@@ -280,7 +280,7 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     ""
     plusSgn '\0' != if
       values format __IO.index [] float cast 0 >= if
-        plusSgn :<<
+        plusSgn <<
       end
     end
     values format __IO.index [] float cast precision base <<??f
@@ -289,7 +289,7 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     ""
     plusSgn '\0' != if
       values format __IO.index [] float cast 0 >= if
-        plusSgn :<<
+        plusSgn <<
       end
     end
     values format __IO.index [] float cast precision base <<??F
@@ -304,7 +304,7 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     "%"
     end-case
   default
-    format __IO.format  " is no valid format specifier\n" >>: eputs
+    format __IO.format  " is no valid format specifier\n" >> eputs
     1 exit
   end string res =:
   res .length width < if
@@ -313,9 +313,9 @@ __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime c
     count string new string padding =:
     padding 0 count padChar fill
     alignLeft if
-      res padding :+ res =
+      res padding <<* res =
     else
-      padding res +: res =
+      padding res *>> res =
     end
   end
   res
@@ -352,16 +352,16 @@ sprintf proc #+args+# var list #+format+# string => string :
       i 1 + i =
     end
     i format .length >= if
-      parts   false format i0 format .length [:] __IO_FormatString new   :<< parts =
+      parts   false format i0 format .length [:] __IO_FormatString new   << parts =
       n i0 =
     else
-      parts   false format i0 i [:] __IO_FormatString new   :<< parts =
+      parts   false format i0 i [:] __IO_FormatString new   << parts =
       i 1 + dup i0 = i =
       while i0 format .length < && format i0 [] isFormatChar ! end do
         i0 1 + i0 =
       end
       i0 format .length >= if
-        "printf: unfinished or invalid format String: "  format i format .length [:] stringValue  :+ '\n' :<< eputs
+        "printf: unfinished or invalid format String: "  format i format .length [:] stringValue  <<* '\n' << eputs
         1 exit
       end
       format i0 [] byte _formatChar =:
@@ -369,11 +369,11 @@ sprintf proc #+args+# var list #+format+# string => string :
       i0 1 + i0 =
       _formatChar '%' == if
         _formatString .length 0 > if
-          "printf: invalid Format String: \"" _formatString :+
-           "\" format '%' does not allow any additional parameters\n" :+ eputs
+          "printf: invalid Format String: \"" _formatString <<*
+           "\" format '%' does not allow any additional parameters\n" <<* eputs
            1 exit
         end
-        parts   false "%" __IO_FormatString new   :<< parts =
+        parts   false "%" __IO_FormatString new   << parts =
       else
         count int  index =:
         count 1 +  count =
@@ -389,7 +389,7 @@ sprintf proc #+args+# var list #+format+# string => string :
         tmp _formatString .length ensureCap
         ## ([0-9]+$)?  index
         while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
-          _formatString i [] :<<
+          _formatString i [] <<
           i 1 + i =
         end tmp =
         i _formatString .length < && _formatString i [] '$' == end if
@@ -431,7 +431,7 @@ sprintf proc #+args+# var list #+format+# string => string :
             end
           end
           tmp while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
-            _formatString i [] :<<
+            _formatString i [] <<
             i 1 + i =
           end tmp =
         end
@@ -445,7 +445,7 @@ sprintf proc #+args+# var list #+format+# string => string :
           count w =
           count 1 + count =
           tmp while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
-            _formatString i [] :<<
+            _formatString i [] <<
             i 1 + i =
           end tmp =
           tmp .length 0 > if
@@ -458,8 +458,8 @@ sprintf proc #+args+# var list #+format+# string => string :
                _formatChar 'f' ==  if else _formatChar 'F' == _if
           else _formatChar 'e' == _if else _formatChar 'E' == _if
           else
-            "printf: invalid Format String: \"" _formatString :+ _formatChar :<<
-                             "\" precision-parameter only allowed for formats f, F, e, E, s and S\n" :+ eputs
+            "printf: invalid Format String: \"" _formatString <<* _formatChar <<
+                             "\" precision-parameter only allowed for formats f, F, e, E, s and S\n" <<* eputs
             1 exit
           end
           i 1 + i =
@@ -470,7 +470,7 @@ sprintf proc #+args+# var list #+format+# string => string :
             count 1 + count =
           end
           tmp while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
-            _formatString i [] :<<
+            _formatString i [] <<
             i 1 + i =
           end tmp =
           p_ptr ! || tmp .length 0 > end if
@@ -485,8 +485,8 @@ sprintf proc #+args+# var list #+format+# string => string :
           else _formatChar 'f' == _if else _formatChar 'F' == _if
           else _formatChar 'e' == _if else _formatChar 'E' == _if
           else
-            "printf: invalid Format String: \"" _formatString :+ _formatChar :<<
-                             "\" base-parameter only allowed for formats i,u,f,e and s\n" :+ eputs
+            "printf: invalid Format String: \"" _formatString <<* _formatChar <<
+                             "\" base-parameter only allowed for formats i,u,f,e and s\n" <<* eputs
             1 exit
           end
           i 1 + i =
@@ -497,7 +497,7 @@ sprintf proc #+args+# var list #+format+# string => string :
             count 1 + count =
           end
           tmp while i _formatString .length < && '0' _formatString i [] <= && '9' _formatString i [] >= end end do
-            _formatString i [] :<<
+            _formatString i [] <<
             i 1 + i =
           end tmp =
           i _formatString .length < && _formatString i [] ')' == end if
@@ -507,15 +507,15 @@ sprintf proc #+args+# var list #+format+# string => string :
             end
             i 1 + i =
           else
-            "printf: invalid Format String: \"" _formatString :+ _formatChar :<< "\"\n" :+ eputs
+            "printf: invalid Format String: \"" _formatString <<* _formatChar << "\"\n" <<* eputs
             1 exit
           end
         end
         i _formatString .length < || tmp .length 0 > end if
-          "printf: invalid Format String: \"" _formatString :+ _formatChar :<< "\"\n" :+ eputs
+          "printf: invalid Format String: \"" _formatString <<* _formatChar << "\"\n" <<* eputs
           1 exit
         end
-        parts   true index flags w w_ptr p p_ptr b b_ptr _formatChar __IO_FormatValue new   :<< parts =
+        parts   true index flags w w_ptr p p_ptr b b_ptr _formatChar __IO_FormatValue new   << parts =
         maxFormat index < if
           index maxFormat =
         end
@@ -539,8 +539,8 @@ sprintf proc #+args+# var list #+format+# string => string :
   end
   maxFormat 1 + count =
   count args .length != if
-    "wrong number of arguments: " args .length <<i " expected " :+ count <<i
-    '\n' :<< eputs
+    "wrong number of arguments: " args .length <<i " expected " <<* count <<i
+    '\n' << eputs
     1 exit
   end
   0 i =
@@ -551,7 +551,7 @@ sprintf proc #+args+# var list #+format+# string => string :
     else ## string format
       parts i [] __IO.value
     end
-    :+ tmp =
+    <<* tmp =
     i 1 + i =
   end
   tmp
