@@ -1898,7 +1898,6 @@ public class Interpreter {
                 case "*"   -> tokens.add(new OperatorToken(OperatorType.MULTIPLY,      pos));
                 case "/"   -> tokens.add(new OperatorToken(OperatorType.DIV,           pos));
                 case "%"   -> tokens.add(new OperatorToken(OperatorType.MOD,           pos));
-                case "!"   -> tokens.add(new OperatorToken(OperatorType.NOT,           pos));
                 case "~"   -> tokens.add(new OperatorToken(OperatorType.FLIP,          pos));
                 case "&"   -> tokens.add(new OperatorToken(OperatorType.AND,           pos));
                 case "|"   -> tokens.add(new OperatorToken(OperatorType.OR,            pos));
@@ -1911,10 +1910,6 @@ public class Interpreter {
                 case ">>"  -> tokens.add(new OperatorToken(OperatorType.RSHIFT,  pos));
                 case "<<"  -> tokens.add(new OperatorToken(OperatorType.LSHIFT,  pos));
 
-                case ">>:"   -> tokens.add(new OperatorToken(OperatorType.PUSH_FIRST,     pos));
-                case ":<<"   -> tokens.add(new OperatorToken(OperatorType.PUSH_LAST,      pos));
-                case "+:"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_FIRST, pos));
-                case ":+"    -> tokens.add(new OperatorToken(OperatorType.PUSH_ALL_LAST,  pos));
                 //<array> <index> []
                 case "[]"    -> tokens.add(new OperatorToken(OperatorType.GET_INDEX,      pos));
                 //<array> <off> <to> [:]
@@ -1922,9 +1917,7 @@ public class Interpreter {
 
                 case "()"     -> tokens.add(new CallPtrToken(null, pos));
 
-                case "wrap"   -> tokens.add(new OperatorToken(OperatorType.WRAP,           pos));
                 case "empty"  -> tokens.add(new OperatorToken(OperatorType.EMPTY_OPTIONAL, pos));
-                case "??"     -> tokens.add(new OperatorToken(OperatorType.HAS_VALUE,      pos));
 
                 case "new"       -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
 
@@ -2776,17 +2769,6 @@ public class Interpreter {
         //addLater pre-evaluation for all operations
         OperatorToken op=(OperatorToken) t;
         switch (op.opType){
-            case NOT -> {
-                TypeFrame f = typeStack.pop();
-                if(f.type==Type.BOOL){
-                    typeStack.push(new TypeFrame(Type.BOOL,f.value==null?null:f.value.asBool()?Value.FALSE:Value.TRUE,t.pos));
-                }else if(f.type.isOptional()){
-                    typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
-                }else {
-                    throw new SyntaxError("unexpected type for operator '" + opName(op.opType) + "': " + f.type, op.pos);
-                }
-                ret.add(t);
-            }
             case FLIP -> {
                 TypeFrame f = typeStack.peek();
                 if(f.type!=Type.INT&&f.type!=Type.UINT){
@@ -2916,21 +2898,6 @@ public class Interpreter {
                 }
             }
 
-            case WRAP -> {//addLater? static check if optional is guaranteed to be nonempty + possibility to explicitly unwrap such optionals
-                TypeFrame f = typeStack.pop();
-                typeStack.push(new TypeFrame(Type.optionalOf(f.type),null,t.pos));
-                ret.add(t);
-            }
-            case HAS_VALUE -> {
-                TypeFrame f = typeStack.peek();
-                if(f.type.isOptional()){
-                    typeStack.push(new TypeFrame(Type.BOOL,null,t.pos));
-                }else{
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+f.type,op.pos);
-                }
-
-                ret.add(t);
-            }
             case EMPTY_OPTIONAL ->{
                 TypeFrame f = typeStack.pop();
                 if(f.type!=Type.TYPE){
@@ -2943,7 +2910,8 @@ public class Interpreter {
 
                 ret.add(t);
             }
-            case TYPE_OF,CONTENT,IN_TYPES,OUT_TYPES,TYPE_NAME,TYPE_FIELDS,IS_ENUM,IS_LIST,IS_PROC,IS_OPTIONAL,IS_TUPLE,LENGTH ->
+            case TYPE_OF,CONTENT,IN_TYPES,OUT_TYPES,TYPE_NAME,TYPE_FIELDS,
+                    IS_ENUM,IS_LIST,IS_PROC,IS_OPTIONAL,IS_TUPLE,LENGTH,HAS_VALUE ->
                 throw new RuntimeException("Operators of type "+op.opType+" should not exist at this stage of compilation "+t.pos);
             case GET_INDEX -> {
                 TypeFrame index = typeStack.pop();
@@ -3013,46 +2981,6 @@ public class Interpreter {
                         !list.isList()||!val.isSubtype(list)){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+val+" "+off+" "+to,op.pos);
                 }
-
-                ret.add(t);
-            }
-            case PUSH_FIRST -> {
-                Type b = typeStack.pop().type;
-                Type a = typeStack.pop().type;
-                if(!b.isList()||!a.isSubtype(b.content())){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
-                }
-                typeStack.push(new TypeFrame(b,null,t.pos));
-
-                ret.add(t);
-            }
-            case PUSH_ALL_FIRST -> {
-                Type b = typeStack.pop().type;
-                Type a = typeStack.pop().type;
-                if(!b.isList()||!a.isSubtype(b)){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
-                }
-                typeStack.push(new TypeFrame(b,null,t.pos));
-
-                ret.add(t);
-            }
-            case PUSH_LAST -> {
-                Type b = typeStack.pop().type;
-                Type a = typeStack.pop().type;
-                if(!a.isList()||!b.isSubtype(a.content())){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
-                }
-                typeStack.push(new TypeFrame(a,null,t.pos));
-
-                ret.add(t);
-            }
-            case PUSH_ALL_LAST -> {
-                Type b = typeStack.pop().type;
-                Type a = typeStack.pop().type;
-                if(!a.isList()||!b.isSubtype(a)){
-                    throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+a+" "+b,op.pos);
-                }
-                typeStack.push(new TypeFrame(a,null,t.pos));
 
                 ret.add(t);
             }
@@ -3345,6 +3273,18 @@ public class Interpreter {
                                 }
                                 default -> hasField = false;
                             }
+                        }else if(f.type.isOptional()){
+                            if(identifier.name.equals("hasValue")){
+                                typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                        f.value.hasValue() ? Value.TRUE : Value.FALSE, t.pos));
+                                ret.add(new OperatorToken(OperatorType.HAS_VALUE, t.pos));
+                                hasField=true;
+                            }else if(identifier.name.equals("value")){
+                                typeStack.push(new TypeFrame(f.type.content(), null, t.pos));
+                                //addLater re-add explicit unwrapping of optionals (with static check if optional is nonempty)
+                                //hasField=true;
+                                throw new UnsupportedOperationException("unimplemented");
+                            }
                         }
                         if(!hasField)
                             throw new SyntaxError(f.type+" does not have a field "+identifier.name,t.pos);
@@ -3590,7 +3530,6 @@ public class Interpreter {
             case DIV -> { return "/"; }
             case MOD -> {return "%"; }
             case POW -> { return "**"; }
-            case NOT -> { return "!"; }
             case FLIP -> { return "~"; }
             case AND -> { return "&"; }
             case OR -> { return "|"; }
@@ -3613,18 +3552,13 @@ public class Interpreter {
             case SET_INDEX -> { return "[] =";}
             case GET_SLICE -> { return "[:]";}
             case SET_SLICE -> { return "[:] =";}
-            case PUSH_FIRST -> { return ">>:";}
-            case PUSH_ALL_FIRST -> { return "+:";}
-            case PUSH_LAST -> { return ":<<";}
-            case PUSH_ALL_LAST -> { return ":+";}
             case IS_ENUM     -> { return ".isEnum";}
             case IS_LIST     -> { return ".isList";}
             case IS_PROC     -> { return ".isProc";}
             case IS_OPTIONAL -> { return ".isOptional";}
             case IS_TUPLE    -> { return ".isTuple";}
             case OPTIONAL_OF -> { return "optional";}
-            case WRAP -> { return "wrap"; }
-            case HAS_VALUE -> { return "??";}
+            case HAS_VALUE -> { return ".hasValue";}
             case EMPTY_OPTIONAL -> { return "empty"; }
         }
         throw new RuntimeException("unreachable");
@@ -3673,10 +3607,6 @@ public class Interpreter {
     private void executeOperator(OperatorToken op, RandomAccessStack<Value> stack)
             throws RandomAccessStack.StackUnderflow, ConcatRuntimeError {
         switch (op.opType) {
-            case NOT -> {
-                Value v = stack.pop();
-                stack.push(v.asBool() ? Value.FALSE : Value.TRUE);
-            }
             case FLIP -> {
                 Value v = stack.pop();
                 stack.push(v.flip());
@@ -3815,30 +3745,6 @@ public class Interpreter {
                 Value list = stack.pop();
                 list.setSlice(off,to,val);
             }
-            case PUSH_FIRST -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                b.push(a,true);
-                stack.push(b);
-            }
-            case PUSH_LAST -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                a.push(b,false);
-                stack.push(a);
-            }
-            case PUSH_ALL_FIRST -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                b.pushAll(a,true);
-                stack.push(b);
-            }
-            case PUSH_ALL_LAST -> {
-                Value b = stack.pop();
-                Value a = stack.pop();
-                a.pushAll(b,false);
-                stack.push(a);
-            }
             case IS_LIST -> {
                 Type type = stack.pop().asType();
                 stack.push(type.isList()?Value.TRUE:Value.FALSE);
@@ -3866,10 +3772,6 @@ public class Interpreter {
             case EMPTY_OPTIONAL -> {
                 Type t= stack.pop().asType();
                 stack.push(Value.emptyOptional(t));
-            }
-            case WRAP -> {
-                Value value= stack.pop();
-                stack.push(Value.wrap(value));
             }
             case HAS_VALUE -> {
                 Value value= stack.peek();

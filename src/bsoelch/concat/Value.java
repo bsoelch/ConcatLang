@@ -1848,24 +1848,6 @@ public abstract class Value {
                 return new Value[]{Value.ofInt(values[0].id(),true)};
             }
         });
-        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"-_") {
-            @Override
-            Value[] callWith(Value[] values) throws TypeError {
-                return new Value[]{Value.ofInt(-(values[0].asLong()),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"-_") {
-            @Override
-            Value[] callWith(Value[] values) throws TypeError {
-                return new Value[]{Value.ofFloat(-(values[0].asDouble()))};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"/_") {
-            @Override
-            Value[] callWith(Value[] values) throws TypeError {
-                return new Value[]{Value.ofFloat(1.0/values[0].asDouble())};
-            }
-        });
         procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"===") {
             @Override
             Value[] callWith(Value[] values){
@@ -1911,6 +1893,33 @@ public abstract class Value {
                 }
             });
         }
+
+
+        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"-_") {
+            @Override
+            Value[] callWith(Value[] values) throws TypeError {
+                return new Value[]{Value.ofInt(-(values[0].asLong()),false)};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"-_") {
+            @Override
+            Value[] callWith(Value[] values) throws TypeError {
+                return new Value[]{Value.ofFloat(-(values[0].asDouble()))};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"/_") {
+            @Override
+            Value[] callWith(Value[] values) throws TypeError {
+                return new Value[]{Value.ofFloat(1.0/values[0].asDouble())};
+            }
+        });
+        procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!") {
+            @Override
+            Value[] callWith(Value[] values) throws TypeError {
+                return new Value[]{values[0].asBool()?FALSE:TRUE};
+            }
+        });
+
         {
             Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
             a.unbind();
@@ -1947,8 +1956,79 @@ public abstract class Value {
                 }
             });
         }
+        {//addLater rename >>: :<< to << >>
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),a},
+                    new Type[]{Type.listOf(a)},":<<") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list off count val
+                    values[0].push(values[1],false);
+                    return new Value[]{values[0]};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(a)},
+                    new Type[]{Type.listOf(a)},">>:") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list off count val
+                    values[1].push(values[0],true);
+                    return new Value[]{values[1]};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
+                    new Type[]{Type.listOf(a)},":+") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list off count val
+                    values[0].pushAll(values[1],false);
+                    return new Value[]{values[0]};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
+                    new Type[]{Type.listOf(a)},"+:") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list off count val
+                    values[1].pushAll(values[0],true);
+                    return new Value[]{values[1]};
+                }
+            });
+        }
 
-
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{Type.optionalOf(a)},"wrap") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    return new Value[]{wrap(values[0])};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            a.unbind();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.optionalOf(a)},new Type[]{Type.BOOL},"!") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    return new Value[]{values[0].hasValue()?FALSE:TRUE};
+                }
+            });
+        }
 
         return procs;
     }

@@ -492,7 +492,7 @@ Context.getDeclareable proc #+context+# Context #+name+# string => Declareable o
       context RootContext.currentPaths string list paths =:
       paths .length 1 - int i =:
       while i 0 >= do ##go through all namespaces
-        context Context.elements paths i [] clone name :+ HashMap.get ?? if
+        context Context.elements paths i [] clone name :+ HashMap.get dup .hasValue if
           #+element+# Declareable optional cast return
         else drop end
         i 1 - i =
@@ -500,7 +500,7 @@ Context.getDeclareable proc #+context+# Context #+name+# string => Declareable o
       context Context.elements name HashMap.get return
       end-case
     PROC_CONTEXT BLOCK_CONTEXT case
-      context Context.elements name HashMap.get ?? if
+      context Context.elements name HashMap.get dup .hasValue if
         #+element+# Declareable optional cast return
       else drop
         context BlockContext.parent name Context.getDeclareable return
@@ -681,10 +681,10 @@ RootContext.declareProcedure proc #+context+# RootContext #+name+# string #+proc
   string name =:
   RootContext context =:
   context name DeclareableType .PROCEDURE aProc Declareable.pos Context.ensureDeclareable name =
-  context RootContext.predeclared name HashMap.remove ?? if
+  context RootContext.predeclared name HashMap.remove if
     ##TODO handle predeclared procedure
     drop
-  else drop end
+  end
   context Context.elements name aProc HashMap.put drop
 end
 ##addLater predeclareProcedure
