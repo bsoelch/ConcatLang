@@ -156,21 +156,21 @@ fprint  proc var FILE => bool : swap stringValue swap     fputs return end
 8 int __IO_FLAG_SGN_SPACE =$
 
 _IO_Format tuple bool end
-__IO.isValue proc _IO_Format => bool   : 0 [] end
+__IO.isValue proc _IO_Format => bool   : .0 end
 ## isValue:bool value:string$
 __IO_FormatString tuple bool string end
-__IO.value   proc __IO_FormatString => string : 1 [] end
+__IO.value   proc __IO_FormatString => string : .1 end
 ##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:byte (char)
 __IO_FormatValue tuple bool int int int bool int bool int bool byte end
-__IO.index  proc __IO_FormatValue => int  : 1 [] end
-__IO.flags  proc __IO_FormatValue => int  : 2 [] end
-__IO.w      proc __IO_FormatValue => int  : 3 [] end
-__IO.w_ptr  proc __IO_FormatValue => bool : 4 [] end
-__IO.p      proc __IO_FormatValue => int  : 5 [] end
-__IO.p_ptr  proc __IO_FormatValue => bool : 6 [] end
-__IO.b      proc __IO_FormatValue => int  : 7 [] end
-__IO.b_ptr  proc __IO_FormatValue => bool : 8 [] end
-__IO.format proc __IO_FormatValue => byte : 9 [] end
+__IO.index  proc __IO_FormatValue => int  : .1 end
+__IO.flags  proc __IO_FormatValue => int  : .2 end
+__IO.w      proc __IO_FormatValue => int  : .3 end
+__IO.w_ptr  proc __IO_FormatValue => bool : .4 end
+__IO.p      proc __IO_FormatValue => int  : .5 end
+__IO.p_ptr  proc __IO_FormatValue => bool : .6 end
+__IO.b      proc __IO_FormatValue => int  : .7 end
+__IO.b_ptr  proc __IO_FormatValue => bool : .8 end
+__IO.format proc __IO_FormatValue => byte : .9 end
 
 __IO_printValue proc __IO_FormatValue var list => string : ## addLater runtime checks for correct types
   var list values =:

@@ -23,16 +23,16 @@ io #import
 
 
 FilePosition tuple string uint uint end
-FilePosition.fileName   proc FilePosition => string : 0 []   end
-FilePosition.line       proc FilePosition => uint   : 1 []   end
-FilePosition.line=      proc FilePosition uint =>   : 1 [] = end
-FilePosition.posInLine  proc FilePosition => uint   : 2 []   end
-FilePosition.posInLine= proc FilePosition uint =>   : 2 [] = end
+FilePosition.fileName   proc FilePosition => string : .0   end
+FilePosition.line       proc FilePosition => uint   : .1   end
+FilePosition.line=      proc uint FilePosition =>   : .1 = end
+FilePosition.posInLine  proc FilePosition => uint   : .2   end
+FilePosition.posInLine= proc uint FilePosition =>   : .2 = end
 FilePosition.newLine    proc FilePosition => :
-  dup dup 1 [] 1 + 1 [] = 1 2 [] =
+  dup dup .1 1 + swap .1 = 1 swap .2 =
 end
 FilePosition.nextChar   proc FilePosition => :
-  dup 2 [] 1 + 2 [] =
+  dup .2 1 + swap .2 =
 end
 FilePosition.strAppend proc string FilePosition => string :
   FilePosition position =:
@@ -43,19 +43,19 @@ FilePosition.strAppend proc string FilePosition => string :
 end
 
 NameWithPos tuple string FilePosition end
-NameWithPos.name proc NameWithPos => string       : 0 [] end
-NameWithPos.pos  proc NameWithPos => FilePosition : 1 [] end
+NameWithPos.name proc NameWithPos => string       : .0 end
+NameWithPos.pos  proc NameWithPos => FilePosition : .1 end
 
 TypeType enum PRIMITIVE_TYPE TUPLE_TYPE ENUM_TYPE WRAPPER_TYPE end
 Type tuple TypeType end
-Type.type proc Type => TypeType : 0 [] end
+Type.type proc Type => TypeType : .0 end
 
 PrimitiveType tuple TypeType type end
-PrimitiveType.wrapped proc PrimitiveType => type : 1 [] end
+PrimitiveType.wrapped proc PrimitiveType => type : .1 end
 
 TupleType tuple TypeType #+name+# string #+types+# Type list end
-TupleType.name  proc TupleType => string    : 1 [] end
-TupleType.types proc TupleType => Type list : 2 [] end
+TupleType.name  proc TupleType => string    : .1 end
+TupleType.types proc TupleType => Type list : .2 end
 newTupleType proc #+name+# string #+types+# Type list => TupleType :
   Type list elements =:
   string name =:
@@ -63,8 +63,8 @@ newTupleType proc #+name+# string #+types+# Type list => TupleType :
 end
 
 EnumType tuple TypeType #+name+# string #+fields+# NameWithPos list end
-EnumType.name   proc EnumType => string           : 1 [] end
-EnumType.fields proc EnumType => NameWithPos list : 2 [] end
+EnumType.name   proc EnumType => string           : .1 end
+EnumType.fields proc EnumType => NameWithPos list : .2 end
 newEnumType proc #+name+# string #+fields+# NameWithPos list => EnumType :
   NameWithPos list fields =:
   string name =:
@@ -73,8 +73,8 @@ end
 
 WrapperTypeType enum LIST OPTIONAL VAR_ARGS end
 WrapperType tuple TypeType WrapperTypeType Type end
-WrapperType.wrapperType proc WrapperType => WrapperTypeType : 1 [] end
-WrapperType.wrapped     proc WrapperType => Type            : 2 [] end
+WrapperType.wrapperType proc WrapperType => WrapperTypeType : .1 end
+WrapperType.wrapped     proc WrapperType => Type            : .2 end
 
 Type.strAppend proc string Type => string :
   Type t =:
@@ -126,8 +126,8 @@ TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.BYTE      WrapperType new Type
 TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.CODEPOINT WrapperType new Type Type.USTRING =$
 
 Value tuple Type var end
-Value.type proc Value => Type : 0 [] end
-Value.data proc Value => var  : 1 [] end
+Value.type proc Value => Type : .0 end
+Value.data proc Value => var  : .1 end
 
 Value.strAppend proc string Value => string :
   Value v =:
@@ -176,13 +176,13 @@ BlockType enum
   TUPLE_BLOCK
 end
 CodeBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int end
-CodeBlock.type     proc CodeBlock => BlockType    : 0 [] end
-CodeBlock.startPos proc CodeBlock => FilePosition : 1 [] end
-CodeBlock.start    proc CodeBlock => int          : 2 [] end
+CodeBlock.type     proc CodeBlock => BlockType    : .0 end
+CodeBlock.startPos proc CodeBlock => FilePosition : .1 end
+CodeBlock.start    proc CodeBlock => int          : .2 end
 
 WhileBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int #+forkPos+# int end
-WhileBlock.forkPos  proc WhileBlock => int : 3 []   end
-WhileBlock.forkPos= proc WhileBlock int => : 3 [] = end
+WhileBlock.forkPos  proc WhileBlock => int : .3   end
+WhileBlock.forkPos= proc int WhileBlock => : .3 = end
 newWhileBlock proc #+startPos+# FilePosition #+start+# int => WhileBlock :
   int start =:
   FilePosition startPos =:
@@ -190,9 +190,9 @@ newWhileBlock proc #+startPos+# FilePosition #+start+# int => WhileBlock :
 end
 
 IfBlock tuple  #+type+# BlockType #+startPos+# FilePosition #+start+# int #+prev_if+# int #+else_positions+# uint list end
-IfBlock.prevIf         proc IfBlock => int      : 3 []   end
-IfBlock.prevIf=        proc IfBlock int =>      : 3 [] = end
-IfBlock.else_positions proc IfBlock => uint list : 4 []   end
+IfBlock.prevIf         proc IfBlock => int       : .3   end
+IfBlock.prevIf=        proc int IfBlock =>       : .3 = end
+IfBlock.else_positions proc IfBlock => uint list : .4   end
 newIfBlock proc #+startPos+# FilePosition #+start+# int => IfBlock :
   int start =:
   FilePosition startPos =:
@@ -201,8 +201,8 @@ end
 
 EnumBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int
   #+name+# string #+elements+# NameWithPos list end
-EnumBlock.name     proc EnumBlock => string           : 3 [] end
-EnumBlock.elements proc EnumBlock => NameWithPos list : 4 [] end
+EnumBlock.name     proc EnumBlock => string           : .3 end
+EnumBlock.elements proc EnumBlock => NameWithPos list : .4 end
 newEnumBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => EnumBlock :
   int start =:
   FilePosition startPos =:
@@ -210,7 +210,7 @@ newEnumBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => Enu
   BlockType .ENUM_BLOCK startPos start name 16 NameWithPos list new EnumBlock new return
 end
 TupleBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int #+name+# string end
-TupleBlock.name proc TupleBlock => string : 3 [] end
+TupleBlock.name proc TupleBlock => string : .3 end
 newTupleBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => TupleBlock :
   int start =:
   FilePosition startPos =:
@@ -260,22 +260,22 @@ DeclareableType.strAppend proc #+str+# string #+a+# bool #+type+# DeclareableTyp
 end
 
 Declareable tuple #+type+# DeclareableType #+pos+# FilePosition end
-Declareable.type proc Declareable => DeclareableType : 0 []   end
-Declareable.pos  proc Declareable => FilePosition    : 1 []   end
-Declareable.pos= proc Declareable FilePosition =>    : 1 [] = end
+Declareable.type proc Declareable => DeclareableType : .0   end
+Declareable.pos  proc Declareable => FilePosition    : .1   end
+Declareable.pos= proc FilePosition Declareable =>    : .1 = end
 
 ContextType enum ROOT_CONTEXT PROC_CONTEXT BLOCK_CONTEXT end
 
 Context tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType end
-Context.elements    proc Context => string Declareable HashMap : 0 [] end
-Context.varCount    proc Context => int                        : 1 [] end
-Context.type        proc Context => ContextType                : 2 [] end
-Context.incVarCount proc Context => : dup 1 [] 1 + 1 [] = end
+Context.elements    proc Context => string Declareable HashMap : .0 end
+Context.varCount    proc Context => int                        : .1 end
+Context.type        proc Context => ContextType                : .2 end
+Context.incVarCount proc Context => : dup .1 1 + swap .1 = end
 
 Macro tuple #+type+# DeclareableType #+pos+# FilePosition #+name+# string #+words+# NameWithPos list end
-Macro.name  proc Macro => string           : 2 []   end
-Macro.name= proc Macro string =>           : 2 [] = end
-Macro.words proc Macro => NameWithPos list : 3 []   end
+Macro.name  proc Macro => string           : .2   end
+Macro.name= proc string Macro  =>          : .2 = end
+Macro.words proc Macro => NameWithPos list : .3   end
 newMacro proc FilePosition string => Macro :
   string name =:
   FilePosition mPos =:
@@ -283,9 +283,9 @@ newMacro proc FilePosition string => Macro :
 end
 
 VariableId tuple #+type+# DeclareableType #+pos+# FilePosition #+global+# bool #+level+# int #+varId+# int end
-VariableId.global  proc VariableId => bool : 2 [] end
-VariableId.level   proc VariableId => int  : 3 [] end
-VariableId.varId   proc VariableId => int  : 4 [] end
+VariableId.global  proc VariableId => bool : .2 end
+VariableId.level   proc VariableId => int  : .3 end
+VariableId.varId   proc VariableId => int  : .4 end
 VariableId.isConst proc VariableId => bool :
   Declareable.type DeclareableType .FINAL_VARIABLE ==
 end
@@ -295,15 +295,15 @@ PredeclaredProc tuple #+type+# DeclareableType #+pos+# FilePosition end ##TODO p
 Procedure tuple #+type+# DeclareableType #+pos+# FilePosition end ##TODO proc
 
 Enum tuple #+type+# DeclareableType #+pos+# FilePosition #+enum-type+# EnumType end
-Enum.enumType proc Enum => EnumType : 2 [] end
+Enum.enumType proc Enum => EnumType : .2 end
 newEnum proc #+pos+# FilePosition #+name+# string #+fields+# NameWithPos list => Enum :
   #+fields+# #+name+# newEnumType EnumType enumType =:
   FilePosition fPos =:
   DeclareableType .ENUM fPos enumType Enum new return
 end
 EnumEntry tuple #+type+# DeclareableType #+pos+# FilePosition #+enum-type+# EnumType #+index+# int end
-EnumEntry.enumType proc EnumEntry => EnumType : 2 [] end
-EnumEntry.index proc EnumEntry => int : 3 [] end
+EnumEntry.enumType proc EnumEntry => EnumType : .2 end
+EnumEntry.index proc EnumEntry => int : .3 end
 newEnumEntry proc #+enumType+# EnumType #+index+# int => EnumEntry :
   int index =:
   EnumType enumType =:
@@ -311,7 +311,7 @@ newEnumEntry proc #+enumType+# EnumType #+index+# int => EnumEntry :
 end
 
 Tuple tuple #+type+# DeclareableType #+pos+# FilePosition #+tupleType+# TupleType end
-Tuple.tupleType proc Tuple => TupleType : 2 [] end
+Tuple.tupleType proc Tuple => TupleType : .2 end
 
 VariableId.strAppend proc string VariableId => string :
   Declareable d =:
@@ -353,10 +353,10 @@ end
 
 OpenModule tuple #+path+# string list #+declaredAt+# FilePosition #+imports+# string list
   #+predeclared+# string PredeclaredProc HashMap end
-OpenModule.path        proc OpenModule => string list                    : 0 [] end
-OpenModule.declaredAt  proc OpenModule => FilePosition                   : 1 [] end
-OpenModule.imports     proc OpenModule => string list                    : 2 [] end
-OpenModule.predeclared proc OpenModule => string PredeclaredProc HashMap : 3 [] end
+OpenModule.path        proc OpenModule => string list                    : .0 end
+OpenModule.declaredAt  proc OpenModule => FilePosition                   : .1 end
+OpenModule.imports     proc OpenModule => string list                    : .2 end
+OpenModule.predeclared proc OpenModule => string PredeclaredProc HashMap : .3 end
 newOpenModule proc #+path+# string list #+declaredAt+# FilePosition => OpenModule :
   16 string list new 16 string PredeclaredProc newHashMap OpenModule new return
 end
@@ -372,9 +372,9 @@ end
 
 OpenFile tuple #+global imports +# string list #+global predeclared+# string PredeclaredProc HashMap
     #+openModules+# OpenModule list end
-OpenFile.globalImports     proc OpenFile => string list                    : 0 [] end
-OpenFile.globalPredeclared proc OpenFile => string PredeclaredProc HashMap : 1 [] end
-OpenFile.openModules       proc OpenFile => OpenModule list                : 2 [] end
+OpenFile.globalImports     proc OpenFile => string list                    : .0 end
+OpenFile.globalPredeclared proc OpenFile => string PredeclaredProc HashMap : .1 end
+OpenFile.openModules       proc OpenFile => OpenModule list                : .2 end
 
 newOpenFile proc => OpenFile :
   16 string list new
@@ -385,8 +385,8 @@ end
 
 RootContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType
     #+openFiles+# OpenFile list #+namespaces+# string bool HashMap end
-RootContext.openFiles  proc RootContext => OpenFile list       : 3 [] end
-RootContext.namespaces proc RootContext => string bool HashMap : 4 [] end
+RootContext.openFiles  proc RootContext => OpenFile list       : .3 end
+RootContext.namespaces proc RootContext => string bool HashMap : .4 end
 newRootContext proc => RootContext :
   16 string Declareable newHashMap
   0
@@ -397,7 +397,7 @@ newRootContext proc => RootContext :
 end
 
 BlockContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context end
-BlockContext.parent proc BlockContext => Context : 3 [] end
+BlockContext.parent proc BlockContext => Context : .3 end
 newBlockContext proc #+parent+# Context => BlockContext :
   Context parent =:
   16 string Declareable newHashMap 0 ContextType .BLOCK_CONTEXT parent BlockContext new return
@@ -405,7 +405,7 @@ end
 
 ProcContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context
    #+curried+# CurriedVariable list end
-ProcContext.curried proc ProcContext => CurriedVariable list : 4 [] end
+ProcContext.curried proc ProcContext => CurriedVariable list : .4 end
 
 Context.isGlobal proc Context => bool :
   Context context =:
@@ -756,23 +756,23 @@ TokenType enum
   CONTEXT_CLOSE
 end
 Token tuple TokenType FilePosition end
-Token.type  proc Token => TokenType    : 0 [] end
-Token.pos   proc Token => FilePosition : 1 [] end
+Token.type  proc Token => TokenType    : .0 end
+Token.pos   proc Token => FilePosition : .1 end
 
 WordToken tuple TokenType FilePosition string end
-WordToken.value proc WordToken => string : 2 [] end
+WordToken.value proc WordToken => string : .2 end
 
 ValueToken tuple TokenType FilePosition Value end
-ValueToken.value proc ValueToken => Value : 2 [] end
+ValueToken.value proc ValueToken => Value : .2 end
 
 BlockTokenType enum IF ELSE _IF END-IF WHILE DO END-WHILE DO-WHILE SWITCH CASE END-CASE DEFAULT END-SWITCH end
 BlockToken tuple TokenType FilePosition BlockTokenType int end
-BlockToken.type    proc BlockToken => BlockTokenType : 2 []   end
-BlockToken.target  proc BlockToken => int            : 3 []   end
-BlockToken.target= proc BlockToken int =>            : 3 [] = end
+BlockToken.type    proc BlockToken => BlockTokenType : .2   end
+BlockToken.target  proc BlockToken => int            : .3   end
+BlockToken.target= proc int BlockToken =>            : .3 = end
 
 ContextToken tuple TokenType FilePosition Context end
-ContextToken.varCount proc ContextToken => int : 2 [] Context.varCount end
+ContextToken.varCount proc ContextToken => int : .2 Context.varCount end
 
 IdentifierType enum
   WRITE
@@ -781,8 +781,8 @@ IdentifierType enum
   ADDRESS_OF
 end
 IdentifierToken tuple TokenType FilePosition IdentifierType string end
-IdentifierToken.idType proc IdentifierToken => IdentifierType : 2 [] end
-IdentifierToken.value  proc IdentifierToken => string         : 3 [] end
+IdentifierToken.idType proc IdentifierToken => IdentifierType : .2 end
+IdentifierToken.value  proc IdentifierToken => string         : .3 end
 
 OperatorType enum
   PLUS MINUS NEGATE INVERT MULTIPLY DIVIDE MOD
@@ -790,14 +790,14 @@ OperatorType enum
   LT LE EQ REF_EQ REF_NE NE GE GT
 end
 OperatorToken tuple TokenType FilePosition OperatorType end
-OperatorToken.opType proc OperatorToken => OperatorType : 2 [] end
+OperatorToken.opType proc OperatorToken => OperatorType : .2 end
 
 AccessType enum
   DECLARE_CONST DECLARE_VAR WRITE_VAR READ_VAR
 end
 VariableToken tuple TokenType FilePosition AccessType VariableId end
-VariableToken.accessType proc VariableToken => AccessType : 2 [] end
-VariableToken.id         proc VariableToken => VariableId : 3 [] end
+VariableToken.accessType proc VariableToken => AccessType : .2 end
+VariableToken.id         proc VariableToken => VariableId : .3 end
 
 
 Token.strAppend proc string Token => string :
@@ -832,15 +832,15 @@ Token.strAppend proc string Token => string :
 end
 
 ParserReader tuple BufferedInput FilePosition string FilePosition end
-ParserReader.in       proc ParserReader => BufferedInput : 0 [] end
-ParserReader.pos      proc ParserReader => FilePosition  : 1 [] end
-ParserReader.word     proc ParserReader => string        : 2 [] end
-ParserReader.wordPos  proc ParserReader => FilePosition  : 3 [] end
+ParserReader.in       proc ParserReader => BufferedInput : .0 end
+ParserReader.pos      proc ParserReader => FilePosition  : .1 end
+ParserReader.word     proc ParserReader => string        : .2 end
+ParserReader.wordPos  proc ParserReader => FilePosition  : .3 end
 ParserReader.nextWord proc ParserReader => :
   ParserReader reader =:
   reader ParserReader.word clear
-  reader ParserReader.wordPos  reader ParserReader.pos FilePosition.line       FilePosition.line=
-  reader ParserReader.wordPos  reader ParserReader.pos FilePosition.posInLine  FilePosition.posInLine=
+  reader ParserReader.pos FilePosition.line       reader ParserReader.wordPos FilePosition.line=
+  reader ParserReader.pos FilePosition.posInLine  reader ParserReader.wordPos FilePosition.posInLine=
 end
 ParserReader.nextByte proc ParserReader => byte optional :
   ParserReader reader =:
@@ -866,14 +866,14 @@ ParseState enum
 end
 
 OpenBlocks tuple Macro CodeBlock list end
-OpenBlocks.currentMacro  proc OpenBlocks => Macro          : 0 []   end
-OpenBlocks.currentMacro= proc OpenBlocks Macro =>          : 0 [] = end
-OpenBlocks.blocks        proc OpenBlocks => CodeBlock list : 1 []   end
+OpenBlocks.currentMacro  proc OpenBlocks => Macro          : .0   end
+OpenBlocks.currentMacro= proc Macro OpenBlocks =>          : .0 = end
+OpenBlocks.blocks        proc OpenBlocks => CodeBlock list : .1   end
 
 Program tuple #+tokens+# Token list #+root-context+# Context end
-Program.tokens   proc Program => Token list : 0 []   end
-Program.context  proc Program => Context    : 1 []   end
-Program.context= proc Program Context =>    : 1 [] = end
+Program.tokens   proc Program => Token list : .0   end
+Program.context  proc Program => Context    : .1   end
+Program.context= proc Context Program  =>   : .1 = end
 
 
 parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_blocks+# OpenBlocks
@@ -890,7 +890,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
       word switch
       "#end" case
         context openBlocks OpenBlocks.currentMacro RootContext.declareMacro
-        openBlocks fPos "" newMacro OpenBlocks.currentMacro=
+        fPos "" newMacro  openBlocks OpenBlocks.currentMacro=
         end-case
       "#define" "#undef" "#namespace" "#include" "#import" "proc" "procedure" "enum" "tuple" case
         word " is not allowed in macros " :+ fPos FilePosition.strAppend '\n' :<< eputs
@@ -968,8 +968,8 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         1 exit
       end
       tokens tokens .length 1 - tokens .length [:] clear
-      openBlocks OpenBlocks.currentMacro prev WordToken.value Macro.name=
-      openBlocks OpenBlocks.currentMacro prev Token.pos   Declareable.pos=
+      prev WordToken.value  openBlocks OpenBlocks.currentMacro Macro.name=
+      prev Token.pos        openBlocks OpenBlocks.currentMacro Declareable.pos=
       end-case
     "#undef" case
       openBlocks OpenBlocks.blocks .length 0 > if
@@ -1301,11 +1301,11 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           "\n previous appearance at " :+ tokens block WhileBlock.forkPos [] Token.pos FilePosition.strAppend '\n' :<< eputs
           1 exit
         end
-        block tokens .length WhileBlock.forkPos=
+        tokens .length block WhileBlock.forkPos=
         tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .DO -1 BlockToken new :<< tokens =
         ##open while-context
         context newBlockContext context =
-        program context Program.context=
+        context program Program.context=
         tokens TokenType .CONTEXT_OPEN fPos context ContextToken new :<< tokens =
         end-case
       "if" case
@@ -1313,7 +1313,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .IF 0 BlockToken new :<< tokens =
         ##open if-context
         context newBlockContext context =
-        program context Program.context=
+        context program Program.context=
         tokens TokenType .CONTEXT_OPEN fPos context ContextToken new :<< tokens =
         end-case
       "else" case
@@ -1333,7 +1333,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         end
         ##close if-context
         context BlockContext.parent context =
-        program context Program.context=
+        context program Program.context=
         tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
         block IfBlock.else_positions .length 0 > if
           ##close else-context
@@ -1345,12 +1345,12 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         tmp Token.type TokenType .BLOCK_TOKEN == &&
           tmp BlockToken.type BlockTokenType .IF == || tmp BlockToken.type BlockTokenType ._IF == end end
           "token at fork-pos of If-statement has to be BlockToken:'if' or BlockToken:'_if'" assert
-        tmp tokens .length block IfBlock.prevIf - BlockToken.target=
-        block -1 IfBlock.prevIf=
+        tokens .length block IfBlock.prevIf - tmp BlockToken.target=
+        -1 block IfBlock.prevIf=
         block IfBlock.else_positions .length 1 <= if
           ##open else-context
           context newBlockContext context =
-          program context Program.context=
+          context program Program.context=
           tokens TokenType .CONTEXT_OPEN fPos context ContextToken new :<< tokens =
         end
         end-case
@@ -1369,11 +1369,11 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             fPos FilePosition.strAppend '\n' :<< eputs
           1 exit
         end
-        block tokens .length IfBlock.prevIf=
+        tokens .length block IfBlock.prevIf=
         tokens TokenType .BLOCK_TOKEN fPos BlockTokenType ._IF 0 BlockToken new :<< tokens =
         ##open if-context
         context newBlockContext context =
-        program context Program.context=
+        context program Program.context=
         tokens TokenType .CONTEXT_OPEN fPos context ContextToken new :<< tokens =
         end-case
       "switch" case
@@ -1405,13 +1405,13 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           block IfBlock.prevIf -1 != if
             ##close if-context
             context BlockContext.parent context =
-            program context Program.context=
+            context program Program.context=
             tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
             tokens block IfBlock.prevIf [] Token tmp =:
             tmp Token.type TokenType .BLOCK_TOKEN == &&
               tmp BlockToken.type BlockTokenType .IF == || tmp BlockToken.type BlockTokenType ._IF == end end
               "token at fork-pos of If-statement has to be BlockToken:'if' or BlockToken:'_if'" assert
-            tmp tokens .length block IfBlock.prevIf - BlockToken.target=
+            tokens .length block IfBlock.prevIf - tmp BlockToken.target=
             block IfBlock.else_positions .length 0 > if
               ## close-else context
               tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
@@ -1425,13 +1425,13 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
             tokens block IfBlock.else_positions i [] [] Token tmp =:
             tmp Token.type TokenType .BLOCK_TOKEN == && tmp BlockToken.type BlockTokenType .ELSE == end
             "token at end of if-branch has to be BlockToken:'else'" assert
-            tmp tokens .length block IfBlock.else_positions i [] - BlockToken.target=
+            tokens .length block IfBlock.else_positions i [] - tmp BlockToken.target=
             i 1 + i =
           end
           block IfBlock.else_positions .length 0 > if
             ##close-else context
             context BlockContext.parent context =
-            program context Program.context=
+            context program Program.context=
           end
           tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .END-IF 0 BlockToken new :<< tokens =
           end-case
@@ -1443,7 +1443,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           end
           ##close context
           context BlockContext.parent context =
-          program context Program.context=
+          context program Program.context=
           tokens TokenType .CONTEXT_CLOSE fPos Token new :<< tokens =
           tokens block WhileBlock.forkPos [] Token tmp =:
           tmp Token.type TokenType .BLOCK_TOKEN == && tmp BlockToken.type BlockTokenType .DO == end
@@ -1456,7 +1456,7 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           else
             tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .END-WHILE
               block CodeBlock.start tokens .length - BlockToken new :<< tokens =
-            tmp tokens .length block WhileBlock.forkPos - BlockToken.target=
+            tokens .length block WhileBlock.forkPos - tmp BlockToken.target=
           end
           end-case
         SWITCH_BLOCK case

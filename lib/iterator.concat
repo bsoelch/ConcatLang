@@ -17,9 +17,9 @@ end
 ^> proc A <?> A Iterator => A Iterator A optional :
   A Iterator mItr =:
   mItr
-  mItr 1 [] mItr 0 [] .length < if
-    mItr 0 [] mItr 1 [] [] wrap ## push element
-    mItr  mItr 1 [] 1 +  1 [] = ## increment iterator
+  mItr .1 mItr .0 .length < if
+    mItr .0 mItr .1 [] wrap ## push element
+    mItr .1 1 + mItr .1 = ## increment iterator
   else
     A empty return
   end
@@ -28,9 +28,9 @@ end
 <^ proc A <?> A Iterator => A Iterator A optional :
   A Iterator mItr =:
   mItr
-  mItr 1 [] 0 > if
-    mItr  mItr 1 [] 1 -  1 [] = ## decrement iterator
-    mItr 0 [] mItr 1 [] [] wrap ## push element
+  mItr .1 0 > if
+    mItr .1 1 - mItr .1 = ## decrement iterator
+    mItr .0 mItr .1 [] wrap ## push element
   else
     A empty return
   end

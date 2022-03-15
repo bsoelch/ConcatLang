@@ -19,9 +19,9 @@ core #import
 1000 ensureCap println
 testTuple tuple int float int end
 1 2 3 testTuple new dup println
-dup clone dup  42 1 [] = println
-dup       dup 2.0 0 [] = println
-2 [] println
+dup clone  42 over .1 = println
+dup       2.0 over .0 = println
+.2 println
 
 lists #include
 lists #import

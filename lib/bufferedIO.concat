@@ -6,9 +6,9 @@ io #include
 io #namespace
 
 BufferedInput tuple FILE byte list int end
-BufferedInput.file   proc BufferedInput => FILE      : 0 [] end
-BufferedInput.buffer proc BufferedInput => byte list : 1 [] end
-BufferedInput.cap    proc BufferedInput => int       : 2 [] end
+BufferedInput.file   proc BufferedInput => FILE      : .0 end
+BufferedInput.buffer proc BufferedInput => byte list : .1 end
+BufferedInput.cap    proc BufferedInput => int       : .2 end
 
 newBufferedInput proc FILE #+ cap +# int => BufferedInput :
     int cap =:

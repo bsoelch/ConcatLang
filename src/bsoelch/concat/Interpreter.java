@@ -29,7 +29,8 @@ public class Interpreter {
         BLOCK_TOKEN,//jump commands only for internal representation
         SWITCH,
         EXIT,
-        CAST_ARG //internal operation to cast function arguments without putting them to the top of the stack
+        CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
+        TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
     }
 
     record StringWithPos(String str,FilePosition start){
@@ -59,7 +60,7 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NATIVE_DECLARE,GET_FIELD,IMPLICIT_DECLARE
+        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NATIVE_DECLARE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE
     }
     static class IdentifierToken extends Token {
         final IdentifierType type;
@@ -237,6 +238,13 @@ public class Interpreter {
             this.tokens = tokens;
             this.context = context;
             this.endPos=endPos;
+        }
+    }
+    static class TupleElementAccess extends Token{
+        final int index;
+        TupleElementAccess(int index, boolean set, FilePosition pos) {
+            super(set?TokenType.TUPLE_SET_INDEX:TokenType.TUPLE_GET_INDEX, pos);
+            this.index = index;
         }
     }
 
@@ -1934,6 +1942,8 @@ public class Interpreter {
                     }else if(prev instanceof IdentifierToken){
                         if(((IdentifierToken) prev).type == IdentifierType.WORD){
                             prev=new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
+                        }else if(((IdentifierToken) prev).type == IdentifierType.GET_FIELD){
+                            prev=new IdentifierToken(IdentifierType.SET_FIELD,((IdentifierToken) prev).name,prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
                         }
@@ -2006,7 +2016,7 @@ public class Interpreter {
                             name=name.substring(1);
                             isPtr=true;
                         }
-                        prev=tokens.get(tokens.size()-1);
+                        prev = tokens.size()>0 ? tokens.get(tokens.size()-1) : null;
                         if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.WORD&&
                                 pState.rootContext.namespaces.contains(((IdentifierToken) prev).name)){
                             tokens.set(tokens.size()-1,new IdentifierToken(isPtr?IdentifierType.PROC_ID:IdentifierType.WORD,
@@ -2623,7 +2633,7 @@ public class Interpreter {
                     ret.add(new CallPtrToken(generics,t.pos));
                 }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,
-                        CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,UPDATE_GENERICS,LAMBDA ->
+                        CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,UPDATE_GENERICS,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -2922,12 +2932,7 @@ public class Interpreter {
                 if(container.type.isList()) {
                     typeStack.push(new TypeFrame(container.type.content(), null, t.pos));
                 }else if(container.type instanceof Type.Tuple){
-                    if(index.value!=null){
-                        typeStack.push(new TypeFrame(((Type.Tuple) container.type).get(index.value.asLong()), null, t.pos));
-                    }else{
-                        //addLater use common supertype of all elements instead of ANY
-                        typeStack.push(new TypeFrame(Type.ANY, null, t.pos));
-                    }
+                    typeStack.push(new TypeFrame(Type.ANY, null, t.pos));
                 }else{
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+container.type+" "+index.type,op.pos);
                 }
@@ -2937,26 +2942,8 @@ public class Interpreter {
                 TypeFrame index = typeStack.pop();
                 Type val   = typeStack.pop().type;
                 Type list  = typeStack.pop().type;
-                if((index.type!=Type.INT&&index.type!=Type.UINT)||
-                        (!((list.isList()&&val.isSubtype(list.content()))||list instanceof Type.Tuple))){
+                if((index.type!=Type.INT&&index.type!=Type.UINT)||(!(list.isList()&&val.isSubtype(list.content())))){
                     throw new SyntaxError("Cannot apply '"+opName(op.opType)+"' to "+list+" "+val+" "+index,op.pos);
-                }
-                if(list instanceof Type.Tuple){
-                    if(index.value==null){
-                        throw new SyntaxError("tuple indices have to be constant integers",op.pos);
-                    }else{
-                        long p=index.value.asLong();
-                        if(p<0||p>=((Type.Tuple) list).elements.length){
-                            throw new SyntaxError("tuple index out of range:"+p+" length:"+
-                                    ((Type.Tuple) list).elements.length,op.pos);
-                        }else if(!val.isSubtype(((Type.Tuple) list).elements[(int)p])){//TODO generics
-                            if(!val.canCastTo(((Type.Tuple) list).elements[(int)p])){
-                                throw new SyntaxError("cannot cast "+val+" to "+
-                                        ((Type.Tuple) list).elements[(int)p],op.pos);
-                            }
-                            ret.add(new ArgCastToken(2,((Type.Tuple) list).elements[(int)p],op.pos));
-                        }
-                    }
                 }
                 ret.add(t);
             }
@@ -3285,6 +3272,15 @@ public class Interpreter {
                                 //hasField=true;
                                 throw new UnsupportedOperationException("unimplemented");
                             }
+                        }else if(f.type instanceof Type.Tuple){
+                            try {
+                                int index = Integer.parseInt(identifier.name);
+                                if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
+                                    typeStack.push(new TypeFrame(((Type.Tuple) f.type).elements[index],null, t.pos));
+                                    ret.add(new TupleElementAccess(index, false, t.pos));
+                                    hasField=true;
+                                }
+                            }catch (NumberFormatException ignored){}
                         }
                         if(!hasField)
                             throw new SyntaxError(f.type+" does not have a field "+identifier.name,t.pos);
@@ -3292,6 +3288,29 @@ public class Interpreter {
                 } catch (TypeError e) {
                     throw new SyntaxError(e,t.pos);
                 }
+            }
+            case SET_FIELD -> {
+                TypeFrame f=typeStack.pop();
+                TypeFrame val=typeStack.pop();
+                boolean hasField=false;
+                if(f.type instanceof Type.Tuple){
+                    try {
+                        int index = Integer.parseInt(identifier.name);
+                        if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
+                            Type fieldType = ((Type.Tuple) f.type).elements[index];
+                            if(!val.type.isSubtype(fieldType)) {//TODO generics
+                                if(!val.type.canCastTo(fieldType)){
+                                    throw new SyntaxError("cannot cast "+val.type+" to "+fieldType,t.pos);
+                                }
+                                ret.add(new ArgCastToken(2,fieldType,t.pos));
+                            }
+                            ret.add(new TupleElementAccess(index, true, t.pos));
+                            hasField=true;
+                        }
+                    }catch (NumberFormatException ignored){}
+                }
+                if(!hasField)
+                    throw new SyntaxError(f.type+" does not have a mutable field "+identifier.name,t.pos);
             }
         }
     }
@@ -4110,6 +4129,17 @@ public class Interpreter {
                         assert next instanceof ArgCastToken;
                         stack.set(((ArgCastToken) next).offset,
                                 stack.get(((ArgCastToken) next).offset).castTo(((ArgCastToken) next).target));
+                    }
+                    case TUPLE_GET_INDEX -> {
+                        assert next instanceof TupleElementAccess;
+                        Value tuple = stack.pop();
+                        stack.push(tuple.get(((TupleElementAccess) next).index));
+                    }
+                    case TUPLE_SET_INDEX -> {
+                        assert next instanceof TupleElementAccess;
+                        Value tuple = stack.pop();
+                        Value val  = stack.pop();
+                        tuple.set(((TupleElementAccess) next).index, val);
                     }
                 }
             }catch(ConcatRuntimeError|RandomAccessStack.StackUnderflow  e){
