@@ -13,6 +13,6 @@ core #import
  1 0.0 / 0 16 false false floatToString println
 -1 0.0 / 0 16 false false floatToString println
  0 0.0 / 0 16 false false floatToString println
-"ffffffffffffffff" 16 false stringToInt drop uint cast println
+"ffffffffffffffff" 16 false stringToInt print " " puts uint cast println
 "123456789abcdefg" 16 true  stringToInt print " " puts println
 "ffffffffffffffff" 16 true  stringToInt print " " puts println
