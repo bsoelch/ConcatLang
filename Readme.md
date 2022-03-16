@@ -20,15 +20,15 @@ stack #include ## for usage of dup and swap
 valueIO #include ## for println
 core #import ## to use println in global scope
 
-fib proc int => int :
-   dup 1 >  if 
+fib proc( int => int ){
+   dup 1 >  if{
    dup 1 - fib swap 2 - fib +
- else 1 == _if 
+ }else{ 1 == }if{
    1
- else
+ }else{
    0
- end
-end
+ }
+}
 
 #+ print 10th Fibonacci Number: +#
 10 fib println
@@ -206,7 +206,7 @@ Optionals hold an optional value.
 operators for interacting with optionals
 
 - `wrap`   wraps the top value on the stack in an optional
-- `??` checks if the optional is present
+- `.hasValue` checks if the optional is present
   - if the optional has a value it will push true
   - if no value is present it will push false 
   - this operation does not consume the optional
@@ -217,7 +217,7 @@ operators for interacting with optionals
 unwrapping optionals:
 
 If a nonempty optional is used as the parameter of
-`if` `_if` or `do` the unwrapped value of the optional 
+`if{` `}if{` or `}do{` the unwrapped value of the optional 
 is pushed on the stack 
 (if the optional is empty no value will be pushed on the stack)
 
@@ -251,32 +251,32 @@ Examples:
 template of for-each loop:
 ```
 array ^_ ## create iterator
-while ^> do   ## iterate over all elements
+while{ ^> }do{   ## iterate over all elements
   println ## do something with data
-end 
+} 
 drop ## drop the iterator
 ```
 
 reverse a string:
 ```
-reverse proc string => string :
+reverse proc( string => string ){
   string toReverse =:
   ## store type and length of the list
-  toReverse length string new string res =:
+  toReverse .length string new string res =:
   ## Iterate though the elements in reverse order
-  toReverse _^ while <^ do
+  toReverse _^ while{ <^ }do{
     res swap << res =
-  end drop
+  } drop
   res return
-end
+}
 ```
 Sum all elements of a list
 ```
-0 var tmp =: ## Initialize sum to 0
+0 int tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
-^_ while ^> do
+^_ while{ ^> }do{
  tmp swap + tmp =
-end drop
+} drop
 tmp ## load the total sum onto the stack
 ```
 
@@ -354,63 +354,63 @@ with a shallow copy
 If statements start with
 
 ```C
-<condition> if 
+<condition> if{ 
  <body>
 ```
 
 followed by zero or more else-_if-sections
 
 ```C
-else <condition> _if
+}else{ <condition> }if{
  <body>
 ```
 
 and an optional else-block
 
 ```C
-else 
+}else{
  <body>
 ```
 
 they end with
 
-```Julia
-end
+```
+}
 ```
 
 Examples:
-```Julia
-a b > if a else b end
+```
+a b > if{ a }else{ b }
 
-a ! if 
+c ! if{
  "not a" println
-end
+}
 
-dup 0 == if  drop
+dup 0 == if{ drop
  "zero"
-else dup 1 == _if drop
+}else{ dup 1 == }if{ drop
  "one"
-else 2 == _if
+}else{ 2 == }if{
  "two"
-else 
+}else{
  "many"
-end string count =:
+} string count =:
 ```
 
 #### while-loops
 While loops have the syntax
 ```Julia
-while <condition> do
+while{ <condition> }do{
  <body>
-end
+}
 ```
 
 do-while loops have the syntax
 
 ```Julia
-while 
+while{
   <body> 
-<condition> do end
+<condition> }do{ }
 ```
 
 ### Procedures
@@ -419,24 +419,24 @@ from other points in the program.
 #### Syntax
 Procedures are declared in blocks starting with
 the name of the procedure, followed by
-`proc` or `procedure` then the input arguments
+`proc(` or `procedure(` then the input arguments
 followed by `=>` then the output arguments
-followed by `:` then the body of the procedure 
-followed by end `end`.
+followed by `){` then the body of the procedure 
+followed by `}`.
 ```
-<Name> proc <In1> <In...> <InN> => <Out1> <Out...> <OutN> :
+<Name> proc( <In1> <In...> <InN> => <Out1> <Out...> <OutN> ){
  <body>
-end
+}
 ```
 The return instruction allows returning from a
-procedure before reaching the end.
+procedure before reaching the end of the body.
 
 all appearances of the name of a procedure 
 will be resolved as a procedure call, even 
 if that procedure is declared later in the same file
 
 #### Lambda-Procedures and Procedure-Pointers
-Lambda procedures don't have a name and use `lambda` or `λ` 
+Lambda procedures don't have a name and use `lambda(` or `λ(` 
 instead of proc, unlike normal procedures lambda-procedures
 push a procedure-pointer procedure onto the stack
 
@@ -451,32 +451,32 @@ Procedure pointers can be called with the call-operator `()`
 Examples:
 ```
 ## procedure for recursivly printing the fibonacci numbers
-fib proc int => int :
-   dup 1 >  if 
+fib proc( int => int ){
+   dup 1 >  if{ 
    dup 1 - fib swap 2 - fib +
- else 1 == _if
+ }else{ 1 == }if{
    1
- else
+ }else{
    0
- end
-end
+ }
+}
 ## mutually recursive functions
-isEven proc int => bool :
-  dup 0 == if 
+isEven proc( int => bool ){
+  dup 0 == if{ drop
     true return
-  else
+  }else{
     1 - isOdd return
-  end
-end
-isOdd proc int => bool :
-      dup 0 ==  if 
+  }
+}
+isOdd proc( int => bool ){
+      dup 0 ==  if{ drop
       false return
-  else dup 0 < _if
+  }else{ dup 0 < }if{
      -_ isOdd return
-  else
+  }else{
     1 - isEven return
-  end
-end
+  }
+}
 
 42 fib println ## prints the 42nd fibonacci number
 10 isEven println
@@ -485,7 +485,7 @@ end
 { @isEven @isOdd } 
 1 [] () println 
 
-lambda int => int : dup * end ( int => int ) square =:
+lambda( int => int ){ dup * } ( int => int ) square =:
 4 square () println
 
 ```

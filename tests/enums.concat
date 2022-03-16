@@ -3,12 +3,12 @@ test/enums :
 valueIO #include
 core #import
 
-a enum
+a enum{
   this
   is
   an
   enumeration
-end
+}
 
 { "list" "indexed" "by" "enumeration" } string list table =:
 
@@ -20,7 +20,7 @@ a .this int cast println
 a println
 a .is println
 
-a .enumeration  switch
+a .enumeration  switch{
 this is case
   "this or is" println
 end-case
@@ -29,4 +29,4 @@ a .enumeration case
 end-case
 default
   "default-case" println
-end
+}

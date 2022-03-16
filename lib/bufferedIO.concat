@@ -5,58 +5,58 @@ core #import
 io #include
 io #namespace
 
-BufferedInput tuple FILE byte list int end
-BufferedInput.file   proc BufferedInput => FILE      : .0 end
-BufferedInput.buffer proc BufferedInput => byte list : .1 end
-BufferedInput.cap    proc BufferedInput => int       : .2 end
+BufferedInput tuple{ FILE byte list int }
+BufferedInput.file   proc( BufferedInput => FILE      ){ .0 }
+BufferedInput.buffer proc( BufferedInput => byte list ){ .1 }
+BufferedInput.cap    proc( BufferedInput => int       ){ .2 }
 
-newBufferedInput proc FILE #+ cap +# int => BufferedInput :
+newBufferedInput proc( FILE #+ cap +# int => BufferedInput ){
     int cap =:
     FILE file =:
     file cap byte list new cap BufferedInput new return
-end
+}
 
-BufferedInput.readTo proc BufferedInput #+buffer+# byte list #+amount+# int => #+n-read+#int :
+BufferedInput.readTo proc( BufferedInput #+buffer+# byte list #+amount+# int => #+n-read+#int ){
   int count =:
   byte list buffer =:
   BufferedInput in =:
   in BufferedInput.buffer byte list inBuf =:
   0 int nRead =:
-  inBuf .length 0 > if ##read from buffer
-    count inBuf .length < if count else inBuf .length end nRead =
+  inBuf .length 0 > if{ ##read from buffer
+    count inBuf .length < if{ count }else{ inBuf .length } nRead =
     buffer inBuf 0 nRead [:] <<* drop
     inBuf 0 nRead [:] clear
     count nRead - count =
-  end
-  count 0 > if ## get more data from file
+  }
+  count 0 > if{ ## get more data from file
     in BufferedInput.file inBuf 0 in BufferedInput.cap read int res =:
-    res 0 < if
-      nRead 0 > if nRead else res end return
-    end
-  end
-  inBuf .length 0 > if ##read from buffer
-    count inBuf .length < if count else inBuf .length end int n =:
+    res 0 < if{
+      nRead 0 > if{ nRead }else{ res } return
+    }
+  }
+  inBuf .length 0 > if{ ##read from buffer
+    count inBuf .length < if{ count }else{ inBuf .length } int n =:
     buffer inBuf 0 n [:] <<* drop
     inBuf 0 n [:] clear
     count n - count =
     nRead n + nRead =
-  end
+  }
   nRead return
-end
+}
 
-BufferedInput.nextByte proc BufferedInput => byte optional :
+BufferedInput.nextByte proc( BufferedInput => byte optional ){
   BufferedInput in =:
   in BufferedInput.buffer byte list inBuf =:
-  inBuf .length 0 == if
+  inBuf .length 0 == if{
     in BufferedInput.file inBuf 0 in BufferedInput.cap read int res =:
-    res 0 <= if
+    res 0 <= if{
       byte empty return
-    end
-  end
+    }
+  }
   inBuf 0 [] byte res =:
   inBuf 0 1 [:] clear ##remove first element
   res wrap return
-end
+}
 
 ## addLater? BufferedOutput
 

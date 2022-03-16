@@ -2,7 +2,7 @@ lib/codeblocks :
 
 core #namespace
 
-|| #define   if true  else #end
-&& #define ! if false else #end
+||{ #define   if{ true  }else{ #end
+&&{ #define ! if{ false }else{ #end
 
 #end

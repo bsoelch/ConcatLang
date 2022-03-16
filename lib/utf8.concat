@@ -6,85 +6,85 @@ stack #include
 io #include
 numbers  #include
 
-<< proc string codepoint => string :
+<< proc( string codepoint => string ){
   uint cast uint cp =:
   string      str =:
-       cp 0x80    < if   ## ascii - character
+       cp 0x80    < if{   ## ascii - character
     str cp byte cast << return
-  else cp 0x800   < _if  ## 2-byte blocks
+  }else{ cp 0x800   < }if{  ## 2-byte blocks
     str cp 6 >>          0xc0 | byte cast <<
         cp        0x3f & 0x80 | byte cast << return
-  else cp 0x10000 < _if  ## 3-byte blocks
+  }else{ cp 0x10000 < }if{  ## 3-byte blocks
     str cp 12 >>         0xe0 | byte cast <<
         cp  6 >>  0x3f & 0x80 | byte cast <<
         cp        0x3f & 0x80 | byte cast << return
-  else cp 0x10ffff < _if ## 4-byte blocks
+  }else{ cp 0x10ffff < }if{ ## 4-byte blocks
     str cp 18 >>         0xf0 | byte cast <<
         cp 12 >>  0x3f & 0x80 | byte cast <<
         cp  6 >>  0x3f & 0x80 | byte cast <<
         cp        0x3f & 0x80 | byte cast << return
-  else
+  }else{
     ## don't exit on invalid codepoints, only display waring message
     "Codepoint out of range: 0x" cp int cast <<X '\n' << eputs
     str return
-  end
-end
+  }
+}
 
->> proc codepoint string => string :
+>> proc( codepoint string => string ){
   string    str =:
   codepoint cp =:
   str 0 0 [:] cp << drop
   str return
-end
+}
 
-<<* proc string ustring => string :
+<<* proc( string ustring => string ){
   ustring append =:
   string  value  =:
   value value .length append .length + ensureCap drop
   0 int i =:
-  while i append .length < do
+  while{ i append .length < }do{
     value append i [] << value =
     i 1 + i =
-  end
+  }
   value return
-end
-*>> proc ustring string => string :
+}
+*>> proc( ustring string => string ){
   string  value  =:
   ustring append =:
   value value .length append .length + ensureCap drop
   append .length 1 - int i =:
-  while i 0 >= do
+  while{ i 0 >= }do{
     append i [] value >> value =
     i 1 - i =
-  end
+  }
   value return
-end
+}
 
-<<* proc ustring string => ustring :
+<<* proc( ustring string => ustring ){
   string  append  =:
   ustring value   =:
   value value .length append .length + ensureCap drop
   append 0u
-  while nextCodepoint do
+  while{ nextCodepoint }do{
     value swap << value =
-  end 3 $drop ## drop remaining data
+  } 3 $drop ## drop remaining data
   value return
-end
-*>> proc string ustring => ustring :
+}
+*>> proc( string ustring => ustring ){
   ustring value   =:
   string  append  =:
   value 0 0 [:] append <<* drop
   value return
-end
+}
 
-codepointToString proc codepoint => string :
+codepointToString proc( codepoint => string ){
   "" swap << return
-end
+}
 
-codepointsToString proc ustring => string :
+codepointsToString proc( ustring => string ){
   ustring source =:
   "" source <<* return
-end
+}
 
 #+
 gets the first full codepoint in the given string that starts at or after index,
@@ -92,51 +92,51 @@ returns true/false depending of if there was a next codepoint
 the value of the read codepoint (of 0 if the end of the string was reached)
 followed by the index after the next codepoint and the string
 +#
-nextCodepoint proc string #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool :
+nextCodepoint proc( string #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool ){
   uint   index =:
   string value =:
-  while index value .length < && value index [] int cast 0xc0 & 0x80 == end do
+  while{ index value .length < &&{ value index [] int cast 0xc0 & 0x80 == } }do{
     index 1 + index = ## skip parts of unfinished codepoint
-  end
-  while index value .length < do
+  }
+  while{ index value .length < }do{
     value index [] int char =:
-    char 0x80 & 0 == if ## ascii - character
+    char 0x80 & 0 == if{ ## ascii - character
       value  index 1u +  char codepoint cast  true return
-    else ## multi - char codepoint
-      0 while char 0x80 & 0 != do
+    }else{ ## multi - char codepoint
+      0 while{ char 0x80 & 0 != }do{
         char 1 << char =
         1 +
-      end
+      }
       int count =:
       char 0xff & count >> int res =:
-      index count + value .length > if
+      index count + value .length > if{
         value value .length  0 codepoint cast  false return
-      end
+      }
       count 1 - count =
-      while
+      while{
         index 1 + index =
         count 1 - count =
         value index [] char =
-        char 0xc0 & 0x80 == if
+        char 0xc0 & 0x80 == if{
           res 6 <<  char 0x3f &  | res =
-        else
+        }else{
           index count + index =
            0 count =
           -1 res =
-        end
+        }
         count 0 >
-      do end
-      res 0 >= && res 0x10ffff <= end if
+      }do{ }
+      res 0 >= &&{ res 0x10ffff <= } if{
         value index  res codepoint cast  true return
-      end
-    end
-  end
+      }
+    }
+  }
   value index  0 codepoint cast  false return
-end
+}
 
-codepoints proc string => ustring :
+codepoints proc( string => ustring ){
   string source =:
   u"" source <<* return
-end
+}
 
 #end ##core

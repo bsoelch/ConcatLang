@@ -8,29 +8,29 @@ FILE stdIn  native =$
 FILE stdOut native =$
 FILE stdErr native =$
 
-open     native proc #+path+# string #+flags+#string => FILE optional : end
-close    native proc FILE => bool : end
-read     native proc FILE #+buff+# byte list #+off+# int #+count+# int => int  : end
-write    native proc FILE #+buff+# byte list #+off+# int #+count+# int => bool : end
-size     native proc FILE => int  : end
-pos      native proc FILE => int  : end
-truncate native proc FILE => bool : end
-seekEnd  native proc FILE => bool : end
-seek     native proc FILE int => bool : end
+open     native proc( #+path+# string #+flags+#string => FILE optional ){ }
+close    native proc( FILE => bool ){ }
+read     native proc( FILE #+buff+# byte list #+off+# int #+count+# int => int  ){ }
+write    native proc( FILE #+buff+# byte list #+off+# int #+count+# int => bool ){ }
+size     native proc( FILE => int  ){ }
+pos      native proc( FILE => int  ){ }
+truncate native proc( FILE => bool ){ }
+seekEnd  native proc( FILE => bool ){ }
+seek     native proc( FILE int => bool ){ }
 
 #end
 core #namespace
 
 stack #include
 io #import
-fputs proc string FILE => bool :
+fputs proc( string FILE => bool ){
   FILE file =:
   string str =:
   file str 0 str .length io .write
-end
+}
 
 ## specialized procedures for writing to stdout and stderr
- puts proc string => : io .stdOut core .fputs drop end
-eputs proc string => : io .stdErr core .fputs drop end
+ puts proc( string => ){ io .stdOut core .fputs drop }
+eputs proc( string => ){ io .stdErr core .fputs drop }
 
 #end

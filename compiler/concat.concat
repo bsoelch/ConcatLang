@@ -22,96 +22,96 @@ bufferedIO #include
 io #import
 
 
-FilePosition tuple string uint uint end
-FilePosition.fileName   proc FilePosition => string : .0   end
-FilePosition.line       proc FilePosition => uint   : .1   end
-FilePosition.line=      proc uint FilePosition =>   : .1 = end
-FilePosition.posInLine  proc FilePosition => uint   : .2   end
-FilePosition.posInLine= proc uint FilePosition =>   : .2 = end
-FilePosition.newLine    proc FilePosition => :
+FilePosition tuple{ string uint uint }
+FilePosition.fileName   proc( FilePosition => string ){ .0   }
+FilePosition.line       proc( FilePosition => uint   ){ .1   }
+FilePosition.line=      proc( uint FilePosition =>   ){ .1 = }
+FilePosition.posInLine  proc( FilePosition => uint   ){ .2   }
+FilePosition.posInLine= proc( uint FilePosition =>   ){ .2 = }
+FilePosition.newLine    proc( FilePosition => ){
   dup dup .1 1 + swap .1 = 1 swap .2 =
-end
-FilePosition.nextChar   proc FilePosition => :
+}
+FilePosition.nextChar   proc( FilePosition => ){
   dup .2 1 + swap .2 =
-end
-core .<< proc string FilePosition => string :
+}
+core .<< proc( string FilePosition => string ){
   FilePosition position =:
   string str =:
   str position FilePosition.fileName <<*
   ':' << position FilePosition.line      <<i
   ':' << position FilePosition.posInLine <<i return
-end
+}
 
-NameWithPos tuple string FilePosition end
-NameWithPos.name proc NameWithPos => string       : .0 end
-NameWithPos.pos  proc NameWithPos => FilePosition : .1 end
+NameWithPos tuple{ string FilePosition }
+NameWithPos.name proc( NameWithPos => string       ){ .0 }
+NameWithPos.pos  proc( NameWithPos => FilePosition ){ .1 }
 
-TypeType enum PRIMITIVE_TYPE TUPLE_TYPE ENUM_TYPE WRAPPER_TYPE end
-Type tuple TypeType end
-Type.type proc Type => TypeType : .0 end
+TypeType enum{ PRIMITIVE_TYPE TUPLE_TYPE ENUM_TYPE WRAPPER_TYPE }
+Type tuple{ TypeType }
+Type.type proc( Type => TypeType ){ .0 }
 
-PrimitiveType tuple TypeType type end
-PrimitiveType.wrapped proc PrimitiveType => type : .1 end
+PrimitiveType tuple{ TypeType type }
+PrimitiveType.wrapped proc( PrimitiveType => type ){ .1 }
 
-TupleType tuple TypeType #+name+# string #+types+# Type list end
-TupleType.name  proc TupleType => string    : .1 end
-TupleType.types proc TupleType => Type list : .2 end
-newTupleType proc #+name+# string #+types+# Type list => TupleType :
+TupleType tuple{ TypeType #+name+# string #+types+# Type list }
+TupleType.name  proc( TupleType => string    ){ .1 }
+TupleType.types proc( TupleType => Type list ){ .2 }
+newTupleType proc( #+name+# string #+types+# Type list => TupleType ){
   Type list elements =:
   string name =:
   TypeType .TUPLE_TYPE name elements TupleType new return
-end
+}
 
-EnumType tuple TypeType #+name+# string #+fields+# NameWithPos list end
-EnumType.name   proc EnumType => string           : .1 end
-EnumType.fields proc EnumType => NameWithPos list : .2 end
-newEnumType proc #+name+# string #+fields+# NameWithPos list => EnumType :
+EnumType tuple{ TypeType #+name+# string #+fields+# NameWithPos list }
+EnumType.name   proc( EnumType => string           ){ .1 }
+EnumType.fields proc( EnumType => NameWithPos list ){ .2 }
+newEnumType proc( #+name+# string #+fields+# NameWithPos list => EnumType ){
   NameWithPos list fields =:
   string name =:
   TypeType .ENUM_TYPE name fields EnumType new return
-end
+}
 
-WrapperTypeType enum LIST OPTIONAL VAR_ARGS end
-WrapperType tuple TypeType WrapperTypeType Type end
-WrapperType.wrapperType proc WrapperType => WrapperTypeType : .1 end
-WrapperType.wrapped     proc WrapperType => Type            : .2 end
+WrapperTypeType enum{ LIST OPTIONAL VAR_ARGS }
+WrapperType tuple{ TypeType WrapperTypeType Type }
+WrapperType.wrapperType proc( WrapperType => WrapperTypeType ){ .1 }
+WrapperType.wrapped     proc( WrapperType => Type            ){ .2 }
 
-core .<< proc string Type => string :
+core .<< proc( string Type => string ){
   Type t =:
-  t Type.type switch
+  t Type.type switch{
   PRIMITIVE_TYPE case
     t PrimitiveType.wrapped stringValue <<* return
     end-case
   WRAPPER_TYPE case
     t WrapperType.wrapped <<
-    t WrapperType.wrapperType switch
+    t WrapperType.wrapperType switch{
     LIST     case " list"     <<* return end-case
     OPTIONAL case " optional" <<* return end-case
     VAR_ARGS case " ..."      <<* return end-case
-    end
+    }
     end-case
   TUPLE_TYPE case
     t TupleType.name <<* '[' <<
     0 int i =:
-    while i t TupleType.types .length < do
-      i 0 > if ", " <<* end
+    while{ i t TupleType.types .length < }do{
+      i 0 > if{ ", " <<* }
       t TupleType.types i [] <<
       i 1 + i =
-    end
+    }
     ']' <<
     end-case
   ENUM_TYPE case
     t EnumType.name <<* '[' <<
     0 int i =:
-    while i t EnumType.fields .length < do
-      i 0 > if ", " <<* end
+    while{ i t EnumType.fields .length < }do{
+      i 0 > if{ ", " <<* }
       t EnumType.fields i [] NameWithPos.name <<*
       i 1 + i =
-    end
+    }
     ']' <<
     end-case
-  end
-end
+  }
+}
 
 TypeType .PRIMITIVE_TYPE      bool PrimitiveType new Type Type.BOOL      =$
 TypeType .PRIMITIVE_TYPE      byte PrimitiveType new Type Type.BYTE      =$
@@ -125,20 +125,20 @@ TypeType .PRIMITIVE_TYPE       var PrimitiveType new Type Type.VAR       =$
 TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.BYTE      WrapperType new Type Type.STRING  =$
 TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.CODEPOINT WrapperType new Type Type.USTRING =$
 
-Value tuple Type var end
-Value.type proc Value => Type : .0 end
-Value.data proc Value => var  : .1 end
+Value tuple{ Type var }
+Value.type proc( Value => Type ){ .0 }
+Value.data proc( Value => var  ){ .1 }
 
-core .<< proc string Value => string :
+core .<< proc( string Value => string ){
   Value v =:
   v Value.type << ": " <<*
-  v Value.type Type.type switch
+  v Value.type Type.type switch{
   PRIMITIVE_TYPE case
-    v Value.type Type.TYPE == if
+    v Value.type Type.TYPE == if{
       v Value.data Type cast << return
-    else
+    }else{
       v Value.data stringValue <<* return
-    end
+    }
     end-case
   ENUM_TYPE case
    '[' << v Value.data EnumEntry.index stringValue <<* ']' << return
@@ -147,80 +147,80 @@ core .<< proc string Value => string :
     "tuple-type unimplemented\n" eputs 1 exit
   end-case
   WRAPPER_TYPE case
-    v Value.type Type.STRING == || v Value.type Type.USTRING == end if
+    v Value.type Type.STRING == ||{ v Value.type Type.USTRING == } if{
       v Value.data stringValue <<* return
-    else
+    }else{
       "wrapper-type unimplemented\n" eputs 1 exit
-    end
+    }
   end-case
-  end
-end
+  }
+}
 
 Type.BOOL true  Value new Value Value.TRUE  =$
 Type.BOOL false Value new Value Value.FALSE =$
-Value.ofByte      proc byte       => Value : Type.BYTE      swap Value new return end
-Value.ofCodepoint proc codepoint  => Value : Type.CODEPOINT swap Value new return end
-Value.ofInt       proc int        => Value : Type.INT       swap Value new return end
-Value.ofUInt      proc uint       => Value : Type.UINT      swap Value new return end
-Value.ofFloat     proc float      => Value : Type.FLOAT     swap Value new return end
-Value.ofType      proc Type       => Value : Type.TYPE      swap Value new return end
-Value.ofString    proc string     => Value : Type.STRING    swap Value new return end
-Value.ofUString   proc ustring    => Value : Type.USTRING   swap Value new return end
+Value.ofByte      proc( byte       => Value ){ Type.BYTE      swap Value new return }
+Value.ofCodepoint proc( codepoint  => Value ){ Type.CODEPOINT swap Value new return }
+Value.ofInt       proc( int        => Value ){ Type.INT       swap Value new return }
+Value.ofUInt      proc( uint       => Value ){ Type.UINT      swap Value new return }
+Value.ofFloat     proc( float      => Value ){ Type.FLOAT     swap Value new return }
+Value.ofType      proc( Type       => Value ){ Type.TYPE      swap Value new return }
+Value.ofString    proc( string     => Value ){ Type.STRING    swap Value new return }
+Value.ofUString   proc( ustring    => Value ){ Type.USTRING   swap Value new return }
 
-BlockType enum
+BlockType enum{
   IF_BLOCK
   WHILE_BLOCK
   SWITCH_BLOCK
   PROC_BLOCK
   ENUM_BLOCK
   TUPLE_BLOCK
-end
-CodeBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int end
-CodeBlock.type     proc CodeBlock => BlockType    : .0 end
-CodeBlock.startPos proc CodeBlock => FilePosition : .1 end
-CodeBlock.start    proc CodeBlock => int          : .2 end
+}
+CodeBlock tuple{ #+type+# BlockType #+startPos+# FilePosition #+start+# int }
+CodeBlock.type     proc( CodeBlock => BlockType    ){ .0 }
+CodeBlock.startPos proc( CodeBlock => FilePosition ){ .1 }
+CodeBlock.start    proc( CodeBlock => int          ){ .2 }
 
-WhileBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int #+forkPos+# int end
-WhileBlock.forkPos  proc WhileBlock => int : .3   end
-WhileBlock.forkPos= proc int WhileBlock => : .3 = end
-newWhileBlock proc #+startPos+# FilePosition #+start+# int => WhileBlock :
+WhileBlock tuple{ #+type+# BlockType #+startPos+# FilePosition #+start+# int #+forkPos+# int }
+WhileBlock.forkPos  proc( WhileBlock => int ){ .3   }
+WhileBlock.forkPos= proc( int WhileBlock => ){ .3 = }
+newWhileBlock proc( #+startPos+# FilePosition #+start+# int => WhileBlock ){
   int start =:
   FilePosition startPos =:
   BlockType .WHILE_BLOCK startPos start -1 WhileBlock new return
-end
+}
 
-IfBlock tuple  #+type+# BlockType #+startPos+# FilePosition #+start+# int #+prev_if+# int #+else_positions+# uint list end
-IfBlock.prevIf         proc IfBlock => int       : .3   end
-IfBlock.prevIf=        proc int IfBlock =>       : .3 = end
-IfBlock.else_positions proc IfBlock => uint list : .4   end
-newIfBlock proc #+startPos+# FilePosition #+start+# int => IfBlock :
+IfBlock tuple{  #+type+# BlockType #+startPos+# FilePosition #+start+# int #+prev_if+# int #+else_positions+# uint list }
+IfBlock.prevIf         proc( IfBlock => int       ){ .3   }
+IfBlock.prevIf=        proc( int IfBlock =>       ){ .3 = }
+IfBlock.else_positions proc( IfBlock => uint list ){ .4   }
+newIfBlock proc( #+startPos+# FilePosition #+start+# int => IfBlock ){
   int start =:
   FilePosition startPos =:
   BlockType .IF_BLOCK startPos start start 16 int list new IfBlock new return
-end
+}
 
-EnumBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int
-  #+name+# string #+elements+# NameWithPos list end
-EnumBlock.name     proc EnumBlock => string           : .3 end
-EnumBlock.elements proc EnumBlock => NameWithPos list : .4 end
-newEnumBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => EnumBlock :
+EnumBlock tuple{ #+type+# BlockType #+startPos+# FilePosition #+start+# int
+  #+name+# string #+elements+# NameWithPos list }
+EnumBlock.name     proc( EnumBlock => string           ){ .3 }
+EnumBlock.elements proc( EnumBlock => NameWithPos list ){ .4 }
+newEnumBlock proc( #+name+# string #+startPos+# FilePosition #+start+# int => EnumBlock ){
   int start =:
   FilePosition startPos =:
   string name =:
   BlockType .ENUM_BLOCK startPos start name 16 NameWithPos list new EnumBlock new return
-end
-TupleBlock tuple #+type+# BlockType #+startPos+# FilePosition #+start+# int #+name+# string end
-TupleBlock.name proc TupleBlock => string : .3 end
-newTupleBlock proc #+name+# string #+startPos+# FilePosition #+start+# int => TupleBlock :
+}
+TupleBlock tuple{ #+type+# BlockType #+startPos+# FilePosition #+start+# int #+name+# string }
+TupleBlock.name proc( TupleBlock => string ){ .3 }
+newTupleBlock proc( #+name+# string #+startPos+# FilePosition #+start+# int => TupleBlock ){
   int start =:
   FilePosition startPos =:
   string name =:
   BlockType .TUPLE_BLOCK startPos start name TupleBlock new return
-end
+}
 
 
 
-DeclareableType enum
+DeclareableType enum{
   MACRO
   ENUM
   ENUM_ENTRY
@@ -229,101 +229,101 @@ DeclareableType enum
   FINAL_VARIABLE
   PREDECLARED_PROCEDURE
   PROCEDURE
-end
-<<DeclareableType proc #+str+# string #+a+# bool #+type+# DeclareableType => string :
-   #+type+# switch
+}
+<<DeclareableType proc( #+str+# string #+a+# bool #+type+# DeclareableType => string ){
+   #+type+# switch{
    MACRO case
-     #+a+# if "a macro" else "macro" end <<* return
+     #+a+# if{ "a macro" }else{ "macro" } <<* return
      end-case
    ENUM case
-     #+a+# if "an enum" else "enum" end <<* return
+     #+a+# if{ "an enum" }else{ "enum" } <<* return
      end-case
    ENUM_ENTRY case
-     #+a+# if "an enum entry" else "enum entry" end <<* return
+     #+a+# if{ "an enum entry" }else{ "enum entry" } <<* return
      end-case
    TUPLE case
-     #+a+# if "a tuple" else "tuple" end <<* return
+     #+a+# if{ "a tuple" }else{ "tuple" } <<* return
      end-case
    VARIABLE_ID case
-     #+a+# if "a variable" else "variable" end <<* return
+     #+a+# if{ "a variable" }else{ "variable" } <<* return
      end-case
    FINAL_VARIABLE case
-     #+a+# if "a final variable" else "final variable" end <<* return
+     #+a+# if{ "a final variable" }else{ "final variable" } <<* return
      end-case
    PREDECLARED_PROCEDURE case
-     #+a+# if "a predeclared procedure" else "predeclared procedure" end <<* return
+     #+a+# if{ "a predeclared procedure" }else{ "predeclared procedure" } <<* return
      end-case
    PROCEDURE case
-     #+a+# if "a procedure" else "procedure" end <<* return
+     #+a+# if{ "a procedure" }else{ "procedure" } <<* return
      end-case
-   end
-end
+   }
+}
 
-Declareable tuple #+type+# DeclareableType #+pos+# FilePosition end
-Declareable.type proc Declareable => DeclareableType : .0   end
-Declareable.pos  proc Declareable => FilePosition    : .1   end
-Declareable.pos= proc FilePosition Declareable =>    : .1 = end
+Declareable tuple{ #+type+# DeclareableType #+pos+# FilePosition }
+Declareable.type proc( Declareable => DeclareableType ){ .0   }
+Declareable.pos  proc( Declareable => FilePosition    ){ .1   }
+Declareable.pos= proc( FilePosition Declareable =>    ){ .1 = }
 
-ContextType enum ROOT_CONTEXT PROC_CONTEXT BLOCK_CONTEXT end
+ContextType enum{ ROOT_CONTEXT PROC_CONTEXT BLOCK_CONTEXT }
 
-Context tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType end
-Context.elements    proc Context => string Declareable HashMap : .0 end
-Context.varCount    proc Context => int                        : .1 end
-Context.type        proc Context => ContextType                : .2 end
-Context.incVarCount proc Context => : dup .1 1 + swap .1 = end
+Context tuple{ #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType }
+Context.elements    proc( Context => string Declareable HashMap ){ .0 }
+Context.varCount    proc( Context => int                        ){ .1 }
+Context.type        proc( Context => ContextType                ){ .2 }
+Context.incVarCount proc( Context => ){ dup .1 1 + swap .1 = }
 
-Macro tuple #+type+# DeclareableType #+pos+# FilePosition #+name+# string #+words+# NameWithPos list end
-Macro.name  proc Macro => string           : .2   end
-Macro.name= proc string Macro  =>          : .2 = end
-Macro.words proc Macro => NameWithPos list : .3   end
-newMacro proc FilePosition string => Macro :
+Macro tuple{ #+type+# DeclareableType #+pos+# FilePosition #+name+# string #+words+# NameWithPos list }
+Macro.name  proc( Macro => string           ){ .2   }
+Macro.name= proc( string Macro  =>          ){ .2 = }
+Macro.words proc( Macro => NameWithPos list ){ .3   }
+newMacro proc( FilePosition string => Macro ){
   string name =:
   FilePosition mPos =:
   DeclareableType .MACRO mPos name 16 NameWithPos list new Macro new return
-end
+}
 
-VariableId tuple #+type+# DeclareableType #+pos+# FilePosition #+global+# bool #+level+# int #+varId+# int end
-VariableId.global  proc VariableId => bool : .2 end
-VariableId.level   proc VariableId => int  : .3 end
-VariableId.varId   proc VariableId => int  : .4 end
-VariableId.isConst proc VariableId => bool :
+VariableId tuple{ #+type+# DeclareableType #+pos+# FilePosition #+global+# bool #+level+# int #+varId+# int }
+VariableId.global  proc( VariableId => bool ){ .2 }
+VariableId.level   proc( VariableId => int  ){ .3 }
+VariableId.varId   proc( VariableId => int  ){ .4 }
+VariableId.isConst proc( VariableId => bool ){
   Declareable.type DeclareableType .FINAL_VARIABLE ==
-end
+}
 
-CurriedVariable tuple #+type+# DeclareableType #+pos+# FilePosition end ##TODO curried variable
-PredeclaredProc tuple #+type+# DeclareableType #+pos+# FilePosition end ##TODO predeclared proc
-Procedure tuple #+type+# DeclareableType #+pos+# FilePosition end ##TODO proc
+CurriedVariable tuple{ #+type+# DeclareableType #+pos+# FilePosition } ##TODO curried variable
+PredeclaredProc tuple{ #+type+# DeclareableType #+pos+# FilePosition } ##TODO predeclared proc
+Procedure tuple{ #+type+# DeclareableType #+pos+# FilePosition } ##TODO proc
 
-Enum tuple #+type+# DeclareableType #+pos+# FilePosition #+enum-type+# EnumType end
-Enum.enumType proc Enum => EnumType : .2 end
-newEnum proc #+pos+# FilePosition #+name+# string #+fields+# NameWithPos list => Enum :
+Enum tuple{ #+type+# DeclareableType #+pos+# FilePosition #+enum-type+# EnumType }
+Enum.enumType proc( Enum => EnumType ){ .2 }
+newEnum proc( #+pos+# FilePosition #+name+# string #+fields+# NameWithPos list => Enum ){
   #+fields+# #+name+# newEnumType EnumType enumType =:
   FilePosition fPos =:
   DeclareableType .ENUM fPos enumType Enum new return
-end
-EnumEntry tuple #+type+# DeclareableType #+pos+# FilePosition #+enum-type+# EnumType #+index+# int end
-EnumEntry.enumType proc EnumEntry => EnumType : .2 end
-EnumEntry.index proc EnumEntry => int : .3 end
-newEnumEntry proc #+enumType+# EnumType #+index+# int => EnumEntry :
+}
+EnumEntry tuple{ #+type+# DeclareableType #+pos+# FilePosition #+enum-type+# EnumType #+index+# int }
+EnumEntry.enumType proc( EnumEntry => EnumType ){ .2 }
+EnumEntry.index proc( EnumEntry => int ){ .3 }
+newEnumEntry proc( #+enumType+# EnumType #+index+# int => EnumEntry ){
   int index =:
   EnumType enumType =:
   DeclareableType .ENUM_ENTRY enumType EnumType.fields index [] NameWithPos.pos enumType index EnumEntry new return
-end
+}
 
-Tuple tuple #+type+# DeclareableType #+pos+# FilePosition #+tupleType+# TupleType end
-Tuple.tupleType proc Tuple => TupleType : .2 end
+Tuple tuple{ #+type+# DeclareableType #+pos+# FilePosition #+tupleType+# TupleType }
+Tuple.tupleType proc( Tuple => TupleType ){ .2 }
 
-core .<< proc string VariableId => string :
+core .<< proc( string VariableId => string ){
   Declareable d =:
-  d VariableId.global if "global:" else "local:" end <<*
+  d VariableId.global if{ "global:" }else{ "local:" } <<*
   d VariableId.level <<u ':' <<
   d VariableId.varId <<u
   return
-end
-core .<< proc string Declareable => string :
+}
+core .<< proc( string Declareable => string ){
   Declareable d =:
   false d Declareable.type <<DeclareableType ": " <<*
-  d Declareable.type switch
+  d Declareable.type switch{
   MACRO case
     d Macro.name <<*
     end-case
@@ -347,69 +347,69 @@ core .<< proc string Declareable => string :
   PROCEDURE case
     "unimplemented\n" eputs 1 exit
     end-case
-  end
+  }
   " at " <<* d Declareable.pos << return
-end
+}
 
-OpenModule tuple #+path+# string list #+declaredAt+# FilePosition #+imports+# string list
-  #+predeclared+# string PredeclaredProc HashMap end
-OpenModule.path        proc OpenModule => string list                    : .0 end
-OpenModule.declaredAt  proc OpenModule => FilePosition                   : .1 end
-OpenModule.imports     proc OpenModule => string list                    : .2 end
-OpenModule.predeclared proc OpenModule => string PredeclaredProc HashMap : .3 end
-newOpenModule proc #+path+# string list #+declaredAt+# FilePosition => OpenModule :
+OpenModule tuple{ #+path+# string list #+declaredAt+# FilePosition #+imports+# string list
+  #+predeclared+# string PredeclaredProc HashMap }
+OpenModule.path        proc( OpenModule => string list                    ){ .0 }
+OpenModule.declaredAt  proc( OpenModule => FilePosition                   ){ .1 }
+OpenModule.imports     proc( OpenModule => string list                    ){ .2 }
+OpenModule.predeclared proc( OpenModule => string PredeclaredProc HashMap ){ .3 }
+newOpenModule proc( #+path+# string list #+declaredAt+# FilePosition => OpenModule ){
   16 string list new 16 string PredeclaredProc newHashMap OpenModule new return
-end
-core .<< proc string OpenModule => string :
+}
+core .<< proc( string OpenModule => string ){
   OpenModule m =:
   string str =:
   0 int i =:
-  str while i m OpenModule.path .length < do
+  str while{ i m OpenModule.path .length < }do{
      m OpenModule.path i [] <<* "'" <<*
-  end
+  }
   " declared at " <<* m OpenModule.declaredAt << return
-end
+}
 
-OpenFile tuple #+global imports +# string list #+global predeclared+# string PredeclaredProc HashMap
-    #+openModules+# OpenModule list end
-OpenFile.globalImports     proc OpenFile => string list                    : .0 end
-OpenFile.globalPredeclared proc OpenFile => string PredeclaredProc HashMap : .1 end
-OpenFile.openModules       proc OpenFile => OpenModule list                : .2 end
+OpenFile tuple{ #+global imports +# string list #+global predeclared+# string PredeclaredProc HashMap
+    #+openModules+# OpenModule list }
+OpenFile.globalImports     proc( OpenFile => string list                    ){ .0 }
+OpenFile.globalPredeclared proc( OpenFile => string PredeclaredProc HashMap ){ .1 }
+OpenFile.openModules       proc( OpenFile => OpenModule list                ){ .2 }
 
-newOpenFile proc => OpenFile :
+newOpenFile proc( => OpenFile ){
   16 string list new
   16 string PredeclaredProc newHashMap
   16 OpenModule list new
   OpenFile new return
-end
+}
 
-RootContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType
-    #+openFiles+# OpenFile list #+namespaces+# string bool HashMap end
-RootContext.openFiles  proc RootContext => OpenFile list       : .3 end
-RootContext.namespaces proc RootContext => string bool HashMap : .4 end
-newRootContext proc => RootContext :
+RootContext tuple{ #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType
+    #+openFiles+# OpenFile list #+namespaces+# string bool HashMap }
+RootContext.openFiles  proc( RootContext => OpenFile list       ){ .3 }
+RootContext.namespaces proc( RootContext => string bool HashMap ){ .4 }
+newRootContext proc( => RootContext ){
   16 string Declareable newHashMap
   0
   ContextType .ROOT_CONTEXT
   16 OpenFile list new
   16 string bool newHashMap
   RootContext new return
-end
+}
 
-BlockContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context end
-BlockContext.parent proc BlockContext => Context : .3 end
-newBlockContext proc #+parent+# Context => BlockContext :
+BlockContext tuple{ #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context }
+BlockContext.parent proc( BlockContext => Context ){ .3 }
+newBlockContext proc( #+parent+# Context => BlockContext ){
   Context parent =:
   16 string Declareable newHashMap 0 ContextType .BLOCK_CONTEXT parent BlockContext new return
-end
+}
 
-ProcContext tuple #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context
-   #+curried+# CurriedVariable list end
-ProcContext.curried proc ProcContext => CurriedVariable list : .4 end
+ProcContext tuple{ #+elements+# string Declareable HashMap #+varCount+# int #+contextType+# ContextType #+parent+# Context
+   #+curried+# CurriedVariable list }
+ProcContext.curried proc( ProcContext => CurriedVariable list ){ .4 }
 
-Context.isGlobal proc Context => bool :
+Context.isGlobal proc( Context => bool ){
   Context context =:
-  context Context.type switch
+  context Context.type switch{
   ROOT_CONTEXT case
     true return
     end-case
@@ -419,11 +419,11 @@ Context.isGlobal proc Context => bool :
   BLOCK_CONTEXT case
     context BlockContext.parent Context.isGlobal return
     end-case
-  end
-end
-Context.procContext proc Context => ProcContext optional :
+  }
+}
+Context.procContext proc( Context => ProcContext optional ){
   Context context =:
-  context Context.type switch
+  context Context.type switch{
   ROOT_CONTEXT case
     ProcContext empty return
     end-case
@@ -433,288 +433,288 @@ Context.procContext proc Context => ProcContext optional :
   BLOCK_CONTEXT case
     context BlockContext.parent Context.procContext return
     end-case
-  end
-end
-Context.level proc Context => int :
+  }
+}
+Context.level proc( Context => int ){
   Context context =:
-  context Context.type switch
+  context Context.type switch{
   ROOT_CONTEXT PROC_CONTEXT case
     0 return
     end-case
   BLOCK_CONTEXT case
     context BlockContext.parent Context.level 1 + return
     end-case
-  end
-end
-Context.ensureDeclareable proc #+context+# Context #+name+#string #+type+# DeclareableType #+pos+# FilePosition
-  => #+localName+# string :
+  }
+}
+Context.ensureDeclareable proc( #+context+# Context #+name+#string #+type+# DeclareableType #+pos+# FilePosition
+  => #+localName+# string ){
   FilePosition fPos =:
   DeclareableType dType =:
   string name =:
   Context context =:
-  context Context.type ContextType .ROOT_CONTEXT == if context name RootContext.inCurrentModule else name end  string localName =:
-  context Context.elements localName HashMap.get if
+  context Context.type ContextType .ROOT_CONTEXT == if{ context name RootContext.inCurrentModule }else{ name }  string localName =:
+  context Context.elements localName HashMap.get if{
     Declareable prev =:
     ## procedures can overwrite predeclared procedures
-    prev Declareable.type DeclareableType .PREDECLARED_PROCEDURE != || prev Declareable.type DeclareableType .PROCEDURE != end if
+    prev Declareable.type DeclareableType .PREDECLARED_PROCEDURE != ||{ prev Declareable.type DeclareableType .PROCEDURE != } if{
       "cannot declare " false dType <<DeclareableType ' ' << name <<*
       ", the identifier is already used by " <<* true prev Declareable.type <<DeclareableType
       " (declared at " prev Declareable.pos << ") at " <<* fPos << '\n' << eputs
       1 exit
-    end
-  end
-  context name Context.getDeclareable if
+    }
+  }
+  context name Context.getDeclareable if{
     Declareable shadowed =:
     "Warning: " false dType <<DeclareableType " " <<* name <<*
      " declared at " <<* fPos << "\n     shadows existing " <<*
      false shadowed Declareable.type <<DeclareableType " declared at " <<*
      shadowed Declareable.pos << '\n' << eputs
-  end
+  }
   localName return
-end
-Context.declareVariable proc #+context+# Context #+name+# string #+isConst+# bool #+pos+# FilePosition => VariableId :
+}
+Context.declareVariable proc( #+context+# Context #+name+# string #+isConst+# bool #+pos+# FilePosition => VariableId ){
     FilePosition fPos =:
     bool isConst =:
     string name =:
     Context context =:
-    isConst if DeclareableType .FINAL_VARIABLE else DeclareableType .VARIABLE_ID end DeclareableType dType =:
+    isConst if{ DeclareableType .FINAL_VARIABLE }else{ DeclareableType .VARIABLE_ID } DeclareableType dType =:
     context name dType fPos Context.ensureDeclareable name =
     dType fPos context Context.isGlobal context Context.level context Context.varCount VariableId new VariableId varId =:
     context Context.incVarCount
     context Context.elements name varId HashMap.put drop
     varId return
-end
-Context.getDeclareable proc #+context+# Context #+name+# string => Declareable optional :
+}
+Context.getDeclareable proc( #+context+# Context #+name+# string => Declareable optional ){
     string name =:
     Context context =:
-    context Context.type switch
+    context Context.type switch{
     ROOT_CONTEXT case
       context RootContext.currentPaths string list paths =:
       paths .length 1 - int i =:
-      while i 0 >= do ##go through all namespaces
-        context Context.elements paths i [] clone name <<* HashMap.get dup .hasValue if
+      while{ i 0 >= }do{ ##go through all namespaces
+        context Context.elements paths i [] clone name <<* HashMap.get dup .hasValue if{
           #+element+# Declareable optional cast return
-        else drop end
+        }else{ drop }
         i 1 - i =
-      end
+      }
       context Context.elements name HashMap.get return
       end-case
     PROC_CONTEXT BLOCK_CONTEXT case
-      context Context.elements name HashMap.get dup .hasValue if
+      context Context.elements name HashMap.get dup .hasValue if{
         #+element+# Declareable optional cast return
-      else drop
+      }else{ drop
         context BlockContext.parent name Context.getDeclareable return
-      end
+      }
       end-case
-    end
-end
+    }
+}
 MODULE_SEPARATOR #define '\'' #end
 ##token that signals the compiler, that there will be no more statements in the current code-section
 END_OF_SECTION #define "##" #end
-RootContext.startFile proc RootContext => :
+RootContext.startFile proc( RootContext => ){
   RootContext.openFiles newOpenFile << drop
-end
-RootContext.file proc RootContext => OpenFile :
+}
+RootContext.file proc( RootContext => OpenFile ){
   RootContext context =:
   context RootContext.openFiles context RootContext.openFiles .length 1 - [] return
-end
+}
 
-RootContext.inCurrentModule proc RootContext  #+name+# string => string :
+RootContext.inCurrentModule proc( RootContext  #+name+# string => string ){
    string name =:
    #+context+# RootContext.file OpenFile.openModules OpenModule list namespaces =:
-   namespaces .length 0 > if
+   namespaces .length 0 > if{
     "" string path =:
      0 int i =:
-     while i namespaces .length < do
+     while{ i namespaces .length < }do{
         namespaces i [] OpenModule.path string list paths =:
         0 int j =:
-        while j paths .length < do
+        while{ j paths .length < }do{
           path paths j [] <<* MODULE_SEPARATOR << path =
           j 1 + j =
-        end
+        }
         i 1 + i =
-     end
+     }
      path name <<* return
-   end
+   }
    name return
-end
-RootContext.startModule proc RootContext #+name+# string #+declaredAt+# FilePosition => :
+}
+RootContext.startModule proc( RootContext #+name+# string #+declaredAt+# FilePosition => ){
   FilePosition fPos =:
   string name =:
   RootContext context =:
-  context Context.elements context name RootContext.inCurrentModule HashMap.get if
+  context Context.elements context name RootContext.inCurrentModule HashMap.get if{
     Declareable d =:
     "cannot declare namespace " name <<* ", the identifier is already used by " <<*
     true d Declareable.type <<DeclareableType
     " (declared at " <<* d Declareable.pos << ")\n at " <<*
     fPos  << '\n' << eputs
     1 exit
-  end
+  }
   context "" RootContext.inCurrentModule string fullPath =:
   16 string list new string list path =:
   "" string tmp =:
   0 int i =:
-  while i name .length < do
+  while{ i name .length < }do{
     fullPath name i [] << fullPath =
-    name i [] MODULE_SEPARATOR == if
+    name i [] MODULE_SEPARATOR == if{
       context RootContext.namespaces fullPath clone true HashMap.put drop
       path tmp << path =
       "" tmp =
-    else
+    }else{
       tmp name i [] << tmp =
-    end
+    }
     i 1 + i =
-  end
+  }
   path tmp << path =
   fullPath MODULE_SEPARATOR << fullPath =
   context RootContext.namespaces fullPath clone true HashMap.put drop
   context RootContext.file OpenFile.openModules path fPos newOpenModule << drop
-end
-RootContext.addImport proc RootContext #+name+# string #+declaredAt+# FilePosition => :
+}
+RootContext.addImport proc( RootContext #+name+# string #+declaredAt+# FilePosition => ){
   FilePosition fPos =:
   string name0 =:
   name0 clone '\'' << string name =:
   RootContext context =:
-  context RootContext.namespaces name HashMap.contains if
+  context RootContext.namespaces name HashMap.contains if{
      context RootContext.file OpenFile file =:
-     file OpenFile.openModules .length 0 > if
+     file OpenFile.openModules .length 0 > if{
          file OpenFile.openModules file OpenFile.openModules .length 1 - [] OpenModule.imports name << drop
-     else
+     }else{
          file OpenFile.globalImports name << drop
-     end
-  else context Context.elements name HashMap.get _if
+     }
+  }else{ context Context.elements name HashMap.get }if{
     ##addLater static imports
     drop
     "static imports are currently unimplemented"
     1 exit
-  else
+  }else{
     context RootContext.namespaces
     "namespace " name0 <<* " does not exist " <<* fPos << '\n' << eputs
     1 exit
-  end
-end
-RootContext.endModule proc RootContext FilePosition => :
+  }
+}
+RootContext.endModule proc( RootContext FilePosition => ){
   FilePosition fPos =:
   RootContext context =:
   context RootContext.file OpenFile file =:
-  file OpenFile.openModules .length 0 == if
+  file OpenFile.openModules .length 0 == if{
     "Unexpected End of namespace " fPos << '\n' << eputs
     1 exit
-  end
+  }
   file OpenFile.openModules file OpenFile.openModules .length 1 - [] OpenModule removed =:
   file OpenFile.openModules file OpenFile.openModules .length 1 - file OpenFile.openModules .length [:] clear
-  removed OpenModule.predeclared HashMap.size 0 > if
+  removed OpenModule.predeclared HashMap.size 0 > if{
     "Syntax Error: missing variables/procedures" string message =:
-    removed OpenModule.predeclared HashMap.itr while HashMapItr.next do
+    removed OpenModule.predeclared HashMap.itr while{ HashMapItr.next }do{
        string PredeclaredProc MapEntry e =:
        message "\n- " <<* e MapEntry.key string cast <<* " (at " <<* e MapEntry.value Declareable.pos << ')' << drop
-    end drop
+    } drop
     message fPos << '\n' << eputs
     1 exit
-  end
-end
-RootContext.endFile proc RootContext FilePosition => :
+  }
+}
+RootContext.endFile proc( RootContext FilePosition => ){
   FilePosition fPos =:
   RootContext context =:
   context RootContext.openFiles context RootContext.openFiles .length 1 - [] OpenFile closed =:
   context RootContext.openFiles context RootContext.openFiles .length 1 - context RootContext.openFiles .length [:] clear
-  closed OpenFile.openModules .length 0 > if
+  closed OpenFile.openModules .length 0 > if{
     "unclosed namespaces at end of File:\n" eputs
     closed OpenFile.openModules .length 1 - int i =:
-    while i 0 >= do
+    while{ i 0 >= }do{
       closed OpenFile.openModules i [] OpenModule removed =:
-      removed OpenModule.predeclared HashMap.size 0 > if
+      removed OpenModule.predeclared HashMap.size 0 > if{
         "Syntax Error: missing variables/procedures" string message =:
-        removed OpenModule.predeclared HashMap.itr while HashMapItr.next do
+        removed OpenModule.predeclared HashMap.itr while{ HashMapItr.next }do{
            string PredeclaredProc MapEntry e =:
            message "\n- " <<* e MapEntry.key string cast <<* " (at " <<* e MapEntry.value Declareable.pos << ')' << drop
-        end drop
+        } drop
         message fPos << '\n' << eputs
         1 exit
-      end
+      }
       " - " removed << '\n' << eputs
       i 1 - i =
-    end
+    }
     closed OpenFile.openModules clear
-  end
-  closed OpenFile.globalPredeclared HashMap.size 0 > if
+  }
+  closed OpenFile.globalPredeclared HashMap.size 0 > if{
     "Syntax Error: missing variables/procedures" string message =:
-    closed OpenFile.globalPredeclared HashMap.itr while HashMapItr.next do
+    closed OpenFile.globalPredeclared HashMap.itr while{ HashMapItr.next }do{
        string PredeclaredProc MapEntry e =:
        message "\n- " <<* e MapEntry.key string cast <<* " (at " <<* e MapEntry.value Declareable.pos << ')' << drop
-    end drop
+    } drop
     message fPos << '\n' << eputs
     1 exit
-  end
-end
+  }
+}
 
-RootContext.currentPaths proc RootContext => string list :
+RootContext.currentPaths proc( RootContext => string list ){
   #+context+# RootContext.file OpenFile file =:
   file OpenFile.globalImports clone string list paths =:
   16 string new string path =:
   file OpenFile.openModules OpenModule list namespaces =:
   0 int i =:
-  while i namespaces .length < do
+  while{ i namespaces .length < }do{
     namespaces i [] OpenModule.path string list mPath =:
     0 int j =:
-    while j mPath .length < do
+    while{ j mPath .length < }do{
       path mPath j [] <<* MODULE_SEPARATOR << path =
       j 1 + j =
       paths path clone << paths =
-    end
+    }
     paths  namespaces i [] OpenModule.imports  paths .length 1 - paths .length 1 - [:]=
     i 1 + i =
-  end
+  }
   paths return
-end
-RootContext.predeclared proc RootContext => string Declareable HashMap :
+}
+RootContext.predeclared proc( RootContext => string Declareable HashMap ){
   #+context+# RootContext.file OpenFile file =:
-  file OpenFile.openModules .length 0 > if
+  file OpenFile.openModules .length 0 > if{
     file OpenFile.openModules file OpenFile.openModules .length 1 - [] OpenModule.predeclared return
-  else
+  }else{
     file OpenFile.globalPredeclared return
-  end
-end
+  }
+}
 
-RootContext.declareProcedure proc #+context+# RootContext #+name+# string #+proc+# Procedure => :
+RootContext.declareProcedure proc( #+context+# RootContext #+name+# string #+proc+# Procedure => ){
   Procedure aProc =:
   string name =:
   RootContext context =:
   context name DeclareableType .PROCEDURE aProc Declareable.pos Context.ensureDeclareable name =
-  context RootContext.predeclared name HashMap.remove if
+  context RootContext.predeclared name HashMap.remove if{
     ##TODO handle predeclared procedure
     drop
-  end
+  }
   context Context.elements name aProc HashMap.put drop
-end
+}
 ##addLater predeclareProcedure
 
-RootContext.declareMacro proc #+context+# RootContext #+macro+# Macro => :
+RootContext.declareMacro proc( #+context+# RootContext #+macro+# Macro => ){
   Macro macro =:
   macro Macro.name string name =:
   RootContext context =:
   context name DeclareableType .MACRO macro Declareable.pos Context.ensureDeclareable name =
   context Context.elements name macro HashMap.put drop
-end
-RootContext.removeMacro proc #+context+# RootContext #+name+# string #+pos+# FilePosition => :
+}
+RootContext.removeMacro proc( #+context+# RootContext #+name+# string #+pos+# FilePosition => ){
   FilePosition fPos =:
   string name =:
   RootContext context =:
-  context Context.elements context name RootContext.inCurrentModule HashMap.remove if
+  context Context.elements context name RootContext.inCurrentModule HashMap.remove if{
     Declareable removed =:
-    removed Declareable.type DeclareableType .MACRO != if
+    removed Declareable.type DeclareableType .MACRO != if{
       "macro " name <<* " does not exists, or is shadowed by " <<*
       false removed Declareable.type <<DeclareableType
       " (declared at " <<* removed Declareable.pos << ") "
       fPos << '\n' << eputs
       1 exit
-    end
-  else
+    }
+  }else{
     "macro " name <<* " does not exists in the current namespace " <<* fPos << '\n' << eputs
     1 exit
-  end
-end
-RootContext.declareEnum proc #+context+# RootContext #+source+# EnumBlock => :
+  }
+}
+RootContext.declareEnum proc( #+context+# RootContext #+source+# EnumBlock => ){
   EnumBlock source =:
   source EnumBlock.name string name =:
   RootContext context =:
@@ -724,25 +724,25 @@ RootContext.declareEnum proc #+context+# RootContext #+source+# EnumBlock => :
   ##declare enum entries
   0 int i =:
   anEnum Enum.enumType EnumType.fields NameWithPos list fields =:
-  while i fields .length < do
+  while{ i fields .length < }do{
     source EnumBlock.name clone MODULE_SEPARATOR << fields i [] NameWithPos.name <<* string fieldName =:
     context fieldName DeclareableType .ENUM_ENTRY fields i [] NameWithPos.pos Context.ensureDeclareable fieldName =
     context Context.elements fieldName anEnum Enum.enumType i newEnumEntry HashMap.put drop
     i 1 + i =
-  end
-end
-RootContext.declareTuple proc #+context+# RootContext #+tuple+# Tuple => :
+  }
+}
+RootContext.declareTuple proc( #+context+# RootContext #+tuple+# Tuple => ){
   Tuple aTuple =:
   aTuple Tuple.tupleType TupleType.name string name =:
   RootContext context =:
   context name DeclareableType .TUPLE aTuple Declareable.pos Context.ensureDeclareable name =
   context Context.elements name aTuple HashMap.put drop
-end
+}
 ##TODO RootContext.declareNativeProc
 ##TODO Context.wrapCurried
 
 
-TokenType enum
+TokenType enum{
   WORD
   KEY_WORD
   PROCEDURE_START
@@ -754,57 +754,57 @@ TokenType enum
   BLOCK_TOKEN
   CONTEXT_OPEN
   CONTEXT_CLOSE
-end
-Token tuple TokenType FilePosition end
-Token.type  proc Token => TokenType    : .0 end
-Token.pos   proc Token => FilePosition : .1 end
+}
+Token tuple{ TokenType FilePosition }
+Token.type  proc( Token => TokenType    ){ .0 }
+Token.pos   proc( Token => FilePosition ){ .1 }
 
-WordToken tuple TokenType FilePosition string end
-WordToken.value proc WordToken => string : .2 end
+WordToken tuple{ TokenType FilePosition string }
+WordToken.value proc( WordToken => string ){ .2 }
 
-ValueToken tuple TokenType FilePosition Value end
-ValueToken.value proc ValueToken => Value : .2 end
+ValueToken tuple{ TokenType FilePosition Value }
+ValueToken.value proc( ValueToken => Value ){ .2 }
 
-BlockTokenType enum IF ELSE _IF END-IF WHILE DO END-WHILE DO-WHILE SWITCH CASE END-CASE DEFAULT END-SWITCH end
-BlockToken tuple TokenType FilePosition BlockTokenType int end
-BlockToken.type    proc BlockToken => BlockTokenType : .2   end
-BlockToken.target  proc BlockToken => int            : .3   end
-BlockToken.target= proc int BlockToken =>            : .3 = end
+BlockTokenType enum{ IF ELSE _IF END-IF WHILE DO END-WHILE DO-WHILE SWITCH CASE END-CASE DEFAULT END-SWITCH }
+BlockToken tuple{ TokenType FilePosition BlockTokenType int }
+BlockToken.type    proc( BlockToken => BlockTokenType ){ .2   }
+BlockToken.target  proc( BlockToken => int            ){ .3   }
+BlockToken.target= proc( int BlockToken =>            ){ .3 = }
 
-ContextToken tuple TokenType FilePosition Context end
-ContextToken.varCount proc ContextToken => int : .2 Context.varCount end
+ContextToken tuple{ TokenType FilePosition Context }
+ContextToken.varCount proc( ContextToken => int ){ .2 Context.varCount }
 
-IdentifierType enum
+IdentifierType enum{
   WRITE
   DECLARE
   CONST_DECLARE
   ADDRESS_OF
-end
-IdentifierToken tuple TokenType FilePosition IdentifierType string end
-IdentifierToken.idType proc IdentifierToken => IdentifierType : .2 end
-IdentifierToken.value  proc IdentifierToken => string         : .3 end
+}
+IdentifierToken tuple{ TokenType FilePosition IdentifierType string }
+IdentifierToken.idType proc( IdentifierToken => IdentifierType ){ .2 }
+IdentifierToken.value  proc( IdentifierToken => string         ){ .3 }
 
-OperatorType enum
+OperatorType enum{
   PLUS MINUS NEGATE INVERT MULTIPLY DIVIDE MOD
   NOT FLIP AND OR XOR  SHIFT_L SHIFT_R
   LT LE EQ REF_EQ REF_NE NE GE GT
-end
-OperatorToken tuple TokenType FilePosition OperatorType end
-OperatorToken.opType proc OperatorToken => OperatorType : .2 end
+}
+OperatorToken tuple{ TokenType FilePosition OperatorType }
+OperatorToken.opType proc( OperatorToken => OperatorType ){ .2 }
 
-AccessType enum
+AccessType enum{
   DECLARE_CONST DECLARE_VAR WRITE_VAR READ_VAR
-end
-VariableToken tuple TokenType FilePosition AccessType VariableId end
-VariableToken.accessType proc VariableToken => AccessType : .2 end
-VariableToken.id         proc VariableToken => VariableId : .3 end
+}
+VariableToken tuple{ TokenType FilePosition AccessType VariableId }
+VariableToken.accessType proc( VariableToken => AccessType ){ .2 }
+VariableToken.id         proc( VariableToken => VariableId ){ .3 }
 
 
-core .<< proc string Token => string :
+core .<< proc( string Token => string ){
   Token token =:
 
   TokenType .fieldNames token Token.type [] *>> ": " *>>
-  token Token.type switch
+  token Token.type switch{
   WORD KEY_WORD PROCEDURE_START ENUM_START case
     token WordToken.value <<*
     end-case
@@ -828,34 +828,34 @@ core .<< proc string Token => string :
   CONTEXT_OPEN case
     token ContextToken.varCount stringValue <<*
     end-case
-  end
-end
+  }
+}
 
-ParserReader tuple BufferedInput FilePosition string FilePosition end
-ParserReader.in       proc ParserReader => BufferedInput : .0 end
-ParserReader.pos      proc ParserReader => FilePosition  : .1 end
-ParserReader.word     proc ParserReader => string        : .2 end
-ParserReader.wordPos  proc ParserReader => FilePosition  : .3 end
-ParserReader.nextWord proc ParserReader => :
+ParserReader tuple{ BufferedInput FilePosition string FilePosition }
+ParserReader.in       proc( ParserReader => BufferedInput ){ .0 }
+ParserReader.pos      proc( ParserReader => FilePosition  ){ .1 }
+ParserReader.word     proc( ParserReader => string        ){ .2 }
+ParserReader.wordPos  proc( ParserReader => FilePosition  ){ .3 }
+ParserReader.nextWord proc( ParserReader => ){
   ParserReader reader =:
   reader ParserReader.word clear
   reader ParserReader.pos FilePosition.line       reader ParserReader.wordPos FilePosition.line=
   reader ParserReader.pos FilePosition.posInLine  reader ParserReader.wordPos FilePosition.posInLine=
-end
-ParserReader.nextByte proc ParserReader => byte optional :
+}
+ParserReader.nextByte proc( ParserReader => byte optional ){
   ParserReader reader =:
   reader ParserReader.in BufferedInput.nextByte byte optional next =:
-  next if
-    '\n' == if
+  next if{
+    '\n' == if{
       reader ParserReader.pos FilePosition.newLine
-    else
+    }else{
       reader ParserReader.pos FilePosition.nextChar
-    end
-  end
+    }
+  }
   next return
-end
+}
 
-ParseState enum
+ParseState enum{
   STATE_WORD
   STATE_STRING
   STATE_USTRING
@@ -863,21 +863,21 @@ ParseState enum
   STATE_UCHAR
   STATE_COMMENT
   STATE_LINE_COMMENT
-end
+}
 
-OpenBlocks tuple Macro CodeBlock list end
-OpenBlocks.currentMacro  proc OpenBlocks => Macro          : .0   end
-OpenBlocks.currentMacro= proc Macro OpenBlocks =>          : .0 = end
-OpenBlocks.blocks        proc OpenBlocks => CodeBlock list : .1   end
+OpenBlocks tuple{ Macro CodeBlock list }
+OpenBlocks.currentMacro  proc( OpenBlocks => Macro          ){ .0   }
+OpenBlocks.currentMacro= proc( Macro OpenBlocks =>          ){ .0 = }
+OpenBlocks.blocks        proc( OpenBlocks => CodeBlock list ){ .1   }
 
-Program tuple #+tokens+# Token list #+root-context+# Context end
-Program.tokens   proc Program => Token list : .0   end
-Program.context  proc Program => Context    : .1   end
-Program.context= proc Context Program  =>   : .1 = end
+Program tuple{ #+tokens+# Token list #+root-context+# Context }
+Program.tokens   proc( Program => Token list ){ .0   }
+Program.context  proc( Program => Context    ){ .1   }
+Program.context= proc( Context Program  =>   ){ .1 = }
 
 
-parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_blocks+# OpenBlocks
-  #+program+# Program => :
+parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_blocks+# OpenBlocks
+  #+program+# Program => ){
   Program program =:
   program Program.context Context context =:
   program Program.tokens Token list tokens =:
@@ -885,9 +885,9 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
   FilePosition fPos =:
   string       next =:
   string       word =:
-  word .length 0 > if
-    openBlocks OpenBlocks.currentMacro Macro.name .length 0 > if
-      word switch
+  word .length 0 > if{
+    openBlocks OpenBlocks.currentMacro Macro.name .length 0 > if{
+      word switch{
       "#end" case
         context openBlocks OpenBlocks.currentMacro RootContext.declareMacro
         fPos "" newMacro  openBlocks OpenBlocks.currentMacro=
@@ -898,125 +898,125 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         end-case
       default
         openBlocks OpenBlocks.currentMacro Macro.words word fPos NameWithPos new << drop
-      end
+      }
       return
-    end
+    }
     ##keywords that consume one or more words
-    word switch
+    word switch{
     ## identifier - modifiers
     "."  case
-      tokens .length 2 < if
+      tokens .length 2 < if{
         "not enough arguments for . " fPos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 2 - [] Token prePrev =:
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for '.' modifier: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
-      prePrev Token.type TokenType .WORD != if
+      }
+      prePrev Token.type TokenType .WORD != if{
         "invalid token for '.' modifier: " prePrev << ' ' << prePrev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens TokenType .WORD fPos prePrev WordToken.value '\'' << prev WordToken.value <<* WordToken new tokens .length 2 - []=
       tokens tokens .length 1 - tokens .length [:] clear
       end-case
     "="  case
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for '=' modifier: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens TokenType .IDENTIFIER fPos IdentifierType .WRITE prev WordToken.value IdentifierToken new tokens .length 1 - []=
       end-case
     "=:" case
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for '=:' modifier: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens TokenType .IDENTIFIER fPos IdentifierType .DECLARE prev WordToken.value IdentifierToken new tokens .length 1 - []=
       end-case
     "=$" case
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for '=$' modifier: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens TokenType .IDENTIFIER fPos
         IdentifierType .CONST_DECLARE prev WordToken.value IdentifierToken new tokens .length 1 - []=
       end-case
     "@()" case
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for '@()' modifier: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens TokenType .IDENTIFIER fPos
         IdentifierType .ADDRESS_OF prev WordToken.value IdentifierToken new tokens .length 1 - []=
       end-case
     ## macro&namespace key-words
     "#define" case
-      tokens .length 0 == if
+      tokens .length 0 == if{
         "missing macro name " fPos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for macro name: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - tokens .length [:] clear
       prev WordToken.value  openBlocks OpenBlocks.currentMacro Macro.name=
       prev Token.pos        openBlocks OpenBlocks.currentMacro Declareable.pos=
       end-case
     "#undef" case
-      openBlocks OpenBlocks.blocks .length 0 > if
+      openBlocks OpenBlocks.blocks .length 0 > if{
         "macros can only be undefined at root-level " fPos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token preceding #undef: " prev << ' ' << prev Token.pos <<
         " expected macro-name \n" <<* eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - tokens .length [:] clear
       context prev WordToken.value fPos RootContext.removeMacro
       end-case
     "#namespace" case
-      openBlocks OpenBlocks.blocks .length 0 > if
+      openBlocks OpenBlocks.blocks .length 0 > if{
         "namespaces can only be declared at root-level " fPos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for namespace name: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - tokens .length [:] clear
       context prev WordToken.value fPos RootContext.startModule
       end-case
     "#end" case
-      openBlocks OpenBlocks.blocks .length 0 > if
+      openBlocks OpenBlocks.blocks .length 0 > if{
         "namespaces can only be closed at root-level " fPos << '\n' << eputs
         1 exit
-      end
+      }
       END_OF_SECTION "" fPos openBlocks program parseWord
       context fPos RootContext.endModule
       end-case
     "#import" case
-      openBlocks OpenBlocks.blocks .length 0 > if
+      openBlocks OpenBlocks.blocks .length 0 > if{
         "imports  are can only allowed at root-level " fPos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "imported namespace name has to be an identifier, got "
            prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - tokens .length [:] clear
       context prev WordToken.value fPos RootContext.addImport
       end-case
@@ -1026,100 +1026,100 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
       end-case
     ## proc/enum key-words
     "proc" "procedure" case
-      tokens .length 0 == if
+      tokens .length 0 == if{
         "missing procedure name " fPos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for procedure name: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens TokenType .PROCEDURE_START fPos prev WordToken.value WordToken new tokens .length 1 - []=
       openBlocks OpenBlocks.blocks BlockType .PROC_BLOCK fPos tokens .length CodeBlock new << drop
       end-case
     "enum" case
-      tokens .length 0 == if
+      tokens .length 0 == if{
         "missing enum name " fPos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for enum name: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - tokens .length [:] clear
       openBlocks OpenBlocks.blocks prev WordToken.value fPos tokens .length newEnumBlock << drop
       end-case
     "tuple" case
-      tokens .length 0 == if
+      tokens .length 0 == if{
         "missing tuple name " fPos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - [] Token prev =:
-      prev Token.type TokenType .WORD != if
+      prev Token.type TokenType .WORD != if{
         "invalid token for tuple name: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
-      end
+      }
       tokens tokens .length 1 - tokens .length [:] clear
       openBlocks OpenBlocks.blocks prev WordToken.value fPos tokens .length newTupleBlock << drop
       end-case
     default
-      tokens .length 0 > && next "." != end if
+      tokens .length 0 > &&{ next "." != } if{
         tokens tokens .length 1 - [] Token prev =:
-        prev Token.type TokenType .IDENTIFIER == if
-          prev IdentifierToken.idType switch
+        prev Token.type TokenType .IDENTIFIER == if{
+          prev IdentifierToken.idType switch{
           DECLARE CONST_DECLARE case
             context
             prev IdentifierToken.value
             prev IdentifierToken.idType IdentifierType .DECLARE !=
             prev Token.pos
             Context.declareVariable VariableId id =:
-            prev IdentifierToken.idType IdentifierType .DECLARE != if
-              AccessType .DECLARE_VAR else AccessType .DECLARE_CONST end AccessType aType =:
+            prev IdentifierToken.idType IdentifierType .DECLARE != if{
+              AccessType .DECLARE_VAR }else{ AccessType .DECLARE_CONST } AccessType aType =:
             tokens
             TokenType .VARIABLE prev Token.pos aType id VariableToken new
             tokens .length 1 - []=
             end-case
           WRITE case
-            context prev IdentifierToken.value Context.getDeclareable if
+            context prev IdentifierToken.value Context.getDeclareable if{
               Declareable d =:
-              d Declareable.type DeclareableType .VARIABLE_ID != if
+              d Declareable.type DeclareableType .VARIABLE_ID != if{
                 "" false d Declareable.type <<DeclareableType " " <<* prev IdentifierToken.value <<*
                 " (declared at " <<* d Declareable.pos << ") is not a variable" <<*
                 fPos << '\n' << eputs
                 1 exit
-              end
+              }
               ##TODO check for curried variables
               ##context.wrapCurried(identifier.name,id,identifier.pos);
               tokens
               TokenType .VARIABLE prev Token.pos AccessType .WRITE_VAR d VariableToken new
               tokens .length 1 - []=
-            else
+            }else{
               "variable " prev IdentifierToken.value <<* " does not exist " <<* fPos << '\n' << eputs
               1 exit
-            end
+            }
             end-case
           ADDRESS_OF case
             ##TODO address of
             "unimplemented\n" eputs
             1 exit
             end-case
-          end
-        else  prev Token.type TokenType .WORD == _if
-          context prev WordToken.value Context.getDeclareable if
+          }
+        }else{  prev Token.type TokenType .WORD == }if{
+          context prev WordToken.value Context.getDeclareable if{
             Declareable d =:
-            d Declareable.type switch
+            d Declareable.type switch{
             MACRO case
               tokens tokens .length 1 - tokens .length [:] clear ##remove prev
               0 int i =:
-              while i d Macro.words .length < do
+              while{ i d Macro.words .length < }do{
                 d Macro.words i [] NameWithPos s =:
-                i 1 + d Macro.words .length < if d Macro.words i 1 + [] NameWithPos.name else "##" end string nxt =:
+                i 1 + d Macro.words .length < if{ d Macro.words i 1 + [] NameWithPos.name }else{ "##" } string nxt =:
                 ##addLater remember position in macro for file-position
                 s NameWithPos.name nxt prev Token.pos openBlocks program parseWord
                 i 1 + i =
-              end
+              }
               ## update identifiers at end of macro
               END_OF_SECTION next prev Token.pos openBlocks program parseWord
               end-case
@@ -1154,38 +1154,38 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
               "resolving procedures is currently unimplemented\n" eputs
               1 exit
               end-case
-            end
-          else
+            }
+          }else{
             ##TODO resolve missing declarable
-          end
-        end
-      end
+          }
+        }
+      }
       ## try parsing as integer
       0 int off =:
       ## detect signs
       false bool sgn =:
-           word 0 [] '-' ==  if
+           word 0 [] '-' ==  if{
         true sgn =
         off 1 + off =
-      else word 0 [] '+' == _if
+      }else{ word 0 [] '+' == }if{
         off 1 + off =
-      end
+      }
       10 int base =:
       ##detect base modifiers
-      word .length off - 3 > if
-             word off off 2 + [:] "0b" ==  if
+      word .length off - 3 > if{
+             word off off 2 + [:] "0b" ==  if{
           2 base =
           off 2 + off =
-        else word off off 2 + [:] "0x" == _if
+        }else{ word off off 2 + [:] "0x" == }if{
           16 base =
           off 2 + off =
-        end
-      end
-      off word .length < && word off [] base valueOfDigit 0 >= end if ##number starts with digit after prefixes
-        word word .length 1 - [] 'u' == || word word .length 1 - [] 'U' == end if ##unsigned
-          word off word .length 1 - [:] base false stringToInt switch
+        }
+      }
+      off word .length < &&{ word off [] base valueOfDigit 0 >= } if{ ##number starts with digit after prefixes
+        word word .length 1 - [] 'u' == ||{ word word .length 1 - [] 'U' == } if{ ##unsigned
+          word off word .length 1 - [:] base false stringToInt switch{
           ERR_NONE case
-            sgn if -_ end uint val =:
+            sgn if{ -_ } uint val =:
             tokens TokenType .VALUE fPos val Value.ofUInt ValueToken new << tokens =
             return
             end-case
@@ -1197,11 +1197,11 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           ERR_BASE ERR_EMPTY ERR_ILLEGAL_CHAR case
             drop
             end-case
-          end
-        else
-          word off word .length [:] base true stringToInt switch
+          }
+        }else{
+          word off word .length [:] base true stringToInt switch{
           ERR_NONE case
-              sgn if -_ end int val =:
+              sgn if{ -_ } int val =:
               tokens TokenType .VALUE fPos val Value.ofInt ValueToken new << tokens =
               return
             end-case
@@ -1213,19 +1213,19 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           ERR_BASE ERR_EMPTY ERR_ILLEGAL_CHAR case
             drop
             end-case
-          end
-          word off word .length [:] base stringToFloat StringParseError .ERR_NONE == if
-            sgn if -_ end float val =:
+          }
+          word off word .length [:] base stringToFloat StringParseError .ERR_NONE == if{
+            sgn if{ -_ } float val =:
             tokens TokenType .VALUE fPos val Value.ofFloat ValueToken new << tokens =
             return
-          else
+          }else{
             drop
-          end
-        end
-      end
+          }
+        }
+      }
       ## end integer parsing
       ##constants, operators and remaining keywords
-      word switch
+      word switch{
       END_OF_SECTION case
         ##do nothing
         end-case
@@ -1270,15 +1270,15 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         tokens TokenType .KEY_WORD fPos word WordToken new << tokens =
         end-case
       "=>" ":" case
-        openBlocks OpenBlocks.blocks .length 0 == if
+        openBlocks OpenBlocks.blocks .length 0 == if{
           word " can only be used in (lambda-)procedures " <<* fPos << '\n' << eputs
           1 exit
-        end
+        }
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType .PROC_BLOCK != if
+        block CodeBlock.type BlockType .PROC_BLOCK != if{
           word " can only be used in (lambda-)procedures " <<* fPos << '\n' << eputs
           1 exit
-        end
+        }
         ##TODO update procedure-block
         tokens TokenType .KEY_WORD fPos word WordToken new << tokens =
         end-case
@@ -1287,20 +1287,20 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .WHILE 0 BlockToken new << tokens =
         end-case
       "do" case
-        openBlocks OpenBlocks.blocks .length 0 == if
+        openBlocks OpenBlocks.blocks .length 0 == if{
           word " can only be used in while-statement " <<* fPos << '\n' << eputs
           1 exit
-        end
+        }
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType .PROC_BLOCK != && block CodeBlock.type BlockType .WHILE_BLOCK != end if
+        block CodeBlock.type BlockType .PROC_BLOCK != &&{ block CodeBlock.type BlockType .WHILE_BLOCK != } if{
           word " can only be used in while-statement " <<* fPos << '\n' << eputs
           1 exit
-        end
-        block WhileBlock.forkPos -1 != if
+        }
+        block WhileBlock.forkPos -1 != if{
           "duplicate 'do' in while-statement " fPos <<
           "\n previous appearance at " <<* tokens block WhileBlock.forkPos [] Token.pos << '\n' << eputs
           1 exit
-        end
+        }
         tokens .length block WhileBlock.forkPos=
         tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .DO -1 BlockToken new << tokens =
         ##open while-context
@@ -1317,58 +1317,58 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         tokens TokenType .CONTEXT_OPEN fPos context ContextToken new << tokens =
         end-case
       "else" case
-        openBlocks OpenBlocks.blocks .length 0 == if
+        openBlocks OpenBlocks.blocks .length 0 == if{
           word " can only be used in if-blocks " <<* fPos << '\n' << eputs
           1 exit
-        end
+        }
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType .IF_BLOCK != if
+        block CodeBlock.type BlockType .IF_BLOCK != if{
           word " can only be used in if-blocks " <<* fPos << '\n' << eputs
           1 exit
-        end
-        block IfBlock.prevIf -1 == if
+        }
+        block IfBlock.prevIf -1 == if{
           "unexpected 'else'-statement, 'else' can only appear after 'if' or '_if' "
             fPos << '\n' << eputs
           1 exit
-        end
+        }
         ##close if-context
         context BlockContext.parent context =
         context program Program.context=
         tokens TokenType .CONTEXT_CLOSE fPos Token new << tokens =
-        block IfBlock.else_positions .length 0 > if
+        block IfBlock.else_positions .length 0 > if{
           ##close else-context
           tokens TokenType .CONTEXT_CLOSE fPos Token new << tokens =
-        end
+        }
         block IfBlock.else_positions tokens .length << drop
         tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .ELSE -1 BlockToken new << tokens =
         tokens block IfBlock.prevIf [] Token tmp =:
-        tmp Token.type TokenType .BLOCK_TOKEN == &&
-          tmp BlockToken.type BlockTokenType .IF == || tmp BlockToken.type BlockTokenType ._IF == end end
+        tmp Token.type TokenType .BLOCK_TOKEN == &&{
+          tmp BlockToken.type BlockTokenType .IF == ||{ tmp BlockToken.type BlockTokenType ._IF == } }
           "token at fork-pos of If-statement has to be BlockToken:'if' or BlockToken:'_if'" assert
         tokens .length block IfBlock.prevIf - tmp BlockToken.target=
         -1 block IfBlock.prevIf=
-        block IfBlock.else_positions .length 1 <= if
+        block IfBlock.else_positions .length 1 <= if{
           ##open else-context
           context newBlockContext context =
           context program Program.context=
           tokens TokenType .CONTEXT_OPEN fPos context ContextToken new << tokens =
-        end
+        }
         end-case
       "_if" case
-        openBlocks OpenBlocks.blocks .length 0 == if
+        openBlocks OpenBlocks.blocks .length 0 == if{
           word " can only be used in if-blocks " <<* fPos << '\n' << eputs
           1 exit
-        end
+        }
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType .IF_BLOCK != if
+        block CodeBlock.type BlockType .IF_BLOCK != if{
           word " can only be used in if-blocks " <<* fPos << '\n' << eputs
           1 exit
-        end
-        block IfBlock.prevIf -1 != if
+        }
+        block IfBlock.prevIf -1 != if{
           "unexpected '_if'-statement, '_if' can only appear after 'else' "
             fPos << '\n' << eputs
           1 exit
-        end
+        }
         tokens .length block IfBlock.prevIf=
         tokens TokenType .BLOCK_TOKEN fPos BlockTokenType ._IF 0 BlockToken new << tokens =
         ##open if-context
@@ -1381,83 +1381,83 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         tokens TokenType .KEY_WORD fPos word WordToken new << tokens =
         end-case
       "case" "end-case" "default" case
-        openBlocks OpenBlocks.blocks .length 0 == if
+        openBlocks OpenBlocks.blocks .length 0 == if{
           word " can only be used in switch-blocks " <<* fPos << '\n' << eputs
           1 exit
-        end
+        }
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] CodeBlock block =:
-        block CodeBlock.type BlockType .SWITCH_BLOCK != if
+        block CodeBlock.type BlockType .SWITCH_BLOCK != if{
           word " can only be used in switch-blocks " <<*  fPos << '\n' << eputs
           1 exit
-        end
+        }
         ##TODO update switch-block
         tokens TokenType .KEY_WORD fPos word WordToken new << tokens =
         end-case
       "end" case
-        openBlocks OpenBlocks.blocks .length 0 == if
+        openBlocks OpenBlocks.blocks .length 0 == if{
           "unexpected end-statement " fPos << '\n' << eputs
           1 exit
-        end
+        }
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] CodeBlock block =:
         openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - openBlocks OpenBlocks.blocks .length [:] clear
-        block CodeBlock.type switch
+        block CodeBlock.type switch{
         IF_BLOCK case
-          block IfBlock.prevIf -1 != if
+          block IfBlock.prevIf -1 != if{
             ##close if-context
             context BlockContext.parent context =
             context program Program.context=
             tokens TokenType .CONTEXT_CLOSE fPos Token new << tokens =
             tokens block IfBlock.prevIf [] Token tmp =:
-            tmp Token.type TokenType .BLOCK_TOKEN == &&
-              tmp BlockToken.type BlockTokenType .IF == || tmp BlockToken.type BlockTokenType ._IF == end end
+            tmp Token.type TokenType .BLOCK_TOKEN == &&{
+              tmp BlockToken.type BlockTokenType .IF == ||{ tmp BlockToken.type BlockTokenType ._IF == } }
               "token at fork-pos of If-statement has to be BlockToken:'if' or BlockToken:'_if'" assert
             tokens .length block IfBlock.prevIf - tmp BlockToken.target=
-            block IfBlock.else_positions .length 0 > if
+            block IfBlock.else_positions .length 0 > if{
               ## close-else context
               tokens TokenType .CONTEXT_CLOSE fPos Token new << tokens =
-            end
-          else
+            }
+          }else{
             ## close-else context
             tokens TokenType .CONTEXT_CLOSE fPos Token new << tokens =
-          end
+          }
           0 int i =:
-          while i block IfBlock.else_positions .length < do
+          while{ i block IfBlock.else_positions .length < }do{
             tokens block IfBlock.else_positions i [] [] Token tmp =:
-            tmp Token.type TokenType .BLOCK_TOKEN == && tmp BlockToken.type BlockTokenType .ELSE == end
+            tmp Token.type TokenType .BLOCK_TOKEN == &&{ tmp BlockToken.type BlockTokenType .ELSE == }
             "token at end of if-branch has to be BlockToken:'else'" assert
             tokens .length block IfBlock.else_positions i [] - tmp BlockToken.target=
             i 1 + i =
-          end
-          block IfBlock.else_positions .length 0 > if
+          }
+          block IfBlock.else_positions .length 0 > if{
             ##close-else context
             context BlockContext.parent context =
             context program Program.context=
-          end
+          }
           tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .END-IF 0 BlockToken new << tokens =
           end-case
         WHILE_BLOCK case
-          block WhileBlock.forkPos -1 == if
+          block WhileBlock.forkPos -1 == if{
             "while block at " block CodeBlock.startPos << " does not contain a 'do' statement " <<*
             fPos << eputs
             1 exit
-          end
+          }
           ##close context
           context BlockContext.parent context =
           context program Program.context=
           tokens TokenType .CONTEXT_CLOSE fPos Token new << tokens =
           tokens block WhileBlock.forkPos [] Token tmp =:
-          tmp Token.type TokenType .BLOCK_TOKEN == && tmp BlockToken.type BlockTokenType .DO == end
+          tmp Token.type TokenType .BLOCK_TOKEN == &&{ tmp BlockToken.type BlockTokenType .DO == }
             "token at fork-pos of While has to be BlockToken:'do'" assert
-          block WhileBlock.forkPos tokens .length 3 - == if ## do context-open context-close end
+          block WhileBlock.forkPos tokens .length 3 - == if{ ## do context-open context-close end
             tokens tokens .length 2 - tokens .length [:] clear ##remove context open/close
             tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .DO-WHILE
               block CodeBlock.start tokens .length 1 - - BlockToken new
             block WhileBlock.forkPos []=
-          else
+          }else{
             tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .END-WHILE
               block CodeBlock.start tokens .length - BlockToken new << tokens =
             tokens .length block WhileBlock.forkPos - tmp BlockToken.target=
-          end
+          }
           end-case
         SWITCH_BLOCK case
           ## TODO close switch block
@@ -1468,11 +1468,11 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           "Waring closing proc-blocks is currently not implemented\n" eputs
           end-case
         ENUM_BLOCK case
-          tokens .length block CodeBlock.start > if
+          tokens .length block CodeBlock.start > if{
             "Invalid token in enum: " tokens block CodeBlock.start [] << ' '
               << tokens block CodeBlock.start [] Token.pos << '\n' << eputs
             1 exit
-          end
+          }
           context block RootContext.declareEnum
           end-case
         TUPLE_BLOCK case
@@ -1481,25 +1481,25 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
           subList clear
           values .length Type list new Type list types =:
           0 int i =:
-          while i values .length < do
-            values i [] Token.type TokenType .VALUE != if
+          while{ i values .length < }do{
+            values i [] Token.type TokenType .VALUE != if{
               "tokens of type:" TokenType .fieldNames values i [] Token.type [] <<* " are not allowed in tuple signatures " <<*
               values i [] Token.pos << '\n' << eputs
               1 exit
-            else values i [] ValueToken.value Value.type Type.TYPE != _if
+            }else{ values i [] ValueToken.value Value.type Type.TYPE != }if{
               "values of type:" values i [] ValueToken.value Value.type << " are not allowed in tuple signatures " <<*
               values i [] Token.pos << '\n' << eputs
               1 exit
-            end
+            }
              types values i [] ValueToken.value Value.data Type cast << types =
              i 1 + i =
-          end
+          }
           values clear
           context
           DeclareableType .TUPLE  block CodeBlock.startPos   block TupleBlock.name  types newTupleType   Tuple new
           RootContext.declareTuple
           end-case
-        end
+        }
         end-case
       ## operators
       "+" case
@@ -1570,22 +1570,22 @@ parseWord proc #+word+# string #+next+# string #+pos+# FilePosition #+open_block
         end-case
       default
         openBlocks OpenBlocks.blocks .length 0 >
-          && openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] CodeBlock.type BlockType .ENUM_BLOCK == end
-          if
+          &&{ openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] CodeBlock.type BlockType .ENUM_BLOCK == }
+          if{
           openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] EnumBlock.elements word fPos NameWithPos new << drop
-        else
+        }else{
           tokens TokenType .WORD fPos word WordToken new << tokens =
-        end
-      end
-    end
-  end
-end
+        }
+      }
+    }
+  }
+}
 
-readEscapeChar proc ParserReader => :
+readEscapeChar proc( ParserReader => ){
   ParserReader reader =:
-  reader ParserReader.nextByte if
+  reader ParserReader.nextByte if{
     byte next =:
-    next switch
+    next switch{
     '\\' '\'' '"' case
      reader ParserReader.word next << drop
      end-case
@@ -1614,22 +1614,22 @@ readEscapeChar proc ParserReader => :
     default
      "The escape sequence: '\\" next << "' is not supported " <<* reader ParserReader.pos << '\n' << eputs
      1 exit
-    end
-  else
+    }
+  }else{
     "unexpected end of file " reader ParserReader.pos << '\n' << eputs
     1 exit
-  end
-end
+  }
+}
 
-parseFile proc #+fileName+# string #+program+# Program =>  :
+parseFile proc( #+fileName+# string #+program+# Program =>  ){
   Program program =:
   program Program.context Context context =:
   program Program.tokens Token list tokens =:
   string fileName =:
-  fileName "r" open if #+auto-unwrap+# else
+  fileName "r" open if{ #+auto-unwrap+# }else{
     "file \"" fileName "\" not found\n" <<* <<* eputs
     1 exit
-  end
+  }
   16 newBufferedInput #+input+#
   fileName 1 1 FilePosition new       #+pos+#
   16 byte list new                    #+word+#
@@ -1643,172 +1643,172 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
   "" string prevWord =:
   fileName 1 1 FilePosition new FilePosition prevPos =:
 
-  while reader ParserReader.nextByte do
+  while{ reader ParserReader.nextByte }do{
     #+next-char+#
-    state switch
+    state switch{
       STATE_WORD case
         byte next =:
-        next ?WhiteSpace if
-          reader ParserReader.word .length 0 > if
+        next ?WhiteSpace if{
+          reader ParserReader.word .length 0 > if{
             reader ParserReader.word clone string nextWord =:
-            nextWord .length 0 > if
-              prevWord .length 0 > if
+            nextWord .length 0 > if{
+              prevWord .length 0 > if{
                 prevWord nextWord prevPos openBlocks program parseWord
-              end
+              }
               nextWord prevWord =
               reader ParserReader.wordPos clone prevPos =
-            end
-          end
+            }
+          }
           reader ParserReader.nextWord
-        else
-          next switch
+        }else{
+          next switch{
           '"' case
-              reader ParserReader.word "u" == if
+              reader ParserReader.word "u" == if{
                 ParseState .STATE_USTRING state =
                 reader ParserReader.word clear
-              else reader ParserReader.word .length 0 == _if
+              }else{ reader ParserReader.word .length 0 == }if{
                 ParseState .STATE_STRING state =
-              else
+              }else{
                 "illegal string-prefix: \"" reader ParserReader.word <<* "\" " <<*
                    reader ParserReader.pos << '\n' << eputs
                 1 exit
-              end
+              }
             end-case
           '\'' case
-              reader ParserReader.word "u" == if
+              reader ParserReader.word "u" == if{
                 ParseState .STATE_UCHAR state =
                 reader ParserReader.word clear
-              else reader ParserReader.word .length 0 == _if
+              }else{ reader ParserReader.word .length 0 == }if{
                 ParseState .STATE_CHAR state =
-              else
+              }else{
                 "illegal char-prefix: \"" reader ParserReader.word <<* "\" " <<*
                    reader ParserReader.pos << '\n' << eputs
                 1 exit
-              end
+              }
             end-case
           '#' case
-              reader ParserReader.nextByte if
+              reader ParserReader.nextByte if{
                 next =
-                next '#' == if
+                next '#' == if{
                   reader ParserReader.word clone string nextWord =:
-                  nextWord .length 0 > if
-                    prevWord .length 0 > if
+                  nextWord .length 0 > if{
+                    prevWord .length 0 > if{
                       prevWord nextWord prevPos openBlocks program parseWord
-                    end
+                    }
                     nextWord prevWord =
                     reader ParserReader.wordPos clone prevPos =
-                  end
+                  }
                   reader ParserReader.nextWord
                   ParseState .STATE_LINE_COMMENT state =
-                else next '+' == _if
+                }else{ next '+' == }if{
                   reader ParserReader.word clone string nextWord =:
-                  nextWord .length 0 > if
-                    prevWord .length 0 > if
+                  nextWord .length 0 > if{
+                    prevWord .length 0 > if{
                       prevWord nextWord prevPos openBlocks program parseWord
-                    end
+                    }
                     nextWord prevWord =
                     reader ParserReader.wordPos clone prevPos =
-                  end
+                  }
                   reader ParserReader.nextWord
                   ParseState .STATE_COMMENT state =
-                else
+                }else{
                   reader ParserReader.word '#' << next << drop
-                end
-              else
+                }
+              }else{
                 reader ParserReader.word '#' << drop
-              end
+              }
             end-case
           default
             reader ParserReader.word next << drop
-          end
-        end
+          }
+        }
       end-case
       STATE_STRING STATE_USTRING case
         byte next =:
-        next '"' == if
-          prevWord .length 0 > if
+        next '"' == if{
+          prevWord .length 0 > if{
             prevWord "" prevPos openBlocks program parseWord
             END_OF_SECTION "" prevPos openBlocks program parseWord
             "" prevWord =
-          end
+          }
           tokens
             TokenType .VALUE reader ParserReader.wordPos clone
-            state ParseState .STATE_USTRING == if
+            state ParseState .STATE_USTRING == if{
               reader ParserReader.word codepoints Value.ofUString
-            else
+            }else{
               reader ParserReader.word clone Value.ofString
-            end
+            }
           ValueToken new << tokens =
           reader ParserReader.nextWord
           ParseState .STATE_WORD state =
-        else next '\\' == _if
+        }else{ next '\\' == }if{
           reader readEscapeChar
-        else
+        }else{
           reader ParserReader.word next << drop
-        end
+        }
       end-case
       STATE_CHAR STATE_UCHAR case
         byte next =:
-        next '\'' == if
-          prevWord .length 0 > if
+        next '\'' == if{
+          prevWord .length 0 > if{
             prevWord "" prevPos openBlocks program parseWord
             END_OF_SECTION "" prevPos openBlocks program parseWord
             "" prevWord =
-          end
+          }
           tokens
             TokenType .VALUE reader ParserReader.wordPos clone
-            state ParseState .STATE_UCHAR == if
+            state ParseState .STATE_UCHAR == if{
               reader ParserReader.word codepoints
-              dup .length 1 != if
+              dup .length 1 != if{
                 reader ParserReader.word " is not a valid unicode character " <<*
                 reader ParserReader.pos << '\n' <<
                 eputs
                 1 exit
-              end
+              }
               #+chars+# 0 [] Value.ofCodepoint
-            else
+            }else{
               reader ParserReader.word clone
-              dup .length 1 != if
+              dup .length 1 != if{
                 #+str+# " is not a valid unicode character " <<*
                 reader ParserReader.pos << '\n' <<
                 eputs
                 1 exit
-              end
+              }
               #+chars+# 0 [] Value.ofByte
-            end
+            }
           ValueToken new << tokens =
           reader ParserReader.nextWord
           ParseState .STATE_WORD state =
-        else next '\\' == _if
+        }else{ next '\\' == }if{
           reader readEscapeChar
-        else
+        }else{
           reader ParserReader.word next << drop
-        end
+        }
       end-case
       STATE_COMMENT case
-        #+input-char+# '+' == if
-          reader ParserReader.nextByte if
-            '#' == if
+        #+input-char+# '+' == if{
+          reader ParserReader.nextByte if{
+            '#' == if{
               ParseState .STATE_WORD state =
-            end
-          end
-        end
+            }
+          }
+        }
       end-case
       STATE_LINE_COMMENT case
-        #+input-char+# '\n' == if
+        #+input-char+# '\n' == if{
           ParseState .STATE_WORD state =
-        end
+        }
       end-case
-    end
-  end
+    }
+  }
 
-  state switch
+  state switch{
     STATE_WORD case
       reader ParserReader.word clone string nextWord =:
-      prevWord .length 0 > if
+      prevWord .length 0 > if{
         prevWord nextWord prevPos openBlocks program parseWord
         "" prevWord =
-      end
+      }
       nextWord "" reader ParserReader.wordPos clone openBlocks program parseWord
       END_OF_SECTION "" reader ParserReader.wordPos clone openBlocks program parseWord
       reader ParserReader.nextWord
@@ -1831,21 +1831,21 @@ parseFile proc #+fileName+# string #+program+# Program =>  :
     STATE_LINE_COMMENT case
       ##do nothing
       end-case
-  end
+  }
   context reader ParserReader.wordPos RootContext.endFile
-end
+}
 
-constEvaluate proc Token list => Token list :
+constEvaluate proc( Token list => Token list ){
   Token list tokens =:
   tokens .length Token list new Token list res =:
   0 int i =:
-  while i tokens .length < do
-    tokens i [] Token.type switch
+  while{ i tokens .length < }do{
+    tokens i [] Token.type switch{
       VALUE case
         res tokens i [] << res =
         end-case
       OPERATOR case
-        tokens i [] OperatorToken.opType switch
+        tokens i [] OperatorToken.opType switch{
           PLUS
           MINUS
           NEGATE
@@ -1876,7 +1876,7 @@ constEvaluate proc Token list => Token list :
             tokens i [] Token.pos << '\n' << eputs
             1 exit
             end-case
-        end
+        }
         end-case
       WORD
       KEY_WORD
@@ -1892,40 +1892,40 @@ constEvaluate proc Token list => Token list :
         tokens i [] Token.pos << '\n' << eputs
         1 exit
       end-case
-    end
+    }
     i 1 + i =
-  end
+  }
   res return
-end
+}
 
 ##addLater typeCheckProgram
 ##addLater compileProgram
 
-main proc string list => :
+main proc( string list => ){
   string list args =:
-  args .length 2 < if
+  args .length 2 < if{
     "usage: <pathToFile> \n" puts ## "usage: <pathToFile> (-lib <libPath>)"
     0 exit
-  end
+  }
   args 1 [] string path =:
-  path .length 0 > && path 0 [] '.' == end if ##local path
+  path .length 0 > &&{ path 0 [] '.' == } if{ ##local path
     args 0 [] clone path 1 path .length [:] <<* path =
-  end
+  }
 
   16 Token list new Token list tokens =:
   newRootContext RootContext context =:
   path tokens context Program new parseFile
 
   0 int i =:
-  while i tokens .length < do
+  while{ i tokens .length < }do{
     tokens i [] Token token =:
     "" token << " " <<* token Token.pos << '\n' << puts
     i 1 + i =
-  end
+  }
   "\n" puts
   "declared values:\n" puts
-  context Context.elements HashMap.itr while HashMapItr.next do
+  context Context.elements HashMap.itr while{ HashMapItr.next }do{
       string Declareable MapEntry e =:
       e MapEntry.key print ": " e MapEntry.value << println
-   end drop
-end
+   } drop
+}

@@ -4,124 +4,124 @@ valueIO #include
 core #import
 
 "branches:\n" puts
-true if
+true if{
   0 int test =:
   "if-end\n" puts
-end
-false if
+}
+false if{
   0 int test =:
   unreachable
-end
-true if
+}
+true if{
   0 int test =:
   "if(true)-else-end\n" puts
-else
+}else{
   0 int test =:
   unreachable
-end
-false if
+}
+false if{
   0 int test =:
   unreachable
-else
+}else{
   0 int test =:
   "if(false)-else-end\n" puts
-end
-true if
+}
+true if{
   0 int test =:
   "if(true)-elif-end\n" puts
-else true _if
+}else{ true }if{
   0 int test =:
   unreachable
-end
-false if
+}
+false if{
   0 int test =:
   unreachable
-else true _if
+}else{ true }if{
   0 int test =:
   "if(false)-elif(true)-end\n" puts
-end
-false if
+}
+false if{
   0 int test =:
   unreachable
-else false _if
+}else{ false }if{
   0 int test =:
   unreachable
-end
-true if
+}
+true if{
   0 int test =:
   "if(true)-elif-else-end\n" puts
-else false _if
+}else{ false }if{
   0 int test =:
   unreachable
-else
+}else{
   0 int test =:
   unreachable
-end
-false if
+}
+false if{
   0 int test =:
   unreachable
-else true _if
+}else{ true }if{
   0 int test =:
   "if(false)-elif(true)-else-end\n" puts
-else
+}else{
   0 int test =:
   unreachable
-end
-false if
+}
+false if{
   0 int test =:
   unreachable
-else false _if
+}else{ false }if{
   0 int test =:
   unreachable
-else
+}else{
   0 int test =:
   "if(false)-elif(false)-else-end\n" puts
-end
+}
 
 
-"A " puts true  && "B " puts true   end println
-"A " puts true  && "B " puts false  end println
-"A " puts false && "B " puts true   end println
-"A " puts false && "B " puts false  end println
-"A " puts true  || "B " puts true   end println
-"A " puts true  || "B " puts false  end println
-"A " puts false || "B " puts true   end println
-"A " puts false || "B " puts false  end println
+"A " puts true  &&{ "B " puts true   } println
+"A " puts true  &&{ "B " puts false  } println
+"A " puts false &&{ "B " puts true   } println
+"A " puts false &&{ "B " puts false  } println
+"A " puts true  ||{ "B " puts true   } println
+"A " puts true  ||{ "B " puts false  } println
+"A " puts false ||{ "B " puts true   } println
+"A " puts false ||{ "B " puts false  } println
 
-while false do
+while{ false }do{
   unreachable
-end
+}
 "do-while\n"
-while dup puts false do end drop
+while{ dup puts false }do{ } drop
 
 "__________________________\n" puts
 "scopes:\n" puts
-   true bool a =: true if
+   true bool a =: true if{
   false bool a =:
-end
+}
 a println
-                false  if
-else 1 int a =: false _if
-else a 1 + a =  false _if
-else a 1 + a =  false _if
-else
+                  false  if{
+}else{ 1 int a =: false }if{
+}else{ a 1 + a =  false }if{
+}else{ a 1 + a =  false }if{
+}else{
  a println
-end
+}
 5 int i =:
 5 int j =:
-while i 0 > do
+while{ i 0 > }do{
   i i * int j =:
   i 1 - i =
   j println
-end
+}
 j println
 "global" string doWhile =:
-while "while-scope" string doWhile =: j 0 > do
+while{ "while-scope" string doWhile =: j 0 > }do{
   j 1 - j =
   "do-scope" string doWhile =:
-end
+}
 doWhile println
-while "do-while-scope" string doWhile =: j 1 + dup j = 5 < do end
+while{ "do-while-scope" string doWhile =: j 1 + dup j = 5 < }do{ }
 doWhile println
 j println
 

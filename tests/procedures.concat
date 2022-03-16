@@ -4,62 +4,62 @@ stack #include
 valueIO #include
 core #import
 
-sqrt proc float => float :
+sqrt proc( float => float ){
   dup float a =$ float x =:
-  while x x * a - 1E-16 > do
+  while{ x x * a - 1E-16 > }do{
    a x / x + 2 / x =
-  end
+  }
   x
-end
+}
 
-fib proc int => int :
-    dup 1 > if
+fib proc( int => int ){
+      dup 1 > if{
   dup 1 - fib swap 2 - fib +
- else 1 == _if
+ }else{ 1 == }if{
   1
- else
+ }else{
   0
- end
-end
+ }
+}
 
 2.0 sqrt println
 3 @sqrt () println
 
-0 while dup 15 < do
+0 while{ dup 15 < }do{
  dup fib println
  1 +
-end drop
+} drop
 
-lambda int => bool : 0 != end intToBool =::
+lambda( int => bool ){ 0 != } intToBool =::
 
 3 intToBool () println
 0 intToBool () println
 
-2 3 lambda int int => float : + 2.0 / end () println
+2 3 lambda( int int => float ){ + 2.0 / } () println
 
-lambda :
+lambda( ){
   "currying" string a =$
-  lambda :
+  lambda( ){
     " is"    string b =$
-    lambda :
+    lambda( ){
       " now" string c =$
-      lambda  :
+      lambda( ){
         " supported!" string d =$
-        lambda :
+        lambda( ){
           a b <<* c <<* d <<* println
-        end
-      end
-    end
-  end
-end () () () () ()
+        }
+      }
+    }
+  }
+} () () () () ()
 
-curriedMinus proc int => ( int => int ) :
- int a =$
- lambda int => int :
-   int b =:
-   a b -
- end
-end
+curriedMinus proc( int => ( int => int ) ){
+  int a =$
+  lambda( int => int ){
+    int b =:
+    a b -
+  }
+}
 
 1 curriedMinus oneMinus =::
 2 3 curriedMinus () println

@@ -118,7 +118,7 @@ public class Interpreter {
         }
     }
     enum BlockTokenType{
-        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT,END,LIST,END_LIST
+        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT,LIST, END
     }
     static class BlockToken extends Token{
         final BlockTokenType blockType;
@@ -1557,7 +1557,7 @@ public class Interpreter {
                         throw new SyntaxError("include path has to be a string literal or identifier",pos);
                     }
                 }
-                case "tuple" -> {
+                case "tuple{" -> {
                     String name;
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("tuples can only be declared at root level",pos);
@@ -1577,7 +1577,7 @@ public class Interpreter {
                     pState.openBlocks.add(tupleBlock);
                     pState.openedContexts.add(tupleBlock.context());
                 }
-                case "enum" ->{
+                case "enum{" ->{
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("enums can only be declared at root level",pos);
                     }
@@ -1594,7 +1594,7 @@ public class Interpreter {
                     String name = ((IdentifierToken) prev).name;
                     pState.openBlocks.add(new EnumBlock(name, 0,pos,pState.rootContext));
                 }
-                case "proc","procedure" ->{
+                case "proc(","procedure(" ->{
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("procedures can only be declared at root level",pos);
                     }
@@ -1616,7 +1616,7 @@ public class Interpreter {
                     pState.openBlocks.add(proc);
                     pState.openedContexts.add(proc.context());
                 }
-                case "lambda","λ" -> {
+                case "lambda(","λ(" -> {
                     ProcedureBlock lambda = new ProcedureBlock(null, tokens.size(), pos, pState.getContext(), false);
                     pState.openBlocks.add(lambda);
                     pState.openedContexts.add(lambda.context());
@@ -1637,7 +1637,7 @@ public class Interpreter {
                         throw new SyntaxError("'=>' can only be used in proc- or proc-type blocks ",pos);
                     }
                 }
-                case ":" -> {
+                case "){" -> {
                     CodeBlock block=pState.openBlocks.peekLast();
                     if(block==null){
                         throw new SyntaxError(": can only be used in proc- and lambda- blocks",pos);
@@ -1652,7 +1652,59 @@ public class Interpreter {
                         throw new SyntaxError(": can only be used in proc- and lambda- blocks", pos);
                     }
                 }
-                case "end" ->{
+                case "{" -> {
+                    tokens.add(new BlockToken(BlockTokenType.LIST,        pos,-1));
+                    pState.openBlocks2++;
+                }
+                case "while{" -> {
+                    tokens.add(new BlockToken(BlockTokenType.WHILE, pos, -1));
+                    pState.openBlocks2++;
+                }
+                case "switch{" -> {
+                    tokens.add(new BlockToken(BlockTokenType.SWITCH, pos, -1));
+                    pState.openBlocks2++;
+                }
+                case "if{" -> {
+                    tokens.add(new BlockToken(BlockTokenType.IF, pos, -1));
+                    pState.openBlocks2++;
+                }
+                case "}do{" -> {
+                    if(pState.openBlocks2==0){
+                        throw new SyntaxError("'do' can only appear in while-blocks",pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.DO, pos, -1));
+                }
+                case "}if{" -> {
+                    if(pState.openBlocks2==0){
+                        throw new SyntaxError("'_if' can only appear in if-blocks",pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType._IF, pos, -1));
+                }
+                case "}else{" ->  {
+                    if(pState.openBlocks2==0){
+                        throw new SyntaxError("'else' can only appear in if-blocks",pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.ELSE, pos, -1));
+                }
+                case "case" -> {
+                    if (pState.openBlocks2 == 0) {
+                        throw new SyntaxError("'case' can only appear in switch-blocks", pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.CASE, pos, -1));
+                }
+                case "default"  -> {
+                    if (pState.openBlocks2 == 0) {
+                        throw new SyntaxError("'default' can only appear in switch-blocks", pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.DEFAULT, pos, -1));
+                }
+                case "end-case" -> {//addLater? merge END_CASE into END
+                    if (pState.openBlocks2 == 0) {
+                        throw new SyntaxError("'end-case' can only appear in switch-blocks", pos);
+                    }
+                    tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
+                }
+                case "}" -> {
                     if(pState.openBlocks2>0){//process 'end' for blocks processed in 2nd compile step
                         pState.openBlocks2--;
                         if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
@@ -1753,54 +1805,6 @@ public class Interpreter {
                                 throw new SyntaxError("unexpected 'end' statement",pos);
                     }
                 }
-                case "while" -> {
-                    tokens.add(new BlockToken(BlockTokenType.WHILE, pos, -1));
-                    pState.openBlocks2++;
-                }
-                case "switch" -> {
-                    tokens.add(new BlockToken(BlockTokenType.SWITCH, pos, -1));
-                    pState.openBlocks2++;
-                }
-                case "if" -> {
-                    tokens.add(new BlockToken(BlockTokenType.IF, pos, -1));
-                    pState.openBlocks2++;
-                }
-                case "do" -> {
-                    if(pState.openBlocks2==0){
-                        throw new SyntaxError("'do' can only appear in while-blocks",pos);
-                    }
-                    tokens.add(new BlockToken(BlockTokenType.DO, pos, -1));
-                }
-                case "_if" -> {
-                    if(pState.openBlocks2==0){
-                        throw new SyntaxError("'_if' can only appear in if-blocks",pos);
-                    }
-                    tokens.add(new BlockToken(BlockTokenType._IF, pos, -1));
-                }
-                case "else" ->  {
-                    if(pState.openBlocks2==0){
-                        throw new SyntaxError("'else' can only appear in if-blocks",pos);
-                    }
-                    tokens.add(new BlockToken(BlockTokenType.ELSE, pos, -1));
-                }
-                case "case" -> {
-                    if (pState.openBlocks2 == 0) {
-                        throw new SyntaxError("'case' can only appear in switch-blocks", pos);
-                    }
-                    tokens.add(new BlockToken(BlockTokenType.CASE, pos, -1));
-                }
-                case "default"  -> {
-                    if (pState.openBlocks2 == 0) {
-                        throw new SyntaxError("'default' can only appear in switch-blocks", pos);
-                    }
-                    tokens.add(new BlockToken(BlockTokenType.DEFAULT, pos, -1));
-                }
-                case "end-case" -> {
-                    if (pState.openBlocks2 == 0) {
-                        throw new SyntaxError("'end-case' can only appear in switch-blocks", pos);
-                    }
-                    tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
-                }
                 case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
                 case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
                 case "union(" ->{
@@ -1864,8 +1868,6 @@ public class Interpreter {
                                 pos,false));
                     }
                 }
-                case "{" -> tokens.add(new BlockToken(BlockTokenType.LIST,        pos,-1));
-                case "}" -> tokens.add(new BlockToken(BlockTokenType.END_LIST,    pos,-1));
 
                 //debug helpers
                 case "debugPrint"    -> tokens.add(new Token(TokenType.DEBUG_PRINT, pos));
@@ -2153,7 +2155,8 @@ public class Interpreter {
             if(finishedBranch){
                 if(t.tokenType!=TokenType.UNREACHABLE&&((!(t instanceof BlockToken block))
                         ||(block.blockType!=BlockTokenType.ELSE&&block.blockType!=BlockTokenType.END_CASE
-                        &&block.blockType!=BlockTokenType.END))){//end of branch that is not always executed
+                        &&block.blockType!=BlockTokenType.END))){
+                    //end of branch that is not always executed
                     throw new SyntaxError("unreachable statement: "+t,t.pos);
                 }
             }
@@ -2368,13 +2371,61 @@ public class Interpreter {
                                 throw new SyntaxError("unexpected 'case' statement",t.pos);
                         case DEFAULT ->
                                 throw new SyntaxError("unexpected 'default' statement",t.pos);
+                        case LIST -> {
+                            ListBlock listBlock = new ListBlock(ret.size(), BlockType.CONST_LIST, t.pos, context);
+                            listBlock.prevTypes=typeStack;
+                            typeStack=new RandomAccessStack<>(8);
+                            openBlocks.add(listBlock);
+                        }
                         case END -> {
                             CodeBlock open=openBlocks.pollLast();
                             if(open==null){
-                                throw new SyntaxError("unexpected 'end' statement",t.pos);
+                                throw new SyntaxError("unexpected '}' statement ",t.pos);
                             }
                             Token tmp;
-                            switch (open.type){
+                            switch(open.type) {
+                                case CONST_LIST -> {
+                                    Type type = null;
+                                    for (TypeFrame f : typeStack) {
+                                        type = Type.commonSuperType(type, f.type, true);
+                                    }
+                                    if (type == null) {
+                                        type = Type.ANY;
+                                    }
+                                    typeStack = ((ListBlock) open).prevTypes;
+                                    List<Token> subList = ret.subList(open.start, ret.size());
+                                    ArrayList<Value> values = new ArrayList<>(subList.size());
+                                    boolean constant = true;
+                                    for (Token v : subList) {
+                                        if (v instanceof ValueToken) {
+                                            values.add(((ValueToken) v).value);
+                                        } else {
+                                            values.clear();
+                                            constant = false;
+                                            break;
+                                        }
+                                    }
+                                    if (constant) {
+                                        subList.clear();
+                                        try {
+                                            for (int p = 0; p < values.size(); p++) {
+                                                values.set(p, values.get(p).castTo(type));
+                                            }
+                                            Value list = Value.createList(Type.listOf(type), values);
+                                            typeStack.push(new TypeFrame(list.type, list, t.pos));
+
+                                            ret.add(new ValueToken(list, open.startPos, true));
+                                        } catch (ConcatRuntimeError e) {
+                                            throw new SyntaxError(e, t.pos);
+                                        }
+                                    } else {
+                                        typeStack.push(new TypeFrame(Type.listOf(type), null, t.pos));
+
+                                        ArrayList<Token> listTokens = new ArrayList<>(subList);
+                                        subList.clear();
+                                        ret.add(new ListCreatorToken(listTokens, t.pos));
+                                    }
+                                }
                                 case IF -> {
                                     if(((IfBlock) open).forkPos!=-1){
                                         if(finishedBranch){
@@ -2459,61 +2510,9 @@ public class Interpreter {
                                         merge(typeStack,mainEnd,branch.types,branch.end,"switch");
                                     }
                                 }
-                                case PROCEDURE,PROC_TYPE,CONST_LIST,ANONYMOUS_TUPLE,TUPLE,ENUM,UNION ->
+                                case PROCEDURE,PROC_TYPE,ANONYMOUS_TUPLE,TUPLE,ENUM,UNION ->
                                         throw new SyntaxError("blocks of type "+open.type+
                                                 " should not exist at this stage of compilation",t.pos);
-                            }
-                        }
-                        case LIST -> {
-                            ListBlock listBlock = new ListBlock(ret.size(), BlockType.CONST_LIST, t.pos, context);
-                            listBlock.prevTypes=typeStack;
-                            typeStack=new RandomAccessStack<>(8);
-                            openBlocks.add(listBlock);
-                        }
-                        case END_LIST -> {
-                            CodeBlock open=openBlocks.pollLast();
-                            if(open==null||open.type!=BlockType.CONST_LIST){
-                                throw new SyntaxError("unexpected '}' statement ",t.pos);
-                            }
-                            Type type=null;
-                            for(TypeFrame f:typeStack) {
-                                type = Type.commonSuperType(type, f.type, true);
-                            }
-                            if(type==null){
-                                type=Type.ANY;
-                            }
-                            typeStack=((ListBlock)open).prevTypes;
-                            List<Token> subList = ret.subList(open.start, ret.size());
-                            ArrayList<Value> values=new ArrayList<>(subList.size());
-                            boolean constant=true;
-                            for(Token v:subList){
-                                if(v instanceof ValueToken){
-                                    values.add(((ValueToken) v).value);
-                                }else{
-                                    values.clear();
-                                    constant=false;
-                                    break;
-                                }
-                            }
-                            if(constant){
-                                subList.clear();
-                                try {
-                                    for(int p=0;p< values.size();p++){
-                                        values.set(p,values.get(p).castTo(type));
-                                    }
-                                    Value list = Value.createList(Type.listOf(type), values);
-                                    typeStack.push(new TypeFrame(list.type,list,t.pos));
-
-                                    ret.add(new ValueToken(list,open.startPos,true));
-                                } catch (ConcatRuntimeError e) {
-                                    throw new SyntaxError(e,t.pos);
-                                }
-                            }else{
-                                typeStack.push(new TypeFrame(Type.listOf(type),null,t.pos));
-
-                                ArrayList<Token> listTokens=new ArrayList<>(subList);
-                                subList.clear();
-                                ret.add(new ListCreatorToken(listTokens,t.pos));
                             }
                         }
                     }
@@ -3863,7 +3862,7 @@ public class Interpreter {
                             case WHILE,END_IF -> {
                                 //do nothing
                             }
-                            case SWITCH,CASE,DEFAULT,END,LIST,END_LIST ->
+                            case SWITCH,CASE,DEFAULT,LIST, END ->
                                 throw new RuntimeException("blocks of type "+((BlockToken)next).blockType+
                                         " should be eliminated at compile time");
                         }

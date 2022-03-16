@@ -3,8 +3,8 @@ test/switchCase :
 valueIO #include
 core #import
 
-test proc int => string :
-  #+input+# switch
+test proc( int => string ){
+  #+input+# switch{
   1 case
     "1st case" return
     end-case
@@ -17,12 +17,12 @@ test proc int => string :
   0 4 5 6 7 8 9 case
     "0,4,5,6,7,8,9 case" return
     end-case
-  end
+  }
   "fallthrough" return
-end
-testDefault proc int => string :
+}
+testDefault proc( int => string ){
   9 swap -
-  #+input+# switch
+  #+input+# switch{
   1 case
     "1st case" return
     end-case
@@ -37,9 +37,9 @@ testDefault proc int => string :
     end-case
   default
     "default case" return
-  end
+  }
   unreachable
-end
+}
 
 -1 test println
  0 test println
@@ -71,9 +71,9 @@ end
 
 "__________________________________" println
 
-"switch" "in" "switch" switch
+"switch" "in" "switch" switch{
 "switch" case
-  switch
+  switch{
   "switch" case
      drop
      "NOT OK" println
@@ -83,7 +83,7 @@ end
      "NOT OK" println
     end-case
   "in" case
-    switch
+    switch{
     "switch" case
        "OK" println
       end-case
@@ -95,11 +95,11 @@ end
       end-case
     default
        "NOT OK" println
-    end
+    }
     end-case
   default drop
     "NOT OK" println
-  end
+  }
   end-case
 "in" case
    drop drop
@@ -112,4 +112,4 @@ end
 default
    drop drop
    "NOT OK" println
-end
+}

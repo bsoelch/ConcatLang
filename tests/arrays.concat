@@ -17,7 +17,7 @@ core #import
 
 10 int list new dup println
 1000 ensureCap println
-testTuple tuple int float int end
+testTuple tuple{ int float int }
 1 2 3 testTuple new dup println
 dup clone  42 over .1 = println
 dup       2.0 over .0 = println
@@ -32,10 +32,10 @@ lists #import
 
 { 1 2 3 4 rot3 } println
 
-lenCmp proc string string => int :
+lenCmp proc( string string => int ){
   string a =:
   string b =:
   a .length b .length - int cast return
-end
+}
 
 { "sorting" "with" "comparator" "is" "now" "supported" } dup @lenCmp generic_mergesort println
