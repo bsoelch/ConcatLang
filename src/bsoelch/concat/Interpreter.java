@@ -2597,9 +2597,12 @@ public class Interpreter {
                 case STACK_DROP ->{
                     assert t instanceof StackModifierToken;
                     for(TypeFrame dropped:typeStack.drop(((StackModifierToken) t).args[0])){
-                        if(dropped.type instanceof Type.OverloadedProcedurePointer oop){
-                            ret.set(oop.tokenPos,new Token(TokenType.NOP,oop.pushedAt));
-                            ((StackModifierToken) t).args[0]--;
+                        if(dropped.type instanceof Type.OverloadedProcedurePointer opp){
+                            if(ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
+                                //delete unresolved procedure pointers
+                                ret.set(opp.tokenPos, new Token(TokenType.NOP, opp.pushedAt));
+                                ((StackModifierToken) t).args[0]--;
+                            }
                         }
                     }
                     if(((StackModifierToken) t).args[0]>0){
@@ -2621,11 +2624,14 @@ public class Interpreter {
                 }
                 case STACK_SET ->{
                     assert t instanceof StackModifierToken;
-                    TypeFrame setFrame=typeStack.get(((StackModifierToken)t).args[1]);
-                    if(setFrame.type instanceof Type.OverloadedProcedurePointer){//addLater update proc-ptr
-                        throw new SyntaxError("cannot use $set on overloaded procedure pointers",t.pos);
+                    TypeFrame replaced=typeStack.get(((StackModifierToken)t).args[0]);
+                    if(replaced.type instanceof Type.OverloadedProcedurePointer opp&&
+                            ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
+                        ret.set(opp.tokenPos,new Token(TokenType.NOP,opp.pushedAt));
                     }
-                    typeStack.set(((StackModifierToken)t).args[0],setFrame);
+                    //addLater? update overloaded procedure pointers
+                    typeStack.set(((StackModifierToken)t).args[0],
+                            typeStack.get(((StackModifierToken)t).args[1]));
                     ret.add(t);
                 }
                 case CALL_PTR -> {
@@ -2638,9 +2644,7 @@ public class Interpreter {
                         CallMatch call = typeCheckOverloadedCall("call-ptr",typeStack,
                                        ((Type.OverloadedProcedurePointer) f.type).proc,ret,t.pos, ioContext, true);
                         Callable proc=call.called;
-                        //update procedure pointer addLater method for update overloaded ptr
-                        ret.set(((Type.OverloadedProcedurePointer) f.type).tokenPos,
-                                new ValueToken((Value)proc, ((Type.OverloadedProcedurePointer) f.type).pushedAt,false));
+                        setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) f.type), (Value) proc);
                         ret.add(new CallPtrToken(call.genericParams,t.pos));
                     }else{
                         throw new SyntaxError("invalid argument for operator '()': "+f.type,t.pos);
@@ -2755,6 +2759,13 @@ public class Interpreter {
             merge(typeStack,blockEnd,branch.types,branch.end,"return");
         }
         return new TypeCheckResult(ret,typeStack);
+    }
+
+    private void setOverloadedProcPtr(ArrayList<Token> ret, Type.OverloadedProcedurePointer opp, Value proc) throws SyntaxError {
+        Token prev=ret.set(opp.tokenPos,new ValueToken(proc, opp.pushedAt,false));
+        if(prev.tokenType!=TokenType.OVERLOADED_PROC_PTR&&prev.tokenType!=TokenType.NOP){
+            throw new SyntaxError("overloaded procedure pointer is resolved more than once ",opp.pushedAt);
+        }
     }
 
     private void findEnumFields(SwitchCaseBlock switchBlock, List<Token> caseValues) {
@@ -3193,8 +3204,7 @@ public class Interpreter {
                 //addLater better version resolving
                 throw new SyntaxError("more than one version of "+proc.name+" matches "+target,pos);
             }
-            ret.set(((Type.OverloadedProcedurePointer) src).tokenPos,
-                    new ValueToken((Value)matches.get(0).called, ((Type.OverloadedProcedurePointer) src).pushedAt,false));
+            setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) src),(Value)matches.get(0).called);
         }else{
             if(!src.canAssignTo(target,bounds)){//cast to correct type if necessary
                 bounds=new Type.BoundMaps();
