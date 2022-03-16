@@ -32,6 +32,7 @@ public class Interpreter {
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
         LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,//compile time operations
+        NOP,OVERLOADED_PROC_PTR
     }
 
     record StringWithPos(String str,FilePosition start){
@@ -2595,17 +2596,36 @@ public class Interpreter {
                 }
                 case STACK_DROP ->{
                     assert t instanceof StackModifierToken;
-                    typeStack.drop(((StackModifierToken)t).args[0]);
-                    ret.add(t);
+                    for(TypeFrame dropped:typeStack.drop(((StackModifierToken) t).args[0])){
+                        if(dropped.type instanceof Type.OverloadedProcedurePointer oop){
+                            ret.set(oop.tokenPos,new Token(TokenType.NOP,oop.pushedAt));
+                            ((StackModifierToken) t).args[0]--;
+                        }
+                    }
+                    if(((StackModifierToken) t).args[0]>0){
+                        ret.add(t);
+                    }
                 }
-                case STACK_DUP ->{//TODO update TypeFrame
+                case STACK_DUP ->{
                     assert t instanceof StackModifierToken;
-                    typeStack.dup(((StackModifierToken)t).args[0]);
-                    ret.add(t);
+                    TypeFrame duped=typeStack.get(((StackModifierToken)t).args[0]);
+                    if(duped.type instanceof Type.OverloadedProcedurePointer opp){
+                        typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(opp.proc,ret.size(),opp.pushedAt),
+                                null,t.pos));
+                        ret.add(new Token(TokenType.OVERLOADED_PROC_PTR,t.pos));
+                    }else{
+                        duped=new TypeFrame(duped.type,duped.value,t.pos);
+                        typeStack.push(duped);
+                        ret.add(t);
+                    }
                 }
-                case STACK_SET ->{//TODO update TypeFrame
+                case STACK_SET ->{
                     assert t instanceof StackModifierToken;
-                    typeStack.set(((StackModifierToken)t).args[0],((StackModifierToken)t).args[1]);
+                    TypeFrame setFrame=typeStack.get(((StackModifierToken)t).args[1]);
+                    if(setFrame.type instanceof Type.OverloadedProcedurePointer){//addLater update proc-ptr
+                        throw new SyntaxError("cannot use $set on overloaded procedure pointers",t.pos);
+                    }
+                    typeStack.set(((StackModifierToken)t).args[0],setFrame);
                     ret.add(t);
                 }
                 case CALL_PTR -> {
@@ -2703,7 +2723,7 @@ public class Interpreter {
                         throw new SyntaxError("token before of '"+name+"' has to be a constant type",t.pos);
                     }
                 }
-                case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,
+                case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
                         CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,UPDATE_GENERICS,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
@@ -3000,8 +3020,7 @@ public class Interpreter {
                     ret.add(token);
                 }else if(d instanceof OverloadedProcedure proc){
                     typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,ret.size(),t.pos),null,t.pos));
-                    //addLater own type for placeholder token
-                    ret.add(new Token(TokenType.UNREACHABLE,t.pos));//push placeholder token
+                    ret.add(new Token(TokenType.OVERLOADED_PROC_PTR,t.pos));//push placeholder token
                 }else{//TODO resolve overloaded procedure pointers
                     throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
                             identifier.name+" (declared at "+d.declaredAt()+") is not a procedure", t.pos);
@@ -3562,6 +3581,7 @@ public class Interpreter {
             }
             try {
                 switch (next.tokenType) {
+                    case NOP -> {}
                     case LAMBDA, VALUE -> {
                         assert next instanceof ValueToken;
                         ValueToken value = (ValueToken) next;
@@ -3751,7 +3771,11 @@ public class Interpreter {
                         }
                     }
                     case UNREACHABLE -> {
-                        context.stdErr.println("reached unreachable statement:"+next.pos);
+                        context.stdErr.println("reached unreachable statement: "+next.pos);
+                        return ExitType.ERROR;
+                    }
+                    case OVERLOADED_PROC_PTR -> {
+                        context.stdErr.println("unresolved procedure pointer: "+next.pos);
                         return ExitType.ERROR;
                     }
                     case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL ->

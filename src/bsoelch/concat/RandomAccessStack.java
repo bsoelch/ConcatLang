@@ -62,11 +62,13 @@ public class RandomAccessStack<T> implements Cloneable,Iterable<T>{
         return Arrays.toString(Arrays.copyOf(data,size));
     }
 
-    public void drop(int count) throws StackUnderflow {
+    public List<T> drop(int count) throws StackUnderflow {
         if(count>size){
             throw new StackUnderflow();
         }
         size-=count;
+        //noinspection unchecked
+        return (List<T>) Arrays.asList(Arrays.copyOfRange(data,size,size+count));
     }
     public void dup(int src) throws StackUnderflow {
         if(src>size){
