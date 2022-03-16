@@ -12,7 +12,7 @@ listHash proc( A <?> A list => uint ){
   A list value =:
   0 uint hash =:
   0 uint i =:
-  while{ i value .length < }do{
+  while{ i value .length < do
     hash 31 * value i [] hashCode + hash =
     i 1 + i =
   }
@@ -24,15 +24,15 @@ hashCode proc( var => uint ){
   ## addLater? use list-hash for tuple/enum-types
   valType .isList if{
     value listHash return
-  }else{ valType _Empty_Tuple <= }if{
+  else valType _Empty_Tuple <= if
     0 uint hash =:
     0 uint i =:
-    while{ i value _Empty_Tuple cast .length < }do{
+    while{ i value _Empty_Tuple cast .length < do
       hash 31 * value _Empty_Tuple cast i [] hashCode + hash =
       i 1 + i =
     }
     hash
-  }else{
+  else
     value refId
   }
 }
@@ -70,7 +70,7 @@ HashMap.put proc( K <?> V <?> #+map+# K V HashMap #+key+# K #+value+# V => #+pre
   hash map _Map.data .length % uint i =:
   map _Map.data i [] if{
     K V _Entry entry =:
-    while{ entry _Entry.next }do{
+    while{ entry _Entry.next do
       entry MapEntry.key key == if{ drop ##drop next
         ##replace does not change size
         entry MapEntry.value
@@ -84,12 +84,12 @@ HashMap.put proc( K <?> V <?> #+map+# K V HashMap #+key+# K #+value+# V => #+pre
       entry MapEntry.value
       value entry _Entry.val=
       wrap return
-    }else{
+    else
       key value K V _Entry empty K V _Entry new wrap  entry _Entry.next=
       map _Map.incSize
       V empty return
     }
-  }else{
+  else
     key value K V _Entry empty K V _Entry new wrap   map _Map.data i []=
     map _Map.incSize
     V empty return
@@ -102,7 +102,7 @@ HashMap.contains proc( K <?> V <?> #+map+# K V HashMap #+key+# K => bool ){
   key hashCode uint hash =:
   hash map _Map.data .length % uint i =:
   map _Map.data i [] K V _Entry optional entry =:
-  while{ entry }do{
+  while{ entry do
     K V _Entry unwrapped =:
     unwrapped MapEntry.key key == if{
       true return
@@ -118,7 +118,7 @@ HashMap.get proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# V optio
   key hashCode uint hash =:
   hash map _Map.data .length % uint i =:
   map _Map.data i [] K V _Entry optional entry =:
-  while{ entry }do{
+  while{ entry do
     K V _Entry unwrapped =:
     unwrapped MapEntry.key key == if{
       unwrapped MapEntry.value wrap return
@@ -140,8 +140,8 @@ HashMap.remove proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevVal+# V 
       entry MapEntry.value ## get previous value
       entry _Entry.next K V _Entry optional cast  map _Map.data i []= ## remove entry
       wrap return
-    }else{
-      while{ entry _Entry.next }do{
+    else
+      while{ entry _Entry.next do
         K V _Entry next =:
         next MapEntry.key key == if{
           map _Map.decSize
@@ -153,7 +153,7 @@ HashMap.remove proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevVal+# V 
       }
       V empty return
     }
-  }else{
+  else
     V empty return
   }
 }
@@ -170,7 +170,7 @@ HashMap.itr proc( K <?> V <?> K V HashMap => K V HashMapItr ){
 }
 HashMapItr.next proc( K <?> V <?> K V HashMapItr => K V HashMapItr K V MapEntry optional ){
   K V HashMapItr itr =:
-  while{ itr _HashMapItr.next ! }do{
+  while{ itr _HashMapItr.next ! do
     itr _HashMapItr.incI
     itr _HashMapItr.i itr _HashMapItr.map _Map.data .length >= if{
       itr K V MapEntry empty return
@@ -180,7 +180,7 @@ HashMapItr.next proc( K <?> V <?> K V HashMapItr => K V HashMapItr K V MapEntry 
   itr _HashMapItr.next K V MapEntry optional res =:
   itr _HashMapItr.next if{
     _Entry.next itr _HashMapItr.next=
-  }else{ unreachable }
+  else unreachable }
   itr res return
 }
 

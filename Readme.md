@@ -23,9 +23,9 @@ core #import ## to use println in global scope
 fib proc( int => int ){
    dup 1 >  if{
    dup 1 - fib swap 2 - fib +
- }else{ 1 == }if{
+ else 1 == if
    1
- }else{
+ else
    0
  }
 }
@@ -217,7 +217,7 @@ operators for interacting with optionals
 unwrapping optionals:
 
 If a nonempty optional is used as the parameter of
-`if{` `}if{` or `}do{` the unwrapped value of the optional 
+`if{` `if` or `do` the unwrapped value of the optional 
 is pushed on the stack 
 (if the optional is empty no value will be pushed on the stack)
 
@@ -251,7 +251,7 @@ Examples:
 template of for-each loop:
 ```
 array ^_ ## create iterator
-while{ ^> }do{   ## iterate over all elements
+while{ ^> do   ## iterate over all elements
   println ## do something with data
 } 
 drop ## drop the iterator
@@ -264,7 +264,7 @@ reverse proc( string => string ){
   ## store type and length of the list
   toReverse .length string new string res =:
   ## Iterate though the elements in reverse order
-  toReverse _^ while{ <^ }do{
+  toReverse _^ while{ <^ do
     res swap << res =
   } drop
   res return
@@ -274,7 +274,7 @@ Sum all elements of a list
 ```
 0 int tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
-^_ while{ ^> }do{
+^_ while{ ^> do
  tmp swap + tmp =
 } drop
 tmp ## load the total sum onto the stack
@@ -353,22 +353,22 @@ with a shallow copy
 #### If-Statements
 If statements start with
 
-```C
+```
 <condition> if{ 
  <body>
 ```
 
-followed by zero or more else-_if-sections
+followed by zero or more else-if-sections
 
-```C
-}else{ <condition> }if{
+```
+else <condition> if
  <body>
 ```
 
 and an optional else-block
 
-```C
-}else{
+```
+else
  <body>
 ```
 
@@ -378,9 +378,12 @@ they end with
 }
 ```
 
+It is also possible to use `}else{` instead of `else`
+or `}if{` instead of `if`.
+
 Examples:
 ```
-a b > if{ a }else{ b }
+a b > if{ a else b }
 
 c ! if{
  "not a" println
@@ -388,19 +391,30 @@ c ! if{
 
 dup 0 == if{ drop
  "zero"
-}else{ dup 1 == }if{ drop
+else dup 1 == if drop
  "one"
-}else{ 2 == }if{
+else 2 == if
  "two"
-}else{
+else
  "many"
 } string count =:
+
+true if{
+ "if"
+}else{ false if
+ "with"
+else true }if{
+ "different"
+else
+ "brackets"
+} string count =:
+
 ```
 
 #### while-loops
 While loops have the syntax
 ```Julia
-while{ <condition> }do{
+while{ <condition> do
  <body>
 }
 ```
@@ -410,8 +424,10 @@ do-while loops have the syntax
 ```Julia
 while{
   <body> 
-<condition> }do{ }
+<condition> do }
 ```
+
+It is also possible to use `}do{` instead of `do`.
 
 ### Procedures
 Procedures are code blocks that can be called 
@@ -454,9 +470,9 @@ Examples:
 fib proc( int => int ){
    dup 1 >  if{ 
    dup 1 - fib swap 2 - fib +
- }else{ 1 == }if{
+ else 1 == if
    1
- }else{
+ else
    0
  }
 }
@@ -464,16 +480,16 @@ fib proc( int => int ){
 isEven proc( int => bool ){
   dup 0 == if{ drop
     true return
-  }else{
+  else
     1 - isOdd return
   }
 }
 isOdd proc( int => bool ){
       dup 0 ==  if{ drop
       false return
-  }else{ dup 0 < }if{
+  else dup 0 < if
      -_ isOdd return
-  }else{
+  else
     1 - isEven return
   }
 }

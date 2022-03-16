@@ -14,7 +14,7 @@ _EMPTY_TUPLE tuple{ }
   A list value =:
   '[' << string res =:
   0 int i =:
-  while{ i value .length < }do{
+  while{ i value .length < do
     i 0 > if{
       res ", " <<* res =
     }
@@ -27,7 +27,7 @@ _EMPTY_TUPLE tuple{ }
   A optional value =:
   value if{
     #+value+# <<s " wrap" <<* return
-  }else{
+  else
     value .type .content <<s " empty" <<* return
   }
 }
@@ -35,12 +35,12 @@ _EMPTY_TUPLE tuple{ }
   var value =:
   value .type string == if{
     value string cast <<* return
-  }else{ value .type ustring == }if{
+  else value .type ustring == if
     value <<* return
-  }else{ value .type _EMPTY_TUPLE <= }if{
+  else value .type _EMPTY_TUPLE <= if
     '(' << string res =:
     0 int i =:
-    while{ i value _EMPTY_TUPLE cast .length < }do{
+    while{ i value _EMPTY_TUPLE cast .length < do
       i 0 > if{
         res ", " <<* res =
       }
@@ -48,90 +48,90 @@ _EMPTY_TUPLE tuple{ }
       i 1 + i =
     }
     res ')' << return
-  }else{ value .type .isList }if{
+  else value .type .isList if
     value <<list return
-  }else{ value .type .isOptional }if{
+  else value .type .isOptional if
     value <<optional return
-  }else{ value .type .isEnum }if{
+  else value .type .isEnum if
     value .type .name <<* ' ' << value .type .fieldNames value uint cast [] <<* " ." <<* return
-  }else{ value .type type == }if{
+  else value .type type == if
     value string == if{
       "string" <<* return
-    }else{ value ustring == }if{
+    else value ustring == if
       "ustring" <<* return
-    }else{ value type cast .isTuple }if{
+    else value type cast .isTuple if
       value type cast .name <<* return ## return tuple-name
-    }else{ value type cast .isProc }if{
+    else value type cast .isProc if
       "( " <<* string res =:
       value type cast .inTypes type list args =:
       0 int i =:
-      while{ i args .length < }do{
+      while{ i args .length < do
         res args i [] <<s " " <<* res =
         i 1 + i =
       }
       res "=> " <<* res =
       value type cast .outTypes args =
       0 i =
-      while{ i args .length < }do{
+      while{ i args .length < do
         res args i [] <<s " " <<* res =
         i 1 + i =
       }
       res ")" <<* return
-    }else{ value type cast .isList }if{
+    else value type cast .isList if
       value type cast .content <<s " list" <<* return
-    }else{ value type cast .isOptional }if{
+    else value type cast .isOptional if
       value type cast .content <<s " optional" <<* return
-    }else{ value type cast .isEnum }if{
+    else value type cast .isEnum if
       value type cast .name <<* return ## return enum-name
-    }else{ value type cast .isUnion }if{
+    else value type cast .isUnion if
       "union( " <<* string res =:
       value type cast .inTypes type list args =:
       0 int i =:
-      while{ i args .length < }do{
+      while{ i args .length < do
         res args i [] <<s " " <<* res =
         i 1 + i =
       }
       res ')' << return
-    }else{ value type cast .isGeneric }if{
+    else value type cast .isGeneric if
       ## addLater better printing of generic types
       '\'' << value refId <<u return
-    }else{ value type == }if{
+    else value type == if
       "type"  <<* return
-    }else{ value bool == }if{
+    else value bool == if
       "bool"  <<* return
-    }else{ value byte == }if{
+    else value byte == if
       "byte"  <<* return
-    }else{ value  int == }if{
+    else value  int == if
       "int"   <<* return
-    }else{ value uint == }if{
+    else value uint == if
       "uint"  <<* return
-    }else{ value float == }if{
+    else value float == if
       "float" <<* return
-    }else{ value codepoint == }if{
+    else value codepoint == if
       "codepoint" <<* return
-    }else{ value var == }if{
+    else value var == if
       "var" <<* return
-    }else{ unreachable }
-  }else{ value .type bool == }if{
-    value bool cast if{ "true" }else{ "false" } <<* return
-  }else{ value .type byte == }if{
+    else unreachable }
+  else value .type bool == if
+    value bool cast if{ "true" else "false" } <<* return
+  else value .type byte == if
     value byte cast 0x80 byte cast < if{
       value byte cast << return ## print valid ascii-characters as character
-    }else{
+    else
       value byteToString <<* return ## print all other bytes as their byte-code
     }
-  }else{ value .type  int == }if{
+  else value .type  int == if
     value <<i return
-  }else{ value .type uint == }if{
+  else value .type uint == if
     value  <<u return
-  }else{ value .type float == }if{
+  else value .type float == if
     value <<f return
-  }else{ value .type codepoint == }if{
+  else value .type codepoint == if
     value codepoint cast << return
-  }else{ value .type .isProc }if{
+  else value .type .isProc if
     ## procedure
     value .type <<s "@" <<* value refId <<X return
-  }else{ unreachable }
+  else unreachable }
 }
 stringValue proc( var => string ){
   var val =:
@@ -148,7 +148,7 @@ byteListToString proc( byte list => string ){
   bytes .length 6 * string new string res =:
   res "[" <<* res =
   0 int i =:
-  while{ i bytes .length < }do{
+  while{ i bytes .length < do
     i 0 > if{
       res ", " <<* res =
     }
@@ -188,32 +188,32 @@ __IO_printValue proc( __IO_FormatValue var list => string ){ ## addLater runtime
   var list values =:
   __IO_FormatValue format =:
   format __IO.flags __IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
-  format __IO.w_ptr if{ values format __IO.w [] int cast }else{ format __IO.w } int width =:
+  format __IO.w_ptr if{ values format __IO.w [] int cast else format __IO.w } int width =:
   width 0 < if{ ##negative precision => alignment on left side
     alignLeft ! alignLeft =
     width -_ width =
   }
-  format __IO.p_ptr if{ values format __IO.p  [] int cast }else{ format __IO.p  } int precision =:
+  format __IO.p_ptr if{ values format __IO.p  [] int cast else format __IO.p  } int precision =:
   precision 0 < if{ ## 0 -> default
       "printf: precision has to be at greater that or equal to 0\n" eputs
       1 exit
   }
-  format __IO.b_ptr if{ values format __IO.b  [] int cast }else{ format __IO.b  } int base =:
+  format __IO.b_ptr if{ values format __IO.b  [] int cast else format __IO.b  } int base =:
   base 0 == if{
     10 base =
   }
   '\0' byte plusSgn =:
   format __IO.flags __IO_FLAG_SGN & 0 != if{
     '+' plusSgn =
-  }else{ format __IO.flags __IO_FLAG_SGN_SPACE & 0 != }if{
+  else format __IO.flags __IO_FLAG_SGN_SPACE & 0 != if
     ' ' plusSgn =
   }
   format __IO.format  switch{
   'b' case
-    values format __IO.index [] bool cast if{ "true" }else{ "false" }
+    values format __IO.index [] bool cast if{ "true" else "false" }
     end-case
   'B' case
-    values format __IO.index [] bool cast if{ "TRUE" }else{ "FALSE" }
+    values format __IO.index [] bool cast if{ "TRUE" else "FALSE" }
     end-case
   'i' case
     ""
@@ -321,12 +321,12 @@ __IO_printValue proc( __IO_FormatValue var list => string ){ ## addLater runtime
   } string res =:
   res .length width < if{
     width res .length - int count =:
-    format __IO.flags __IO_FLAG_PAD_0 & 0 != if{ '0' }else{ ' ' } byte padChar =:
+    format __IO.flags __IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
     count string new string padding =:
     padding 0 count padChar fill
     alignLeft if{
       res padding <<* res =
-    }else{
+    else
       padding res *>> res =
     }
   }
@@ -337,7 +337,7 @@ isFormatChar proc( #+char+# byte => bool ){
   byte c =:
   "bBiIuUdxXfFeEcsS%" string formats =:
   0 int i =:
-  while{ i formats .length < }do{
+  while{ i formats .length < do
     formats i [] c == if{
       true return
     }
@@ -358,18 +358,18 @@ sprintf proc( #+args+# var list #+format+# string => string ){
   -1 int maxFormat =:
   0 byte tmpC =:
   0 string new string tmp =:
-  while{ i0 n < }do{
+  while{ i0 n < do
     i0 i =
-    while{ i format .length < &&{ format i [] '%' != } }do{
+    while{ i format .length < &&{ format i [] '%' != } do
       i 1 + i =
     }
     i format .length >= if{
       parts   false format i0 format .length [:] __IO_FormatString new   << parts =
       n i0 =
-    }else{
+    else
       parts   false format i0 i [:] __IO_FormatString new   << parts =
       i 1 + dup i0 = i =
-      while{ i0 format .length < &&{ format i0 [] isFormatChar ! } }do{
+      while{ i0 format .length < &&{ format i0 [] isFormatChar ! } do
         i0 1 + i0 =
       }
       i0 format .length >= if{
@@ -386,7 +386,7 @@ sprintf proc( #+args+# var list #+format+# string => string ){
            1 exit
         }
         parts   false "%" __IO_FormatString new   << parts =
-      }else{
+      else
         count int  index =:
         count 1 +  count =
         0     int  flags =:
@@ -400,7 +400,7 @@ sprintf proc( #+args+# var list #+format+# string => string ){
         tmp clear
         tmp _formatString .length ensureCap
         ## ([0-9]+$)?  index
-        tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } }do{
+        tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
           _formatString i [] <<
           i 1 + i =
         } tmp =
@@ -414,35 +414,35 @@ sprintf proc( #+args+# var list #+format+# string => string ){
         ## ' '  The result will include a leading space for positive values
         ## '0'  The result will be zero-padded
         0 int i1 =:
-        while{ i1 tmp .length < &&{ tmp i1 [] '0' == } }do{
+        while{ i1 tmp .length < &&{ tmp i1 [] '0' == } do
           flags __IO_FLAG_PAD_0 | flags =
           i1 1 + i1 =
         }
         tmp 0 i1 [:] clear
         tmp .length 0 == if{
-          true while{ #+ loop condition (on stack) +# &&{ i _formatString .length < } }do{
+          true while{ #+ loop condition (on stack) +# &&{ i _formatString .length < } do
             _formatString i [] tmpC =
             tmpC '-' == if{
               flags __IO_FLAG_ALIGN_LEFT | flags =
               i 1 + i =
               true ## continue loop
-            }else{ tmpC '+' == }if{
+            else tmpC '+' == if
               flags __IO_FLAG_SGN | flags =
               i 1 + i =
               true ## continue loop
-            }else{ tmpC ' ' == }if{
+            else tmpC ' ' == if
               flags __IO_FLAG_SGN_SPACE | flags =
               i 1 + i =
               true ## continue loop
-            }else{ tmpC '0' == }if{
+            else tmpC '0' == if
               flags __IO_FLAG_PAD_0 | flags =
               i 1 + i =
               true ## continue loop
-            }else{
+            else
               false ## break loop
             }
           }
-          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } }do{
+          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
             _formatString i [] <<
             i 1 + i =
           } tmp =
@@ -451,12 +451,12 @@ sprintf proc( #+args+# var list #+format+# string => string ){
         tmp .length 0 > if{
           tmp parseInt w =
           tmp clear ## clear tmp
-        }else{ i _formatString .length < &&{ _formatString i [] '*' == } }if{ ## *(<index>).
+        else i _formatString .length < &&{ _formatString i [] '*' == } if ## *(<index>).
           i 1 + i =
           true w_ptr =
           count w =
           count 1 + count =
-          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } }do{
+          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
             _formatString i [] <<
             i 1 + i =
           } tmp =
@@ -467,9 +467,9 @@ sprintf proc( #+args+# var list #+format+# string => string ){
         }
         ## (.[0-9]+)? precision
         i _formatString .length < &&{ _formatString i [] '.' == } if{
-               _formatChar 'f' ==  if{ }else{ _formatChar 'F' == }if{
-          }else{ _formatChar 'e' == }if{ }else{ _formatChar 'E' == }if{
-          }else{
+               _formatChar 'f' ==  if{ else _formatChar 'F' == if
+          else _formatChar 'e' == if else _formatChar 'E' == if
+          else
             "printf: invalid Format String: \"" _formatString <<* _formatChar <<
                              "\" precision-parameter only allowed for formats f, F, e, E, s and S\n" <<* eputs
             1 exit
@@ -481,7 +481,7 @@ sprintf proc( #+args+# var list #+format+# string => string ){
             count p =
             count 1 + count =
           }
-          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } }do{
+          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
             _formatString i [] <<
             i 1 + i =
           } tmp =
@@ -492,11 +492,11 @@ sprintf proc( #+args+# var list #+format+# string => string ){
         }
         ## '('[0-9]+')' base
         i _formatString .length < &&{ _formatString i [] '(' == } if{
-               _formatChar 'i' ==  if{ }else{ _formatChar 'I' == }if{
-          }else{ _formatChar 'u' == }if{ }else{ _formatChar 'U' == }if{
-          }else{ _formatChar 'f' == }if{ }else{ _formatChar 'F' == }if{
-          }else{ _formatChar 'e' == }if{ }else{ _formatChar 'E' == }if{
-          }else{
+               _formatChar 'i' ==  if{ else _formatChar 'I' == if
+          else _formatChar 'u' == if else _formatChar 'U' == if
+          else _formatChar 'f' == if else _formatChar 'F' == if
+          else _formatChar 'e' == if else _formatChar 'E' == if
+          else
             "printf: invalid Format String: \"" _formatString <<* _formatChar <<
                              "\" base-parameter only allowed for formats i,u,f,e and s\n" <<* eputs
             1 exit
@@ -508,7 +508,7 @@ sprintf proc( #+args+# var list #+format+# string => string ){
             count b =
             count 1 + count =
           }
-          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } }do{
+          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
             _formatString i [] <<
             i 1 + i =
           } tmp =
@@ -518,7 +518,7 @@ sprintf proc( #+args+# var list #+format+# string => string ){
               tmp clear ## clear tmp
             }
             i 1 + i =
-          }else{
+          else
             "printf: invalid Format String: \"" _formatString <<* _formatChar << "\"\n" <<* eputs
             1 exit
           }
@@ -556,11 +556,11 @@ sprintf proc( #+args+# var list #+format+# string => string ){
     1 exit
   }
   0 i =
-  while{ i parts .length < }do{
+  while{ i parts .length < do
     tmp
     parts i [] __IO.isValue if{   ## Value format
       parts i [] args __IO_printValue
-    }else{ ## string format
+    else ## string format
       parts i [] __IO.value
     }
     <<* tmp =

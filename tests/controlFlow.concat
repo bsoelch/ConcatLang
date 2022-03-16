@@ -15,65 +15,65 @@ false if{
 true if{
   0 int test =:
   "if(true)-else-end\n" puts
-}else{
+else
   0 int test =:
   unreachable
 }
 false if{
   0 int test =:
   unreachable
-}else{
+else
   0 int test =:
   "if(false)-else-end\n" puts
 }
 true if{
   0 int test =:
   "if(true)-elif-end\n" puts
-}else{ true }if{
+else true if
   0 int test =:
   unreachable
 }
 false if{
   0 int test =:
   unreachable
-}else{ true }if{
+else true if
   0 int test =:
   "if(false)-elif(true)-end\n" puts
 }
 false if{
   0 int test =:
   unreachable
-}else{ false }if{
+else false if
   0 int test =:
   unreachable
 }
 true if{
   0 int test =:
   "if(true)-elif-else-end\n" puts
-}else{ false }if{
+else false if
   0 int test =:
   unreachable
-}else{
+else
   0 int test =:
   unreachable
 }
 false if{
   0 int test =:
   unreachable
-}else{ true }if{
+else true if
   0 int test =:
   "if(false)-elif(true)-else-end\n" puts
-}else{
+else
   0 int test =:
   unreachable
 }
 false if{
   0 int test =:
   unreachable
-}else{ false }if{
+else false if
   0 int test =:
   unreachable
-}else{
+else
   0 int test =:
   "if(false)-elif(false)-else-end\n" puts
 }
@@ -88,11 +88,11 @@ false if{
 "A " puts false ||{ "B " puts true   } println
 "A " puts false ||{ "B " puts false  } println
 
-while{ false }do{
+while{ false do
   unreachable
 }
 "do-while\n"
-while{ dup puts false }do{ } drop
+while{ dup puts false do } drop
 
 "__________________________\n" puts
 "scopes:\n" puts
@@ -101,27 +101,27 @@ while{ dup puts false }do{ } drop
 }
 a println
                   false  if{
-}else{ 1 int a =: false }if{
-}else{ a 1 + a =  false }if{
-}else{ a 1 + a =  false }if{
-}else{
+else 1 int a =: false if
+else a 1 + a =  false if
+else a 1 + a =  false if
+else
  a println
 }
 5 int i =:
 5 int j =:
-while{ i 0 > }do{
+while{ i 0 > do
   i i * int j =:
   i 1 - i =
   j println
 }
 j println
 "global" string doWhile =:
-while{ "while-scope" string doWhile =: j 0 > }do{
+while{ "while-scope" string doWhile =: j 0 > do
   j 1 - j =
   "do-scope" string doWhile =:
 }
 doWhile println
-while{ "do-while-scope" string doWhile =: j 1 + dup j = 5 < }do{ }
+while{ "do-while-scope" string doWhile =: j 1 + dup j = 5 < do }
 doWhile println
 j println
 

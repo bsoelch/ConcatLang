@@ -20,7 +20,7 @@ _^ proc( A <?> A list => A Iterator ){
   mItr .1 mItr .0 .length < if{
     mItr .0 mItr .1 [] wrap ## push element
     mItr .1 1 + mItr .1 = ## increment iterator
-  }else{
+  else
     A empty return
   }
 }
@@ -31,7 +31,7 @@ _^ proc( A <?> A list => A Iterator ){
   mItr .1 0 > if{
     mItr .1 1 - mItr .1 = ## decrement iterator
     mItr .0 mItr .1 [] wrap ## push element
-  }else{
+  else
     A empty return
   }
 }

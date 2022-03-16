@@ -2,19 +2,21 @@ lib/math :
 
 math #namespace
 
-exp native proc( float => float ){ }
-log native proc( float => float ){ }
-sin native proc( float => float ){ }
-cos native proc( float => float ){ }
-tan native proc( float => float ){ }
+); #define ){ } #end
 
-floor native proc( float => float ){ }
-ceil  native proc( float => float ){ }
-round native proc( float => float ){ }
+exp native proc( float => float );
+log native proc( float => float );
+sin native proc( float => float );
+cos native proc( float => float );
+tan native proc( float => float );
 
-pow native proc( float float => float ){ }
+floor native proc( float => float );
+ceil  native proc( float => float );
+round native proc( float => float );
 
-floatToBytes native proc( float => byte list ){ }
-bytesToFloat native proc( byte list => float ){ }
+pow native proc( float float => float );
+
+floatToBytes native proc( float => byte list );
+bytesToFloat native proc( byte list => float );
 
 #end

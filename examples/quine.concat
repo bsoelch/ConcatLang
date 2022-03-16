@@ -9,22 +9,22 @@ valueIO #include
 core #import
 0 int i =:
 * string str =:
-while{ i str .length < }do{
+while{ i str .length < do
   str i [] int cast 0x2a == if{
     0x22 byte cast print
     str print
     0x22 byte cast print
-  }else{
+  else
     str i [] print
   }
   i 1 + i =
 }" string str =:
-while{ i str .length < }do{
+while{ i str .length < do
   str i [] int cast 0x2a == if{
     0x22 byte cast print
     str print
     0x22 byte cast print
-  }else{
+  else
     str i [] print
   }
   i 1 + i =

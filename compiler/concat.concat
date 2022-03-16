@@ -93,7 +93,7 @@ core .<< proc( string Type => string ){
   TUPLE_TYPE case
     t TupleType.name <<* '[' <<
     0 int i =:
-    while{ i t TupleType.types .length < }do{
+    while{ i t TupleType.types .length < do
       i 0 > if{ ", " <<* }
       t TupleType.types i [] <<
       i 1 + i =
@@ -103,7 +103,7 @@ core .<< proc( string Type => string ){
   ENUM_TYPE case
     t EnumType.name <<* '[' <<
     0 int i =:
-    while{ i t EnumType.fields .length < }do{
+    while{ i t EnumType.fields .length < do
       i 0 > if{ ", " <<* }
       t EnumType.fields i [] NameWithPos.name <<*
       i 1 + i =
@@ -136,7 +136,7 @@ core .<< proc( string Value => string ){
   PRIMITIVE_TYPE case
     v Value.type Type.TYPE == if{
       v Value.data Type cast << return
-    }else{
+    else
       v Value.data stringValue <<* return
     }
     end-case
@@ -149,7 +149,7 @@ core .<< proc( string Value => string ){
   WRAPPER_TYPE case
     v Value.type Type.STRING == ||{ v Value.type Type.USTRING == } if{
       v Value.data stringValue <<* return
-    }else{
+    else
       "wrapper-type unimplemented\n" eputs 1 exit
     }
   end-case
@@ -233,28 +233,28 @@ DeclareableType enum{
 <<DeclareableType proc( #+str+# string #+a+# bool #+type+# DeclareableType => string ){
    #+type+# switch{
    MACRO case
-     #+a+# if{ "a macro" }else{ "macro" } <<* return
+     #+a+# if{ "a macro" else "macro" } <<* return
      end-case
    ENUM case
-     #+a+# if{ "an enum" }else{ "enum" } <<* return
+     #+a+# if{ "an enum" else "enum" } <<* return
      end-case
    ENUM_ENTRY case
-     #+a+# if{ "an enum entry" }else{ "enum entry" } <<* return
+     #+a+# if{ "an enum entry" else "enum entry" } <<* return
      end-case
    TUPLE case
-     #+a+# if{ "a tuple" }else{ "tuple" } <<* return
+     #+a+# if{ "a tuple" else "tuple" } <<* return
      end-case
    VARIABLE_ID case
-     #+a+# if{ "a variable" }else{ "variable" } <<* return
+     #+a+# if{ "a variable" else "variable" } <<* return
      end-case
    FINAL_VARIABLE case
-     #+a+# if{ "a final variable" }else{ "final variable" } <<* return
+     #+a+# if{ "a final variable" else "final variable" } <<* return
      end-case
    PREDECLARED_PROCEDURE case
-     #+a+# if{ "a predeclared procedure" }else{ "predeclared procedure" } <<* return
+     #+a+# if{ "a predeclared procedure" else "predeclared procedure" } <<* return
      end-case
    PROCEDURE case
-     #+a+# if{ "a procedure" }else{ "procedure" } <<* return
+     #+a+# if{ "a procedure" else "procedure" } <<* return
      end-case
    }
 }
@@ -315,7 +315,7 @@ Tuple.tupleType proc( Tuple => TupleType ){ .2 }
 
 core .<< proc( string VariableId => string ){
   Declareable d =:
-  d VariableId.global if{ "global:" }else{ "local:" } <<*
+  d VariableId.global if{ "global:" else "local:" } <<*
   d VariableId.level <<u ':' <<
   d VariableId.varId <<u
   return
@@ -364,7 +364,7 @@ core .<< proc( string OpenModule => string ){
   OpenModule m =:
   string str =:
   0 int i =:
-  str while{ i m OpenModule.path .length < }do{
+  str while{ i m OpenModule.path .length < do
      m OpenModule.path i [] <<* "'" <<*
   }
   " declared at " <<* m OpenModule.declaredAt << return
@@ -452,7 +452,7 @@ Context.ensureDeclareable proc( #+context+# Context #+name+#string #+type+# Decl
   DeclareableType dType =:
   string name =:
   Context context =:
-  context Context.type ContextType .ROOT_CONTEXT == if{ context name RootContext.inCurrentModule }else{ name }  string localName =:
+  context Context.type ContextType .ROOT_CONTEXT == if{ context name RootContext.inCurrentModule else name }  string localName =:
   context Context.elements localName HashMap.get if{
     Declareable prev =:
     ## procedures can overwrite predeclared procedures
@@ -477,7 +477,7 @@ Context.declareVariable proc( #+context+# Context #+name+# string #+isConst+# bo
     bool isConst =:
     string name =:
     Context context =:
-    isConst if{ DeclareableType .FINAL_VARIABLE }else{ DeclareableType .VARIABLE_ID } DeclareableType dType =:
+    isConst if{ DeclareableType .FINAL_VARIABLE else DeclareableType .VARIABLE_ID } DeclareableType dType =:
     context name dType fPos Context.ensureDeclareable name =
     dType fPos context Context.isGlobal context Context.level context Context.varCount VariableId new VariableId varId =:
     context Context.incVarCount
@@ -491,10 +491,10 @@ Context.getDeclareable proc( #+context+# Context #+name+# string => Declareable 
     ROOT_CONTEXT case
       context RootContext.currentPaths string list paths =:
       paths .length 1 - int i =:
-      while{ i 0 >= }do{ ##go through all namespaces
+      while{ i 0 >= do ##go through all namespaces
         context Context.elements paths i [] clone name <<* HashMap.get dup .hasValue if{
           #+element+# Declareable optional cast return
-        }else{ drop }
+        else drop }
         i 1 - i =
       }
       context Context.elements name HashMap.get return
@@ -502,7 +502,7 @@ Context.getDeclareable proc( #+context+# Context #+name+# string => Declareable 
     PROC_CONTEXT BLOCK_CONTEXT case
       context Context.elements name HashMap.get dup .hasValue if{
         #+element+# Declareable optional cast return
-      }else{ drop
+      else drop
         context BlockContext.parent name Context.getDeclareable return
       }
       end-case
@@ -525,10 +525,10 @@ RootContext.inCurrentModule proc( RootContext  #+name+# string => string ){
    namespaces .length 0 > if{
     "" string path =:
      0 int i =:
-     while{ i namespaces .length < }do{
+     while{ i namespaces .length < do
         namespaces i [] OpenModule.path string list paths =:
         0 int j =:
-        while{ j paths .length < }do{
+        while{ j paths .length < do
           path paths j [] <<* MODULE_SEPARATOR << path =
           j 1 + j =
         }
@@ -554,13 +554,13 @@ RootContext.startModule proc( RootContext #+name+# string #+declaredAt+# FilePos
   16 string list new string list path =:
   "" string tmp =:
   0 int i =:
-  while{ i name .length < }do{
+  while{ i name .length < do
     fullPath name i [] << fullPath =
     name i [] MODULE_SEPARATOR == if{
       context RootContext.namespaces fullPath clone true HashMap.put drop
       path tmp << path =
       "" tmp =
-    }else{
+    else
       tmp name i [] << tmp =
     }
     i 1 + i =
@@ -579,15 +579,15 @@ RootContext.addImport proc( RootContext #+name+# string #+declaredAt+# FilePosit
      context RootContext.file OpenFile file =:
      file OpenFile.openModules .length 0 > if{
          file OpenFile.openModules file OpenFile.openModules .length 1 - [] OpenModule.imports name << drop
-     }else{
+     else
          file OpenFile.globalImports name << drop
      }
-  }else{ context Context.elements name HashMap.get }if{
+  else context Context.elements name HashMap.get if
     ##addLater static imports
     drop
     "static imports are currently unimplemented"
     1 exit
-  }else{
+  else
     context RootContext.namespaces
     "namespace " name0 <<* " does not exist " <<* fPos << '\n' << eputs
     1 exit
@@ -605,7 +605,7 @@ RootContext.endModule proc( RootContext FilePosition => ){
   file OpenFile.openModules file OpenFile.openModules .length 1 - file OpenFile.openModules .length [:] clear
   removed OpenModule.predeclared HashMap.size 0 > if{
     "Syntax Error: missing variables/procedures" string message =:
-    removed OpenModule.predeclared HashMap.itr while{ HashMapItr.next }do{
+    removed OpenModule.predeclared HashMap.itr while{ HashMapItr.next do
        string PredeclaredProc MapEntry e =:
        message "\n- " <<* e MapEntry.key string cast <<* " (at " <<* e MapEntry.value Declareable.pos << ')' << drop
     } drop
@@ -621,11 +621,11 @@ RootContext.endFile proc( RootContext FilePosition => ){
   closed OpenFile.openModules .length 0 > if{
     "unclosed namespaces at end of File:\n" eputs
     closed OpenFile.openModules .length 1 - int i =:
-    while{ i 0 >= }do{
+    while{ i 0 >= do
       closed OpenFile.openModules i [] OpenModule removed =:
       removed OpenModule.predeclared HashMap.size 0 > if{
         "Syntax Error: missing variables/procedures" string message =:
-        removed OpenModule.predeclared HashMap.itr while{ HashMapItr.next }do{
+        removed OpenModule.predeclared HashMap.itr while{ HashMapItr.next do
            string PredeclaredProc MapEntry e =:
            message "\n- " <<* e MapEntry.key string cast <<* " (at " <<* e MapEntry.value Declareable.pos << ')' << drop
         } drop
@@ -639,7 +639,7 @@ RootContext.endFile proc( RootContext FilePosition => ){
   }
   closed OpenFile.globalPredeclared HashMap.size 0 > if{
     "Syntax Error: missing variables/procedures" string message =:
-    closed OpenFile.globalPredeclared HashMap.itr while{ HashMapItr.next }do{
+    closed OpenFile.globalPredeclared HashMap.itr while{ HashMapItr.next do
        string PredeclaredProc MapEntry e =:
        message "\n- " <<* e MapEntry.key string cast <<* " (at " <<* e MapEntry.value Declareable.pos << ')' << drop
     } drop
@@ -654,10 +654,10 @@ RootContext.currentPaths proc( RootContext => string list ){
   16 string new string path =:
   file OpenFile.openModules OpenModule list namespaces =:
   0 int i =:
-  while{ i namespaces .length < }do{
+  while{ i namespaces .length < do
     namespaces i [] OpenModule.path string list mPath =:
     0 int j =:
-    while{ j mPath .length < }do{
+    while{ j mPath .length < do
       path mPath j [] <<* MODULE_SEPARATOR << path =
       j 1 + j =
       paths path clone << paths =
@@ -671,7 +671,7 @@ RootContext.predeclared proc( RootContext => string Declareable HashMap ){
   #+context+# RootContext.file OpenFile file =:
   file OpenFile.openModules .length 0 > if{
     file OpenFile.openModules file OpenFile.openModules .length 1 - [] OpenModule.predeclared return
-  }else{
+  else
     file OpenFile.globalPredeclared return
   }
 }
@@ -709,7 +709,7 @@ RootContext.removeMacro proc( #+context+# RootContext #+name+# string #+pos+# Fi
       fPos << '\n' << eputs
       1 exit
     }
-  }else{
+  else
     "macro " name <<* " does not exists in the current namespace " <<* fPos << '\n' << eputs
     1 exit
   }
@@ -724,7 +724,7 @@ RootContext.declareEnum proc( #+context+# RootContext #+source+# EnumBlock => ){
   ##declare enum entries
   0 int i =:
   anEnum Enum.enumType EnumType.fields NameWithPos list fields =:
-  while{ i fields .length < }do{
+  while{ i fields .length < do
     source EnumBlock.name clone MODULE_SEPARATOR << fields i [] NameWithPos.name <<* string fieldName =:
     context fieldName DeclareableType .ENUM_ENTRY fields i [] NameWithPos.pos Context.ensureDeclareable fieldName =
     context Context.elements fieldName anEnum Enum.enumType i newEnumEntry HashMap.put drop
@@ -848,7 +848,7 @@ ParserReader.nextByte proc( ParserReader => byte optional ){
   next if{
     '\n' == if{
       reader ParserReader.pos FilePosition.newLine
-    }else{
+    else
       reader ParserReader.pos FilePosition.nextChar
     }
   }
@@ -1076,7 +1076,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             prev Token.pos
             Context.declareVariable VariableId id =:
             prev IdentifierToken.idType IdentifierType .DECLARE != if{
-              AccessType .DECLARE_VAR }else{ AccessType .DECLARE_CONST } AccessType aType =:
+              AccessType .DECLARE_VAR else AccessType .DECLARE_CONST } AccessType aType =:
             TokenType .VARIABLE prev Token.pos aType id VariableToken new
               tokens tokens .length 1 - []=
             end-case
@@ -1093,7 +1093,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
               ##context.wrapCurried(identifier.name,id,identifier.pos);
               TokenType .VARIABLE prev Token.pos AccessType .WRITE_VAR d VariableToken new
                 tokens tokens .length 1 - []=
-            }else{
+            else
               "variable " prev IdentifierToken.value <<* " does not exist " <<* fPos << '\n' << eputs
               1 exit
             }
@@ -1104,16 +1104,16 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             1 exit
             end-case
           }
-        }else{  prev Token.type TokenType .WORD == }if{
+        else  prev Token.type TokenType .WORD == if
           context prev WordToken.value Context.getDeclareable if{
             Declareable d =:
             d Declareable.type switch{
             MACRO case
               tokens tokens .length 1 - tokens .length [:] clear ##remove prev
               0 int i =:
-              while{ i d Macro.words .length < }do{
+              while{ i d Macro.words .length < do
                 d Macro.words i [] NameWithPos s =:
-                i 1 + d Macro.words .length < if{ d Macro.words i 1 + [] NameWithPos.name }else{ "##" } string nxt =:
+                i 1 + d Macro.words .length < if{ d Macro.words i 1 + [] NameWithPos.name else "##" } string nxt =:
                 ##addLater remember position in macro for file-position
                 s NameWithPos.name nxt prev Token.pos openBlocks program parseWord
                 i 1 + i =
@@ -1149,7 +1149,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
               1 exit
               end-case
             }
-          }else{
+          else
             ##TODO resolve missing declarable
           }
         }
@@ -1161,7 +1161,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
            word 0 [] '-' ==  if{
         true sgn =
         off 1 + off =
-      }else{ word 0 [] '+' == }if{
+      else word 0 [] '+' == if
         off 1 + off =
       }
       10 int base =:
@@ -1170,7 +1170,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
              word off off 2 + [:] "0b" ==  if{
           2 base =
           off 2 + off =
-        }else{ word off off 2 + [:] "0x" == }if{
+        else word off off 2 + [:] "0x" == if
           16 base =
           off 2 + off =
         }
@@ -1192,7 +1192,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             drop
             end-case
           }
-        }else{
+        else
           word off word .length [:] base true stringToInt switch{
           ERR_NONE case
               sgn if{ -_ } int val =:
@@ -1212,7 +1212,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             sgn if{ -_ } float val =:
             tokens TokenType .VALUE fPos val Value.ofFloat ValueToken new << tokens =
             return
-          }else{
+          else
             drop
           }
         }
@@ -1410,12 +1410,12 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
               ## close-else context
               tokens TokenType .CONTEXT_CLOSE fPos Token new << tokens =
             }
-          }else{
+          else
             ## close-else context
             tokens TokenType .CONTEXT_CLOSE fPos Token new << tokens =
           }
           0 int i =:
-          while{ i block IfBlock.else_positions .length < }do{
+          while{ i block IfBlock.else_positions .length < do
             tokens block IfBlock.else_positions i [] [] Token tmp =:
             tmp Token.type TokenType .BLOCK_TOKEN == &&{ tmp BlockToken.type BlockTokenType .ELSE == }
             "token at end of if-branch has to be BlockToken:'else'" assert
@@ -1446,7 +1446,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             tokens tokens .length 2 - tokens .length [:] clear ##remove context open/close
             TokenType .BLOCK_TOKEN fPos BlockTokenType .DO-WHILE block CodeBlock.start tokens .length 1 - - BlockToken new
               tokens block WhileBlock.forkPos []=
-          }else{
+          else
             tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .END-WHILE
               block CodeBlock.start tokens .length - BlockToken new << tokens =
             tokens .length block WhileBlock.forkPos - tmp BlockToken.target=
@@ -1474,12 +1474,12 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
           subList clear
           values .length Type list new Type list types =:
           0 int i =:
-          while{ i values .length < }do{
+          while{ i values .length < do
             values i [] Token.type TokenType .VALUE != if{
               "tokens of type:" TokenType .fieldNames values i [] Token.type [] <<* " are not allowed in tuple signatures " <<*
               values i [] Token.pos << '\n' << eputs
               1 exit
-            }else{ values i [] ValueToken.value Value.type Type.TYPE != }if{
+            else values i [] ValueToken.value Value.type Type.TYPE != if
               "values of type:" values i [] ValueToken.value Value.type << " are not allowed in tuple signatures " <<*
               values i [] Token.pos << '\n' << eputs
               1 exit
@@ -1566,7 +1566,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
           &&{ openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] CodeBlock.type BlockType .ENUM_BLOCK == }
           if{
           openBlocks OpenBlocks.blocks openBlocks OpenBlocks.blocks .length 1 - [] EnumBlock.elements word fPos NameWithPos new << drop
-        }else{
+        else
           tokens TokenType .WORD fPos word WordToken new << tokens =
         }
       }
@@ -1608,7 +1608,7 @@ readEscapeChar proc( ParserReader => ){
      "The escape sequence: '\\" next << "' is not supported " <<* reader ParserReader.pos << '\n' << eputs
      1 exit
     }
-  }else{
+  else
     "unexpected end of file " reader ParserReader.pos << '\n' << eputs
     1 exit
   }
@@ -1619,7 +1619,7 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
   program Program.context Context context =:
   program Program.tokens Token list tokens =:
   string fileName =:
-  fileName "r" open if{ #+auto-unwrap+# }else{
+  fileName "r" open if{ #+auto-unwrap+# else
     "file \"" fileName "\" not found\n" <<* <<* eputs
     1 exit
   }
@@ -1636,7 +1636,7 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
   "" string prevWord =:
   fileName 1 1 FilePosition new FilePosition prevPos =:
 
-  while{ reader ParserReader.nextByte }do{
+  while{ reader ParserReader.nextByte do
     #+next-char+#
     state switch{
       STATE_WORD case
@@ -1653,15 +1653,15 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
             }
           }
           reader ParserReader.nextWord
-        }else{
+        else
           next switch{
           '"' case
               reader ParserReader.word "u" == if{
                 ParseState .STATE_USTRING state =
                 reader ParserReader.word clear
-              }else{ reader ParserReader.word .length 0 == }if{
+              else reader ParserReader.word .length 0 == if
                 ParseState .STATE_STRING state =
-              }else{
+              else
                 "illegal string-prefix: \"" reader ParserReader.word <<* "\" " <<*
                    reader ParserReader.pos << '\n' << eputs
                 1 exit
@@ -1671,9 +1671,9 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
               reader ParserReader.word "u" == if{
                 ParseState .STATE_UCHAR state =
                 reader ParserReader.word clear
-              }else{ reader ParserReader.word .length 0 == }if{
+              else reader ParserReader.word .length 0 == if
                 ParseState .STATE_CHAR state =
-              }else{
+              else
                 "illegal char-prefix: \"" reader ParserReader.word <<* "\" " <<*
                    reader ParserReader.pos << '\n' << eputs
                 1 exit
@@ -1693,7 +1693,7 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
                   }
                   reader ParserReader.nextWord
                   ParseState .STATE_LINE_COMMENT state =
-                }else{ next '+' == }if{
+                else next '+' == if
                   reader ParserReader.word clone string nextWord =:
                   nextWord .length 0 > if{
                     prevWord .length 0 > if{
@@ -1704,10 +1704,10 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
                   }
                   reader ParserReader.nextWord
                   ParseState .STATE_COMMENT state =
-                }else{
+                else
                   reader ParserReader.word '#' << next << drop
                 }
-              }else{
+              else
                 reader ParserReader.word '#' << drop
               }
             end-case
@@ -1728,15 +1728,15 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
             TokenType .VALUE reader ParserReader.wordPos clone
             state ParseState .STATE_USTRING == if{
               reader ParserReader.word codepoints Value.ofUString
-            }else{
+            else
               reader ParserReader.word clone Value.ofString
             }
           ValueToken new << tokens =
           reader ParserReader.nextWord
           ParseState .STATE_WORD state =
-        }else{ next '\\' == }if{
+        else next '\\' == if
           reader readEscapeChar
-        }else{
+        else
           reader ParserReader.word next << drop
         }
       end-case
@@ -1759,7 +1759,7 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
                 1 exit
               }
               #+chars+# 0 [] Value.ofCodepoint
-            }else{
+            else
               reader ParserReader.word clone
               dup .length 1 != if{
                 #+str+# " is not a valid unicode character " <<*
@@ -1772,9 +1772,9 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
           ValueToken new << tokens =
           reader ParserReader.nextWord
           ParseState .STATE_WORD state =
-        }else{ next '\\' == }if{
+        else next '\\' == if
           reader readEscapeChar
-        }else{
+        else
           reader ParserReader.word next << drop
         }
       end-case
@@ -1832,7 +1832,7 @@ constEvaluate proc( Token list => Token list ){
   Token list tokens =:
   tokens .length Token list new Token list res =:
   0 int i =:
-  while{ i tokens .length < }do{
+  while{ i tokens .length < do
     tokens i [] Token.type switch{
       VALUE case
         res tokens i [] << res =
@@ -1910,14 +1910,14 @@ main proc( string list => ){
   path tokens context Program new parseFile
 
   0 int i =:
-  while{ i tokens .length < }do{
+  while{ i tokens .length < do
     tokens i [] Token token =:
     "" token << " " <<* token Token.pos << '\n' << puts
     i 1 + i =
   }
   "\n" puts
   "declared values:\n" puts
-  context Context.elements HashMap.itr while{ HashMapItr.next }do{
+  context Context.elements HashMap.itr while{ HashMapItr.next do
       string Declareable MapEntry e =:
       e MapEntry.key print ": " e MapEntry.value << println
    } drop

@@ -10,7 +10,7 @@ reverse proc( A <?> A list  => ){
   A list toReverse =:
   0 int i =:
   toReverse .length 1 - int maxId =:
-  while{ i toReverse .length 2 / < }do{
+  while{ i toReverse .length 2 / < do
     toReverse i [] A tmp =:
     toReverse maxId i - []  toReverse i []=
     tmp  toReverse maxId i - []=
@@ -31,12 +31,12 @@ __LISTS_mergesort_helper proc( union( byte codepoint uint int float ) list #+off
     input c  to buffer __LISTS_mergesort_helper
     ## 0 ... c-1 and c...to-1 are sorted
     c int i =:
-    while{ off c < &&{ c to <= } }do{
-      while{ off c < &&{ input off [] input c [] <= } }do{
+    while{ off c < &&{ c to <= } do
+      while{ off c < &&{ input off [] input c [] <= } do
         off 1 + off =
       }
       off c < if{
-        while{ i to <= &&{ input off [] input i [] > } }do{
+        while{ i to <= &&{ input off [] input i [] > } do
           i 1 + i =
         }
         i c - int delta =:
@@ -46,7 +46,7 @@ __LISTS_mergesort_helper proc( union( byte codepoint uint int float ) list #+off
           input off c [:]  input off delta + c delta + [:]= ## move remaining part of left half to the right
           buffer  input off  off delta + [:]= ## get the elements from buffer
           buffer clear
-        }else{
+        else
           buffer clear
           buffer input off c [:] <<* buffer = ## store data in buffer
           input c i [:]  input off  off delta + [:]= ## move remaining part of left half to the right
@@ -79,12 +79,12 @@ __LISTS_generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off
     input cmp c  to buffer __LISTS_generic_mergesort_helper
     ## 0 ... c-1 and c...to-1 are sorted
     c int i =:
-    while{ off c < &&{ c to <= } }do{
-      while{ off c < &&{ input off [] input c [] cmp () 0 <= } }do{
+    while{ off c < &&{ c to <= } do
+      while{ off c < &&{ input off [] input c [] cmp () 0 <= } do
         off 1 + off =
       }
       off c < if{
-        while{ i to <= &&{ input off [] input i [] cmp () 0 > } }do{
+        while{ i to <= &&{ input off [] input i [] cmp () 0 > } do
           i 1 + i =
         }
         i c - int delta =:
@@ -94,7 +94,7 @@ __LISTS_generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off
           input off c [:]  input off delta + c delta + [:]= ## move remaining part of left half to the right
           buffer  input off  off delta + [:]= ## get the elements from buffer
           buffer clear
-        }else{
+        else
           buffer clear
           buffer input off c [:] <<* buffer = ## store data in buffer
           input c i [:]  input off  off delta + [:]= ## move remaining part of left half to the right

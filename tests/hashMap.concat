@@ -37,7 +37,7 @@ map 9 HashMap.remove println
 "map:" println
 
 map HashMap.itr
-while{ HashMapItr.next }do{
+while{ HashMapItr.next do
    e =::
    { e MapEntry.key e MapEntry.value } "(%i,%s) " printf
 } drop

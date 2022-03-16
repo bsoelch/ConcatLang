@@ -3,7 +3,7 @@ test/io :
 stack   #include
 valueIO #include
 core #import
-"./tests/testIO.txt" "rw" io .open if{ #+auto-unwrap+# }else{
+"./tests/testIO.txt" "rw" io .open if{ #+auto-unwrap+# else
   "unable to open file " eputs 1 exit
 }
 io .FILE file =:

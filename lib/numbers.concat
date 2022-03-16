@@ -41,10 +41,10 @@ __NUMBERS_getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byt
     }
     value 10 < if{
         value '0' +char return
-    }else{ value 36 < }if{
+    else value 36 < if
         value 10 -
-        big ||{ base 36 > } if{ 'A'  }else{ 'a' } +char return
-    }else{
+        big ||{ base 36 > } if{ 'A'  else 'a' } +char return
+    else
         value 36 - 'a' +char return
     }
 }
@@ -68,8 +68,8 @@ __NUMBERS_getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byt
       value int cast -_ value =
   }
   1u uint p =:
-  while{ value p / base >= }do{ p base * p = }
-  while{ p 0 > }do{
+  while{ value p / base >= do p base * p = }
+  while{ p 0 > do
       value p /  base big __NUMBERS_getDigit <<
       value p % value =
       p base / p =
@@ -121,12 +121,12 @@ intToString proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => str
   value float_isFinite ! if{
     value float_isNaN if{
       "[NaN]"
-    }else{ value 0 > }if{
+    else value 0 > if
       "[Infinity]"
-    }else{
+    else
       "-[Infinity]"
     } <<* return
-  }else{ value 0.0 == ||{ value -0.0 == } }if{
+  else value 0.0 == ||{ value -0.0 == } if
     "0" <<* return
   }
   value 0 < if{
@@ -139,7 +139,7 @@ intToString proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => str
   base e float cast pow float p =:
   64 int list new int list buff =:
   0 int n =:
-  while{ p eps > }do{
+  while{ p eps > do
     value p / floor int cast int d =:
     buff d << buff =
     n 1 + n =
@@ -149,17 +149,17 @@ intToString proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => str
   }
   precision 0 == ||{ precision n >= } if{
     n 1 -
-  }else{
+  else
     precision
   } n =
   buff n [] base 2 / >= if{
     n 1 - int j =:
     true bool inc =:
-    while{ inc &&{ j 0 >= } }do{
+    while{ inc &&{ j 0 >= } do
       buff j [] 1 +  buff j []=
       buff j [] base >= if{
         buff j [] base -  buff j []=
-      }else{
+      else
           false inc =
       }
       j 1 - j =
@@ -170,39 +170,39 @@ intToString proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => str
       n 1 + n =
     }
   }
-  while{ n 1 - e_max > &&{ buff n 1 - [] 0 == } }do{
+  while{ n 1 - e_max > &&{ buff n 1 - [] 0 == } do
     n 1 - n =
   }
   sci ||{ e_max n >= ||{ e_max -5 < } } if{
-    while{ n 1 - 0 > &&{ buff n 1 - [] 0 == } }do{
+    while{ n 1 - 0 > &&{ buff n 1 - [] 0 == } do
       n 1 - n =
     }
     buff 0 [] base big __NUMBERS_getDigit <<
     n 1 > if{
       '.' <<
-      1 while{ dup n < }do{
+      1 while{ dup n < do
          swap over buff swap [] base big __NUMBERS_getDigit <<
          swap 1 +
       } drop
     }
-    base 10 <= if{ 'E' }else{ base 30 <= }if{ 'X' }else{ '#' } <<
+    base 10 <= if{ 'E' else base 30 <= if 'X' else '#' } <<
     e_max 0 >= if{ '+' << }
     e_max  base true big <<???i
-  }else{ e_max 0 >= }if{
-    0 while{ dup n < }do{
+  else e_max 0 >= if
+    0 while{ dup n < do
       swap over buff swap [] base big __NUMBERS_getDigit <<
       over e_max == &&{ over n 1 - < } if{
         '.' <<
       }
       swap 1 +
     } drop
-  }else{
+  else
     "0." <<*
-    e_max -_ 1 - while{ dup 0 > }do{
+    e_max -_ 1 - while{ dup 0 > do
       swap '0' <<
       swap 1 -
     } drop
-    0 while{ dup n < }do{
+    0 while{ dup n < do
       swap over buff swap [] base big __NUMBERS_getDigit <<
       swap 1 +
     } drop
@@ -248,13 +248,13 @@ valueOfDigit proc( #+digit +# byte #+base+# int => #+value+# int ){
   byte digit =:
   digit '0' >= &&{ digit '9' <= } if{
     digit '0' charDiff
-  }else{ digit 'A' >= &&{ digit 'Z' <= } }if{
+  else digit 'A' >= &&{ digit 'Z' <= } if
     digit 'A' charDiff 10 +
-  }else{ digit 'a' >= &&{ digit 'z' <= } }if{
+  else digit 'a' >= &&{ digit 'z' <= } if
     digit 'a' charDiff
-    base 37 < if{ 10 }else{ 36 }
+    base 37 < if{ 10 else 36 }
     +
-  }else{
+  else
     -1
   }
   dup base >= if{
@@ -287,11 +287,11 @@ stringToInt proc( #+source+# string #+base+# int #+signed+# bool => #+val+# int 
   source 0 [] '-' == if{
     true sgn =
     1 i =
-  }else{ source 0 [] '+' == }if{
+  else source 0 [] '+' == if
     1 i =
   }
-  signed if{ int_MAX uint cast }else{ uint_MAX } base uint cast / int max =:
-  while{ i source .length < }do{
+  signed if{ int_MAX uint cast else uint_MAX } base uint cast / int max =:
+  while{ i source .length < do
     res max > if{
       res  sgn if{ -_ } StringParseError .ERR_OVERFLOW return
     }
@@ -350,13 +350,13 @@ _isExpChar proc( #+char+# byte #+base+# int => bool ){
   byte c =:
   c 'e' == ||{ c 'E' == } if{
     base 'E' 'A' - 10 + 1 + <
-  }else{ c 'p' == ||{ c 'P' == } }if{
+  else c 'p' == ||{ c 'P' == } if
     base 'P' 'A' - 10 + 1 + <
-  }else{ c 'x' == ||{ c 'X' == } }if{
+  else c 'x' == ||{ c 'X' == } if
     base 'X' 'A' - 10 + 1 + <
-  }else{ c '#' == }if{
+  else c '#' == if
     true
-  }else{
+  else
     false
   }
 }
@@ -376,23 +376,23 @@ stringToFloat proc( #+str+# string #+base+# int => #+val+# float #+err-code+# St
   str 0 [] '-' == if{
     true sgn =
     1 i =
-  }else{ str 0 [] '+' == }if{
+  else str 0 [] '+' == if
     1 i =
   }
   0  int c =:
   0  int d =:
   -1 int e =:
   1 53 << int max =: ## maximum precision of ieee float64
-  while{ i str .length < }do{
+  while{ i str .length < do
     str i [] '.' == if{ ## str[i] == '.'
       d 0 != if{
         float_NaN StringParseError .ERR_ILLEGAL_CHAR return
       }
       1 d =
-    }else{ str i [] base _isExpChar }if{
+    else str i [] base _isExpChar if
       i 1 + e =
       i str .length + i =  ## break Loop by setting index to value >= str.length
-    }else{
+    else
       str i [] base valueOfDigit int tmp =:
       tmp 0 < if{
         0.0 StringParseError .ERR_ILLEGAL_CHAR return
@@ -400,7 +400,7 @@ stringToFloat proc( #+str+# string #+base+# int => #+val+# float #+err-code+# St
       val max < if{
         val base * tmp + val =
         c d + c =
-      }else{
+      else
         c 1 d - + c =
       }
     }

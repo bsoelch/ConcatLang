@@ -1563,7 +1563,7 @@ public class Interpreter {
                         throw new SyntaxError("tuples can only be declared at root level",pos);
                     }
                     if(tokens.size()==0){
-                        throw new SyntaxError("missing enum name",pos);
+                        throw new SyntaxError("missing tuple name",pos);
                     }
                     prev=tokens.remove(tokens.size()-1);
                     finishParsing(pState, ioContext,pos,false);
@@ -1587,9 +1587,9 @@ public class Interpreter {
                     prev=tokens.remove(tokens.size()-1);
                     finishParsing(pState, ioContext,pos,false);
                     if(!(prev instanceof IdentifierToken)){
-                        throw new SyntaxError("token before 'enum' has to be an identifier",pos);
+                        throw new SyntaxError("token before '"+str+"' has to be an identifier",pos);
                     }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before 'enum' has to be an unmodified identifier",pos);
+                        throw new SyntaxError("token before '"+str+"' has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
                     pState.openBlocks.add(new EnumBlock(name, 0,pos,pState.rootContext));
@@ -1605,11 +1605,11 @@ public class Interpreter {
                     finishParsing(pState, ioContext,pos,false);
                     boolean isNative=false;
                     if(!(prev instanceof IdentifierToken)){
-                        throw new SyntaxError("token before 'proc' has to be an identifier",pos);
+                        throw new SyntaxError("token before '"+str+"' has to be an identifier",pos);
                     }else if(((IdentifierToken) prev).type==IdentifierType.NATIVE){
                         isNative=true;
                     }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before 'proc' has to be an unmodified identifier",pos);
+                        throw new SyntaxError("token before '"+str+"' has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
                     ProcedureBlock proc = new ProcedureBlock(name, 0, pos, pState.rootContext, isNative);
@@ -1634,13 +1634,13 @@ public class Interpreter {
                         pState.openBlocks.addLast(new ProcTypeBlock((ListBlock)block,tokens.size()));
                         ((GenericContext)((ListBlock) block).context).lock();
                     }else{
-                        throw new SyntaxError("'=>' can only be used in proc- or proc-type blocks ",pos);
+                        throw new SyntaxError("'"+str+"' can only be used in proc- or proc-type blocks ",pos);
                     }
                 }
                 case "){" -> {
                     CodeBlock block=pState.openBlocks.peekLast();
                     if(block==null){
-                        throw new SyntaxError(": can only be used in proc- and lambda- blocks",pos);
+                        throw new SyntaxError(str+" can only be used in proc- and lambda- blocks",pos);
                     }else if(block.type==BlockType.PROCEDURE){
                         //handle procedure separately since : does not change context of produce a jump
                         ProcedureBlock proc=(ProcedureBlock) block;
@@ -1649,7 +1649,7 @@ public class Interpreter {
                                 new RandomAccessStack<>(8),null,pos,ioContext).tokens,pos);
                         outs.clear();
                     }else{
-                        throw new SyntaxError(": can only be used in proc- and lambda- blocks", pos);
+                        throw new SyntaxError(str+" can only be used in proc- and lambda- blocks", pos);
                     }
                 }
                 case "{" -> {
@@ -1668,39 +1668,39 @@ public class Interpreter {
                     tokens.add(new BlockToken(BlockTokenType.IF, pos, -1));
                     pState.openBlocks2++;
                 }
-                case "}do{" -> {
+                case "do", "}do{" -> {
                     if(pState.openBlocks2==0){
-                        throw new SyntaxError("'do' can only appear in while-blocks",pos);
+                        throw new SyntaxError("'"+str+"' can only appear in while-blocks",pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.DO, pos, -1));
                 }
-                case "}if{" -> {
+                case "if", "}if{" -> {
                     if(pState.openBlocks2==0){
-                        throw new SyntaxError("'_if' can only appear in if-blocks",pos);
+                        throw new SyntaxError("'"+str+"' can only appear in if-blocks",pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType._IF, pos, -1));
                 }
-                case "}else{" ->  {
+                case "else", "}else{" ->  {
                     if(pState.openBlocks2==0){
-                        throw new SyntaxError("'else' can only appear in if-blocks",pos);
+                        throw new SyntaxError("'"+str+"' can only appear in if-blocks",pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.ELSE, pos, -1));
                 }
                 case "case" -> {
                     if (pState.openBlocks2 == 0) {
-                        throw new SyntaxError("'case' can only appear in switch-blocks", pos);
+                        throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.CASE, pos, -1));
                 }
                 case "default"  -> {
                     if (pState.openBlocks2 == 0) {
-                        throw new SyntaxError("'default' can only appear in switch-blocks", pos);
+                        throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.DEFAULT, pos, -1));
                 }
-                case "end-case" -> {//addLater? merge END_CASE into END
+                case "end-case" -> {//addLater? simplify end-case
                     if (pState.openBlocks2 == 0) {
-                        throw new SyntaxError("'end-case' can only appear in switch-blocks", pos);
+                        throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
                 }
@@ -1717,7 +1717,7 @@ public class Interpreter {
                     }
                     CodeBlock block=pState.openBlocks.pollLast();
                     if(block==null) {
-                        throw new SyntaxError("unexpected 'end' statement",pos);
+                        throw new SyntaxError("unexpected '"+str+"' statement",pos);
                     }
                     Token tmp;
                     switch (block.type) {
@@ -1802,7 +1802,7 @@ public class Interpreter {
                                 throw new SyntaxError("blocks of type "+block.type+
                                         " should not exist at this stage of compilation",pos);
                         case UNION,ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST ->
-                                throw new SyntaxError("unexpected 'end' statement",pos);
+                                throw new SyntaxError("unexpected '"+str+"' statement",pos);
                     }
                 }
                 case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
@@ -1820,7 +1820,7 @@ public class Interpreter {
                 case ")" -> {
                     CodeBlock open=pState.openBlocks.pollLast();
                     if(open==null||(open.type!=BlockType.ANONYMOUS_TUPLE&&open.type!=BlockType.PROC_TYPE&&open.type!=BlockType.UNION)){
-                        throw new SyntaxError("unexpected ')' statement ",pos);
+                        throw new SyntaxError("unexpected '"+str+"' statement ",pos);
                     }
                     if(open.context() != pState.openedContexts.pollLast()){
                         throw new RuntimeException("openedProcs is out of sync with openBlocks");
@@ -3240,6 +3240,7 @@ public class Interpreter {
         }
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
+            //TODO allow overloaded procedure pointers
             if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
                 if(inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
                     tokens.add(new ArgCastToken(inTypes.length-i+offset,type.inTypes[i],pos));
