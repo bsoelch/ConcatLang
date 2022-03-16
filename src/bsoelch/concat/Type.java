@@ -55,6 +55,13 @@ public class Type {
     final boolean switchable;
 
     public static Type commonSuperType(Type a, Type b,boolean strict) {
+        if(a instanceof OverloadedProcedurePointer||b instanceof OverloadedProcedurePointer) {
+            if(a.equals(b)) {
+                return a;
+            }else{
+                throw new UnsupportedOperationException("merging different overloaded procedure pointer sis not implemented");
+            }
+        }
         if(a==ANY||b==null){
             return a;
         }else if(a==null||b==ANY){
@@ -910,6 +917,33 @@ public class Type {
                     return true;
             }
             return false;
+        }
+    }
+
+    static class OverloadedProcedurePointer extends Type{
+        final OverloadedProcedure proc;
+        final int tokenPos;
+        final FilePosition pushedAt;
+
+        OverloadedProcedurePointer(OverloadedProcedure proc, int tokenPos, FilePosition pushedAt) {
+            super(proc.name+" .type", false);
+            this.proc = proc;
+            this.tokenPos = tokenPos;
+            this.pushedAt=pushedAt;
+        }
+
+        @Override
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            return this==t;
+        }
+
+        @Override
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
+            return equals(t);
+        }
+        @Override
+        protected boolean canCastTo(Type t, BoundMaps bounds) {
+            return equals(t);
         }
     }
 }

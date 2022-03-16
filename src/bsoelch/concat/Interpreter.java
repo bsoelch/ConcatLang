@@ -2591,7 +2591,10 @@ public class Interpreter {
                     }
                     Type target=((ValueToken) prev).value.asType();
                     TypeFrame f=typeStack.pop();
-                    if(!f.type.canCastTo(target)){
+                    if(f.type instanceof Type.OverloadedProcedurePointer){
+                        //TODO casting of overload procedure pointers
+                        throw new UnsupportedOperationException("casting overloaded procedure pointers is currently not implemented");
+                    }else if(!f.type.canCastTo(target)){
                         throw new SyntaxError("cannot cast from "+f.type+" to "+target,t.pos);
                     }
                     typeStack.push(new TypeFrame(target,null,t.pos));
@@ -2615,12 +2618,21 @@ public class Interpreter {
                 }
                 case CALL_PTR -> {
                     TypeFrame f=typeStack.pop();
-                    if(!(f.type instanceof Type.Procedure)){
+                    if(f.type instanceof Type.Procedure){
+                        IdentityHashMap<Type.GenericParameter,Type> generics =
+                                typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
+                        ret.add(new CallPtrToken(generics,t.pos));
+                    }else if(f.type instanceof Type.OverloadedProcedurePointer){
+                        CallMatch call = typeCheckOverloadedCall("call-ptr",typeStack,
+                                       ((Type.OverloadedProcedurePointer) f.type).proc,ret,t.pos, ioContext, true);
+                        Callable proc=call.called;
+                        //update procedure pointer
+                        ret.set(((Type.OverloadedProcedurePointer) f.type).tokenPos,
+                                new ValueToken((Value)proc, ((Type.OverloadedProcedurePointer) f.type).pushedAt,false));
+                        ret.add(new CallPtrToken(call.genericParams,t.pos));
+                    }else{
                         throw new SyntaxError("invalid argument for operator '()': "+f.type,t.pos);
                     }
-                    IdentityHashMap<Type.GenericParameter,Type> generics =
-                            typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
-                    ret.add(new CallPtrToken(generics,t.pos));
                 }
 
                 case LIST_OF -> {
@@ -2851,6 +2863,9 @@ public class Interpreter {
                     Type type;
                     if(identifier.type==IdentifierType.IMPLICIT_DECLARE){
                         type=typeStack.peek().type;
+                        if(!type.canAssignTo(Type.ANY)){
+                            throw new SyntaxError("cannot create variable of type "+type,t.pos);
+                        }
                     }else if (ret.size() > 0 && (prev = ret.remove(ret.size() - 1)) instanceof ValueToken) {
                         type = ((ValueToken) prev).value.asType();
                         if(typeStack.pop().type != Type.TYPE){
@@ -2872,12 +2887,17 @@ public class Interpreter {
                     }
                     TypeFrame val = typeStack.pop();
                     Type.BoundMaps bounds=new Type.BoundMaps();
-                    if(!val.type.canAssignTo(id.type,bounds)){//cast to correct type if necessary
-                        bounds=new Type.BoundMaps();
-                        if(!val.type.canCastTo(id.type,bounds)){
-                            throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
+                    if(val.type instanceof Type.OverloadedProcedurePointer){
+                        //TODO resolve procedure pointer
+                        throw new UnsupportedOperationException("resolving overloaded procedures is currently not implemented");
+                    }else{
+                        if(!val.type.canAssignTo(id.type,bounds)){//cast to correct type if necessary
+                            bounds=new Type.BoundMaps();
+                            if(!val.type.canCastTo(id.type,bounds)){
+                                throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
+                            }
+                            ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
                         }
-                        ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
                     }
                     if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
                         IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
@@ -3035,6 +3055,10 @@ public class Interpreter {
                     ValueToken token=new ValueToken(proc, t.pos,false);
                     typeStack.push(new TypeFrame(token.value.type,token.value,t.pos));
                     ret.add(token);
+                }else if(d instanceof OverloadedProcedure proc){
+                    typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,ret.size(),t.pos),null,t.pos));
+                    //addLater own type for placeholder token
+                    ret.add(new Token(TokenType.UNREACHABLE,t.pos));//push placeholder token
                 }else{//TODO resolve overloaded procedure pointers
                     throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
                             identifier.name+" (declared at "+d.declaredAt()+") is not a procedure", t.pos);
@@ -3065,10 +3089,11 @@ public class Interpreter {
                     }
                     if(!hasField) {
                         if(identifier.name.equals("type")){
-                            typeStack.push(new TypeFrame(Type.TYPE,Value.ofType(f.type),t.pos));
-                            ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
-
-                            hasField = true;
+                            if(f.type.canAssignTo(Type.ANY)){
+                                typeStack.push(new TypeFrame(Type.TYPE,Value.ofType(f.type),t.pos));
+                                ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
+                                hasField = true;
+                            }
                         }else if (identifier.name.equals("length") && (f.type.isList() || f.type instanceof Type.Tuple)) {
                             typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
                             ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
