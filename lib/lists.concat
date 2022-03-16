@@ -12,8 +12,8 @@ reverse proc( A <?> A list  => ){
   toReverse .length 1 - int maxId =:
   while{ i toReverse .length 2 / < }do{
     toReverse i [] A tmp =:
-    toReverse toReverse maxId i - [] i []=
-    toReverse tmp maxId i - []=
+    toReverse maxId i - []  toReverse i []=
+    tmp  toReverse maxId i - []=
     i 1 + i =
   }
 }
@@ -43,14 +43,14 @@ __LISTS_mergesort_helper proc( union( byte codepoint uint int float ) list #+off
         delta c off - <= if{
           buffer clear
           buffer input c i [:] <<* buffer = ## store data in buffer
-          input  input off c [:]  off delta + c delta + [:]= ## move remaining part of left half to the right
-          input  buffer  off  off delta + [:]= ## get the elements from buffer
+          input off c [:]  input off delta + c delta + [:]= ## move remaining part of left half to the right
+          buffer  input off  off delta + [:]= ## get the elements from buffer
           buffer clear
         }else{
           buffer clear
           buffer input off c [:] <<* buffer = ## store data in buffer
-          input  input c i [:]  off  off delta + [:]= ## move remaining part of left half to the right
-          input  buffer  off delta + i [:]= ## get the elements from buffer
+          input c i [:]  input off  off delta + [:]= ## move remaining part of left half to the right
+          buffer  input off delta + i [:]= ## get the elements from buffer
           buffer clear
         }
         i c =
@@ -91,14 +91,14 @@ __LISTS_generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off
         delta c off - <= if{
           buffer clear
           buffer input c i [:] <<* buffer = ## store data in buffer
-          input  input off c [:]  off delta + c delta + [:]= ## move remaining part of left half to the right
-          input  buffer  off  off delta + [:]= ## get the elements from buffer
+          input off c [:]  input off delta + c delta + [:]= ## move remaining part of left half to the right
+          buffer  input off  off delta + [:]= ## get the elements from buffer
           buffer clear
         }else{
           buffer clear
           buffer input off c [:] <<* buffer = ## store data in buffer
-          input  input c i [:]  off  off delta + [:]= ## move remaining part of left half to the right
-          input  buffer  off delta + i [:]= ## get the elements from buffer
+          input c i [:]  input off  off delta + [:]= ## move remaining part of left half to the right
+          buffer  input off delta + i [:]= ## get the elements from buffer
           buffer clear
         }
         i c =

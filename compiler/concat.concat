@@ -662,7 +662,7 @@ RootContext.currentPaths proc( RootContext => string list ){
       j 1 + j =
       paths path clone << paths =
     }
-    paths  namespaces i [] OpenModule.imports  paths .length 1 - paths .length 1 - [:]=
+    namespaces i [] OpenModule.imports  paths paths .length 1 - paths .length 1 - [:]=
     i 1 + i =
   }
   paths return
@@ -919,7 +919,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
         "invalid token for '.' modifier: " prePrev << ' ' << prePrev Token.pos << '\n' << eputs
         1 exit
       }
-      tokens TokenType .WORD fPos prePrev WordToken.value '\'' << prev WordToken.value <<* WordToken new tokens .length 2 - []=
+      TokenType .WORD fPos prePrev WordToken.value '\'' << prev WordToken.value <<* WordToken new  tokens tokens .length 2 - []=
       tokens tokens .length 1 - tokens .length [:] clear
       end-case
     "="  case
@@ -928,7 +928,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
         "invalid token for '=' modifier: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
       }
-      tokens TokenType .IDENTIFIER fPos IdentifierType .WRITE prev WordToken.value IdentifierToken new tokens .length 1 - []=
+      TokenType .IDENTIFIER fPos IdentifierType .WRITE prev WordToken.value IdentifierToken new  tokens tokens .length 1 - []=
       end-case
     "=:" case
       tokens tokens .length 1 - [] Token prev =:
@@ -936,7 +936,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
         "invalid token for '=:' modifier: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
       }
-      tokens TokenType .IDENTIFIER fPos IdentifierType .DECLARE prev WordToken.value IdentifierToken new tokens .length 1 - []=
+      TokenType .IDENTIFIER fPos IdentifierType .DECLARE prev WordToken.value IdentifierToken new  tokens tokens .length 1 - []=
       end-case
     "=$" case
       tokens tokens .length 1 - [] Token prev =:
@@ -944,8 +944,8 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
         "invalid token for '=$' modifier: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
       }
-      tokens TokenType .IDENTIFIER fPos
-        IdentifierType .CONST_DECLARE prev WordToken.value IdentifierToken new tokens .length 1 - []=
+      TokenType .IDENTIFIER fPos IdentifierType .CONST_DECLARE prev WordToken.value IdentifierToken new
+        tokens tokens .length 1 - []=
       end-case
     "@()" case
       tokens tokens .length 1 - [] Token prev =:
@@ -953,8 +953,8 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
         "invalid token for '@()' modifier: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
       }
-      tokens TokenType .IDENTIFIER fPos
-        IdentifierType .ADDRESS_OF prev WordToken.value IdentifierToken new tokens .length 1 - []=
+      TokenType .IDENTIFIER fPos IdentifierType .ADDRESS_OF prev WordToken.value IdentifierToken new
+        tokens tokens .length 1 - []=
       end-case
     ## macro&namespace key-words
     "#define" case
@@ -1035,7 +1035,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
         "invalid token for procedure name: " prev << ' ' << prev Token.pos << '\n' << eputs
         1 exit
       }
-      tokens TokenType .PROCEDURE_START fPos prev WordToken.value WordToken new tokens .length 1 - []=
+      TokenType .PROCEDURE_START fPos prev WordToken.value WordToken new  tokens tokens .length 1 - []=
       openBlocks OpenBlocks.blocks BlockType .PROC_BLOCK fPos tokens .length CodeBlock new << drop
       end-case
     "enum" case
@@ -1077,9 +1077,8 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             Context.declareVariable VariableId id =:
             prev IdentifierToken.idType IdentifierType .DECLARE != if{
               AccessType .DECLARE_VAR }else{ AccessType .DECLARE_CONST } AccessType aType =:
-            tokens
             TokenType .VARIABLE prev Token.pos aType id VariableToken new
-            tokens .length 1 - []=
+              tokens tokens .length 1 - []=
             end-case
           WRITE case
             context prev IdentifierToken.value Context.getDeclareable if{
@@ -1092,9 +1091,8 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
               }
               ##TODO check for curried variables
               ##context.wrapCurried(identifier.name,id,identifier.pos);
-              tokens
               TokenType .VARIABLE prev Token.pos AccessType .WRITE_VAR d VariableToken new
-              tokens .length 1 - []=
+                tokens tokens .length 1 - []=
             }else{
               "variable " prev IdentifierToken.value <<* " does not exist " <<* fPos << '\n' << eputs
               1 exit
@@ -1124,27 +1122,23 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
               END_OF_SECTION next prev Token.pos openBlocks program parseWord
               end-case
             ENUM case
-              tokens
               TokenType .VALUE fPos d Enum.enumType Value.ofType ValueToken new
-              tokens .length 1 - []=
+                tokens tokens .length 1 - []=
               end-case
             ENUM_ENTRY case
-              tokens
               TokenType .VALUE fPos d EnumEntry.enumType d Value new ValueToken new
-              tokens .length 1 - []=
+                tokens tokens .length 1 - []=
               end-case
             TUPLE case
-              tokens
               TokenType .VALUE fPos d Tuple.tupleType Value.ofType ValueToken new
-              tokens .length 1 - []=
+                tokens tokens .length 1 - []=
               end-case
             FINAL_VARIABLE VARIABLE_ID case
               ##addLater wrap curried variables
               ##id=context.wrapCurried(identifier.name,id,identifier.pos);
               ##addLater pre-evaluate global constants
-              tokens
               TokenType .VARIABLE prev Token.pos AccessType .READ_VAR d VariableToken new
-              tokens .length 1 - []=
+                tokens tokens .length 1 - []=
             end-case
             PREDECLARED_PROCEDURE case
               "resolving procedures is currently unimplemented\n" eputs
@@ -1450,9 +1444,8 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             "token at fork-pos of While has to be BlockToken:'do'" assert
           block WhileBlock.forkPos tokens .length 3 - == if{ ## do context-open context-close end
             tokens tokens .length 2 - tokens .length [:] clear ##remove context open/close
-            tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .DO-WHILE
-              block CodeBlock.start tokens .length 1 - - BlockToken new
-            block WhileBlock.forkPos []=
+            TokenType .BLOCK_TOKEN fPos BlockTokenType .DO-WHILE block CodeBlock.start tokens .length 1 - - BlockToken new
+              tokens block WhileBlock.forkPos []=
           }else{
             tokens TokenType .BLOCK_TOKEN fPos BlockTokenType .END-WHILE
               block CodeBlock.start tokens .length - BlockToken new << tokens =

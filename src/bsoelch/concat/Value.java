@@ -2255,15 +2255,15 @@ public abstract class Value {
                 }
             });
         }
-        {//addLater? change order of arguments for consistency with set field
+        {
             Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
             a.unbind();
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),a,Type.UINT},
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(a),Type.UINT},
                     new Type[]{},"[]=") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list val index
-                    values[0].set(values[2].asLong(),values[1]);
+                    //val list index
+                    values[1].set(values[2].asLong(),values[0]);
                     return new Value[0];
                 }
             });
@@ -2288,7 +2288,7 @@ public abstract class Value {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list val off to
-                    values[0].setSlice(values[2].asLong(),values[3].asLong(),values[1]);
+                    values[1].setSlice(values[2].asLong(),values[3].asLong(),values[0]);
                     return new Value[0];
                 }
             });
