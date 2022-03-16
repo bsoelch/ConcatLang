@@ -40,7 +40,7 @@ numbers  #include
 <<* proc( string ustring => string ){
   ustring append =:
   string  value  =:
-  value value .length append .length + ensureCap drop
+  value value .length append .length + ensureCap
   0 int i =:
   while{ i append .length < }do{
     value append i [] << value =
@@ -51,7 +51,7 @@ numbers  #include
 *>> proc( ustring string => string ){
   string  value  =:
   ustring append =:
-  value value .length append .length + ensureCap drop
+  value value .length append .length + ensureCap
   append .length 1 - int i =:
   while{ i 0 >= }do{
     append i [] value >> value =
@@ -63,7 +63,7 @@ numbers  #include
 <<* proc( ustring string => ustring ){
   string  append  =:
   ustring value   =:
-  value value .length append .length + ensureCap drop
+  value value .length append .length + ensureCap
   append 0u
   while{ nextCodepoint }do{
     value swap << value =

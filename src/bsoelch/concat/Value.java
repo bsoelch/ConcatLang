@@ -1884,7 +1884,6 @@ public abstract class Value {
             });
         }
 
-        //addLater make union types accessible in program
         Type unsigned = Type.UnionType.create(new Type[]{Type.BYTE,Type.CODEPOINT,Type.UINT});
         Type integer = Type.UnionType.create(new Type[]{unsigned,Type.INT});
         Type number  = Type.UnionType.create(new Type[]{integer,Type.FLOAT});
@@ -2151,11 +2150,11 @@ public abstract class Value {
             Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT},
-                    new Type[]{Type.listOf(a)},"ensureCap") {//addLater? remove return value
+                    new Type[]{},"ensureCap") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     values[0].ensureCap(values[1].asLong());
-                    return new Value[]{values[0]};
+                    return new Value[0];
                 }
             });
         }

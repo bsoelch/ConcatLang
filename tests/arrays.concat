@@ -16,7 +16,7 @@ core #import
 { "Test" } dup clone! dup clone 0 [] "C" <<* << println println
 
 10 int list new dup println
-1000 ensureCap println
+dup 1000 ensureCap println
 testTuple tuple{ int float int }
 1 2 3 testTuple new dup println
 dup clone  42 over .1 = println

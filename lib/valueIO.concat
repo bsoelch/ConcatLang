@@ -400,7 +400,7 @@ sprintf proc( #+args+# var list #+format+# string => string ){
         tmp clear
         tmp _formatString .length ensureCap
         ## ([0-9]+$)?  index
-        while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } }do{
+        tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } }do{
           _formatString i [] <<
           i 1 + i =
         } tmp =
