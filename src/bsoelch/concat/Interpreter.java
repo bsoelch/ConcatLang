@@ -2590,27 +2590,20 @@ public class Interpreter {
                     }
                     Type target=((ValueToken) prev).value.asType();
                     TypeFrame f=typeStack.pop();
-                    if(f.type instanceof Type.OverloadedProcedurePointer){
-                        //TODO casting of overload procedure pointers
-                        throw new UnsupportedOperationException("casting overloaded procedure pointers is currently not implemented");
-                    }else if(!f.type.canCastTo(target)){
-                        throw new SyntaxError("cannot cast from "+f.type+" to "+target,t.pos);
-                    }
+                    typeCheckCast(f.type,1,target, ret, t.pos);
                     typeStack.push(new TypeFrame(target,null,t.pos));
-
-                    ret.add(new TypedToken(TokenType.CAST,target,t.pos));
                 }
                 case STACK_DROP ->{
                     assert t instanceof StackModifierToken;
                     typeStack.drop(((StackModifierToken)t).args[0]);
                     ret.add(t);
                 }
-                case STACK_DUP ->{
+                case STACK_DUP ->{//TODO update TypeFrame
                     assert t instanceof StackModifierToken;
                     typeStack.dup(((StackModifierToken)t).args[0]);
                     ret.add(t);
                 }
-                case STACK_SET ->{
+                case STACK_SET ->{//TODO update TypeFrame
                     assert t instanceof StackModifierToken;
                     typeStack.set(((StackModifierToken)t).args[0],((StackModifierToken)t).args[1]);
                     ret.add(t);
@@ -2625,7 +2618,7 @@ public class Interpreter {
                         CallMatch call = typeCheckOverloadedCall("call-ptr",typeStack,
                                        ((Type.OverloadedProcedurePointer) f.type).proc,ret,t.pos, ioContext, true);
                         Callable proc=call.called;
-                        //update procedure pointer
+                        //update procedure pointer addLater method for update overloaded ptr
                         ret.set(((Type.OverloadedProcedurePointer) f.type).tokenPos,
                                 new ValueToken((Value)proc, ((Type.OverloadedProcedurePointer) f.type).pushedAt,false));
                         ret.add(new CallPtrToken(call.genericParams,t.pos));
@@ -2885,34 +2878,7 @@ public class Interpreter {
                         break;
                     }
                     TypeFrame val = typeStack.pop();
-                    Type.BoundMaps bounds=new Type.BoundMaps();
-                    if(val.type instanceof Type.OverloadedProcedurePointer){
-                        //TODO resolve procedure pointer
-                        throw new UnsupportedOperationException("resolving overloaded procedures is currently not implemented");
-                    }else{
-                        if(!val.type.canAssignTo(id.type,bounds)){//cast to correct type if necessary
-                            bounds=new Type.BoundMaps();
-                            if(!val.type.canCastTo(id.type,bounds)){
-                                throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
-                            }
-                            ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
-                        }
-                    }
-                    if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
-                        IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
-                        for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
-                            if(e.getValue().min()!=null){
-                                if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
-                                    update.put(e.getKey(),e.getValue().min());
-                                }else{
-                                    throw new SyntaxError("cannot cast from "+val.type+" to "+id.type,t.pos);
-                                }
-                            }else if(e.getValue().max()!=null){
-                                update.put(e.getKey(),e.getValue().max());
-                            }
-                        }
-                        ret.add(new GenericUpdateToken(update,t.pos));
-                    }
+                    typeCheckCast(val.type,1, id.type, ret, t.pos);
                     if (id.isConstant && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         globalConstants.put(id, ((ValueToken) prev).value.clone(true).castTo(type));
@@ -3012,29 +2978,7 @@ public class Interpreter {
                     context.wrapCurried(identifier.name,id,identifier.pos);
                     assert !globalConstants.containsKey(id);
                     TypeFrame f = typeStack.pop();
-                    Type.BoundMaps bounds=new Type.BoundMaps();
-                    if(!f.type.canAssignTo(id.type,bounds)){//cast to correct type if necessary
-                        bounds=new Type.BoundMaps();
-                        if(!f.type.canCastTo(id.type,bounds)){
-                            throw new SyntaxError("cannot cast from "+f.type+" to "+id.type,t.pos);
-                        }
-                        ret.add(new TypedToken(TokenType.CAST,id.type,t.pos));
-                    }
-                    if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
-                        IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
-                        for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
-                            if(e.getValue().min()!=null){
-                                if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
-                                    update.put(e.getKey(),e.getValue().min());
-                                }else{
-                                    throw new SyntaxError("cannot cast from "+f.type+" to "+id.type,t.pos);
-                                }
-                            }else if(e.getValue().max()!=null){
-                                update.put(e.getKey(),e.getValue().max());
-                            }
-                        }
-                        ret.add(new GenericUpdateToken(update,t.pos));
-                    }
+                    typeCheckCast(f.type,1, id.type, ret, t.pos);
                     ret.add(new VariableToken(identifier.pos,identifier.name,id,
                             AccessType.WRITE, context));
                 }else{
@@ -3198,12 +3142,7 @@ public class Interpreter {
                         int index = Integer.parseInt(identifier.name);
                         if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
                             Type fieldType = ((Type.Tuple) f.type).elements[index];
-                            if(!val.type.canAssignTo(fieldType)) {//TODO generics
-                                if(!val.type.canCastTo(fieldType)){
-                                    throw new SyntaxError("cannot cast "+val.type+" to "+fieldType,t.pos);
-                                }
-                                ret.add(new ArgCastToken(2,fieldType,t.pos));
-                            }
+                            typeCheckCast(val.type,2,fieldType, ret, t.pos);
                             ret.add(new TupleElementAccess(index, true, t.pos));
                             hasField=true;
                         }
@@ -3214,6 +3153,59 @@ public class Interpreter {
             }
         }
     }
+
+    private void typeCheckCast(Type src, int stackPos, Type target, ArrayList<Token> ret, FilePosition pos) throws SyntaxError {
+        Type.BoundMaps bounds=new Type.BoundMaps();
+        if(src instanceof Type.OverloadedProcedurePointer){
+            if(!(target instanceof Type.Procedure)){
+                throw new SyntaxError("overloaded procedure cannot be cast to "+target,pos);
+            }
+            ArrayList<CallMatch> matches=new ArrayList<>();
+            OverloadedProcedure proc = ((Type.OverloadedProcedurePointer) src).proc;
+            for(Callable c: proc.procedures){
+                if(c.type().canAssignTo(target)){//TODO allow generics, allow casts
+                    matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,0));
+                }
+            }
+            if(matches.isEmpty()){
+                throw new SyntaxError("no version of "+proc.name+" matches "+target,pos);
+            }else if(matches.size()>1){
+                //addLater print matching versions
+                //addLater better version resolving
+                throw new SyntaxError("more than one version of "+proc.name+" matches "+target,pos);
+            }
+            ret.set(((Type.OverloadedProcedurePointer) src).tokenPos,
+                    new ValueToken((Value)matches.get(0).called, ((Type.OverloadedProcedurePointer) src).pushedAt,false));
+        }else{
+            if(!src.canAssignTo(target,bounds)){//cast to correct type if necessary
+                bounds=new Type.BoundMaps();
+                if(!src.canCastTo(target,bounds)){
+                    throw new SyntaxError("cannot cast from "+ src+" to "+ target, pos);
+                }
+                if(stackPos==1){
+                    ret.add(new TypedToken(TokenType.CAST, target, pos));
+                }else{
+                    ret.add(new ArgCastToken(stackPos, target, pos));
+                }
+            }
+        }
+        if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
+            IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
+            for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
+                if(e.getValue().min()!=null){
+                    if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
+                        update.put(e.getKey(),e.getValue().min());
+                    }else{
+                        throw new SyntaxError("cannot cast from "+ src+" to "+ target, pos);
+                    }
+                }else if(e.getValue().max()!=null){
+                    update.put(e.getKey(),e.getValue().max());
+                }
+            }
+            ret.add(new GenericUpdateToken(update, pos));
+        }
+    }
+
     private IdentityHashMap<Type.GenericParameter,Type> typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         int offset=isPtr?1:0;
