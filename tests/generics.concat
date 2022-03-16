@@ -1,22 +1,21 @@
-tests/generics : ##TODO rename to overloading
+tests/generics :
 
-test proc( int   float => string ){ 2 $drop "proc1" }
-ns1 #namespace
-test proc( float int => string ){ 2 $drop "proc2" }
-test proc( var   int => string ){ 2 $drop "proc3" }
-#end
-ns2 #namespace
-test proc( int     int => string ){ 2 $drop "proc4" }
-test proc( A <?> A int => string ){ 2 $drop "proc5" }
-test proc( A <?> int A => string ){ 2 $drop "proc6" }
-#end
+valueIO #include
+core #import
 
-2 3 test debugPrint
+genTuple tuple{ A <> B <> A B A }
 
-2 3   ns1 .test debugPrint
-2 3.0 ns1 .test debugPrint
-2.0 3 ns1 .test debugPrint
+float byte genTuple println
 
-2 3   ns2 .test debugPrint
-2 3.0 ns2 .test debugPrint
-2.0 3 ns2 .test debugPrint
+genProc1 proc( A <> A A A => A A genTuple ){
+  A A genTuple new return
+}
+
+1 2.0 3u uint genProc1 dup .type print " " puts println
+
+genProc2 proc( A <?> A A A => A A genTuple ){
+  A A genTuple new return
+}
+
+1 2.0 3u genProc2 dup .type print " " puts println
+

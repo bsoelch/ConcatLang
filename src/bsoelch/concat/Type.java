@@ -119,8 +119,8 @@ public class Type {
             if(bound!=null){
                 if(bound.min==null||bound.min.canAssignTo(this,bounds.swapped())) {
                     bound=new GenericBound(this,bound.max);
-                }else if(!canAssignTo(bound.min,bounds)){
-                    return false;
+                }else if(!canAssignTo(bound.min,bounds)){ //addLater use bounds in commonSuperType
+                    bound=new GenericBound(commonSuperType(this, bound.min, false),bound.max);
                 }
             }else{
                 bound=new GenericBound(this,null);

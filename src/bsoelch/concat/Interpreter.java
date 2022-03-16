@@ -3238,10 +3238,8 @@ public class Interpreter {
             if(typeArgs.length>0){
                 if(isPtr){//move pointer below the arguments
                     tokens.add(new StackModifierToken(TokenType.STACK_SET,new int[]{typeArgs.length+1,1},pos));
-                    offset++;
                 }
                 tokens.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{typeArgs.length},pos));
-                offset++;
             }
         }
         Type[] inTypes=new Type[type.inTypes.length];

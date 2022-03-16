@@ -1,10 +1,6 @@
-proc1
-proc3
-proc1
-proc2
-proc4
-proc1
-proc5
+float byte genTuple
+uint uint genTuple (1, 2, 3)
+float float genTuple (1, 2, 3)
 
 Stack:
 []
