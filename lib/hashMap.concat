@@ -6,8 +6,6 @@ stack #include
 codeblocks #include
 core #import
 
-_Empty_Tuple tuple{ }
-
 listHash public proc( A <?> A list => uint ){
   A list value =:
   0 uint hash =:
@@ -24,11 +22,11 @@ hashCode public proc( var => uint ){
   ## addLater? use list-hash for tuple/enum-types
   valType .isList if{
     value listHash return
-  else valType _Empty_Tuple <= if
+  else valType ( ) <= if
     0 uint hash =:
     0 uint i =:
-    while{ i value _Empty_Tuple cast .length < do
-      hash 31 * value _Empty_Tuple cast i [] hashCode + hash =
+    while{ i value ( ) cast .length < do
+      hash 31 * value ( ) cast i [] hashCode + hash =
       i 1 + i =
     }
     hash
@@ -41,21 +39,21 @@ MapEntry public tuple{ K <> V <> K V }
 MapEntry.key   public proc( K <?> V <?> K V MapEntry => K ){ .0 }
 MapEntry.value public proc( K <?> V <?> K V MapEntry => V ){ .1 }
 
-_Entry tuple{ K <> V <> K V K V MapEntry optional } ## use MapEntry instead of _Entry because self-containing tuples are not supported
-_Entry.val=  proc( K <?> V <?> V  K V _Entry =>                     ){ .1 = }
-_Entry.next  proc( K <?> V <?> K V _Entry => K V MapEntry optional  ){ .2   }
-_Entry.next= proc( K <?> V <?> K V MapEntry optional  K V _Entry => ){ .2 = }
+HashMapEntry tuple{ K <> V <> K V K V MapEntry optional } ## use MapEntry instead of HashMapEntry because self-containing tuples are not supported
+HashMapEntry.val=  proc( K <?> V <?> V  K V HashMapEntry =>                     ){ .1 = }
+HashMapEntry.next  proc( K <?> V <?> K V HashMapEntry => K V MapEntry optional  ){ .2   }
+HashMapEntry.next= proc( K <?> V <?> K V MapEntry optional  K V HashMapEntry => ){ .2 = }
 
-HashMap public tuple{ K <> V <> K V _Entry optional list int }
-_Map.data    proc( K <?> V <?> K V HashMap => K V _Entry optional list ){ .0 }
+HashMap public tuple{ K <> V <> K V HashMapEntry optional list int }
+HashMap.data    proc( K <?> V <?> K V HashMap => K V HashMapEntry optional list ){ .0 }
 HashMap.size public proc( K <?> V <?> K V HashMap => int                      ){ .1 }
-_Map.incSize proc( K <?> V <?> K V HashMap => ){ dup .1 1 + swap .1 = }
-_Map.decSize proc( K <?> V <?> K V HashMap => ){ dup .1 1 - swap .1 = }
+HashMap.incSize proc( K <?> V <?> K V HashMap => ){ dup .1 1 + swap .1 = }
+HashMap.decSize proc( K <?> V <?> K V HashMap => ){ dup .1 1 - swap .1 = }
 
 newHashMap public proc( #+keyType+# K <> #+valType+# V <> #+cap+# int => K V HashMap ){
   int cap =:
-  cap K V _Entry optional list new K V _Entry optional list data =:
-  data 0 cap K V _Entry empty fill
+  cap K V HashMapEntry optional list new K V HashMapEntry optional list data =:
+  data 0 cap K V HashMapEntry empty fill
   data 0 K V HashMap new
 }
 
@@ -63,18 +61,15 @@ HashMap.put public proc( K <?> V <?> #+map+# K V HashMap #+key+# K #+value+# V =
   V value =:
   K key =:
   K V HashMap map =:
-  ## cast elements to correct types
-  ## value map _Map.valType cast value =
-  ## key   map _Map.keyType cast key =
   key hashCode uint hash =:
-  hash map _Map.data .length % uint i =:
-  map _Map.data i [] if{
-    K V _Entry entry =:
-    while{ entry _Entry.next do
+  hash map HashMap.data .length % uint i =:
+  map HashMap.data i [] if{
+    K V HashMapEntry entry =:
+    while{ entry HashMapEntry.next do
       entry MapEntry.key key == if{ drop ##drop next
         ##replace does not change size
         entry MapEntry.value
-        value entry _Entry.val=
+        value entry HashMapEntry.val=
         wrap return
       }
       entry =
@@ -82,16 +77,16 @@ HashMap.put public proc( K <?> V <?> #+map+# K V HashMap #+key+# K #+value+# V =
     entry MapEntry.key key == if{
       ##replace does not change size
       entry MapEntry.value
-      value entry _Entry.val=
+      value entry HashMapEntry.val=
       wrap return
     else
-      key value K V _Entry empty K V _Entry new wrap  entry _Entry.next=
-      map _Map.incSize
+      key value K V HashMapEntry empty K V HashMapEntry new wrap  entry HashMapEntry.next=
+      map HashMap.incSize
       V empty return
     }
   else
-    key value K V _Entry empty K V _Entry new wrap   map _Map.data i []=
-    map _Map.incSize
+    key value K V HashMapEntry empty K V HashMapEntry new wrap   map HashMap.data i []=
+    map HashMap.incSize
     V empty return
   }
 }
@@ -100,14 +95,14 @@ HashMap.contains public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => bool 
   K key =:
   K V HashMap map =:
   key hashCode uint hash =:
-  hash map _Map.data .length % uint i =:
-  map _Map.data i [] K V _Entry optional entry =:
+  hash map HashMap.data .length % uint i =:
+  map HashMap.data i [] K V HashMapEntry optional entry =:
   while{ entry do
-    K V _Entry unwrapped =:
+    K V HashMapEntry unwrapped =:
     unwrapped MapEntry.key key == if{
       true return
     }
-    unwrapped _Entry.next entry =
+    unwrapped HashMapEntry.next entry =
   }
   false return
 }
@@ -116,14 +111,14 @@ HashMap.get public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# 
   K key =:
   K V HashMap map =:
   key hashCode uint hash =:
-  hash map _Map.data .length % uint i =:
-  map _Map.data i [] K V _Entry optional entry =:
+  hash map HashMap.data .length % uint i =:
+  map HashMap.data i [] K V HashMapEntry optional entry =:
   while{ entry do
-    K V _Entry unwrapped =:
+    K V HashMapEntry unwrapped =:
     unwrapped MapEntry.key key == if{
       unwrapped MapEntry.value wrap return
     }
-    unwrapped _Entry.next entry =
+    unwrapped HashMapEntry.next entry =
   }
   V empty return
 }
@@ -132,21 +127,21 @@ HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevV
   K key =:
   K V HashMap map =:
   key hashCode uint hash =:
-  hash map _Map.data .length % uint i =:
-  map _Map.data i [] if{
-    K V _Entry entry =:
+  hash map HashMap.data .length % uint i =:
+  map HashMap.data i [] if{
+    K V HashMapEntry entry =:
     entry MapEntry.key key == if{
-      map _Map.decSize
+      map HashMap.decSize
       entry MapEntry.value ## get previous value
-      entry _Entry.next K V _Entry optional cast  map _Map.data i []= ## remove entry
+      entry HashMapEntry.next K V HashMapEntry optional cast  map HashMap.data i []= ## remove entry
       wrap return
     else
-      while{ entry _Entry.next do
-        K V _Entry next =:
+      while{ entry HashMapEntry.next do
+        K V HashMapEntry next =:
         next MapEntry.key key == if{
-          map _Map.decSize
+          map HashMap.decSize
           next MapEntry.value ## get previous value
-          next _Entry.next  entry _Entry.next= ## remove entry
+          next HashMapEntry.next  entry HashMapEntry.next= ## remove entry
           wrap return
         }
         next entry =
@@ -158,28 +153,28 @@ HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevV
   }
 }
 
-HashMapItr public tuple{ K <> V <> K V HashMap #+index+# int #+next+# K V _Entry optional }
-_HashMapItr.map   proc( K <?> V <?> K V HashMapItr  => K V HashMap         ){ .0   }
-_HashMapItr.i     proc( K <?> V <?> K V HashMapItr  => int                 ){ .1   }
-_HashMapItr.next  proc( K <?> V <?> K V HashMapItr  => K V _Entry optional ){ .2   }
-_HashMapItr.next= proc( K <?> V <?> K V _Entry optional  K V HashMapItr => ){ .2 = }
-_HashMapItr.incI  proc( K <?> V <?> K V HashMapItr => ){      dup .1 1 + swap .1 = }
+HashMapItr public tuple{ K <> V <> K V HashMap #+index+# int #+next+# K V HashMapEntry optional }
+HashMapItr.map   proc( K <?> V <?> K V HashMapItr  => K V HashMap         ){ .0   }
+HashMapItr.i     proc( K <?> V <?> K V HashMapItr  => int                 ){ .1   }
+HashMapItr.next  proc( K <?> V <?> K V HashMapItr  => K V HashMapEntry optional ){ .2   }
+HashMapItr.next= proc( K <?> V <?> K V HashMapEntry optional  K V HashMapItr => ){ .2 = }
+HashMapItr.incI  proc( K <?> V <?> K V HashMapItr => ){      dup .1 1 + swap .1 = }
 
-HashMap.itr public proc( K <?> V <?> K V HashMap => K V HashMapItr ){
-  #+map+# -1 K V _Entry empty K V HashMapItr new return
+^_ public proc( K <?> V <?> K V HashMap => K V HashMapItr ){
+  #+map+# -1 K V HashMapEntry empty K V HashMapItr new return
 }
-HashMapItr.next public proc( K <?> V <?> K V HashMapItr => K V HashMapItr K V MapEntry optional ){
+^> public proc( K <?> V <?> K V HashMapItr => K V HashMapItr K V MapEntry optional ){
   K V HashMapItr itr =:
-  while{ itr _HashMapItr.next ! do
-    itr _HashMapItr.incI
-    itr _HashMapItr.i itr _HashMapItr.map _Map.data .length >= if{
+  while{ itr HashMapItr.next ! do
+    itr HashMapItr.incI
+    itr HashMapItr.i itr HashMapItr.map HashMap.data .length >= if{
       itr K V MapEntry empty return
     }
-    itr _HashMapItr.map _Map.data itr _HashMapItr.i []  itr _HashMapItr.next=
+    itr HashMapItr.map HashMap.data itr HashMapItr.i []  itr HashMapItr.next=
   }
-  itr _HashMapItr.next K V MapEntry optional res =:
-  itr _HashMapItr.next if{
-    _Entry.next itr _HashMapItr.next=
+  itr HashMapItr.next K V MapEntry optional res =:
+  itr HashMapItr.next if{
+    HashMapEntry.next itr HashMapItr.next=
   else unreachable }
   itr res return
 }
