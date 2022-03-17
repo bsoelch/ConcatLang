@@ -1750,8 +1750,34 @@ public class Interpreter {
                     pState.openBlocks.add(structBlock);
                     pState.openedContexts.add(structBlock.context());
                 }
-                case "extend" ->
-                    throw new UnsupportedOperationException("extending structs is currently not implemented");
+                case "extend" -> {
+                    CodeBlock block=pState.openBlocks.peek();
+                    if(!(block instanceof StructBlock)){
+                        throw new SyntaxError("'"+str+"' can only be used in struct blocks",pos);
+                    }
+                    if(((StructBlock) block).fields.size()>0){//addLater better error message
+                        throw new SyntaxError("unexpected '"+str+"' statement",pos);
+                    }
+                    List<Token> subList = tokens.subList(block.start, tokens.size());
+                    TypeCheckResult r=typeCheck(subList,pState.getContext(),pState.globalVariables,
+                            new RandomAccessStack<>(8),null,pos,ioContext);
+                    subList.clear();
+                    if(r.types.size()!=1||r.types.get(1).type!=Type.TYPE||r.types.get(1).value==null){
+                        throw new SyntaxError("value before '"+str+"' has to be one constant type",pos);
+                    }
+                    try {//TODO remember extended struct
+                        Type extended=r.types.get(1).value.asType();
+                        if(!(extended instanceof Type.Struct)){
+                            throw new SyntaxError("extended type has to be a struct got: "+extended,pos);
+                        }
+                        for(int i=0;i<((Type.Struct) extended).elements.length;i++){
+                            ((StructBlock) block).fields.add(new StructField(((Type.Struct) extended).fieldNames[i],
+                                    ((Type.Struct) extended).elements[i]));
+                        }
+                    } catch (TypeError e) {
+                        throw new SyntaxError(e,pos);
+                    }
+                }
                 case "proc(","procedure(" ->{
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("procedures can only be declared at root level",pos);
