@@ -3,7 +3,7 @@ lib/bytes :
 core #namespace
 valueIO #include
 
-uintToBytes proc( uint => byte list ){
+uintToBytes public proc( uint => byte list ){
   uint val =:
   8 byte list new byte list rawData =:
   0 uint i =:
@@ -15,7 +15,7 @@ uintToBytes proc( uint => byte list ){
   rawData
 }
 
-uintFromBytes proc( byte list => uint ){
+uintFromBytes public proc( byte list => uint ){
   byte list rawData =:
   rawData .length 8 > if{
     "too much bytes from convert to int:" puts rawData .length print " maximum: 8\n" puts

@@ -4,19 +4,19 @@ math #namespace
 
 ); #define ){ } #end
 
-exp native proc( float => float );
-log native proc( float => float );
-sin native proc( float => float );
-cos native proc( float => float );
-tan native proc( float => float );
+exp public native proc( float => float );
+log public native proc( float => float );
+sin public native proc( float => float );
+cos public native proc( float => float );
+tan public native proc( float => float );
 
-floor native proc( float => float );
-ceil  native proc( float => float );
-round native proc( float => float );
+floor public native proc( float => float );
+ceil  public native proc( float => float );
+round public native proc( float => float );
 
-pow native proc( float float => float );
+pow public native proc( float float => float );
 
-floatToBytes native proc( float => byte list );
-bytesToFloat native proc( byte list => float );
+floatToBytes public native proc( float => byte list );
+bytesToFloat public native proc( byte list => float );
 
 #end

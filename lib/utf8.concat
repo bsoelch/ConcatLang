@@ -6,7 +6,7 @@ stack #include
 io #include
 numbers  #include
 
-<< proc( string codepoint => string ){
+<< public proc( string codepoint => string ){
   uint cast uint cp =:
   string      str =:
        cp 0x80    < if{   ## ascii - character
@@ -30,14 +30,14 @@ numbers  #include
   }
 }
 
->> proc( codepoint string => string ){
+>> public proc( codepoint string => string ){
   string    str =:
   codepoint cp =:
   str 0 0 [:] cp << drop
   str return
 }
 
-<<* proc( string ustring => string ){
+<<* public proc( string ustring => string ){
   ustring append =:
   string  value  =:
   value value .length append .length + ensureCap
@@ -48,7 +48,7 @@ numbers  #include
   }
   value return
 }
-*>> proc( ustring string => string ){
+*>> public proc( ustring string => string ){
   string  value  =:
   ustring append =:
   value value .length append .length + ensureCap
@@ -60,7 +60,7 @@ numbers  #include
   value return
 }
 
-<<* proc( ustring string => ustring ){
+<<* public proc( ustring string => ustring ){
   string  append  =:
   ustring value   =:
   value value .length append .length + ensureCap
@@ -70,18 +70,18 @@ numbers  #include
   } 3 $drop ## drop remaining data
   value return
 }
-*>> proc( string ustring => ustring ){
+*>> public proc( string ustring => ustring ){
   ustring value   =:
   string  append  =:
   value 0 0 [:] append <<* drop
   value return
 }
 
-codepointToString proc( codepoint => string ){
+codepointToString public proc( codepoint => string ){
   "" swap << return
 }
 
-codepointsToString proc( ustring => string ){
+codepointsToString public proc( ustring => string ){
   ustring source =:
   "" source <<* return
 }
@@ -92,7 +92,7 @@ returns true/false depending of if there was a next codepoint
 the value of the read codepoint (of 0 if the end of the string was reached)
 followed by the index after the next codepoint and the string
 +#
-nextCodepoint proc( string #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool ){
+nextCodepoint public proc( string #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool ){
   uint   index =:
   string value =:
   while{ index value .length < &&{ value index [] int cast 0xc0 & 0x80 == } do
@@ -134,7 +134,7 @@ nextCodepoint proc( string #+index+# uint => string #+end+# uint #+next+# codepo
   value index  0 codepoint cast  false return
 }
 
-codepoints proc( string => ustring ){
+codepoints public proc( string => ustring ){
   string source =:
   u"" source <<* return
 }

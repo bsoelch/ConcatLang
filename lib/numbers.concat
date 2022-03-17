@@ -10,21 +10,21 @@ io #include
 math #include
 math #import
 
-uint_MAX #define  0xffffffffffffffffu #end
-uint_MIN #define                   0u #end
- int_MAX #define  0x7fffffffffffffff  #end
- int_MIN #define -0x8000000000000000  #end
+uint_MAX public #define  0xffffffffffffffffu #end
+uint_MIN public #define                   0u #end
+ int_MAX public #define  0x7fffffffffffffff  #end
+ int_MIN public #define -0x8000000000000000  #end
 
 #+ addLater float_MIN, float_MAX +#
-float_NaN #define 0 0.0 / #end ##addLater move to native constants
-float_Positive_Infinity #define 1 0.0 / #end
-float_Negative_Infinity #define -1 0.0 / #end
+float_NaN public #define 0 0.0 / #end ##addLater move to native constants
+float_Positive_Infinity public #define 1 0.0 / #end
+float_Negative_Infinity public #define -1 0.0 / #end
 
-float_isNaN proc( float => bool ){
+float_isNaN public proc( float => bool ){
   float val =:
   val val =!= return
 }
-float_isFinite proc( float => bool ){
+float_isFinite public proc( float => bool ){
   float val =:
   val float_Positive_Infinity < &&{ val float_Negative_Infinity > } return
 }
@@ -49,7 +49,7 @@ __NUMBERS_getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byt
     }
 }
 
-<<???i proc( #+buffer+#string #+value+# uint #+base+# int #+signed+# bool #+big+# bool => string ){
+<<???i public proc( #+buffer+#string #+value+# uint #+base+# int #+signed+# bool #+big+# bool => string ){
   bool big =:
   bool signed =:
   int base =:
@@ -75,7 +75,7 @@ __NUMBERS_getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byt
       p base / p =
   }
 }
-intToString proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => string ){
+intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => string ){
   bool big =:
   bool signed =:
   int base =:
@@ -83,32 +83,32 @@ intToString proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => str
   "" value base signed big <<???i return
 }
 
-<<?i proc( #+buffer+#string #+value+# int #+base+# int => string ){
+<<?i public proc( #+buffer+#string #+value+# int #+base+# int => string ){
   #+signed+# true  #+big+# false <<???i return
 }
-<<?I proc( #+buffer+#string #+value+# int #+base+# int => string ){
+<<?I public proc( #+buffer+#string #+value+# int #+base+# int => string ){
   #+signed+# true  #+big+# true  <<???i return
 }
-<<?u proc( #+buffer+#string #+value+# int #+base+# int => string ){
+<<?u public proc( #+buffer+#string #+value+# int #+base+# int => string ){
   #+signed+# false #+big+# false <<???i return
 }
-<<?U proc( #+buffer+#string #+value+# int #+base+# int => string ){
+<<?U public proc( #+buffer+#string #+value+# int #+base+# int => string ){
   #+signed+# false #+big+# true  <<???i return
 }
-<<i proc( #+buffer+#string #+value+# int => string ){
+<<i public proc( #+buffer+#string #+value+# int => string ){
   #+base+# 10 #+signed+# true  #+big+# false <<???i
 }
-<<u proc( #+buffer+#string #+value+# int => string ){
+<<u public proc( #+buffer+#string #+value+# int => string ){
   #+base+# 10 #+signed+# false #+big+# false <<???i
 }
-<<x proc( #+buffer+#string #+value+# int => string ){
+<<x public proc( #+buffer+#string #+value+# int => string ){
   #+base+# 16 #+signed+# false #+big+# false <<???i
 }
-<<X proc( #+buffer+#string #+value+# int => string ){
+<<X public proc( #+buffer+#string #+value+# int => string ){
   #+base+# 16 #+signed+# false #+big+# true  <<???i
 }
 
-<<????f proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string ){
+<<????f public proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string ){
   bool  sci =:
   bool  big =:
   int   base =:
@@ -209,32 +209,32 @@ intToString proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => str
   }
   return
 }
-<<??f proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int => string ){
+<<??f public proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int => string ){
   #+big+# false #+sci+# false <<????f
 }
-<<??F proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int => string ){
+<<??F public proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int => string ){
   #+big+# true  #+sci+# false <<????f
 }
-<<??e proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int => string ){
+<<??e public proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int => string ){
   #+big+# false #+sci+# true  <<????f
 }
-<<??E proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int => string ){
+<<??E public proc( #+buffer+# string #+value+# float #+precision+# int #+base+# int => string ){
   #+big+# true  #+sci+# true  <<????f
 }
-<<?f proc( #+buffer+# string #+value+# float #+precision+# int => string ){
+<<?f public proc( #+buffer+# string #+value+# float #+precision+# int => string ){
   #+base+# 10 #+big+# false #+sci+# false <<????f
 }
-<<?e proc( #+buffer+# string #+value+# float #+precision+# int => string ){
+<<?e public proc( #+buffer+# string #+value+# float #+precision+# int => string ){
   #+base+# 10 #+big+# false #+sci+# true  <<????f
 }
-<<f proc( #+buffer+# string #+value+# float => string ){
+<<f public proc( #+buffer+# string #+value+# float => string ){
   #+precision+# 0 #+base+# 10 #+big+# false #+sci+# false <<????f
 }
-<<e proc( #+buffer+# string #+value+# float => string ){
+<<e public proc( #+buffer+# string #+value+# float => string ){
   #+precision+# 0 #+base+# 10 #+big+# false #+sci+# true  <<????f
 }
 
-floatToString proc( #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string ){
+floatToString public proc( #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string ){
   bool  sci =:
   bool  big =:
   int   base =:
@@ -243,7 +243,7 @@ floatToString proc( #+value+# float #+precision+# int #+base+# int #+big+# bool 
   "" value precision base big sci <<????f return
 }
 
-valueOfDigit proc( #+digit +# byte #+base+# int => #+value+# int ){
+valueOfDigit public proc( #+digit +# byte #+base+# int => #+value+# int ){
   int  base =:
   byte digit =:
   digit '0' >= &&{ digit '9' <= } if{
@@ -263,7 +263,7 @@ valueOfDigit proc( #+digit +# byte #+base+# int => #+value+# int ){
   return
 }
 
-StringParseError enum{
+StringParseError public enum{
   ERR_NONE
   ERR_BASE
   ERR_EMPTY
@@ -271,7 +271,7 @@ StringParseError enum{
   ERR_ILLEGAL_CHAR
 }
 
-stringToInt proc( #+source+# string #+base+# int #+signed+# bool => #+val+# int #+err-code+# StringParseError ){
+stringToInt public proc( #+source+# string #+base+# int #+signed+# bool => #+val+# int #+err-code+# StringParseError ){
   bool signed =:
   int  base =:
   string source =:
@@ -328,17 +328,17 @@ checkErrCode proc( #+err-code+# StringParseError #+type-name+# string #+source+#
   end-case
   }
 }
-parseInt  proc( string => int ){
+parseInt  public proc( string => int ){
   string source =:
   source 10 true stringToInt
   "int" source checkErrCode
 }
-parseUInt proc( string => int ){
+parseUInt public proc( string => int ){
   string source =:
   source 10 false stringToInt
   "uint" source checkErrCode
 }
-parseHex proc( string => uint ){
+parseHex public proc( string => uint ){
   string source =:
   source 16 true stringToInt
   "uint" source checkErrCode
@@ -361,7 +361,7 @@ _isExpChar proc( #+char+# byte #+base+# int => bool ){
   }
 }
 
-stringToFloat proc( #+str+# string #+base+# int => #+val+# float #+err-code+# StringParseError ){
+stringToFloat public proc( #+str+# string #+base+# int => #+val+# float #+err-code+# StringParseError ){
   int base =:
   string str =:
   base 2 < ||{ base 62 > } if{
@@ -418,7 +418,7 @@ stringToFloat proc( #+str+# string #+base+# int => #+val+# float #+err-code+# St
   val  sgn if{ -_ } base c -_ float cast pow * StringParseError .ERR_NONE return
 }
 
-parseFloat proc( string => float ){
+parseFloat public proc( string => float ){
   string source =:
   source 10 stringToFloat
   "float" source checkErrCode

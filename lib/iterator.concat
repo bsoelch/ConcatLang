@@ -2,19 +2,19 @@ lib/iterator :
 
 core #namespace
 
-Iterator tuple{ A <> A list int }
+Iterator public tuple{ A <> A list int }
 
-^_ proc( A <?> A list => A Iterator ){
+^_ public proc( A <?> A list => A Iterator ){
   A list elements =:
   elements 0 A Iterator new
 }
 
-_^ proc( A <?> A list => A Iterator ){
+_^ public proc( A <?> A list => A Iterator ){
   A list elements =:
   elements elements .length A Iterator new
 }
 
-^> proc( A <?> A Iterator => A Iterator A optional ){
+^> public proc( A <?> A Iterator => A Iterator A optional ){
   A Iterator mItr =:
   mItr
   mItr .1 mItr .0 .length < if{
@@ -25,7 +25,7 @@ _^ proc( A <?> A list => A Iterator ){
   }
 }
 
-<^ proc( A <?> A Iterator => A Iterator A optional ){
+<^ public proc( A <?> A Iterator => A Iterator A optional ){
   A Iterator mItr =:
   mItr
   mItr .1 0 > if{

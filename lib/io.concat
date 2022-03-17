@@ -2,35 +2,35 @@ lib/io :
 
 io #namespace
 
-type FILE native =$
+type FILE public native =$
 
-FILE stdIn  native =$
-FILE stdOut native =$
-FILE stdErr native =$
+FILE stdIn  public native =$
+FILE stdOut public native =$
+FILE stdErr public native =$
 
-open     native proc( #+path+# string #+flags+#string => FILE optional ){ }
-close    native proc( FILE => bool ){ }
-read     native proc( FILE #+buff+# byte list #+off+# int #+count+# int => int  ){ }
-write    native proc( FILE #+buff+# byte list #+off+# int #+count+# int => bool ){ }
-size     native proc( FILE => int  ){ }
-pos      native proc( FILE => int  ){ }
-truncate native proc( FILE => bool ){ }
-seekEnd  native proc( FILE => bool ){ }
-seek     native proc( FILE int => bool ){ }
+open     public native proc( #+path+# string #+flags+#string => FILE optional ){ }
+close    public native proc( FILE => bool ){ }
+read     public native proc( FILE #+buff+# byte list #+off+# int #+count+# int => int  ){ }
+write    public native proc( FILE #+buff+# byte list #+off+# int #+count+# int => bool ){ }
+size     public native proc( FILE => int  ){ }
+pos      public native proc( FILE => int  ){ }
+truncate public native proc( FILE => bool ){ }
+seekEnd  public native proc( FILE => bool ){ }
+seek     public native proc( FILE int => bool ){ }
 
 #end
 core #namespace
 
 stack #include
 io #import
-fputs proc( string FILE => bool ){
+fputs public proc( string FILE => bool ){
   FILE file =:
   string str =:
   file str 0 str .length io .write
 }
 
 ## specialized procedures for writing to stdout and stderr
- puts proc( string => ){ io .stdOut core .fputs drop }
-eputs proc( string => ){ io .stdErr core .fputs drop }
+ puts public proc( string => ){ io .stdOut core .fputs drop }
+eputs public proc( string => ){ io .stdErr core .fputs drop }
 
 #end

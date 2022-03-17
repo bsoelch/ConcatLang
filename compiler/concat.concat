@@ -1894,7 +1894,7 @@ constEvaluate proc( Token list => Token list ){
 ##addLater typeCheckProgram
 ##addLater compileProgram
 
-main proc( string list => ){
+main public proc( string list => ){
   string list args =:
   args .length 2 < if{
     "usage: <pathToFile> \n" puts ## "usage: <pathToFile> (-lib <libPath>)"

@@ -34,7 +34,7 @@ public class Test {
                 }
             }
         }
-        includeAll.write("main proc( => ){ }");
+        includeAll.write("main public proc( => ){ }");
         includeAll.flush();
 
         File tests=new File(testPath);

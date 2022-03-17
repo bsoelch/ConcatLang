@@ -6,7 +6,7 @@ core #import
 
 ## TODO binary search
 
-reverse proc( A <?> A list  => ){
+reverse public proc( A <?> A list  => ){
   A list toReverse =:
   0 int i =:
   toReverse .length 1 - int maxId =:
@@ -60,7 +60,7 @@ __LISTS_mergesort_helper proc( union( byte codepoint uint int float ) list #+off
   }
 }
 
-mergesort proc( union( byte codepoint uint int float ) list => ){ #+ addLater make generic once restricted generics implemented +#
+mergesort public proc( union( byte codepoint uint int float ) list => ){ #+ addLater make generic once restricted generics implemented +#
   union( byte codepoint uint int float ) list input =:
   #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / union( byte codepoint uint int float ) list new
   __LISTS_mergesort_helper
@@ -107,7 +107,7 @@ __LISTS_generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off
     }
   }
 }
-generic_mergesort proc( A <?> A list ( A A => int ) => ){
+generic_mergesort public proc( A <?> A list ( A A => int ) => ){
   ( A A => int ) cmp =:
   A list input =:
   #+list+# input #+cmp+# cmp #+off+# 0 #+to+# input .length 1 - #+buffer+# input .length 2 / A list new

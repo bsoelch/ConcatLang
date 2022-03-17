@@ -264,10 +264,11 @@ public class Type {
     }
 
     public static class Tuple extends Type implements Interpreter.NamedDeclareable{
-        static final Tuple EMPTY_TUPLE=new Tuple(null,new Type[0],Value.InternalProcedure.POSITION);
+        static final Tuple EMPTY_TUPLE=new Tuple(null, true, new Type[0],Value.InternalProcedure.POSITION);
 
         final FilePosition declaredAt;
         final Type[] elements;
+        final boolean isPublic;
         final boolean named;
 
         private static String getName(Type[] elements){
@@ -277,8 +278,9 @@ public class Type {
             }
             return sb.append(")").toString();
         }
-        public Tuple(String name, Type[] elements, FilePosition declaredAt){
+        public Tuple(String name, boolean isPublic, Type[] elements, FilePosition declaredAt){
             super(name==null?getName(elements):name, false);
+            this.isPublic = isPublic;
             this.elements=elements;
             this.declaredAt = declaredAt;
             named=name!=null;
@@ -303,7 +305,7 @@ public class Type {
                     changed=true;
                 }
             }
-            return changed?new Tuple(named?name:null,newElements,declaredAt):this;
+            return changed?new Tuple(named?name:null, isPublic, newElements,declaredAt):this;
         }
 
         @Override
@@ -373,6 +375,10 @@ public class Type {
         public FilePosition declaredAt() {
             return declaredAt;
         }
+        @Override
+        public boolean isPublic() {
+            return isPublic;
+        }
     }
     public static class GenericTuple extends Tuple{
         final Type[] genericArgs;
@@ -380,7 +386,7 @@ public class Type {
         final GenericParameter[] implicitParams;
         final String tupleName;
 
-        public static GenericTuple create(String name,GenericParameter[] genericParams,Type[] genericArgs,Type[] elements, FilePosition declaredAt) {
+        public static GenericTuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,Type[] elements, FilePosition declaredAt) {
             ArrayList<GenericParameter> explicitParams=new ArrayList<>(genericParams.length);
             ArrayList<GenericParameter> implicitParams=new ArrayList<>(genericParams.length);
             IdentityHashMap<GenericParameter,Type> generics=new IdentityHashMap<>();
@@ -404,11 +410,11 @@ public class Type {
             for(Type t:genericArgs){
                 sb.append(t.name).append(" ");
             }
-            return new GenericTuple(name,sb.append(name).toString(),genericParams, genericArgs,
+            return new GenericTuple(name,isPublic,sb.append(name).toString(),genericParams, genericArgs,
                     implicitParams.toArray(GenericParameter[]::new), elements, declaredAt);
         }
-        private GenericTuple(String baseName, String name, GenericParameter[] genericParams, Type[] genericArgs, GenericParameter[] implicitParams, Type[] elements, FilePosition declaredAt) {
-            super(name, elements, declaredAt);
+        private GenericTuple(String baseName,boolean isPublic,String name, GenericParameter[] genericParams, Type[] genericArgs, GenericParameter[] implicitParams, Type[] elements, FilePosition declaredAt) {
+            super(name, isPublic, elements, declaredAt);
             tupleName=baseName;
             this.explicitParams =genericParams;
             this.genericArgs=genericArgs;
@@ -432,7 +438,7 @@ public class Type {
                     changed=true;
                 }
             }
-            return changed?create(tupleName, explicitParams,newArgs,newElements,declaredAt):this;
+            return changed?create(tupleName,isPublic,explicitParams,newArgs,newElements,declaredAt):this;
         }
 
         @Override
@@ -679,15 +685,17 @@ public class Type {
 
     public static class Enum extends Type implements Interpreter.NamedDeclareable {
         final FilePosition declaredAt;
+        final boolean isPublic;
         final String[] entryNames;
         final Value.EnumEntry[] entries;
-        public Enum(String name, String[] entryNames, ArrayList<FilePosition> entryPositions,
+        public Enum(String name, boolean isPublic, String[] entryNames, ArrayList<FilePosition> entryPositions,
                     FilePosition declaredAt) {
             super(name, true);
+            this.isPublic = isPublic;
             this.entryNames =entryNames;
             entries=new Value.EnumEntry[entryNames.length];
             for(int i=0;i<entryNames.length;i++){
-                entries[i]=new Value.EnumEntry(this,i,entryPositions.get(i));
+                entries[i]=new Value.EnumEntry(this,i);
             }
             this.declaredAt = declaredAt;
         }
@@ -724,6 +732,10 @@ public class Type {
         @Override
         public FilePosition declaredAt() {
             return declaredAt;
+        }
+        @Override
+        public boolean isPublic() {
+            return isPublic;
         }
     }
 
@@ -809,6 +821,11 @@ public class Type {
         @Override
         public FilePosition declaredAt() {
             return declaredAt;
+        }
+
+        @Override
+        public boolean isPublic() {
+            return false;
         }
     }
 

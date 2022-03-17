@@ -4,11 +4,11 @@ core #namespace
 
 stack #include
 ## files are parsed only once => defines can be at top level
-+char      proc( int byte      => byte      ){ int cast + byte      cast }
-+codepoint proc( int codepoint => codepoint ){ int cast + codepoint cast }
-charDiff   proc( byte byte => int ){ swap int cast swap int cast - }
++char      public proc( int byte      => byte      ){ int cast + byte      cast }
++codepoint public proc( int codepoint => codepoint ){ int cast + codepoint cast }
+charDiff   public proc( byte byte => int ){ swap int cast swap int cast - }
 
-?WhiteSpace proc( byte => bool ){
+?WhiteSpace public proc( byte => bool ){
   #+input+# switch{
   ' ' '\r' '\t' '\n' case
     true return

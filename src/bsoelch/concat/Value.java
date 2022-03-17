@@ -1537,12 +1537,13 @@ public abstract class Value {
         }
     }
 
-    public static Procedure createProcedure(String name,Type.Procedure procType, ArrayList<Interpreter.Token> tokens, FilePosition declaredAt,
+    public static Procedure createProcedure(String name,boolean isPublic,Type.Procedure procType, ArrayList<Interpreter.Token> tokens, FilePosition declaredAt,
                                             FilePosition endPos, Interpreter.ProcedureContext variableContext) {
-        return new Procedure(name, procType, tokens, null, new IdentityHashMap<>(), variableContext, declaredAt, endPos);
+        return new Procedure(name, isPublic, procType, tokens, null, new IdentityHashMap<>(), variableContext, declaredAt, endPos);
     }
     static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Callable {
         final String name;
+        final boolean isPublic;
         final FilePosition declaredAt;
         //for position reporting in type-checker
         final FilePosition endPos;
@@ -1553,11 +1554,12 @@ public abstract class Value {
         final Value[] curriedArgs;
         final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
 
-        private Procedure(String name, Type procType, ArrayList<Interpreter.Token> tokens, Value[] curriedArgs,
+        private Procedure(String name, boolean isPublic, Type procType, ArrayList<Interpreter.Token> tokens, Value[] curriedArgs,
                           IdentityHashMap<Type.GenericParameter, Type> genericArgs, Interpreter.ProcedureContext context,
                           FilePosition declaredAt, FilePosition endPos) {
             super(procType);
             this.name = name;
+            this.isPublic = isPublic;
             this.curriedArgs = curriedArgs;
             this.genericArgs = genericArgs;
             this.declaredAt = declaredAt;
@@ -1575,7 +1577,7 @@ public abstract class Value {
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type instanceof Type.Procedure){
                 //TODO update generics
-                return new Procedure(name, type, tokens, curriedArgs, genericArgs, context, declaredAt, endPos);
+                return new Procedure(name, isPublic, type, tokens, curriedArgs, genericArgs, context, declaredAt, endPos);
             }
             return super.castTo(type);
         }
@@ -1586,12 +1588,12 @@ public abstract class Value {
         }
 
         Value.Procedure withCurried(Value[] curried){
-            return new Procedure(name, type, tokens, curried, genericArgs, context, declaredAt, endPos);
+            return new Procedure(name, isPublic, type, tokens, curried, genericArgs, context, declaredAt, endPos);
         }
         Value.Procedure withTypeArgs(IdentityHashMap<Type.GenericParameter,Type> update){
             IdentityHashMap<Type.GenericParameter, Type> newArgs = Type.mergeArgs(genericArgs, update);
             //TODO update types of curried arguments
-            return new Procedure(name, type.replaceGenerics(update), tokens, curriedArgs, newArgs, context, declaredAt, endPos);
+            return new Procedure(name, isPublic, type.replaceGenerics(update), tokens, curriedArgs, newArgs, context, declaredAt, endPos);
         }
 
         @Override
@@ -1627,6 +1629,10 @@ public abstract class Value {
         @Override
         public String name() {
             return name;
+        }
+        @Override
+        public boolean isPublic() {
+            return isPublic;
         }
         @Override
         public Type.Procedure type() {
@@ -1723,13 +1729,11 @@ public abstract class Value {
             return Objects.hash(wrapped);
         }
     }
-    static class EnumEntry extends Value implements Interpreter.Declareable {
-        final FilePosition declaredAt;
+    static class EnumEntry extends Value{
         final int index;
-        EnumEntry(Type.Enum type, int index, FilePosition declaredAt) {
+        EnumEntry(Type.Enum type, int index) {
             super(type);
             this.index = index;
-            this.declaredAt = declaredAt;
         }
 
         @Override
@@ -1758,15 +1762,6 @@ public abstract class Value {
         }
 
         @Override
-        public Interpreter.DeclareableType declarableType() {
-            return Interpreter.DeclareableType.ENUM_ENTRY;
-        }
-        @Override
-        public FilePosition declaredAt() {
-            return declaredAt;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -1775,7 +1770,7 @@ public abstract class Value {
         }
         @Override
         public int hashCode() {
-            return Objects.hash(declaredAt, index);
+            return Objects.hash(type,index);
         }
     }
 
@@ -1832,6 +1827,11 @@ public abstract class Value {
         @Override
         public String stringValue() {
             return name;
+        }
+
+        @Override
+        public boolean isPublic() {
+            return true;
         }
     }
 
@@ -2422,8 +2422,7 @@ public abstract class Value {
             throw new SyntaxError("Error while loading native value "+name+": "+e,pos);
         }
     }
-    public static ExternalProcedure createExternalProcedure(Type.Procedure procType, FilePosition declaredAt,
-                                                          String name) throws SyntaxError {
+    public static ExternalProcedure createExternalProcedure(String name, boolean isPublic, Type.Procedure procType, FilePosition declaredAt) throws SyntaxError {
         try {
             String path = declaredAt.path;
             String dir = path.substring(0, path.lastIndexOf('/') + 1);
@@ -2436,7 +2435,7 @@ public abstract class Value {
                 signature[i]=jClass(procType.inTypes[i]);
             }
             Method m=cls.getMethod("nativeImpl_"+name,signature);
-            return new ExternalProcedure(procType,m,name,declaredAt);
+            return new ExternalProcedure(name, isPublic, procType,m, declaredAt);
         } catch (MalformedURLException | ClassNotFoundException | NoSuchMethodException | TypeError e) {
             throw new SyntaxError("Error while loading native procedure "+name+": "+e,declaredAt);
         }
@@ -2459,9 +2458,11 @@ public abstract class Value {
         }
     }
     static class ExternalProcedure extends NativeProcedure {
+        final boolean isPublic;
         final Method nativeMethod;
-        private ExternalProcedure(Type.Procedure type, Method nativeMethod, String name, FilePosition declaredAt) {
+        private ExternalProcedure(String name, boolean isPublic, Type.Procedure type, Method nativeMethod, FilePosition declaredAt) {
             super(type, name, declaredAt);
+            this.isPublic = isPublic;
             this.nativeMethod = nativeMethod;
         }
         @Override
@@ -2491,7 +2492,12 @@ public abstract class Value {
         }
         @Override
         public String stringValue() {
-            return name + " native proc";
+            return name +(isPublic?"public ":"")+" native proc";
+        }
+
+        @Override
+        public boolean isPublic() {
+            return isPublic;
         }
     }
 

@@ -62,18 +62,26 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,NATIVE, NATIVE_DECLARE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE
+        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE
     }
     static class IdentifierToken extends Token {
         final IdentifierType type;
+        final boolean isNative;
+        final boolean isPublic;
         final String name;
-        IdentifierToken(IdentifierType type, String name,FilePosition pos) throws SyntaxError {
+        IdentifierToken(IdentifierType type, String name, boolean isNative, boolean isPublic, FilePosition pos) throws SyntaxError {
             super(TokenType.IDENTIFIER, pos);
             if(name.startsWith(".")||name.startsWith("@")){
                 throw new SyntaxError("Identifiers cannot start with '.' or '@'",pos);
             }else if(name.isEmpty()){
                 throw new SyntaxError("Identifiers have to be nonempty",pos);
+            }//no else
+            if((isNative||isPublic)&&(type!=IdentifierType.WORD&&type!=IdentifierType.DECLARE&&
+                    type!=IdentifierType.CONST_DECLARE&&type!=IdentifierType.IMPLICIT_DECLARE)){
+                throw new SyntaxError("modifiers can only be used in declarations",pos);
             }
+            this.isNative = isNative;
+            this.isPublic = isPublic;
             this.name = name;
             this.type=type;
         }
@@ -313,14 +321,16 @@ public class Interpreter {
         static final int STATE_IN=0,STATE_OUT=1,STATE_BODY=2;
 
         final String name;
+        final boolean isPublic;
         final ProcedureContext context;
         Type[] inTypes=null,outTypes=null;
         int state=STATE_IN;
         final boolean isNative;
 
-        ProcedureBlock(String name, int startToken, FilePosition pos, VariableContext parentContext, boolean isNative) {
+        ProcedureBlock(String name, boolean isPublic, int startToken, FilePosition pos, VariableContext parentContext, boolean isNative) {
             super(startToken, BlockType.PROCEDURE,pos, parentContext);
             this.name = name;
+            this.isPublic = isPublic;
             context=new ProcedureContext(parentContext);
             this.isNative=isNative;
         }
@@ -558,11 +568,13 @@ public class Interpreter {
     }
     private static class EnumBlock extends CodeBlock{
         final String name;
+        final boolean isPublic;
         final ArrayList<String> elements=new ArrayList<>();
         final ArrayList<FilePosition> elementPositions=new ArrayList<>();
-        EnumBlock(String name,int start, FilePosition startPos, VariableContext parentContext) {
+        EnumBlock(String name,boolean isPublic, int start, FilePosition startPos, VariableContext parentContext) {
             super(start, BlockType.ENUM, startPos, parentContext);
             this.name=name;
+            this.isPublic=isPublic;
         }
 
         @Override
@@ -582,11 +594,13 @@ public class Interpreter {
     }
     private static class TupleBlock extends CodeBlock{
         final String name;
+        final boolean isPublic;
         final GenericContext context;
 
-        TupleBlock(String name,int start, FilePosition startPos, VariableContext parentContext) {
+        TupleBlock(String name,boolean isPublic,int start, FilePosition startPos, VariableContext parentContext) {
             super(start, BlockType.TUPLE, startPos, parentContext);
             this.name=name;
+            this.isPublic=isPublic;
             context=new GenericContext(parentContext, false);
         }
 
@@ -712,7 +726,7 @@ public class Interpreter {
     }
 
     enum DeclareableType{
-        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, ENUM_ENTRY, GENERIC, NATIVE_PROC,
+        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, GENERIC, NATIVE_PROC,
         GENERIC_TUPLE, OVERLOADED_PROCEDURE
     }
     static String declarableName(DeclareableType t, boolean a){
@@ -735,9 +749,6 @@ public class Interpreter {
             case ENUM -> {
                 return a?"an enum":"enum";
             }
-            case ENUM_ENTRY -> {
-                return a?"an enum entry":"enum entry";
-            }
             case GENERIC_TUPLE, TUPLE -> {
                 return a?"a tuple":"tuple";
             }
@@ -756,6 +767,7 @@ public class Interpreter {
     interface Declareable{
         DeclareableType declarableType();
         FilePosition declaredAt();
+        boolean isPublic();
     }
     interface NamedDeclareable extends Declareable{
         String name();
@@ -768,17 +780,13 @@ public class Interpreter {
             case PROCEDURE,NATIVE_PROC,OVERLOADED_PROCEDURE -> {
                 return true;
             }
-            case VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,ENUM,TUPLE,ENUM_ENTRY,GENERIC,GENERIC_TUPLE -> {
+            case VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,ENUM,TUPLE,GENERIC,GENERIC_TUPLE -> {
                 return false;
             }
         }
         return false;
     }
-    static boolean isCallable(Declareable dec){
-        return dec instanceof Callable||dec instanceof OverloadedProcedure;
-    }
-    record Macro(FilePosition pos, String name,
-                 ArrayList<StringWithPos> content) implements NamedDeclareable{
+    record Macro(FilePosition pos, String name,boolean isPublic,ArrayList<StringWithPos> content) implements NamedDeclareable{
         @Override
         public String toString() {
             return "macro " +name+":"+content;
@@ -791,25 +799,36 @@ public class Interpreter {
         public FilePosition declaredAt() {
             return pos;
         }
+        @Override
+        public boolean isPublic() {
+            return isPublic;
+        }
     }
     private static class VariableId implements Declareable{
         final VariableContext context;
         final int level;
         final Type type;
+        final boolean isPublic;
         int id;
         final boolean isConstant;
         final FilePosition declaredAt;
-        VariableId(VariableContext context, int level, int id, Type type, boolean isConstant, FilePosition declaredAt){
+        VariableId(VariableContext context, int level, int id, Type type, boolean isConstant, boolean isPublic, FilePosition declaredAt){
             this.context=context;
             this.id=id;
             this.level=level;
             this.type=type;
             this.isConstant=isConstant;
+            this.isPublic = isPublic;
             this.declaredAt=declaredAt;
         }
         @Override
         public String toString() {
             return "@"+context+"."+level+"-"+id;
+        }
+
+        @Override
+        public boolean isPublic() {
+            return isPublic;
         }
 
         @Override
@@ -824,7 +843,7 @@ public class Interpreter {
     private static class CurriedVariable extends VariableId{
         final VariableId source;
         CurriedVariable(VariableId source,VariableContext context, int id, FilePosition declaredAt) {
-            super(context,0, id, source.type, true, declaredAt);
+            super(context,0, id, source.type, true, false, declaredAt);
             this.source = source;
         }
         @Override
@@ -838,7 +857,7 @@ public class Interpreter {
         }
     }
 
-    private record GenericTuple(String name, Type.GenericParameter[] params,
+    private record GenericTuple(String name,boolean isPublic,Type.GenericParameter[] params,
                                 Type[] types,
                                 FilePosition declaredAt) implements NamedDeclareable {
         @Override
@@ -848,20 +867,38 @@ public class Interpreter {
     }
 
     static abstract class VariableContext{
-        final HashMap<String,Declareable> elements =new HashMap<>();
+        private final HashMap<String,Declareable> elements =new HashMap<>();
         int variables=0;
+
+        public int varCount() {
+            return variables;
+        }
+        /**
+         * @param merge if true all procedures of the given name will be merged
+         *             the returned value should not be modified if merge is true
+        * */
+        protected Declareable getElement(String name,boolean merge){
+            return elements.get(name);
+        }
+        protected boolean containsElement(String name){
+            return elements.containsKey(name);
+        }
+        protected Declareable putElement(String name,Declareable val){
+            return elements.put(name,val);
+        }
+
         void ensureDeclareable(String name, DeclareableType type, FilePosition pos) throws SyntaxError {
-            Declareable prev= elements.get(name);
+            Declareable prev= getElement(name,false);
             if(prev!=null&&!(isCallable(type)&&(prev instanceof Callable||prev instanceof OverloadedProcedure))){
                 throw new SyntaxError("cannot declare " + declarableName(type,false) + " "+name+
                         ", the identifier is already used by " + declarableName(prev.declarableType(), true)
                         + " (declared at " + prev.declaredAt() + ")",pos);
             }
         }
-        VariableId declareVariable(String name, Type type, boolean isConstant, FilePosition pos, IOContext ioContext) throws SyntaxError {
+        VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
             ensureDeclareable(name,isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE,pos);
-            VariableId id = new VariableId(this,level(), variables++, type,isConstant, pos);
-            elements.put(name, id);
+            VariableId id = new VariableId(this,level(), variables++, type,isConstant, isPublic, pos);
+            putElement(name, id);
             return id;
         }
         abstract VariableId wrapCurried(String name,VariableId id,FilePosition pos) throws SyntaxError;
@@ -920,18 +957,18 @@ public class Interpreter {
     private static class FileContext{
         final ArrayList<String> globalImports=new ArrayList<>();
         final ArrayList<NamespaceBlock> openNamespaces =new ArrayList<>();
-        final HashMap<String,Declareable> declared =new HashMap<>();
+        final HashMap<String,Declareable> localDeclareables =new HashMap<>();
     }
     private static class RootContext extends VariableContext{
         RootContext() throws SyntaxError {
             for(Value.InternalProcedure proc:Value.internalProcedures()){
-                Declareable prev=elements.get(proc.name);
+                Declareable prev=getElement(proc.name,false);
                 if(prev==null){
-                    elements.put(proc.name,proc);
+                    putElement(proc.name,proc);
                 }else if(prev instanceof Callable){
                     OverloadedProcedure overload=new OverloadedProcedure((Callable)prev);
                     overload.addProcedure(proc,false);
-                    elements.put(proc.name,overload);
+                    putElement(proc.name,overload);
                 }else if(prev instanceof OverloadedProcedure overload){
                     overload.addProcedure(proc,false);
                 }else{
@@ -943,6 +980,37 @@ public class Interpreter {
         HashSet<String> namespaces=new HashSet<>();
         ArrayDeque<FileContext> openFiles=new ArrayDeque<>();
 
+        @Override
+        protected Declareable getElement(String name,boolean merge){
+            FileContext file=file();
+            if(file!=null){
+                Declareable d=file.localDeclareables.get(name);
+                if(d!=null){
+                    if(merge&&isCallable(d.declarableType())){
+                        return merge(d,super.getElement(name,true));
+                    }
+                    return d;
+                }
+            }
+            return super.getElement(name,true);
+        }
+        @Override
+        protected boolean containsElement(String name){
+            FileContext file=file();
+            if(file!=null&&file.localDeclareables.containsKey(name)){
+                return true;
+            }
+            return super.containsElement(name);
+        }
+        @Override
+        protected Declareable putElement(String name,Declareable val){
+            FileContext file=file();
+            if(file!=null&&!val.isPublic()){
+                return file.localDeclareables.put(name, val);
+            }
+            return super.putElement(name,val);
+        }
+
         private FileContext file(){
             return openFiles.peekLast();
         }
@@ -950,7 +1018,7 @@ public class Interpreter {
             openFiles.addLast(new FileContext());
         }
         void startNamespace(String namespaceName, FilePosition declaredAt) throws SyntaxError {
-            Declareable d=elements.get(inCurrentNamespace(namespaceName));
+            Declareable d=getElement(inCurrentNamespace(namespaceName),false);
             if(d!=null){
                 throw new SyntaxError("cannot declare namespace "+namespaceName+
                         ", the identifier is already used by " + declarableName(d.declarableType(), true)
@@ -978,7 +1046,7 @@ public class Interpreter {
                 }else{
                     file().globalImports.add(path);
                 }
-            }else if(elements.containsKey(path)){
+            }else if(containsElement(path)){
                 //addLater static imports
                 throw new UnsupportedOperationException("static imports are currently unimplemented");
             }else{
@@ -1033,60 +1101,66 @@ public class Interpreter {
             Declareable d=null;
             ArrayDeque<String> paths = currentPaths();
             while(paths.size()>0){//go through all namespaces
-                d=merge(d,elements.get(paths.removeLast()+name));
-                if(d!=null&&!(d instanceof Callable||d instanceof OverloadedProcedure)){
+                d=merge(d,getElement(paths.removeLast()+name,true));
+                if(d!=null&&!isCallable(d.declarableType())){
                     return d;
                 }
             }
-            return merge(d,elements.get(name));
+            return merge(d,getElement(name,true));
         }
-        void checkShadowed(Declareable declared,String name,FilePosition pos,IOContext ioContext){
-            Declareable shadowed = file().declared.get(name);
-            if(shadowed!=null&&!(isCallable(declared)&&(shadowed instanceof Callable||shadowed instanceof OverloadedProcedure))){
-                ioContext.stdErr.println("Warning: "+declarableName(declared.declarableType(),false)+" " + name
+        void checkShadowed(DeclareableType declaredType,String name,FilePosition pos,IOContext ioContext){
+            Declareable shadowed = getDeclareable(name);
+            if(shadowed!=null&&!(isCallable(declaredType)&&(shadowed instanceof Callable||shadowed instanceof OverloadedProcedure))){
+                ioContext.stdErr.println("Warning: "+declarableName(declaredType,false)+" " + name
                         + " declared at " + pos +"\n     shadows existing " +
                         declarableName(shadowed.declarableType(),false)+ " declared at "+ shadowed.declaredAt());
             }
-            file().declared.put(name,declared);
         }
 
         void declareProcedure(Callable proc,IOContext ioContext) throws SyntaxError {
             String localName= inCurrentNamespace(proc.name());
             ensureDeclareable(localName,proc.declarableType(),proc.declaredAt());
-            checkShadowed(proc,proc.name(),proc.declaredAt(),ioContext);
-            Declareable prev = elements.get(localName);
+            checkShadowed(proc.declarableType(),proc.name(),proc.declaredAt(),ioContext);
+            Declareable prev = getElement(localName,false);
             if(prev instanceof Callable){
-                OverloadedProcedure overloaded=new OverloadedProcedure((Callable)prev);
-                overloaded.addProcedure(proc,false);
-                elements.put(localName,overloaded);
+                if(prev.isPublic() == proc.isPublic()){
+                    OverloadedProcedure overloaded=new OverloadedProcedure((Callable)prev);
+                    overloaded.addProcedure(proc,false);
+                    putElement(localName,overloaded);
+                }else{
+                    putElement(localName,proc);
+                }
             }else if(prev instanceof OverloadedProcedure overloaded){
-                overloaded.addProcedure(proc,false);
+                if(prev.isPublic() == proc.isPublic()) {
+                    overloaded.addProcedure(proc, false);
+                }else{
+                    putElement(localName,proc);
+                }
             }else if(prev==null){
-                elements.put(localName,proc);
+                putElement(localName,proc);
             }else{
-                throw new RuntimeException("this path should be covered be ensure declareable");
+                throw new RuntimeException("this path should be covered be ensureDeclareable");
             }
         }
 
         void declareEnum(EnumBlock source, IOContext ioContext) throws SyntaxError {
-            Type.Enum anEnum=new Type.Enum(source.name,source.elements.toArray(new String[0]),
+            Type.Enum anEnum=new Type.Enum(source.name, source.isPublic, source.elements.toArray(new String[0]),
                     source.elementPositions,source.startPos);
             declareNamedDeclareable(anEnum,ioContext);
         }
         void declareNamedDeclareable(NamedDeclareable declareable, IOContext ioContext) throws SyntaxError {
             String localName= inCurrentNamespace(declareable.name());
             ensureDeclareable(localName,declareable.declarableType(),declareable.declaredAt());
-            checkShadowed(declareable,declareable.name(),declareable.declaredAt(),ioContext);
-            elements.put(localName,declareable);
+            checkShadowed(declareable.declarableType(),declareable.name(),declareable.declaredAt(),ioContext);
+            putElement(localName,declareable);
         }
 
         @Override
-        VariableId declareVariable(String name, Type type, boolean isConstant, FilePosition pos, IOContext ioContext) throws SyntaxError {
+        VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
             String name0=name;
             name= inCurrentNamespace(name);
-            VariableId id = super.declareVariable(name, type, isConstant, pos,ioContext);
-            checkShadowed(id,name0,pos,ioContext);
-            return id;
+            checkShadowed(isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE,name0,pos,ioContext);
+            return super.declareVariable(name, type, isConstant, isPublic, pos,ioContext);
         }
         @Override
         VariableId wrapCurried(String name, VariableId id, FilePosition pos){
@@ -1112,8 +1186,8 @@ public class Interpreter {
             assert parent!=null;
         }
         @Override
-        VariableId declareVariable(String name, Type type, boolean isConstant, FilePosition pos, IOContext ioContext) throws SyntaxError {
-            VariableId id = super.declareVariable(name, type, isConstant, pos,ioContext);
+        VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
+            VariableId id = super.declareVariable(name, type, isConstant, isPublic, pos,ioContext);
             Declareable shadowed = parent.getDeclareable(name);
             if (shadowed != null) {//check for shadowing
                 ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
@@ -1125,7 +1199,7 @@ public class Interpreter {
 
         @Override
         Declareable getDeclareable(String name) {
-            return merge(elements.get(name),parent.getDeclareable(name));
+            return merge(getElement(name,true),parent.getDeclareable(name));
         }
         @Override
         VariableId wrapCurried(String name, VariableId id, FilePosition pos) throws SyntaxError {
@@ -1162,7 +1236,7 @@ public class Interpreter {
             ensureDeclareable(name,DeclareableType.GENERIC,pos);
             generic = new Type.GenericParameter(generics.size(), isImplicit, pos);
             generics.add(generic);
-            elements.put(name, generic);
+            putElement(name, generic);
             Declareable shadowed = parent.getDeclareable(name);
             if (shadowed != null) {//check for shadowing
                 ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
@@ -1207,7 +1281,7 @@ public class Interpreter {
                 }else if(procedure !=null){
                     id=new CurriedVariable(id,this, curried.size(), pos);
                     curried.add((CurriedVariable)id);//curry variable
-                    elements.put(name,id);//add curried variable to variable list
+                    putElement(name,id);//add curried variable to variable list
                 }
             }
             return id;
@@ -1515,7 +1589,7 @@ public class Interpreter {
                     if(prevId!=null){
                         tokens.remove(tokens.size()-1);
                         finishParsing(pState, ioContext,pos,false);
-                        pState.currentMacro=new Macro(pos,prevId,new ArrayList<>());
+                        pState.currentMacro=new Macro(pos,prevId,((IdentifierToken) prev).isPublic,new ArrayList<>());
                     }else{
                         throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
                     }
@@ -1598,13 +1672,12 @@ public class Interpreter {
                     }
                     prev=tokens.remove(tokens.size()-1);
                     finishParsing(pState, ioContext,pos,false);
-                    if(!(prev instanceof IdentifierToken)){
+                    if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
                         throw new SyntaxError("token before root level tuple has to be an identifier",pos);
-                    }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before root level tuple has to be an unmodified identifier",pos);
                     }
                     name = ((IdentifierToken) prev).name;
-                    TupleBlock tupleBlock = new TupleBlock(name, 0, pos, pState.rootContext);
+                    TupleBlock tupleBlock = new TupleBlock(name,((IdentifierToken) prev).isPublic,
+                            0, pos, pState.rootContext);
                     pState.openBlocks.add(tupleBlock);
                     pState.openedContexts.add(tupleBlock.context());
                 }
@@ -1623,7 +1696,7 @@ public class Interpreter {
                         throw new SyntaxError("token before '"+str+"' has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
-                    pState.openBlocks.add(new EnumBlock(name, 0,pos,pState.rootContext));
+                    pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublic, 0,pos,pState.rootContext));
                 }
                 case "proc(","procedure(" ->{
                     if(pState.openBlocks.size()>0){
@@ -1637,18 +1710,19 @@ public class Interpreter {
                     boolean isNative=false;
                     if(!(prev instanceof IdentifierToken)){
                         throw new SyntaxError("token before '"+str+"' has to be an identifier",pos);
-                    }else if(((IdentifierToken) prev).type==IdentifierType.NATIVE){
+                    }else if(((IdentifierToken) prev).isNative){
                         isNative=true;
                     }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
                         throw new SyntaxError("token before '"+str+"' has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
-                    ProcedureBlock proc = new ProcedureBlock(name, 0, pos, pState.rootContext, isNative);
+                    ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublic, 0,
+                            pos, pState.rootContext, isNative);
                     pState.openBlocks.add(proc);
                     pState.openedContexts.add(proc.context());
                 }
                 case "lambda(","λ(" -> {
-                    ProcedureBlock lambda = new ProcedureBlock(null, tokens.size(), pos, pState.getContext(), false);
+                    ProcedureBlock lambda = new ProcedureBlock(null, false, tokens.size(),pos, pState.getContext(), false);
                     pState.openBlocks.add(lambda);
                     pState.openedContexts.add(lambda.context());
                 }
@@ -1786,14 +1860,15 @@ public class Interpreter {
                                     throw new SyntaxError("unexpected token: "+subList.get(0)+
                                             " (at "+subList.get(0).pos+") native procedures have to have an empty body",pos);
                                 }
-                                Value.NativeProcedure proc=Value.createExternalProcedure(procType,block.startPos,
-                                        ((ProcedureBlock) block).name);
+                                Value.NativeProcedure proc=Value.createExternalProcedure(((ProcedureBlock) block).name,
+                                        ((ProcedureBlock) block).isPublic, procType,block.startPos
+                                );
                                 pState.rootContext.declareProcedure(proc,ioContext);
                             }else{
                                 if(((ProcedureBlock) block).name!=null){
                                     assert procType!=null;
                                     Value.Procedure proc=Value.createProcedure(((ProcedureBlock) block).name,
-                                            procType, content,block.startPos,pos,context);
+                                            ((ProcedureBlock) block).isPublic,procType, content,block.startPos,pos,context);
                                     assert context.curried.isEmpty();
                                     pState.unparsedProcs.add(proc);
                                     pState.rootContext.declareProcedure(proc,ioContext);
@@ -1821,12 +1896,13 @@ public class Interpreter {
                                             new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
                             subList.clear();
                             if(generics.size()>0){
-                                GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,
+                                GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,((TupleBlock) block).isPublic,
                                         generics.stream().filter(g->!g.isImplicit).toArray(Type.GenericParameter[]::new),
                                         types,block.startPos);
                                 pState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }else{
-                                Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name,types,block.startPos);
+                                Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name, ((TupleBlock) block).isPublic,
+                                        types,block.startPos);
                                 pState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }
                         }
@@ -1885,7 +1961,7 @@ public class Interpreter {
                             throw new SyntaxError("generic parameters are not allowed in anonymous tuples",
                                     ((GenericContext)open.context()).generics.get(0).declaredAt);
                         }
-                        tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null,tupleTypes,pos)),
+                        tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null, false, tupleTypes,pos)),
                                 pos,false));
                     }else /*if(open.type==BlockType.UNION)*/{
                         List<Token> subList=tokens.subList(open.start, tokens.size());
@@ -1965,9 +2041,11 @@ public class Interpreter {
                         throw new SyntaxError("not enough tokens tokens for '=' modifier",pos);
                     }else if(prev instanceof IdentifierToken){
                         if(((IdentifierToken) prev).type == IdentifierType.WORD){
-                            prev=new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,prev.pos);
+                            prev=new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,
+                                    ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
                         }else if(((IdentifierToken) prev).type == IdentifierType.GET_FIELD){
-                            prev=new IdentifierToken(IdentifierType.SET_FIELD,((IdentifierToken) prev).name,prev.pos);
+                            prev=new IdentifierToken(IdentifierType.SET_FIELD,((IdentifierToken) prev).name,
+                                    ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
                         }
@@ -1980,7 +2058,8 @@ public class Interpreter {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '=:' modifier",pos);
                     }else if(prevId!=null){
-                        prev=new IdentifierToken(IdentifierType.DECLARE,prevId,prev.pos);
+                        prev=new IdentifierToken(IdentifierType.DECLARE,prevId,
+                                ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '=:' modifier "+prev,prev.pos);
                     }
@@ -1990,7 +2069,8 @@ public class Interpreter {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '=::' modifier",pos);
                     }else if(prevId!=null){
-                        prev=new IdentifierToken(IdentifierType.IMPLICIT_DECLARE,prevId,prev.pos);
+                        prev=new IdentifierToken(IdentifierType.IMPLICIT_DECLARE,prevId,
+                                ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '=::' modifier "+prev,prev.pos);
                     }
@@ -2000,9 +2080,8 @@ public class Interpreter {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '=$' modifier",pos);
                     }else if(prevId!=null){
-                        prev=new IdentifierToken(IdentifierType.CONST_DECLARE,prevId,prev.pos);
-                    }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.NATIVE){
-                        prev=new IdentifierToken(IdentifierType.NATIVE_DECLARE,((IdentifierToken) prev).name,prev.pos);
+                        prev=new IdentifierToken(IdentifierType.CONST_DECLARE,prevId,
+                                ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '=$' modifier: "+prev,prev.pos);
                     }
@@ -2010,11 +2089,29 @@ public class Interpreter {
                 }
                 case "native" -> {
                     if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for 'native' modifier",pos);
+                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
                     }else if(prevId!=null){
-                        prev=new IdentifierToken(IdentifierType.NATIVE,prevId,pos);
+                        if(((IdentifierToken) prev).isNative){
+                            throw new SyntaxError("duplicate modifier for identifier "+prevId+" : '"+str+"'",pos);
+                        }
+                        prev=new IdentifierToken(IdentifierType.WORD,prevId,
+                                true, ((IdentifierToken) prev).isPublic, prev.pos);
                     }else{
-                        throw new SyntaxError("invalid token for 'native' modifier: "+prev,prev.pos);
+                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
+                    }
+                    tokens.set(tokens.size()-1,prev);
+                }
+                case "public" -> {
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
+                    }else if(prevId!=null){
+                        if(((IdentifierToken) prev).isPublic){
+                            throw new SyntaxError("duplicate modifier for identifier "+prevId+" : '"+str+"'",pos);
+                        }
+                        prev=new IdentifierToken(IdentifierType.WORD,prevId,
+                                ((IdentifierToken) prev).isNative,true, prev.pos);
+                    }else{
+                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
                     }
                     tokens.set(tokens.size()-1,prev);
                 }
@@ -2044,12 +2141,12 @@ public class Interpreter {
                         if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.WORD&&
                                 pState.rootContext.namespaces.contains(((IdentifierToken) prev).name)){
                             tokens.set(tokens.size()-1,new IdentifierToken(isPtr?IdentifierType.PROC_ID:IdentifierType.WORD,
-                                    ((IdentifierToken) prev).name+NAMESPACE_SEPARATOR +name,pos));
+                                    ((IdentifierToken) prev).name+NAMESPACE_SEPARATOR +name, false, false, pos));
                         }else{
-                            tokens.add(new IdentifierToken(IdentifierType.GET_FIELD,name,pos));
+                            tokens.add(new IdentifierToken(IdentifierType.GET_FIELD,name, false, false, pos));
                         }
                     }else if(str.startsWith("@")){
-                        tokens.add(new IdentifierToken(IdentifierType.PROC_ID, str.substring(1), pos));
+                        tokens.add(new IdentifierToken(IdentifierType.PROC_ID, str.substring(1), false, false, pos));
                     }else{
                         Declareable d=pState.rootContext.getDeclareable(str);
                         if(d instanceof Macro){
@@ -2059,7 +2156,7 @@ public class Interpreter {
                             if(last instanceof EnumBlock){
                                 ((EnumBlock) last).add(str,pos);
                             }else{
-                                tokens.add(new IdentifierToken(IdentifierType.WORD, str, pos));
+                                tokens.add(new IdentifierToken(IdentifierType.WORD, str, false, false, pos));
                             }
                         }
                     }
@@ -2841,7 +2938,7 @@ public class Interpreter {
         Type.Procedure procType=t.generics.size()>0?
                 Type.GenericProcedure.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes):
                 Type.Procedure.create(t.inTypes, outTypes);
-        Value.Procedure lambda=Value.createProcedure(null,procType,res.tokens,t.pos,t.endPos, t.context);
+        Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, t.context);
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
         if(t.context.curried.isEmpty()){
@@ -2911,8 +3008,7 @@ public class Interpreter {
         Token prev;
         IdentifierToken identifier=(IdentifierToken) t;
         switch (identifier.type) {
-            case NATIVE -> throw new SyntaxError("native modifier can only be used in declarations",t.pos);
-            case DECLARE, CONST_DECLARE, NATIVE_DECLARE,IMPLICIT_DECLARE -> {
+            case DECLARE, CONST_DECLARE, IMPLICIT_DECLARE -> {
                 try {//remember constant declarations
                     Type type;
                     if(identifier.type==IdentifierType.IMPLICIT_DECLARE){
@@ -2933,9 +3029,12 @@ public class Interpreter {
                                     AccessType.DECLARE : AccessType.CONST_DECLARE;
                     VariableId id = context.declareVariable(
                             identifier.name, type, accessType != AccessType.DECLARE,
-                            identifier.pos, ioContext);
+                            identifier.isPublic, identifier.pos, ioContext);
                     //only remember root-level constants
-                    if (identifier.type == IdentifierType.NATIVE_DECLARE) {
+                    if (identifier.isNative) {
+                        if(identifier.type==IdentifierType.DECLARE){
+                            throw new SyntaxError("native variables have to be constant",t.pos);
+                        }
                         globalConstants.put(id, Value.loadNativeConstant(type, identifier.name, t.pos));
                         break;
                     }
@@ -2957,6 +3056,9 @@ public class Interpreter {
                 }
             }
             case WORD -> {
+                if(identifier.isNative||identifier.isPublic){
+                    throw new SyntaxError("modifiers can only be used in declarations",t.pos);
+                }
                 Declareable d = context.getDeclareable(identifier.name);
                 if(d==null){
                     throw new SyntaxError("variable "+identifier.name+" does not exist",identifier.pos);
@@ -2990,10 +3092,6 @@ public class Interpreter {
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
                         ret.add(new ValueToken(e, identifier.pos, false));
                     }
-                    case ENUM_ENTRY -> {
-                        typeStack.push(new TypeFrame(((Value.EnumEntry) d).type,(Value.EnumEntry) d,t.pos));
-                        ret.add(new ValueToken((Value.EnumEntry) d, identifier.pos, false));
-                    }
                     case GENERIC_TUPLE -> {
                         GenericTuple g = (GenericTuple) d;
                         Type[] genArgs = new Type[g.params.length];
@@ -3017,7 +3115,7 @@ public class Interpreter {
                                 throw new SyntaxError(e.getMessage(), prev.pos);
                             }
                         }
-                        Value tupleType = Value.ofType(Type.GenericTuple.create(g.name, g.params.clone(), genArgs,
+                        Value tupleType = Value.ofType(Type.GenericTuple.create(g.name,g.isPublic,g.params.clone(), genArgs,
                                 g.types.clone(), g.declaredAt));
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
                         ret.add(new ValueToken(tupleType,identifier.pos, false));
@@ -3494,7 +3592,7 @@ public class Interpreter {
 
     public RandomAccessStack<Value> run(Program program, String[] arguments,IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
-        Declareable main=program.rootContext.elements.get("main");
+        Declareable main=program.rootContext.getElement("main",true);//TODO detect (?allow) non-public main procedures
         if(main==null){
             recursiveRun(stack,program,null,null,null,new ArrayDeque<>(),context);
         }else{
@@ -3606,7 +3704,7 @@ public class Interpreter {
                                   Value[] curried, ArrayDeque<IdentityHashMap<Type.GenericParameter,Type>> genArgs, IOContext context){
         if(variables==null){
             variables=new ArrayList<>();
-            variables.add(new Variable[program.context().elements.size()]);
+            variables.add(new Variable[program.context().varCount()]);
         }
         int ip=0;
         ArrayList<Token> tokens=program.tokens();
@@ -3824,7 +3922,7 @@ public class Interpreter {
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN -> {
                         assert next instanceof ContextOpen;
-                        variables.add(new Variable[((ContextOpen) next).context.elements.size()]);
+                        variables.add(new Variable[((ContextOpen) next).context.varCount()]);
                     }
                     case CONTEXT_CLOSE -> {
                         if(variables.size()<=1){

@@ -3,3 +3,4 @@ test/helpers/include :
 io #include
 core #import
 "including file\n" puts
+1 a =::

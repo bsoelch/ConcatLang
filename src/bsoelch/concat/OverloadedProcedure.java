@@ -6,6 +6,7 @@ import java.util.IdentityHashMap;
 
 public class OverloadedProcedure implements Interpreter.Declareable {
     final String name;
+    final boolean isPublic;
     final FilePosition declaredAt;
     final ArrayList<Interpreter.Callable> procedures;
 
@@ -14,6 +15,7 @@ public class OverloadedProcedure implements Interpreter.Declareable {
 
     public OverloadedProcedure(Interpreter.Callable p0) {
         this.name = p0.name();
+        this.isPublic = p0.isPublic();
         this.declaredAt = p0.declaredAt();
         procedures=new ArrayList<>();
         procedures.add(p0);
@@ -23,14 +25,17 @@ public class OverloadedProcedure implements Interpreter.Declareable {
 
     public OverloadedProcedure(OverloadedProcedure src) {
         this.name = src.name;
+        this.isPublic = src.isPublic;
         this.declaredAt = src.declaredAt;
         procedures=new ArrayList<>(src.procedures);
         this.nArgs=src.nArgs;
         this.nGenericParams=src.nGenericParams;
     }
 
-
     public boolean addProcedure(Interpreter.Callable newProc,boolean allowDuplicates) throws SyntaxError{
+        if(!allowDuplicates && isPublic!= newProc.isPublic()){
+            throw new RuntimeException("tried to merge a public procedure with a nonpublic procedure");
+        }
         Type.Procedure t1=newProc.type();
         if(nArgs!=t1.inTypes.length){//check number of arguments
             if(allowDuplicates){
@@ -85,5 +90,10 @@ public class OverloadedProcedure implements Interpreter.Declareable {
     @Override
     public FilePosition declaredAt() {
         return declaredAt;
+    }
+
+    @Override
+    public boolean isPublic() {
+        return isPublic;
     }
 }

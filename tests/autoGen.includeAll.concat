@@ -12,4 +12,4 @@ numbers #include
 stack #include
 utf8 #include
 valueIO #include
-main proc( => ){ }
+main public proc( => ){ }
