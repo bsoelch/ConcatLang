@@ -1178,7 +1178,7 @@ public class Interpreter {
 
         void declareEnum(EnumBlock source, IOContext ioContext) throws SyntaxError {
             Type.Enum anEnum=new Type.Enum(source.name, source.isPublic, source.elements.toArray(new String[0]),
-                    source.elementPositions,source.startPos);
+                    source.startPos);
             declareNamedDeclareable(anEnum,ioContext);
         }
         void declareNamedDeclareable(NamedDeclareable declareable, IOContext ioContext) throws SyntaxError {
@@ -1912,7 +1912,7 @@ public class Interpreter {
                             subList.clear();
                             ProcedureContext context = ((ProcedureBlock) block).context();
                             if(context != pState.openedContexts.pollLast()){
-                                throw new RuntimeException("openedProcs is out of sync with openBlocks");
+                                throw new RuntimeException("openedContexts is out of sync with openBlocks");
                             }
                             assert context != null;
                             context.unbind();
@@ -1966,7 +1966,7 @@ public class Interpreter {
                         }
                         case TUPLE -> {
                             if(((TupleBlock) block).context != pState.openedContexts.pollLast()){
-                                throw new RuntimeException("openedProcs is out of sync with openBlocks");
+                                throw new RuntimeException("openedContexts is out of sync with openBlocks");
                             }
                             ((TupleBlock) block).context.unbind();
                             ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
@@ -1981,7 +1981,7 @@ public class Interpreter {
                                         types,block.startPos);
                                 pState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }else{
-                                Type.Tuple tuple=new Type.Tuple(((TupleBlock) block).name, ((TupleBlock) block).isPublic,
+                                Type.Tuple tuple=Type.Tuple.create(((TupleBlock) block).name, ((TupleBlock) block).isPublic,
                                         types,block.startPos);
                                 pState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }
@@ -1989,7 +1989,7 @@ public class Interpreter {
                         case STRUCT ->{
                             assert block instanceof StructBlock;
                             if(((StructBlock) block).context != pState.openedContexts.pollLast()){
-                                throw new RuntimeException("openedProcs is out of sync with openBlocks");
+                                throw new RuntimeException("openedContexts is out of sync with openBlocks");
                             }
                             ((StructBlock) block).context.unbind();
                             if(tokens.size()>block.start){
@@ -2039,7 +2039,7 @@ public class Interpreter {
                         throw new SyntaxError("unexpected '"+str+"' statement ",pos);
                     }
                     if(open.context() != pState.openedContexts.pollLast()){
-                        throw new RuntimeException("openedProcs is out of sync with openBlocks");
+                        throw new RuntimeException("openedContexts is out of sync with openBlocks");
                     }
                     if(open.type==BlockType.PROC_TYPE){
                         ((GenericContext)open.context()).unbind();
@@ -2069,7 +2069,7 @@ public class Interpreter {
                             throw new SyntaxError("generic parameters are not allowed in anonymous tuples",
                                     ((GenericContext)open.context()).generics.get(0).declaredAt);
                         }
-                        tokens.add(new ValueToken(Value.ofType(new Type.Tuple(null, false, tupleTypes,pos)),
+                        tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(null, false, tupleTypes,pos)),
                                 pos,false));
                     }else /*if(open.type==BlockType.UNION)*/{
                         List<Token> subList=tokens.subList(open.start, tokens.size());
@@ -3240,7 +3240,7 @@ public class Interpreter {
                                 throw new SyntaxError(e.getMessage(), prev.pos);
                             }
                         }
-                        Value tupleType = Value.ofType(Type.GenericTuple.create(g.name,g.isPublic,g.params.clone(), genArgs,
+                        Value tupleType = Value.ofType(Type.Tuple.create(g.name,g.isPublic,g.params.clone(), genArgs,
                                 g.types.clone(), g.declaredAt));
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
                         ret.add(new ValueToken(tupleType,identifier.pos, false));

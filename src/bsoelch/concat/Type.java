@@ -264,26 +264,67 @@ public class Type {
     }
 
     public static class Tuple extends Type implements Interpreter.NamedDeclareable{
-        static final Tuple EMPTY_TUPLE=new Tuple(null, true, new Type[0],Value.InternalProcedure.POSITION);
+        static final Tuple EMPTY_TUPLE=create(null, true, new Type[0],Value.InternalProcedure.POSITION);
 
         final FilePosition declaredAt;
         final Type[] elements;
         final boolean isPublic;
-        final boolean named;
 
-        private static String getName(Type[] elements){
-            StringBuilder sb=new StringBuilder("( ");
-            for(Type t:elements){
-                sb.append(t).append(" ");
+        final String baseName;
+
+        final Type[] genericArgs;
+        final GenericParameter[] genericParams;
+
+        public static Tuple create(String name, boolean isPublic, Type[] elements, FilePosition declaredAt){
+            String typeName;
+            if(name==null) {
+                StringBuilder sb = new StringBuilder("( ");
+                for (Type t : elements) {
+                    sb.append(t).append(" ");
+                }
+                typeName=sb.append(")").toString();
+            }else{
+                typeName=name;
             }
-            return sb.append(")").toString();
+            return new Tuple(typeName,name,isPublic, new GenericParameter[0], new Type[0], elements, declaredAt);
         }
-        public Tuple(String name, boolean isPublic, Type[] elements, FilePosition declaredAt){
-            super(name==null?getName(elements):name, false);
+        public static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
+                                          Type[] elements, FilePosition declaredAt) {
+            if(genericParams.length!=genericArgs.length){
+                throw new IllegalArgumentException("Number of generic arguments ("+genericArgs.length+
+                        ") does not match number of generic parameters ("+genericParams.length+")");
+            }
+            IdentityHashMap<GenericParameter,Type> generics=new IdentityHashMap<>();
+            for (int i=0;i<genericParams.length;i++) {
+                if (genericParams[i].isImplicit) {
+                    throw new IllegalArgumentException("all generic parameters of a Tuple have to be explicit");
+                } else {
+                    generics.put(genericParams[i],genericArgs[i]);
+                }
+            }
+            StringBuilder sb=new StringBuilder();
+            if(generics.size()>0){
+                //add generic args to name
+                for(Type t:genericArgs){
+                    sb.append(t.name).append(" ");
+                }
+                //Unwrap generic arguments
+                for(int i=0;i< elements.length;i++){
+                    elements[i]=elements[i].replaceGenerics(generics);
+                }
+            }
+            return new Tuple(sb.append(name).toString(),name,isPublic,genericParams, genericArgs,elements, declaredAt);
+        }
+
+        private Tuple(String name, String baseName, boolean isPublic, GenericParameter[] genericParams,
+                      Type[] genericArgs,Type[] elements, FilePosition declaredAt){
+            super(name, false);
             this.isPublic = isPublic;
+            this.genericParams = genericParams;
+            this.genericArgs = genericArgs;
             this.elements=elements;
             this.declaredAt = declaredAt;
-            named=name!=null;
+            this.baseName=baseName;
         }
 
         @Override
@@ -305,9 +346,17 @@ public class Type {
                     changed=true;
                 }
             }
-            return changed?new Tuple(named?name:null, isPublic, newElements,declaredAt):this;
+            Type[] newArgs=new Type[this.genericArgs.length];
+            for(int i=0;i<this.genericArgs.length;i++){
+                newArgs[i]=this.genericArgs[i].replaceGenerics(generics);
+                if(newArgs[i]!=this.genericArgs[i]){
+                    changed=true;
+                }
+            }
+            return changed?create(baseName, isPublic,genericParams,newArgs,newElements,declaredAt):this;
         }
 
+        //TODO don't allow assigning/casting anonymous tuples to structs
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof Tuple&&((Tuple) t).elementCount()<=elementCount()){
@@ -347,13 +396,20 @@ public class Type {
         }
 
         @Override
-        protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> genericsIds) {
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
             if (this == t) return true;
-            if (!(t instanceof Tuple tuple)) return false;
+            if (t.getClass()!=Tuple.class) return false;
+            Tuple tuple=(Tuple)t;
             if(tuple.elements.length!=elements.length)
                 return false;
             for(int i=0;i<elements.length;i++){
-                if(!(elements[i].equals(tuple.elements[i],genericsIds)))
+                if(!(elements[i].equals(tuple.elements[i],generics)))
+                    return false;
+            }
+            if(tuple.genericArgs.length!=genericArgs.length)
+                return false;
+            for(int i = 0; i< genericArgs.length; i++){//compare generic parameters with their equivalents
+                if(!genericArgs[i].equals(tuple.genericArgs[i],generics))
                     return false;
             }
             return true;
@@ -380,105 +436,8 @@ public class Type {
             return isPublic;
         }
     }
-    public static class GenericTuple extends Tuple{//TODO merge with tuple
-        final Type[] genericArgs;
-        final GenericParameter[] explicitParams;
-        final GenericParameter[] implicitParams;
-        final String tupleName;
-
-        public static GenericTuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,Type[] elements, FilePosition declaredAt) {
-            ArrayList<GenericParameter> explicitParams=new ArrayList<>(genericParams.length);
-            ArrayList<GenericParameter> implicitParams=new ArrayList<>(genericParams.length);
-            IdentityHashMap<GenericParameter,Type> generics=new IdentityHashMap<>();
-            for (GenericParameter genericParam : genericParams) {
-                if (genericParam.isImplicit) {
-                    implicitParams.add(genericParam);
-                } else {
-                    generics.put(genericParam,genericArgs[explicitParams.size()]);
-                    explicitParams.add(genericParam);
-                }
-            }
-            if(explicitParams.size()!=genericArgs.length){
-                throw new RuntimeException("Number of generic arguments ("+genericArgs.length+
-                        ") does not match number of generic parameters ("+explicitParams.size()+")");
-            }
-            //Unwrap generic arguments
-            for(int i=0;i< elements.length;i++){
-                elements[i]=elements[i].replaceGenerics(generics);
-            }
-            StringBuilder sb=new StringBuilder();
-            for(Type t:genericArgs){
-                sb.append(t.name).append(" ");
-            }
-            return new GenericTuple(name,isPublic,sb.append(name).toString(),genericParams, genericArgs,
-                    implicitParams.toArray(GenericParameter[]::new), elements, declaredAt);
-        }
-        private GenericTuple(String baseName,boolean isPublic,String name, GenericParameter[] genericParams, Type[] genericArgs, GenericParameter[] implicitParams, Type[] elements, FilePosition declaredAt) {
-            super(name, isPublic, elements, declaredAt);
-            tupleName=baseName;
-            this.explicitParams =genericParams;
-            this.genericArgs=genericArgs;
-            this.implicitParams = implicitParams;
-        }
-
-        @Override
-        Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
-            Type[] newElements=new Type[elements.length];
-            boolean changed=false;
-            for(int i=0;i<elements.length;i++){
-                newElements[i]=elements[i].replaceGenerics(generics);
-                if(newElements[i]!=elements[i]){
-                    changed=true;
-                }
-            }
-            Type[] newArgs=new Type[this.genericArgs.length];
-            for(int i=0;i<this.genericArgs.length;i++){
-                newArgs[i]=this.genericArgs[i].replaceGenerics(generics);
-                if(newArgs[i]!=this.genericArgs[i]){
-                    changed=true;
-                }
-            }
-            return changed?create(tupleName,isPublic,explicitParams,newArgs,newElements,declaredAt):this;
-        }
-
-        @Override
-        protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
-            if((!(t instanceof GenericTuple))||((GenericTuple) t).explicitParams.length!= explicitParams.length)
-                return false;
-            for(int i = 0; i< genericArgs.length; i++){//compare generic parameters with their equivalents
-                if(!genericArgs[i].equals(((GenericTuple) t).genericArgs[i],generics))
-                    return false;
-            }
-            return super.equals(t, generics);
-        }
-        @Override
-        protected boolean canAssignTo(Type t, BoundMaps bounds) {
-            if(t instanceof GenericTuple){
-                if(((GenericTuple) t).explicitParams.length!= explicitParams.length)
-                    return false;
-                for(int i = 0; i< genericArgs.length; i++){//compare generic parameters with their equivalents
-                    if(!genericArgs[i].canAssignTo(((GenericTuple) t).genericArgs[i],bounds))
-                        return false;
-                }
-            }
-            return super.canAssignTo(t, bounds);
-        }
-        @Override
-        protected boolean canCastTo(Type t, BoundMaps bounds) {
-            if(t instanceof GenericTuple) {
-                if (((GenericTuple) t).explicitParams.length != explicitParams.length)
-                    return false;
-                for (int i = 0; i < genericArgs.length; i++) {//compare generic parameters with their equivalents
-                    if (!genericArgs[i].canCastTo(((GenericTuple) t).genericArgs[i], bounds))
-                        return false;
-                }
-            }
-            return super.canCastTo(t, bounds);
-        }
-    }
 
     public static class Struct extends Tuple{
-        //TODO genericParams
         final String[] fieldNames;
         final HashMap<String,Integer> fields;
 
@@ -486,10 +445,14 @@ public class Type {
             if(fieldNames.length!=types.length){
                 throw new IllegalArgumentException("fieldNames and types have to have the same length");
             }
-            return new Struct(name,isPublic,types,fieldNames,declaredAt);
+            return new Struct(name,name,isPublic,new GenericParameter[0],new Type[0],
+                    types,fieldNames,declaredAt);
         }
-        private Struct(String name, boolean isPublic, Type[] elements, String[] fieldNames, FilePosition declaredAt) {
-            super(name, isPublic, elements, declaredAt);
+        //TODO create struct with generic params
+        private Struct(String name,String baseName, boolean isPublic,
+                       GenericParameter[] genericParams,Type[] genArgs,
+                       Type[] elements, String[] fieldNames, FilePosition declaredAt) {
+            super(name,baseName,isPublic,genericParams,genArgs,elements, declaredAt);
             this.fieldNames = fieldNames;
             fields=new HashMap<>();
             for(int i=0;i<fieldNames.length;i++){
@@ -719,8 +682,7 @@ public class Type {
         final boolean isPublic;
         final String[] entryNames;
         final Value.EnumEntry[] entries;
-        public Enum(String name, boolean isPublic, String[] entryNames, ArrayList<FilePosition> entryPositions,
-                    FilePosition declaredAt) {
+        public Enum(String name, boolean isPublic, String[] entryNames,FilePosition declaredAt) {
             super(name, true);
             this.isPublic = isPublic;
             this.entryNames =entryNames;
