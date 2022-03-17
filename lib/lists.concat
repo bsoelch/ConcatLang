@@ -18,7 +18,7 @@ reverse public proc( A <?> A list  => ){
   }
 }
 
-__LISTS_mergesort_helper proc( union( byte codepoint uint int float ) list #+off+# int #+to+# int
+mergesort_helper proc( union( byte codepoint uint int float ) list #+off+# int #+to+# int
     #+buffer+#  union( byte codepoint uint int float ) list => ){
   union( byte codepoint uint int float ) list buffer =:
   int to =:
@@ -26,9 +26,9 @@ __LISTS_mergesort_helper proc( union( byte codepoint uint int float ) list #+off
   union( byte codepoint uint int float ) list input =:
   off to < if{
     off to + 2 / int c =:
-    input off c buffer __LISTS_mergesort_helper
+    input off c buffer mergesort_helper
     c 1 + c =
-    input c  to buffer __LISTS_mergesort_helper
+    input c  to buffer mergesort_helper
     ## 0 ... c-1 and c...to-1 are sorted
     c int i =:
     while{ off c < &&{ c to <= } do
@@ -63,10 +63,10 @@ __LISTS_mergesort_helper proc( union( byte codepoint uint int float ) list #+off
 mergesort public proc( union( byte codepoint uint int float ) list => ){ #+ addLater make generic once restricted generics implemented +#
   union( byte codepoint uint int float ) list input =:
   #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / union( byte codepoint uint int float ) list new
-  __LISTS_mergesort_helper
+  mergesort_helper
 }
 
-__LISTS_generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A list => ){
+generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A list => ){
   A list buffer =:
   int to =:
   int off =:
@@ -74,9 +74,9 @@ __LISTS_generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off
   A list input =:
   off to < if{
     off to + 2 / int c =:
-    input cmp off c buffer __LISTS_generic_mergesort_helper
+    input cmp off c buffer generic_mergesort_helper
     c 1 + c =
-    input cmp c  to buffer __LISTS_generic_mergesort_helper
+    input cmp c  to buffer generic_mergesort_helper
     ## 0 ... c-1 and c...to-1 are sorted
     c int i =:
     while{ off c < &&{ c to <= } do
@@ -111,7 +111,7 @@ generic_mergesort public proc( A <?> A list ( A A => int ) => ){
   ( A A => int ) cmp =:
   A list input =:
   #+list+# input #+cmp+# cmp #+off+# 0 #+to+# input .length 1 - #+buffer+# input .length 2 / A list new
-  __LISTS_generic_mergesort_helper
+  generic_mergesort_helper
 }
 
 #end ## lists

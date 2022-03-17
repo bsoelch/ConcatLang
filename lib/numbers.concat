@@ -29,7 +29,7 @@ float_isFinite public proc( float => bool ){
   val float_Positive_Infinity < &&{ val float_Negative_Infinity > } return
 }
 
-__NUMBERS_getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
+getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
     bool big =:
     int base =:
     int value =:
@@ -70,7 +70,7 @@ __NUMBERS_getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byt
   1u uint p =:
   while{ value p / base >= do p base * p = }
   while{ p 0 > do
-      value p /  base big __NUMBERS_getDigit <<
+      value p /  base big getDigit <<
       value p % value =
       p base / p =
   }
@@ -177,11 +177,11 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
     while{ n 1 - 0 > &&{ buff n 1 - [] 0 == } do
       n 1 - n =
     }
-    buff 0 [] base big __NUMBERS_getDigit <<
+    buff 0 [] base big getDigit <<
     n 1 > if{
       '.' <<
       1 while{ dup n < do
-         swap over buff swap [] base big __NUMBERS_getDigit <<
+         swap over buff swap [] base big getDigit <<
          swap 1 +
       } drop
     }
@@ -190,7 +190,7 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
     e_max  base true big <<???i
   else e_max 0 >= if
     0 while{ dup n < do
-      swap over buff swap [] base big __NUMBERS_getDigit <<
+      swap over buff swap [] base big getDigit <<
       over e_max == &&{ over n 1 - < } if{
         '.' <<
       }
@@ -203,7 +203,7 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
       swap 1 -
     } drop
     0 while{ dup n < do
-      swap over buff swap [] base big __NUMBERS_getDigit <<
+      swap over buff swap [] base big getDigit <<
       swap 1 +
     } drop
   }
@@ -345,7 +345,7 @@ parseHex public proc( string => uint ){
   uint cast return
 }
 
-_isExpChar proc( #+char+# byte #+base+# int => bool ){
+isExpChar proc( #+char+# byte #+base+# int => bool ){
   int base =:
   byte c =:
   c 'e' == ||{ c 'E' == } if{
@@ -389,7 +389,7 @@ stringToFloat public proc( #+str+# string #+base+# int => #+val+# float #+err-co
         float_NaN StringParseError .ERR_ILLEGAL_CHAR return
       }
       1 d =
-    else str i [] base _isExpChar if
+    else str i [] base isExpChar if
       i 1 + e =
       i str .length + i =  ## break Loop by setting index to value >= str.length
     else

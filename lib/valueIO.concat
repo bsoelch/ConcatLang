@@ -160,166 +160,166 @@ print   public proc( var      =>      ){      stringValue           puts        
 println public proc( var      =>      ){      stringValue '\n' <<  puts        }
 fprint  public proc( var FILE => bool ){ swap stringValue swap     fputs return }
 
-1 int __IO_FLAG_PAD_0 =$
-2 int __IO_FLAG_ALIGN_LEFT =$
-4 int __IO_FLAG_SGN =$
-8 int __IO_FLAG_SGN_SPACE =$
+1 int IO_FLAG_PAD_0 =$
+2 int IO_FLAG_ALIGN_LEFT =$
+4 int IO_FLAG_SGN =$
+8 int IO_FLAG_SGN_SPACE =$
 
-_IO_Format tuple{ bool }
-__IO.isValue proc( _IO_Format => bool   ){ .0 }
+Format tuple{ bool }
+Format.isValue proc( Format => bool   ){ .0 }
 ## isValue:bool value:string$
-__IO_FormatString tuple{ bool string }
-__IO.value   proc( __IO_FormatString => string ){ .1 }
+FormatString tuple{ bool string }
+Format.value   proc( FormatString => string ){ .1 }
 ##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:byte (char)
-__IO_FormatValue tuple{ bool int int int bool int bool int bool byte }
-__IO.index  proc( __IO_FormatValue => int  ){ .1 }
-__IO.flags  proc( __IO_FormatValue => int  ){ .2 }
-__IO.w      proc( __IO_FormatValue => int  ){ .3 }
-__IO.w_ptr  proc( __IO_FormatValue => bool ){ .4 }
-__IO.p      proc( __IO_FormatValue => int  ){ .5 }
-__IO.p_ptr  proc( __IO_FormatValue => bool ){ .6 }
-__IO.b      proc( __IO_FormatValue => int  ){ .7 }
-__IO.b_ptr  proc( __IO_FormatValue => bool ){ .8 }
-__IO.format proc( __IO_FormatValue => byte ){ .9 }
+FormatValue tuple{ bool int int int bool int bool int bool byte }
+Format.index  proc( FormatValue => int  ){ .1 }
+Format.flags  proc( FormatValue => int  ){ .2 }
+Format.w      proc( FormatValue => int  ){ .3 }
+Format.w_ptr  proc( FormatValue => bool ){ .4 }
+Format.p      proc( FormatValue => int  ){ .5 }
+Format.p_ptr  proc( FormatValue => bool ){ .6 }
+Format.b      proc( FormatValue => int  ){ .7 }
+Format.b_ptr  proc( FormatValue => bool ){ .8 }
+Format.format proc( FormatValue => byte ){ .9 }
 
-__IO_printValue proc( __IO_FormatValue var list => string ){ ## addLater runtime checks for correct types
+IO_printValue proc( FormatValue var list => string ){ ## addLater runtime checks for correct types
   var list values =:
-  __IO_FormatValue format =:
-  format __IO.flags __IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
-  format __IO.w_ptr if{ values format __IO.w [] int cast else format __IO.w } int width =:
+  FormatValue format =:
+  format Format.flags IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
+  format Format.w_ptr if{ values format Format.w [] int cast else format Format.w } int width =:
   width 0 < if{ ##negative precision => alignment on left side
     alignLeft ! alignLeft =
     width -_ width =
   }
-  format __IO.p_ptr if{ values format __IO.p  [] int cast else format __IO.p  } int precision =:
+  format Format.p_ptr if{ values format Format.p  [] int cast else format Format.p  } int precision =:
   precision 0 < if{ ## 0 -> default
       "printf: precision has to be at greater that or equal to 0\n" eputs
       1 exit
   }
-  format __IO.b_ptr if{ values format __IO.b  [] int cast else format __IO.b  } int base =:
+  format Format.b_ptr if{ values format Format.b  [] int cast else format Format.b  } int base =:
   base 0 == if{
     10 base =
   }
   '\0' byte plusSgn =:
-  format __IO.flags __IO_FLAG_SGN & 0 != if{
+  format Format.flags IO_FLAG_SGN & 0 != if{
     '+' plusSgn =
-  else format __IO.flags __IO_FLAG_SGN_SPACE & 0 != if
+  else format Format.flags IO_FLAG_SGN_SPACE & 0 != if
     ' ' plusSgn =
   }
-  format __IO.format  switch{
+  format Format.format  switch{
   'b' case
-    values format __IO.index [] bool cast if{ "true" else "false" }
+    values format Format.index [] bool cast if{ "true" else "false" }
     end-case
   'B' case
-    values format __IO.index [] bool cast if{ "TRUE" else "FALSE" }
+    values format Format.index [] bool cast if{ "TRUE" else "FALSE" }
     end-case
   'i' case
     ""
     plusSgn '\0' != if{
-      values format __IO.index [] int cast 0 >= if{
+      values format Format.index [] int cast 0 >= if{
         plusSgn <<
       }
     }
-    values format __IO.index [] int cast base <<?i
+    values format Format.index [] int cast base <<?i
     end-case
   'I' case
     ""
     plusSgn '\0' != if{
-      values format __IO.index [] int cast  0 >= if{
+      values format Format.index [] int cast  0 >= if{
         plusSgn <<
       }
     }
-    values format __IO.index [] int cast  base <<?I
+    values format Format.index [] int cast  base <<?I
     end-case
   'u' case
     ""
     plusSgn '\0' != if{
       plusSgn <<
     }
-    values format __IO.index [] uint cast base <<?u
+    values format Format.index [] uint cast base <<?u
     end-case
   'U' case
     ""
     plusSgn '\0' != if{
       plusSgn <<
     }
-    values format __IO.index [] uint cast base <<?U
+    values format Format.index [] uint cast base <<?U
     end-case
   'd' case
     ""
     plusSgn '\0' != if{
-      values format __IO.index [] int cast 0 >= if{
+      values format Format.index [] int cast 0 >= if{
         plusSgn <<
       }
     }
-    values format __IO.index [] int cast <<i
+    values format Format.index [] int cast <<i
     end-case
   'x' case
     ""
     plusSgn '\0' != if{
       plusSgn <<
     }
-    values format __IO.index [] uint cast <<x
+    values format Format.index [] uint cast <<x
    end-case
   'X' case
     ""
     plusSgn '\0' != if{
       plusSgn <<
     }
-    values format __IO.index [] uint cast <<X
+    values format Format.index [] uint cast <<X
     end-case
   'e' case
     ""
     plusSgn '\0' != if{
-      values format __IO.index [] float cast 0 >= if{
+      values format Format.index [] float cast 0 >= if{
         plusSgn <<
       }
     }
-    values format __IO.index [] float cast precision base <<??e
+    values format Format.index [] float cast precision base <<??e
     end-case
   'E' case
     ""
     plusSgn '\0' != if{
-      values format __IO.index [] float cast 0 >= if{
+      values format Format.index [] float cast 0 >= if{
         plusSgn <<
       }
     }
-    values format __IO.index [] float cast precision base <<??E
+    values format Format.index [] float cast precision base <<??E
     end-case
   'f' case
     ""
     plusSgn '\0' != if{
-      values format __IO.index [] float cast 0 >= if{
+      values format Format.index [] float cast 0 >= if{
         plusSgn <<
       }
     }
-    values format __IO.index [] float cast precision base <<??f
+    values format Format.index [] float cast precision base <<??f
     end-case
   'F' case
     ""
     plusSgn '\0' != if{
-      values format __IO.index [] float cast 0 >= if{
+      values format Format.index [] float cast 0 >= if{
         plusSgn <<
       }
     }
-    values format __IO.index [] float cast precision base <<??F
+    values format Format.index [] float cast precision base <<??F
     end-case
   'c' case
-    { values format __IO.index [] byte cast }
+    { values format Format.index [] byte cast }
     end-case
   's' 'S' case
-    values format __IO.index [] stringValue
+    values format Format.index [] stringValue
     end-case
   '%' case
     "%"
     end-case
   default
-    format __IO.format  " is no valid format specifier\n" >> eputs
+    format Format.format  " is no valid format specifier\n" >> eputs
     1 exit
   } string res =:
   res .length width < if{
     width res .length - int count =:
-    format __IO.flags __IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
+    format Format.flags IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
     count string new string padding =:
     padding 0 count padChar fill
     alignLeft if{
@@ -348,7 +348,7 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
   string format =:
   var list args =:
 
-  format .length 4 / union( __IO_FormatString __IO_FormatValue ) list new union( __IO_FormatString __IO_FormatValue ) list parts =:
+  format .length 4 / union( FormatString FormatValue ) list new union( FormatString FormatValue ) list parts =:
   0 int i0 =:
   0 int i  =:
   format .length int n  =:
@@ -362,10 +362,10 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
       i 1 + i =
     }
     i format .length >= if{
-      parts   false format i0 format .length [:] __IO_FormatString new   << parts =
+      parts   false format i0 format .length [:] FormatString new   << parts =
       n i0 =
     else
-      parts   false format i0 i [:] __IO_FormatString new   << parts =
+      parts   false format i0 i [:] FormatString new   << parts =
       i 1 + dup i0 = i =
       while{ i0 format .length < &&{ format i0 [] isFormatChar ! } do
         i0 1 + i0 =
@@ -383,7 +383,7 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
            "\" format '%' does not allow any additional parameters\n" <<* eputs
            1 exit
         }
-        parts   false "%" __IO_FormatString new   << parts =
+        parts   false "%" FormatString new   << parts =
       else
         count int  index =:
         count 1 +  count =
@@ -413,7 +413,7 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
         ## '0'  The result will be zero-padded
         0 int i1 =:
         while{ i1 tmp .length < &&{ tmp i1 [] '0' == } do
-          flags __IO_FLAG_PAD_0 | flags =
+          flags IO_FLAG_PAD_0 | flags =
           i1 1 + i1 =
         }
         tmp 0 i1 [:] clear
@@ -421,19 +421,19 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
           true while{ #+ loop condition (on stack) +# &&{ i _formatString .length < } do
             _formatString i [] tmpC =
             tmpC '-' == if{
-              flags __IO_FLAG_ALIGN_LEFT | flags =
+              flags IO_FLAG_ALIGN_LEFT | flags =
               i 1 + i =
               true ## continue loop
             else tmpC '+' == if
-              flags __IO_FLAG_SGN | flags =
+              flags IO_FLAG_SGN | flags =
               i 1 + i =
               true ## continue loop
             else tmpC ' ' == if
-              flags __IO_FLAG_SGN_SPACE | flags =
+              flags IO_FLAG_SGN_SPACE | flags =
               i 1 + i =
               true ## continue loop
             else tmpC '0' == if
-              flags __IO_FLAG_PAD_0 | flags =
+              flags IO_FLAG_PAD_0 | flags =
               i 1 + i =
               true ## continue loop
             else
@@ -525,7 +525,7 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
           "printf: invalid Format String: \"" _formatString <<* _formatChar << "\"\n" <<* eputs
           1 exit
         }
-        parts   true index flags w w_ptr p p_ptr b b_ptr _formatChar __IO_FormatValue new   << parts =
+        parts   true index flags w w_ptr p p_ptr b b_ptr _formatChar FormatValue new   << parts =
         maxFormat index < if{
           index maxFormat =
         }
@@ -556,10 +556,10 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
   0 i =
   while{ i parts .length < do
     tmp
-    parts i [] __IO.isValue if{   ## Value format
-      parts i [] args __IO_printValue
+    parts i [] Format.isValue if{   ## Value format
+      parts i [] args IO_printValue
     else ## string format
-      parts i [] __IO.value
+      parts i [] Format.value
     }
     <<* tmp =
     i 1 + i =
