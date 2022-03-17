@@ -34,7 +34,7 @@ FilePosition.newLine    proc( FilePosition => ){
 FilePosition.nextChar   proc( FilePosition => ){
   dup .2 1 + swap .2 =
 }
-core .<< proc( string FilePosition => string ){
+<< proc( string FilePosition => string ){
   FilePosition position =:
   string str =:
   str position FilePosition.fileName <<*
@@ -76,7 +76,7 @@ WrapperType tuple{ TypeType WrapperTypeType Type }
 WrapperType.wrapperType proc( WrapperType => WrapperTypeType ){ .1 }
 WrapperType.wrapped     proc( WrapperType => Type            ){ .2 }
 
-core .<< proc( string Type => string ){
+<< proc( string Type => string ){
   Type t =:
   t Type.type switch{
   PRIMITIVE_TYPE case
@@ -129,7 +129,7 @@ Value tuple{ Type var }
 Value.type proc( Value => Type ){ .0 }
 Value.data proc( Value => var  ){ .1 }
 
-core .<< proc( string Value => string ){
+<< proc( string Value => string ){
   Value v =:
   v Value.type << ": " <<*
   v Value.type Type.type switch{
@@ -313,14 +313,14 @@ newEnumEntry proc( #+enumType+# EnumType #+index+# int => EnumEntry ){
 Tuple tuple{ #+type+# DeclareableType #+pos+# FilePosition #+tupleType+# TupleType }
 Tuple.tupleType proc( Tuple => TupleType ){ .2 }
 
-core .<< proc( string VariableId => string ){
+<< proc( string VariableId => string ){
   Declareable d =:
   d VariableId.global if{ "global:" else "local:" } <<*
   d VariableId.level <<u ':' <<
   d VariableId.varId <<u
   return
 }
-core .<< proc( string Declareable => string ){
+<< proc( string Declareable => string ){
   Declareable d =:
   false d Declareable.type <<DeclareableType ": " <<*
   d Declareable.type switch{
@@ -360,7 +360,7 @@ OpenModule.predeclared proc( OpenModule => string PredeclaredProc HashMap ){ .3 
 newOpenModule proc( #+path+# string list #+declaredAt+# FilePosition => OpenModule ){
   16 string list new 16 string PredeclaredProc newHashMap OpenModule new return
 }
-core .<< proc( string OpenModule => string ){
+<< proc( string OpenModule => string ){
   OpenModule m =:
   string str =:
   0 int i =:
@@ -800,7 +800,7 @@ VariableToken.accessType proc( VariableToken => AccessType ){ .2 }
 VariableToken.id         proc( VariableToken => VariableId ){ .3 }
 
 
-core .<< proc( string Token => string ){
+<< proc( string Token => string ){
   Token token =:
 
   TokenType .fieldNames token Token.type [] *>> ": " *>>

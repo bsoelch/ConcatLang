@@ -1537,11 +1537,12 @@ public abstract class Value {
         }
     }
 
-    public static Procedure createProcedure(Type.Procedure procType, ArrayList<Interpreter.Token> tokens, FilePosition declaredAt,
+    public static Procedure createProcedure(String name,Type.Procedure procType, ArrayList<Interpreter.Token> tokens, FilePosition declaredAt,
                                             FilePosition endPos, Interpreter.ProcedureContext variableContext) {
-        return new Procedure(procType, tokens, null, new IdentityHashMap<>(), variableContext, declaredAt, endPos);
+        return new Procedure(name, procType, tokens, null, new IdentityHashMap<>(), variableContext, declaredAt, endPos);
     }
     static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Callable {
+        final String name;
         final FilePosition declaredAt;
         //for position reporting in type-checker
         final FilePosition endPos;
@@ -1552,10 +1553,11 @@ public abstract class Value {
         final Value[] curriedArgs;
         final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
 
-        private Procedure(Type procType, ArrayList<Interpreter.Token> tokens, Value[] curriedArgs,
+        private Procedure(String name, Type procType, ArrayList<Interpreter.Token> tokens, Value[] curriedArgs,
                           IdentityHashMap<Type.GenericParameter, Type> genericArgs, Interpreter.ProcedureContext context,
                           FilePosition declaredAt, FilePosition endPos) {
             super(procType);
+            this.name = name;
             this.curriedArgs = curriedArgs;
             this.genericArgs = genericArgs;
             this.declaredAt = declaredAt;
@@ -1573,7 +1575,7 @@ public abstract class Value {
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type instanceof Type.Procedure){
                 //TODO update generics
-                return new Procedure(type, tokens, curriedArgs, genericArgs, context, declaredAt, endPos);
+                return new Procedure(name, type, tokens, curriedArgs, genericArgs, context, declaredAt, endPos);
             }
             return super.castTo(type);
         }
@@ -1584,12 +1586,12 @@ public abstract class Value {
         }
 
         Value.Procedure withCurried(Value[] curried){
-            return new Procedure(type, tokens, curried, genericArgs, context, declaredAt, endPos);
+            return new Procedure(name, type, tokens, curried, genericArgs, context, declaredAt, endPos);
         }
         Value.Procedure withTypeArgs(IdentityHashMap<Type.GenericParameter,Type> update){
             IdentityHashMap<Type.GenericParameter, Type> newArgs = Type.mergeArgs(genericArgs, update);
             //TODO update types of curried arguments
-            return new Procedure(type.replaceGenerics(update), tokens, curriedArgs, newArgs, context, declaredAt, endPos);
+            return new Procedure(name, type.replaceGenerics(update), tokens, curriedArgs, newArgs, context, declaredAt, endPos);
         }
 
         @Override
@@ -1622,7 +1624,10 @@ public abstract class Value {
         public FilePosition declaredAt() {
             return declaredAt;
         }
-
+        @Override
+        public String name() {
+            return name;
+        }
         @Override
         public Type.Procedure type() {
             return (Type.Procedure) type;

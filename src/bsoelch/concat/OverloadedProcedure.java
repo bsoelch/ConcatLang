@@ -12,8 +12,8 @@ public class OverloadedProcedure implements Interpreter.Declareable {
     final int nArgs;
     final int nGenericParams;
 
-    public OverloadedProcedure(String name, Interpreter.Callable p0) {
-        this.name = name;
+    public OverloadedProcedure(Interpreter.Callable p0) {
+        this.name = p0.name();
         this.declaredAt = p0.declaredAt();
         procedures=new ArrayList<>();
         procedures.add(p0);
@@ -30,11 +30,15 @@ public class OverloadedProcedure implements Interpreter.Declareable {
     }
 
 
-    public void addProcedure(Interpreter.Callable newProc) throws SyntaxError{
+    public boolean addProcedure(Interpreter.Callable newProc,boolean allowDuplicates) throws SyntaxError{
         Type.Procedure t1=newProc.type();
         if(nArgs!=t1.inTypes.length){//check number of arguments
-            throw new SyntaxError("all procedures of the same name must have the same number of arguments got:"+
-                    t1.inTypes.length+" expected:"+nArgs,newProc.declaredAt());
+            if(allowDuplicates){
+                return false;
+            }else {
+                throw new SyntaxError("all procedures of the same name must have the same number of arguments got:" +
+                        t1.inTypes.length + " expected:" + nArgs, newProc.declaredAt());
+            }
         }
         {//check number of generic arguments
             int gen1 = 0;
@@ -42,8 +46,12 @@ public class OverloadedProcedure implements Interpreter.Declareable {
                 gen1 = genP.explicitGenerics.length;
             }//no else
             if (nGenericParams != gen1) {
-                throw new SyntaxError("all procedures of the same name must have the same number of generic arguments" +
-                        " got:" +gen1 + " expected:" + nGenericParams, newProc.declaredAt());
+                if(allowDuplicates){
+                    return false;
+                }else{
+                    throw new SyntaxError("all procedures of the same name must have the same number of generic arguments" +
+                            " got:" +gen1 + " expected:" + nGenericParams, newProc.declaredAt());
+                }
             }
         }
         for(Interpreter.Callable p:procedures){//check for procedures with the same signature
@@ -57,11 +65,16 @@ public class OverloadedProcedure implements Interpreter.Declareable {
                 }
             }
             if(isEqual){
-                throw new SyntaxError("procedure "+name+" already has the signature "+ Arrays.toString(t1.inTypes)+
-                        " at "+p.declaredAt(),newProc.declaredAt());
+                if(allowDuplicates){
+                    return false;
+                }else {
+                    throw new SyntaxError("procedure " + name + " already has the signature " + Arrays.toString(t1.inTypes) +
+                            " at " + p.declaredAt(), newProc.declaredAt());
+                }
             }
         }
         procedures.add(newProc);
+        return true;
     }
 
     @Override

@@ -760,8 +760,22 @@ public class Interpreter {
     interface NamedDeclareable extends Declareable{
         String name();
     }
-    interface Callable extends Declareable{
+    interface Callable extends NamedDeclareable{
         Type.Procedure type();
+    }
+    static boolean isCallable(DeclareableType type){
+        switch (type){
+            case PROCEDURE,NATIVE_PROC,OVERLOADED_PROCEDURE -> {
+                return true;
+            }
+            case VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,ENUM,TUPLE,ENUM_ENTRY,GENERIC,GENERIC_TUPLE -> {
+                return false;
+            }
+        }
+        return false;
+    }
+    static boolean isCallable(Declareable dec){
+        return dec instanceof Callable||dec instanceof OverloadedProcedure;
     }
     record Macro(FilePosition pos, String name,
                  ArrayList<StringWithPos> content) implements NamedDeclareable{
@@ -838,7 +852,7 @@ public class Interpreter {
         int variables=0;
         void ensureDeclareable(String name, DeclareableType type, FilePosition pos) throws SyntaxError {
             Declareable prev= elements.get(name);
-            if(prev!=null){
+            if(prev!=null&&!(isCallable(type)&&(prev instanceof Callable||prev instanceof OverloadedProcedure))){
                 throw new SyntaxError("cannot declare " + declarableName(type,false) + " "+name+
                         ", the identifier is already used by " + declarableName(prev.declarableType(), true)
                         + " (declared at " + prev.declaredAt() + ")",pos);
@@ -851,8 +865,45 @@ public class Interpreter {
             return id;
         }
         abstract VariableId wrapCurried(String name,VariableId id,FilePosition pos) throws SyntaxError;
+        Declareable merge(Declareable main,Declareable shadowed){
+            if(main==null){
+                return shadowed;
+            }else if(main instanceof Callable){
+                OverloadedProcedure merged=new OverloadedProcedure((Callable) main);
+                if(shadowed instanceof Callable){
+                    try {
+                        if(!merged.addProcedure((Callable) shadowed,true)){//TODO better error messages
+                            System.err.println("cannot merge "+shadowed+" into "+merged);
+                        }
+                    } catch (SyntaxError e) {throw new RuntimeException(e);}
+                    return merged;
+                }else if(shadowed instanceof OverloadedProcedure){
+                    try {
+                        for(Callable c:((OverloadedProcedure) shadowed).procedures){
+                            merged.addProcedure(c,true);
+                        }
+                    } catch (SyntaxError e) {throw new RuntimeException(e);}
+                    return merged;
+                }
+            }else if(main instanceof OverloadedProcedure){
+                OverloadedProcedure merged=new OverloadedProcedure((OverloadedProcedure) main);
+                if(shadowed instanceof Callable){
+                    try {
+                        merged.addProcedure((Callable) shadowed,true);
+                    } catch (SyntaxError e) {throw new RuntimeException(e);}
+                    return merged;
+                }else if(shadowed instanceof OverloadedProcedure){
+                    try {
+                        for(Callable c:((OverloadedProcedure) shadowed).procedures){
+                            merged.addProcedure(c,true);
+                        }
+                    } catch (SyntaxError e) {throw new RuntimeException(e);}
+                    return merged;
+                }
+            }
+            return main;
+        }
         abstract Declareable getDeclareable(String name);
-        abstract Declareable unsafeGetDeclared(String name);
         /**returns the enclosing procedure or null if this variable is not enclosed in a procedure*/
         abstract ProcedureContext procedureContext();
         /**number of blocks (excluding procedures) this variable is contained in*/
@@ -878,11 +929,11 @@ public class Interpreter {
                 if(prev==null){
                     elements.put(proc.name,proc);
                 }else if(prev instanceof Callable){
-                    OverloadedProcedure overload=new OverloadedProcedure(proc.name,(Callable)prev);
-                    overload.addProcedure(proc);
+                    OverloadedProcedure overload=new OverloadedProcedure((Callable)prev);
+                    overload.addProcedure(proc,false);
                     elements.put(proc.name,overload);
                 }else if(prev instanceof OverloadedProcedure overload){
-                    overload.addProcedure(proc);
+                    overload.addProcedure(proc,false);
                 }else{
                     throw new UnsupportedOperationException("multiple declarations of internal constant "+proc.name+":\n"
                             +prev+", "+proc);
@@ -979,19 +1030,19 @@ public class Interpreter {
         }
 
         Declareable getDeclareable(String name){
-            Declareable d;
+            Declareable d=null;
             ArrayDeque<String> paths = currentPaths();
             while(paths.size()>0){//go through all namespaces
-                d=elements.get(paths.removeLast()+name);
-                if(d!=null){
+                d=merge(d,elements.get(paths.removeLast()+name));
+                if(d!=null&&!(d instanceof Callable||d instanceof OverloadedProcedure)){
                     return d;
                 }
             }
-            return elements.get(name);
+            return merge(d,elements.get(name));
         }
         void checkShadowed(Declareable declared,String name,FilePosition pos,IOContext ioContext){
             Declareable shadowed = file().declared.get(name);
-            if(shadowed!=null){
+            if(shadowed!=null&&!(isCallable(declared)&&(shadowed instanceof Callable||shadowed instanceof OverloadedProcedure))){
                 ioContext.stdErr.println("Warning: "+declarableName(declared.declarableType(),false)+" " + name
                         + " declared at " + pos +"\n     shadows existing " +
                         declarableName(shadowed.declarableType(),false)+ " declared at "+ shadowed.declaredAt());
@@ -999,26 +1050,21 @@ public class Interpreter {
             file().declared.put(name,declared);
         }
 
-        void declareProcedure(String name, Callable proc,IOContext ioContext) throws SyntaxError {
-            String name0=name;
-            Declareable prev=getDeclareable(name);
-            name= inCurrentNamespace(name);
+        void declareProcedure(Callable proc,IOContext ioContext) throws SyntaxError {
+            String localName= inCurrentNamespace(proc.name());
+            ensureDeclareable(localName,proc.declarableType(),proc.declaredAt());
+            checkShadowed(proc,proc.name(),proc.declaredAt(),ioContext);
+            Declareable prev = elements.get(localName);
             if(prev instanceof Callable){
-                OverloadedProcedure overloaded=new OverloadedProcedure(name0,(Callable)prev);
-                overloaded.addProcedure(proc);
-                elements.put(name,overloaded);
+                OverloadedProcedure overloaded=new OverloadedProcedure((Callable)prev);
+                overloaded.addProcedure(proc,false);
+                elements.put(localName,overloaded);
             }else if(prev instanceof OverloadedProcedure overloaded){
-                if(elements.get(name) != overloaded){//ensure that prev is same namespace,  otherwise create local copy
-                    overloaded=new OverloadedProcedure(overloaded);//FIXME overloading of imported procedures
-                    if(elements.put(name,overloaded)!=null){
-                        throw new RuntimeException("unexpected value for declareable at "+name);
-                    }
-                }
-                overloaded.addProcedure(proc);
+                overloaded.addProcedure(proc,false);
+            }else if(prev==null){
+                elements.put(localName,proc);
             }else{
-                ensureDeclareable(name,proc.declarableType(),proc.declaredAt());
-                checkShadowed(proc,name0,proc.declaredAt(),ioContext);
-                elements.put(name,proc);
+                throw new RuntimeException("this path should be covered be ensure declareable");
             }
         }
 
@@ -1047,16 +1093,6 @@ public class Interpreter {
             return id;
         }
 
-        @Override
-        Declareable unsafeGetDeclared(String name) {
-            String name0=name;
-            name= inCurrentNamespace(name);
-            Declareable id= elements.get(name);
-            if(id==null){
-                id= file().declared.get(name0);
-            }
-            return id;
-        }
 
         @Override
         ProcedureContext procedureContext() {
@@ -1078,7 +1114,7 @@ public class Interpreter {
         @Override
         VariableId declareVariable(String name, Type type, boolean isConstant, FilePosition pos, IOContext ioContext) throws SyntaxError {
             VariableId id = super.declareVariable(name, type, isConstant, pos,ioContext);
-            Declareable shadowed = parent.unsafeGetDeclared(name);
+            Declareable shadowed = parent.getDeclareable(name);
             if (shadowed != null) {//check for shadowing
                 ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
                         "\n     shadows existing " + declarableName(shadowed.declarableType(),false)
@@ -1089,13 +1125,7 @@ public class Interpreter {
 
         @Override
         Declareable getDeclareable(String name) {
-            Declareable id = elements.get(name);
-            return id == null ? parent.getDeclareable(name) : id;
-        }
-        @Override
-        Declareable unsafeGetDeclared(String name) {
-            Declareable id = elements.get(name);
-            return id == null ? parent.unsafeGetDeclared(name) : id;
+            return merge(elements.get(name),parent.getDeclareable(name));
         }
         @Override
         VariableId wrapCurried(String name, VariableId id, FilePosition pos) throws SyntaxError {
@@ -1133,7 +1163,7 @@ public class Interpreter {
             generic = new Type.GenericParameter(generics.size(), isImplicit, pos);
             generics.add(generic);
             elements.put(name, generic);
-            Declareable shadowed = parent.unsafeGetDeclared(name);
+            Declareable shadowed = parent.getDeclareable(name);
             if (shadowed != null) {//check for shadowing
                 ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
                         "\n     shadows existing " + declarableName(shadowed.declarableType(),false)
@@ -1758,14 +1788,15 @@ public class Interpreter {
                                 }
                                 Value.NativeProcedure proc=Value.createExternalProcedure(procType,block.startPos,
                                         ((ProcedureBlock) block).name);
-                                pState.rootContext.declareProcedure(proc.name,proc,ioContext);
+                                pState.rootContext.declareProcedure(proc,ioContext);
                             }else{
                                 if(((ProcedureBlock) block).name!=null){
                                     assert procType!=null;
-                                    Value.Procedure proc=Value.createProcedure(procType, content,block.startPos,pos,context);
+                                    Value.Procedure proc=Value.createProcedure(((ProcedureBlock) block).name,
+                                            procType, content,block.startPos,pos,context);
                                     assert context.curried.isEmpty();
                                     pState.unparsedProcs.add(proc);
-                                    pState.rootContext.declareProcedure(((ProcedureBlock) block).name,proc,ioContext);
+                                    pState.rootContext.declareProcedure(proc,ioContext);
                                 }else{
                                     tokens.add(new DeclareLambdaToken(ins,outs,generics,content,context,block.startPos,pos));
                                 }
@@ -2810,7 +2841,7 @@ public class Interpreter {
         Type.Procedure procType=t.generics.size()>0?
                 Type.GenericProcedure.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes):
                 Type.Procedure.create(t.inTypes, outTypes);
-        Value.Procedure lambda=Value.createProcedure(procType,res.tokens,t.pos,t.endPos, t.context);
+        Value.Procedure lambda=Value.createProcedure(null,procType,res.tokens,t.pos,t.endPos, t.context);
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
         if(t.context.curried.isEmpty()){

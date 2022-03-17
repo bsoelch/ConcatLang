@@ -12,11 +12,21 @@ test proc( A <?> int A => string ){ 2 $drop "proc6" }
 #end
 
 2 3 test debugPrint
-
-2 3   ns1 .test debugPrint
-2 3.0 ns1 .test debugPrint
-2.0 3 ns1 .test debugPrint
-
-2 3   ns2 .test debugPrint
-2 3.0 ns2 .test debugPrint
-2.0 3 ns2 .test debugPrint
+"" debugPrint
+ns1 #namespace
+2 3   test debugPrint
+2 3.0 test debugPrint
+2.0 3 test debugPrint
+#end
+"" debugPrint
+ns2 #namespace
+2 3   test debugPrint
+2 3.0 test debugPrint
+2.0 3 test debugPrint
+#end
+"" debugPrint
+ns1 #import
+ns2 #import
+2 3.0   test debugPrint
+2 3.0   ns1 .test debugPrint
+2 3.0   ns2 .test debugPrint
