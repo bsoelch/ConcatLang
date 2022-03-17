@@ -290,31 +290,37 @@ public class Type {
         }
         public static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
                                           Type[] elements, FilePosition declaredAt) {
-            if(genericParams.length!=genericArgs.length){
-                throw new IllegalArgumentException("Number of generic arguments ("+genericArgs.length+
-                        ") does not match number of generic parameters ("+genericParams.length+")");
+            String fullName = processGenericArguments(name,genericParams, genericArgs, elements);
+            return new Tuple(fullName,name,isPublic,genericParams, genericArgs,elements, declaredAt);
+        }
+
+        private static String processGenericArguments(String baseName,GenericParameter[] genericParams, Type[] genericArgs, Type[] elements) {
+            if(genericParams.length!= genericArgs.length){
+                throw new IllegalArgumentException("Number of generic arguments ("+ genericArgs.length+
+                        ") does not match number of generic parameters ("+ genericParams.length+")");
             }
             IdentityHashMap<GenericParameter,Type> generics=new IdentityHashMap<>();
-            for (int i=0;i<genericParams.length;i++) {
+            for (int i = 0; i< genericParams.length; i++) {
                 if (genericParams[i].isImplicit) {
-                    throw new IllegalArgumentException("all generic parameters of a Tuple have to be explicit");
+                    throw new IllegalArgumentException("all generic parameters of a struct have to be explicit");
                 } else {
-                    generics.put(genericParams[i],genericArgs[i]);
+                    generics.put(genericParams[i], genericArgs[i]);
                 }
             }
             StringBuilder sb=new StringBuilder();
             if(generics.size()>0){
                 //add generic args to name
-                for(Type t:genericArgs){
+                for(Type t: genericArgs){
                     sb.append(t.name).append(" ");
                 }
                 //Unwrap generic arguments
-                for(int i=0;i< elements.length;i++){
-                    elements[i]=elements[i].replaceGenerics(generics);
+                for(int i = 0; i< elements.length; i++){
+                    elements[i]= elements[i].replaceGenerics(generics);
                 }
             }
-            return new Tuple(sb.append(name).toString(),name,isPublic,genericParams, genericArgs,elements, declaredAt);
+            return sb.append(baseName).toString();
         }
+
 
         private Tuple(String name, String baseName, boolean isPublic, GenericParameter[] genericParams,
                       Type[] genericArgs,Type[] elements, FilePosition declaredAt){
@@ -448,7 +454,15 @@ public class Type {
             return new Struct(name,name,isPublic,new GenericParameter[0],new Type[0],
                     types,fieldNames,declaredAt);
         }
-        //TODO create struct with generic params
+        public static Struct create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
+                                   Type[] elements,String[] fieldNames, FilePosition declaredAt) {
+            if(fieldNames.length!=elements.length){
+                throw new IllegalArgumentException("fieldNames and types have to have the same length");
+            }
+            String fullName = Tuple.processGenericArguments(name,genericParams, genericArgs, elements);
+            return new Struct(fullName,name,isPublic,genericParams, genericArgs,elements,fieldNames,declaredAt);
+        }
+
         private Struct(String name,String baseName, boolean isPublic,
                        GenericParameter[] genericParams,Type[] genArgs,
                        Type[] elements, String[] fieldNames, FilePosition declaredAt) {

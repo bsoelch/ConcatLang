@@ -3219,34 +3219,24 @@ public class Interpreter {
                     }
                     case GENERIC_TUPLE -> {
                         GenericTuple g = (GenericTuple) d;
+                        String tupleName=g.name;
                         Type[] genArgs = new Type[g.params.length];
-                        for (int j = genArgs.length - 1; j >= 0; j--) {
-                            if (ret.size() <= 0) {
-                                throw new SyntaxError("Not enough arguments for " +
-                                        declarableName(DeclareableType.GENERIC_TUPLE, false) + " " + ((GenericTuple) d).name,
-                                        t.pos);
-                            }
-                            prev = ret.remove(ret.size()-1);
-                            if (!(prev instanceof ValueToken)) {
-                                throw new SyntaxError("invalid token for type-parameter:" + prev, prev.pos);
-                            }
-                            try {
-                                genArgs[j] = ((ValueToken) prev).value.asType();
-                                Value value = typeStack.pop().value;
-                                if(value==null||value.type!=Type.TYPE||!value.asType().equals(genArgs[j])){
-                                    throw new RuntimeException("type-stack out of sync with tokens");
-                                }
-                            } catch (TypeError e) {
-                                throw new SyntaxError(e.getMessage(), prev.pos);
-                            }
-                        }
+                        getArguments(tupleName, genArgs, typeStack, ret, t.pos);
                         Value tupleType = Value.ofType(Type.Tuple.create(g.name,g.isPublic,g.params.clone(), genArgs,
                                 g.types.clone(), g.declaredAt));
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
                         ret.add(new ValueToken(tupleType,identifier.pos, false));
                     }
-                    case GENERIC_STRUCT ->
-                            throw new UnsupportedOperationException("instantiating generic structs is currently not implemented");
+                    case GENERIC_STRUCT -> {
+                        GenericStruct g = (GenericStruct) d;
+                        String structName=g.name;
+                        Type[] genArgs = new Type[g.params.length];
+                        getArguments(structName, genArgs, typeStack, ret, t.pos);
+                        Value structValue = Value.ofType(Type.Struct.create(g.name,g.isPublic,g.params.clone(), genArgs,
+                                g.types.clone(),g.fieldNames.clone(), g.declaredAt));
+                        typeStack.push(new TypeFrame(Type.TYPE,structValue,identifier.pos));
+                        ret.add(new ValueToken(structValue,identifier.pos, false));
+                    }
                     case OVERLOADED_PROCEDURE -> {
                         OverloadedProcedure proc = (OverloadedProcedure) d;
                         CallMatch match = typeCheckOverloadedCall("procedure "+identifier.name,
@@ -3452,6 +3442,30 @@ public class Interpreter {
                 }
                 if(!hasField)
                     throw new SyntaxError(f.type+" does not have a mutable field "+identifier.name,t.pos);
+            }
+        }
+    }
+
+    private void getArguments(String structName, Type[] genArgs, RandomAccessStack<TypeFrame> typeStack,
+                              ArrayList<Token> ret, FilePosition pos) throws SyntaxError, RandomAccessStack.StackUnderflow {
+        Token prev;
+        for (int j = genArgs.length - 1; j >= 0; j--) {
+            if (ret.size() <= 0) {
+                throw new SyntaxError("Not enough arguments for " +
+                        declarableName(DeclareableType.GENERIC_TUPLE, false) + " " + structName,pos);
+            }
+            prev = ret.remove(ret.size()-1);
+            if (!(prev instanceof ValueToken)) {
+                throw new SyntaxError("invalid token for type-parameter:" + prev, prev.pos);
+            }
+            try {
+                genArgs[j] = ((ValueToken) prev).value.asType();
+                Value value = typeStack.pop().value;
+                if(value==null||value.type!=Type.TYPE||!value.asType().equals(genArgs[j])){
+                    throw new RuntimeException("type-stack out of sync with tokens");
+                }
+            } catch (TypeError e) {
+                throw new SyntaxError(e.getMessage(), prev.pos);
             }
         }
     }
