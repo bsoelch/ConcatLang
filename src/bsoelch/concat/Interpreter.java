@@ -746,7 +746,7 @@ public class Interpreter {
 
     enum DeclareableType{
         VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, GENERIC, NATIVE_PROC,
-        GENERIC_TUPLE, OVERLOADED_PROCEDURE
+        GENERIC_TUPLE, OVERLOADED_PROCEDURE, STRUCT, GENERIC_STRUCT
     }
     static String declarableName(DeclareableType t, boolean a){
         switch (t){
@@ -780,6 +780,12 @@ public class Interpreter {
             case OVERLOADED_PROCEDURE -> {
                 return a?"an overloaded procedure":"overloaded procedure";
             }
+            case STRUCT -> {
+                return a?"a struct":"struct";
+            }
+            case GENERIC_STRUCT -> {
+                return a?"a generic struct":"generic struct";
+            }
         }
         throw new RuntimeException("unreachable");
     }
@@ -799,7 +805,8 @@ public class Interpreter {
             case PROCEDURE,NATIVE_PROC,OVERLOADED_PROCEDURE -> {
                 return true;
             }
-            case VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,ENUM,TUPLE,GENERIC,GENERIC_TUPLE -> {
+            case VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,
+                    ENUM,TUPLE,GENERIC,GENERIC_TUPLE,STRUCT,GENERIC_STRUCT -> {
                 return false;
             }
         }
@@ -882,6 +889,14 @@ public class Interpreter {
         @Override
         public DeclareableType declarableType() {
             return DeclareableType.GENERIC_TUPLE;
+        }
+    }
+    private record GenericStruct(String name,boolean isPublic,Type.GenericParameter[] params,
+                                Type[] types,String[] fieldNames,
+                                FilePosition declaredAt) implements NamedDeclareable {
+        @Override
+        public DeclareableType declarableType() {
+            return DeclareableType.GENERIC_STRUCT;
         }
     }
 
@@ -1936,7 +1951,7 @@ public class Interpreter {
                             subList.clear();
                             if(generics.size()>0){
                                 GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,((TupleBlock) block).isPublic,
-                                        generics.stream().filter(g->!g.isImplicit).toArray(Type.GenericParameter[]::new),
+                                        generics.toArray(Type.GenericParameter[]::new),
                                         types,block.startPos);
                                 pState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }else{
@@ -1946,8 +1961,32 @@ public class Interpreter {
                             }
                         }
                         case STRUCT ->{
-                            System.out.println(((StructBlock)block).fields);
-                            throw new UnsupportedOperationException("closing struct blocks is currently not implemented");
+                            assert block instanceof StructBlock;
+                            if(((StructBlock) block).context != pState.openedContexts.pollLast()){
+                                throw new RuntimeException("openedProcs is out of sync with openBlocks");
+                            }
+                            ((StructBlock) block).context.unbind();
+                            if(tokens.size()>block.start){
+                                tmp=tokens.get(block.start);
+                                throw new SyntaxError("Unexpected token in struct:"+tmp,tmp.pos);
+                            }
+                            ArrayList<Type.GenericParameter> generics=((StructBlock) block).context.generics;
+                            String[] fieldNames=new String[((StructBlock) block).fields.size()];
+                            Type[] types=new Type[fieldNames.length];
+                            for(int i=0;i<types.length;i++){
+                                fieldNames[i]=((StructBlock) block).fields.get(i).name;
+                                types[i]=((StructBlock) block).fields.get(i).type;
+                            }
+                            if(generics.size()>0){
+                                GenericStruct struct=new GenericStruct(((StructBlock) block).name,((StructBlock) block).isPublic,
+                                        generics.toArray(Type.GenericParameter[]::new),
+                                        types,fieldNames,block.startPos);
+                                pState.rootContext.declareNamedDeclareable(struct,ioContext);
+                            }else{
+                                Type.Struct struct=Type.Struct.create(((StructBlock) block).name, ((StructBlock) block).isPublic,
+                                        types,fieldNames,block.startPos);
+                                pState.rootContext.declareNamedDeclareable(struct,ioContext);
+                            }
                         }
                         case IF,WHILE,SWITCH_CASE ->
                                 throw new SyntaxError("blocks of type "+block.type+
@@ -3147,7 +3186,7 @@ public class Interpreter {
                     }
                     case MACRO ->
                             throw new RuntimeException("macros should already be resolved at this state of compilation");
-                    case TUPLE, ENUM, GENERIC -> {
+                    case TUPLE, ENUM, GENERIC,STRUCT -> {
                         Value e = Value.ofType((Type) d);
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
                         ret.add(new ValueToken(e, identifier.pos, false));
@@ -3180,6 +3219,8 @@ public class Interpreter {
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
                         ret.add(new ValueToken(tupleType,identifier.pos, false));
                     }
+                    case GENERIC_STRUCT ->
+                            throw new UnsupportedOperationException("instantiating generic structs is currently not implemented");
                     case OVERLOADED_PROCEDURE -> {
                         OverloadedProcedure proc = (OverloadedProcedure) d;
                         CallMatch match = typeCheckOverloadedCall("procedure "+identifier.name,
@@ -3230,7 +3271,14 @@ public class Interpreter {
                 TypeFrame f=typeStack.pop();
                 boolean hasField=false;
                 try {
-                    if(f.type==Type.TYPE&&f.value!=null&&f.value.asType() instanceof Type.Enum anEnum){
+                    if(f.type instanceof Type.Struct){
+                        Integer index=((Type.Struct) f.type).fields.get(identifier.name);
+                        if(index!=null){
+                            typeStack.push(new TypeFrame(((Type.Struct) f.type).elements[index],null, t.pos));
+                            ret.add(new TupleElementAccess(index, false, t.pos));
+                            hasField=true;
+                        }
+                    }else if(f.type==Type.TYPE&&f.value!=null&&f.value.asType() instanceof Type.Enum anEnum){
                         int p=0;
                         for(;p<anEnum.entryNames.length;p++){
                             if(anEnum.entryNames[p].equals(identifier.name)){
@@ -3356,6 +3404,15 @@ public class Interpreter {
                 TypeFrame f=typeStack.pop();
                 TypeFrame val=typeStack.pop();
                 boolean hasField=false;
+                if(f.type instanceof Type.Struct){
+                    Integer index=((Type.Struct) f.type).fields.get(identifier.name);
+                    if(index!=null){
+                        Type fieldType = ((Type.Tuple) f.type).elements[index];
+                        typeCheckCast(val.type,2,fieldType, ret, t.pos);
+                        ret.add(new TupleElementAccess(index, true, t.pos));
+                        hasField=true;
+                    }
+                }//no else
                 if(f.type instanceof Type.Tuple){
                     try {
                         int index = Integer.parseInt(identifier.name);

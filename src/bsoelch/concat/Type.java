@@ -380,7 +380,7 @@ public class Type {
             return isPublic;
         }
     }
-    public static class GenericTuple extends Tuple{
+    public static class GenericTuple extends Tuple{//TODO merge with tuple
         final Type[] genericArgs;
         final GenericParameter[] explicitParams;
         final GenericParameter[] implicitParams;
@@ -474,6 +474,37 @@ public class Type {
                 }
             }
             return super.canCastTo(t, bounds);
+        }
+    }
+
+    public static class Struct extends Tuple{
+        //TODO genericParams
+        final String[] fieldNames;
+        final HashMap<String,Integer> fields;
+
+        static Struct create(String name,boolean isPublic,Type[] types,String[] fieldNames,FilePosition declaredAt){
+            if(fieldNames.length!=types.length){
+                throw new IllegalArgumentException("fieldNames and types have to have the same length");
+            }
+            return new Struct(name,isPublic,types,fieldNames,declaredAt);
+        }
+        private Struct(String name, boolean isPublic, Type[] elements, String[] fieldNames, FilePosition declaredAt) {
+            super(name, isPublic, elements, declaredAt);
+            this.fieldNames = fieldNames;
+            fields=new HashMap<>();
+            for(int i=0;i<fieldNames.length;i++){
+                fields.put(fieldNames[i],i);
+            }
+        }
+
+        @Override
+        public List<String> fields() {
+            return Arrays.asList(fieldNames);
+        }
+
+        @Override
+        public Interpreter.DeclareableType declarableType() {
+            return Interpreter.DeclareableType.STRUCT;
         }
     }
 
