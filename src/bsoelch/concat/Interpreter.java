@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 public class Interpreter {
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
     //use ' as separator for namespaces, as it cannot be part of identifiers
-    public static final String NAMESPACE_SEPARATOR = "'";
+    public static final String NAMESPACE_SEPARATOR = " .";
 
     /**
      * Context for running the program
@@ -1050,7 +1050,6 @@ public class Interpreter {
                 //addLater static imports
                 throw new UnsupportedOperationException("static imports are currently unimplemented");
             }else{
-                //addLater formatted printing of namespace paths
                 throw new SyntaxError("namespace "+path+" does not exist",pos);
             }
         }
@@ -2653,7 +2652,7 @@ public class Interpreter {
                     TypeFrame f=typeStack.pop();
                     if(f.type!=Type.BOOL){
                         throw new SyntaxError("parameter of assertion has to be a bool got "+f.type,t.pos);
-                    }else if(f.value!=null&&!f.value.asBool()){//addLater replace assert with drop if condition is always true
+                    }else if(f.value!=null&&!f.value.asBool()){//addLater? replace assert with drop if condition is always true
                         throw new SyntaxError("assertion failed: "+ ((AssertToken)t).message,t.pos);
                     }
                     if((prev=ret.get(ret.size()-1)) instanceof ValueToken){
@@ -3161,7 +3160,7 @@ public class Interpreter {
                 }else if(d instanceof OverloadedProcedure proc){
                     typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,ret.size(),t.pos),null,t.pos));
                     ret.add(new Token(TokenType.OVERLOADED_PROC_PTR,t.pos));//push placeholder token
-                }else{//TODO resolve overloaded procedure pointers
+                }else{
                     throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
                             identifier.name+" (declared at "+d.declaredAt()+") is not a procedure", t.pos);
                 }
@@ -3181,7 +3180,7 @@ public class Interpreter {
                                 if(prev instanceof ValueToken&&((ValueToken) prev).value.type==Type.TYPE&&
                                         ((ValueToken) prev).value.asType().equals(anEnum)) {
                                     ret.set(ret.size()-1,entry);
-                                }else{//addLater? better way to replace previous token
+                                }else{//addLater? better way to replace previous value
                                     ret.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{1},t.pos));
                                     ret.add(entry);
                                 }
@@ -3192,7 +3191,7 @@ public class Interpreter {
                     if(!hasField) {
                         if(identifier.name.equals("type")){
                             if(f.type.canAssignTo(Type.ANY)){
-                                typeStack.push(new TypeFrame(Type.TYPE,Value.ofType(f.type),t.pos));
+                                typeStack.push(new TypeFrame(Type.TYPE,null,t.pos));
                                 ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
                                 hasField = true;
                             }
@@ -3226,7 +3225,7 @@ public class Interpreter {
                                     typeStack.push(new TypeFrame(Type.listOf(Type.RAW_STRING()), null, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.TYPE_FIELDS, t.pos));
                                 }
-                                case "isEnum" -> {//TODO values of type 'var' may lead to wrong value in pre-evaluation
+                                case "isEnum" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType() instanceof Type.Enum ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IS_ENUM, t.pos));
