@@ -71,8 +71,8 @@ public class Interpreter {
         final String name;
         IdentifierToken(IdentifierType type, String name, boolean isNative, boolean isPublic, FilePosition pos) throws SyntaxError {
             super(TokenType.IDENTIFIER, pos);
-            if(name.startsWith(".")||name.startsWith("@")){
-                throw new SyntaxError("Identifiers cannot start with '.' or '@'",pos);
+            if(name.startsWith(".")||name.startsWith(":")||name.startsWith("@")){
+                throw new SyntaxError("Identifiers cannot start with '.' ':' or '@'",pos);
             }else if(name.isEmpty()){
                 throw new SyntaxError("Identifiers have to be nonempty",pos);
             }//no else
@@ -302,7 +302,7 @@ public class Interpreter {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST,UNION
+        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST,UNION,STRUCT
     }
     static abstract class CodeBlock{
         final int start;
@@ -634,6 +634,25 @@ public class Interpreter {
             assert start.type==BlockType.ANONYMOUS_TUPLE;
             context=(GenericContext)start.context;
         }
+        @Override
+        VariableContext context() {
+            return context;
+        }
+    }
+    record StructField(String name,Type type){}
+    private static class StructBlock extends CodeBlock{
+        final String name;
+        final boolean isPublic;
+        final GenericContext context;
+        final ArrayList<StructField> fields=new ArrayList<>();
+
+        StructBlock(String name,boolean isPublic,int start, FilePosition startPos, VariableContext parentContext) {
+            super(start, BlockType.STRUCT, startPos, parentContext);
+            this.name=name;
+            this.isPublic=isPublic;
+            context=new GenericContext(parentContext,false);
+        }
+
         @Override
         VariableContext context() {
             return context;
@@ -1672,7 +1691,7 @@ public class Interpreter {
                     prev=tokens.remove(tokens.size()-1);
                     finishParsing(pState, ioContext,pos,false);
                     if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before root level tuple has to be an identifier",pos);
+                        throw new SyntaxError("token before tuple has to be an identifier",pos);
                     }
                     name = ((IdentifierToken) prev).name;
                     TupleBlock tupleBlock = new TupleBlock(name,((IdentifierToken) prev).isPublic,
@@ -1690,13 +1709,34 @@ public class Interpreter {
                     prev=tokens.remove(tokens.size()-1);
                     finishParsing(pState, ioContext,pos,false);
                     if(!(prev instanceof IdentifierToken)){
-                        throw new SyntaxError("token before '"+str+"' has to be an identifier",pos);
+                        throw new SyntaxError("token before enum has to be an identifier",pos);
                     }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before '"+str+"' has to be an unmodified identifier",pos);
+                        throw new SyntaxError("token before enum has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
                     pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublic, 0,pos,pState.rootContext));
                 }
+                case "struct{" -> {
+                    String name;
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("structs can only be declared at root level",pos);
+                    }
+                    if(tokens.size()==0){
+                        throw new SyntaxError("missing struct name",pos);
+                    }
+                    prev=tokens.remove(tokens.size()-1);
+                    finishParsing(pState, ioContext,pos,false);
+                    if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
+                        throw new SyntaxError("token before struct has to be an identifier",pos);
+                    }
+                    name = ((IdentifierToken) prev).name;
+                    StructBlock structBlock = new StructBlock(name,((IdentifierToken) prev).isPublic,
+                            0, pos, pState.rootContext);
+                    pState.openBlocks.add(structBlock);
+                    pState.openedContexts.add(structBlock.context());
+                }
+                case "extend" ->
+                    throw new UnsupportedOperationException("extending structs is currently not implemented");
                 case "proc(","procedure(" ->{
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("procedures can only be declared at root level",pos);
@@ -1904,6 +1944,10 @@ public class Interpreter {
                                         types,block.startPos);
                                 pState.rootContext.declareNamedDeclareable(tuple,ioContext);
                             }
+                        }
+                        case STRUCT ->{
+                            System.out.println(((StructBlock)block).fields);
+                            throw new UnsupportedOperationException("closing struct blocks is currently not implemented");
                         }
                         case IF,WHILE,SWITCH_CASE ->
                                 throw new SyntaxError("blocks of type "+block.type+
@@ -2146,6 +2190,23 @@ public class Interpreter {
                         }
                     }else if(str.startsWith("@")){
                         tokens.add(new IdentifierToken(IdentifierType.PROC_ID, str.substring(1), false, false, pos));
+                    }else if(str.startsWith(":")){
+                        CodeBlock block=pState.openBlocks.peek();
+                        if(!(block instanceof StructBlock)){
+                            throw new SyntaxError("fields can only be declared in structs",pos);
+                        }
+                        List<Token> subList = tokens.subList(block.start, tokens.size());
+                        TypeCheckResult r=typeCheck(subList,pState.getContext(),pState.globalVariables,
+                                new RandomAccessStack<>(8),null,pos,ioContext);
+                        subList.clear();
+                        if(r.types.size()!=1||r.types.get(1).type!=Type.TYPE||r.types.get(1).value==null){
+                            throw new SyntaxError("value before field declaration has to be one constant type",pos);
+                        }
+                        try {
+                            ((StructBlock) block).fields.add(new StructField(str.substring(1),r.types.get(1).value.asType()));
+                        } catch (TypeError e) {
+                            throw new SyntaxError(e,pos);
+                        }
                     }else{
                         Declareable d=pState.rootContext.getDeclareable(str);
                         if(d instanceof Macro){
@@ -2638,7 +2699,7 @@ public class Interpreter {
                                         merge(typeStack,mainEnd,branch.types,branch.end,"switch");
                                     }
                                 }
-                                case PROCEDURE,PROC_TYPE,ANONYMOUS_TUPLE,TUPLE,ENUM,UNION ->
+                                case PROCEDURE,PROC_TYPE,ANONYMOUS_TUPLE,TUPLE,ENUM,UNION,STRUCT ->
                                         throw new SyntaxError("blocks of type "+open.type+
                                                 " should not exist at this stage of compilation",t.pos);
                             }
@@ -3191,7 +3252,7 @@ public class Interpreter {
                     if(!hasField) {
                         if(identifier.name.equals("type")){
                             if(f.type.canAssignTo(Type.ANY)){
-                                typeStack.push(new TypeFrame(Type.TYPE,null,t.pos));
+                                typeStack.push(new TypeFrame(Type.TYPE,f.value==null?null:Value.ofType(f.value.type),t.pos));
                                 ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
                                 hasField = true;
                             }
