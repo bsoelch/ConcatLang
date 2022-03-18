@@ -1,6 +1,7 @@
 package bsoelch.concat;
 
 import java.util.*;
+import java.util.function.BiFunction;
 
 public class Type {
     public static final Type INT   = new Type("int",  true) {
@@ -342,8 +343,7 @@ public class Type {
             return name;
         }
 
-        @Override
-        Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+        Tuple replaceGenerics(IdentityHashMap<GenericParameter,Type> generics, BiFunction<Type[],Type[],Tuple> create){
             Type[] newElements=new Type[elements.length];
             boolean changed=false;
             for(int i=0;i<elements.length;i++){
@@ -352,19 +352,34 @@ public class Type {
                     changed=true;
                 }
             }
-            Type[] newArgs=new Type[this.genericArgs.length];
-            for(int i=0;i<this.genericArgs.length;i++){
-                newArgs[i]=this.genericArgs[i].replaceGenerics(generics);
-                if(newArgs[i]!=this.genericArgs[i]){
-                    changed=true;
+            Type[] newArgs;
+            if(generics.size()>0){
+                newArgs=new Type[this.genericArgs.length];
+                for(int i=0;i<this.genericArgs.length;i++){
+                    newArgs[i]=this.genericArgs[i].replaceGenerics(generics);
+                    if(newArgs[i]!=this.genericArgs[i]){
+                        changed=true;
+                    }
                 }
+            }else{
+                newArgs=genericArgs;
             }
-            return changed?create(baseName, isPublic,genericParams,newArgs,newElements,declaredAt):this;
+            return changed?create.apply(newArgs,newElements):this;
+        }
+        @Override
+        Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+            return replaceGenerics(generics,(newArgs,newElements)->
+                    create(baseName, isPublic,genericParams,newArgs,newElements,declaredAt));
         }
 
+        /**checks if t is a valid type for type comparison with this tuple,
+         *  the base method checks if the class of t is Tuple (not struct)*/
+        boolean canAssignBaseTuple(Type t){
+            return t.getClass()==Tuple.class;
+        }
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
-            if(t.getClass()==Tuple.class&&((Tuple) t).elementCount()<=elementCount()){
+            if(canAssignBaseTuple(t)&&((Tuple) t).elementCount()<=elementCount()){
                 for(int i=0;i<((Tuple) t).elements.length;i++){
                     if(!elements[i].canAssignTo(((Tuple) t).elements[i],bounds)){
                         return false;
@@ -486,11 +501,22 @@ public class Type {
         }
 
         @Override
+        Struct replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+            return (Struct)replaceGenerics(generics,(newArgs,newElements)->
+                    create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
+                            genericParams,newArgs,newElements,fieldNames,declaredAt));
+        }
+
+        @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             if(!(t instanceof Struct))
                 return false;
-            return baseName.equals(((Struct)t).baseName)&&Objects.equals(extended,((Struct) t).extended)&&
-                    super.equals(t, generics);
+            return ((Struct) t).declaredAt.equals(declaredAt)&&super.equals(t, generics);
+        }
+
+        @Override
+        boolean canAssignBaseTuple(Type t) {
+            return super.canAssignBaseTuple(t)||(t instanceof Struct&&((Struct) t).declaredAt.equals(declaredAt));
         }
 
         @Override
