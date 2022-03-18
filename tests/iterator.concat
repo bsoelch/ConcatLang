@@ -3,6 +3,7 @@ test/iterator :
 stack #include
 iterator #include
 valueIO #include
+codeblocks #include
 core #import
 
 reverse proc( string => string ){
@@ -21,7 +22,7 @@ reverse proc( string => string ){
 sum proc( float list => float ){
   0 float tmp =: ## Initialize sum to 0
   ## Iterate though all elements of the list
-  ^_ while{ ^> do
+  ^_ for{
     float cast tmp swap + tmp =
   } drop
   tmp ## load the total sum onto the stack
@@ -30,7 +31,6 @@ sum proc( float list => float ){
 { 1 2 3 4 5 6 7 8 9 } sum println
 { 1.5 2.5 3.5 4.5   } sum println
 
-"Hello" ^_
-while{ ^> do
+"Hello" ^_ for{
   println
 } drop ## iterator and optional

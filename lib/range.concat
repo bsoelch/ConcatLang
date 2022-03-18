@@ -2,6 +2,7 @@ lib/range :
 
 core #namespace
 stack #include
+codeblocks #include
 
 intRange struct{
   int :off
@@ -63,7 +64,7 @@ filter public proc( filteredRange ( int => bool ) => filteredRange ){
 ^> public proc( filteredRange => filteredRange int optional ){
   prev =::
   false match =::
-  prev .base while{ ^> do val =::
+  prev .base for{ val =::
     true match =
     0 while{ dup prev .filters .length < do
        val prev .filters 3 $dup [] () ! if{

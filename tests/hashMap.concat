@@ -2,6 +2,7 @@ test/hashMap :
 
 stack #include
 valueIO #include
+codeblocks #include
 core #import
 hashMap #include
 hashMap #import
@@ -36,6 +37,6 @@ map 5 HashMap.remove println
 map 9 HashMap.remove println
 "map:" println
 
-map ^_ while{ ^> do e =::
+map ^_ for{ e =::
    { e .key e .value } "(%i,%s) " printf
 } drop

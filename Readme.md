@@ -257,6 +257,17 @@ while{ ^> do   ## iterate over all elements
 drop ## drop the iterator
 ```
 
+using the `for{` macro:
+```
+## import for macro from the standed library
+codeblocks #include
+core #import 
+
+array ^_ for{
+  println ## do something with data
+} drop
+```
+
 reverse a string:
 ```
 reverse proc( string => string ){
@@ -270,11 +281,13 @@ reverse proc( string => string ){
   res return
 }
 ```
+!!! `for{` does not work for backward iteration !!!
+
 Sum all elements of a list
 ```
 0 int tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
-^_ while{ ^> do
+^_ for{
  tmp swap + tmp =
 } drop
 tmp ## load the total sum onto the stack

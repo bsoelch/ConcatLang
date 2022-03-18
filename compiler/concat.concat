@@ -622,7 +622,7 @@ RootContext.endModule proc( RootContext FilePosition => ){
   file .openModules file .openModules .length 1 - file .openModules .length [:] clear
   removed .predeclared .size 0 > if{
     "Syntax Error: missing variables/procedures" string message =:
-    removed .predeclared ^_ while{ ^> do
+    removed .predeclared ^_ for{
        string PredeclaredProc MapEntry e =:
        message "\n- " <<* e .key string cast <<* " (at " <<* e .value .pos << ')' << drop
     } drop
@@ -642,7 +642,7 @@ RootContext.endFile proc( RootContext FilePosition => ){
       closed .openModules i [] OpenModule removed =:
       removed .predeclared .size 0 > if{
         "Syntax Error: missing variables/procedures" string message =:
-        removed .predeclared ^_ while{ ^> do
+        removed .predeclared ^_ for{
            string PredeclaredProc MapEntry e =:
            message "\n- " <<* e .key string cast <<* " (at " <<* e .value .pos << ')' << drop
         } drop
@@ -656,7 +656,7 @@ RootContext.endFile proc( RootContext FilePosition => ){
   }
   closed .globalPredeclared .size 0 > if{
     "Syntax Error: missing variables/procedures" string message =:
-    closed .globalPredeclared ^_ while{ ^> do
+    closed .globalPredeclared ^_ for{
        string PredeclaredProc MapEntry e =:
        message "\n- " <<* e .key string cast <<* " (at " <<* e .value .pos << ')' << drop
     } drop
@@ -1946,7 +1946,7 @@ main public proc( string list => ){
   }
   "\n" puts
   "declared values:\n" puts
-  context .elements ^_ while{ ^> do
+  context .elements ^_ for{
       string Declareable MapEntry e =:
       e .key print ": " e .value << println
    } drop
