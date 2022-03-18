@@ -14,6 +14,15 @@ public class math{
     public static double nativeImpl_tan(double x){
         return Math.tan(x);
     }
+    public static double nativeImpl_asin(double x){
+        return Math.asin(x);
+    }
+    public static double nativeImpl_acos(double x){
+        return Math.acos(x);
+    }
+    public static double nativeImpl_atan(double x){
+        return Math.atan(x);
+    }
 
     public static double nativeImpl_floor(double x){
         return Math.floor(x);

@@ -9,6 +9,9 @@ log public native proc( float => float );
 sin public native proc( float => float );
 cos public native proc( float => float );
 tan public native proc( float => float );
+asin public native proc( float => float );
+acos public native proc( float => float );
+atan public native proc( float => float );
 
 floor public native proc( float => float );
 ceil  public native proc( float => float );
