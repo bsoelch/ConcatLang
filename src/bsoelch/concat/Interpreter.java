@@ -1312,7 +1312,7 @@ public class Interpreter {
                 id=parent.wrapCurried(name, id, pos);//curry through parent
                 if(!id.isConstant){
                     throw new SyntaxError("external variable "+name+" is not constant",pos);
-                }else if(procedure !=null){
+                }else if(!(id.context instanceof RootContext)){
                     id=new CurriedVariable(id,this, curried.size(), pos);
                     curried.add((CurriedVariable)id);//curry variable
                     putElement(name,id);//add curried variable to variable list
@@ -1696,7 +1696,7 @@ public class Interpreter {
                         throw new SyntaxError("include path has to be a string literal or identifier",pos);
                     }
                 }
-                case "tuple{" -> {
+                case "tuple{" -> { //named tuples may be removed in a future version
                     String name;
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("tuples can only be declared at root level",pos);
@@ -1894,17 +1894,20 @@ public class Interpreter {
                     tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
                 }
                 case "}" -> {
-                    if(pState.openBlocks2>0){//process 'end' for blocks processed in 2nd compile step
-                        pState.openBlocks2--;
-                        if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
-                                b.blockType==BlockTokenType.DO){//merge do-end
-                            tokens.set(tokens.size()-1,new BlockToken(BlockTokenType.DO_WHILE, pos, -1));
-                        }else{
-                            tokens.add(new BlockToken(BlockTokenType.END, pos, -1));
+                    CodeBlock block=pState.openBlocks.peekLast();
+                    if (!(block instanceof ProcedureBlock) || ((ProcedureBlock) block).name != null) {//ignore lambda blocks
+                        if(pState.openBlocks2>0){//process 'end' for blocks processed in 2nd compile step
+                            pState.openBlocks2--;
+                            if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
+                                    b.blockType==BlockTokenType.DO){//merge do-end
+                                tokens.set(tokens.size()-1,new BlockToken(BlockTokenType.DO_WHILE, pos, -1));
+                            }else{
+                                tokens.add(new BlockToken(BlockTokenType.END, pos, -1));
+                            }
+                            break;
                         }
-                        break;
                     }
-                    CodeBlock block=pState.openBlocks.pollLast();
+                    block=pState.openBlocks.pollLast();
                     if(block==null) {
                         throw new SyntaxError("unexpected '"+str+"' statement",pos);
                     }
@@ -2807,7 +2810,7 @@ public class Interpreter {
                     typeCheckNew(typeStack, ret, t);
                 case DECLARE_LAMBDA -> {//parse lambda-procedures
                     assert t instanceof DeclareLambdaToken;
-                    typeCheckLambda(globalConstants, typeStack, ioContext, ret, (DeclareLambdaToken)t);
+                    typeCheckLambda(globalConstants,context, typeStack, ioContext, ret, (DeclareLambdaToken)t);
                 }
                 case VALUE -> {
                     assert t instanceof ValueToken;
@@ -3042,15 +3045,18 @@ public class Interpreter {
         }
     }
 
-    private void typeCheckLambda(HashMap<VariableId, Value> globalConstants, RandomAccessStack<TypeFrame> typeStack
+    private void typeCheckLambda(HashMap<VariableId, Value> globalConstants, VariableContext context,
+                                 RandomAccessStack<TypeFrame> typeStack
             , IOContext ioContext, ArrayList<Token> ret, DeclareLambdaToken t) throws SyntaxError {
         RandomAccessStack<TypeFrame> procTypes=new RandomAccessStack<>(8);
         for(Type in:t.inTypes){
             procTypes.push(new TypeFrame(in,null, t.pos));
         }
-        t.context.bind();
-        TypeCheckResult res=typeCheck(t.tokens,t.context, globalConstants,procTypes,t.outTypes,t.endPos, ioContext);
-        t.context.unbind();
+        ProcedureContext newContext=new ProcedureContext(context);
+        newContext.generics.addAll(t.generics);//move generics to new context
+        newContext.bind();
+        TypeCheckResult res=typeCheck(t.tokens,newContext, globalConstants,procTypes,t.outTypes,t.endPos, ioContext);
+        newContext.unbind();
         Type[] outTypes;
         if(t.outTypes!=null){
             outTypes=t.outTypes;
@@ -3067,10 +3073,10 @@ public class Interpreter {
         Type.Procedure procType=t.generics.size()>0?
                 Type.GenericProcedure.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes):
                 Type.Procedure.create(t.inTypes, outTypes);
-        Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, t.context);
+        Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, newContext);
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
-        if(t.context.curried.isEmpty()){
+        if(newContext.curried.isEmpty()){
             ret.add(new ValueToken(TokenType.LAMBDA,lambda, t.pos,false));
         }else{
             ret.add(new ValueToken(TokenType.CURRIED_LAMBDA,lambda, t.pos,false));
@@ -3907,19 +3913,14 @@ public class Interpreter {
                     }
                     case CURRIED_LAMBDA -> {
                         assert next instanceof ValueToken;
-                        if(globalVariables==null){
-                            throw new RuntimeException("curried procedures should only exist inside of procedures");
-                        }
                         Value.Procedure proc=(Value.Procedure)((ValueToken) next).value;
                         Value[] curried2=new Value[proc.context.curried.size()];
                         for(int i=0;i<proc.context.curried.size();i++){
                             VariableId id=proc.context.curried.get(i).source;
                             if(id instanceof CurriedVariable){
                                 curried2[i]=curried[id.id];
-                            }else if(id.context.procedureContext()!=null){
-                                curried2[i]=variables.get(id.level)[id.id].value;
                             }else{
-                                throw new RuntimeException("global variables should only be curried");
+                                curried2[i]=variables.get(id.level)[id.id].value;
                             }
                         }
                         stack.push(proc.withCurried(curried2));
