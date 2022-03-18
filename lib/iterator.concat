@@ -2,7 +2,10 @@ lib/iterator :
 
 core #namespace
 
-Iterator public tuple{ A <> A list int }
+Iterator public struct{ A <>
+  A list :list
+  int    :index
+}
 
 ^_ public proc( A <?> A list => A Iterator ){
   A list elements =:
@@ -17,9 +20,9 @@ _^ public proc( A <?> A list => A Iterator ){
 ^> public proc( A <?> A Iterator => A Iterator A optional ){
   A Iterator mItr =:
   mItr
-  mItr .1 mItr .0 .length < if{
-    mItr .0 mItr .1 [] wrap ## push element
-    mItr .1 1 + mItr .1 = ## increment iterator
+  mItr .index mItr .list .length < if{
+    mItr .list mItr .index [] wrap ## push element
+    mItr .index 1 + mItr .index = ## increment iterator
   else
     A empty return
   }
@@ -28,9 +31,9 @@ _^ public proc( A <?> A list => A Iterator ){
 <^ public proc( A <?> A Iterator => A Iterator A optional ){
   A Iterator mItr =:
   mItr
-  mItr .1 0 > if{
-    mItr .1 1 - mItr .1 = ## decrement iterator
-    mItr .0 mItr .1 [] wrap ## push element
+  mItr .index 0 > if{
+    mItr .index 1 - mItr .index = ## decrement iterator
+    mItr .list mItr .index [] wrap ## push element
   else
     A empty return
   }

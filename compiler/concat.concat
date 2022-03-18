@@ -603,11 +603,11 @@ RootContext.endModule proc( RootContext FilePosition => ){
   }
   file OpenFile.openModules file OpenFile.openModules .length 1 - [] OpenModule removed =:
   file OpenFile.openModules file OpenFile.openModules .length 1 - file OpenFile.openModules .length [:] clear
-  removed OpenModule.predeclared HashMap.size 0 > if{
+  removed OpenModule.predeclared .size 0 > if{
     "Syntax Error: missing variables/procedures" string message =:
     removed OpenModule.predeclared ^_ while{ ^> do
        string PredeclaredProc MapEntry e =:
-       message "\n- " <<* e MapEntry.key string cast <<* " (at " <<* e MapEntry.value Declareable.pos << ')' << drop
+       message "\n- " <<* e .key string cast <<* " (at " <<* e .value Declareable.pos << ')' << drop
     } drop
     message fPos << '\n' << eputs
     1 exit
@@ -623,11 +623,11 @@ RootContext.endFile proc( RootContext FilePosition => ){
     closed OpenFile.openModules .length 1 - int i =:
     while{ i 0 >= do
       closed OpenFile.openModules i [] OpenModule removed =:
-      removed OpenModule.predeclared HashMap.size 0 > if{
+      removed OpenModule.predeclared .size 0 > if{
         "Syntax Error: missing variables/procedures" string message =:
         removed OpenModule.predeclared ^_ while{ ^> do
            string PredeclaredProc MapEntry e =:
-           message "\n- " <<* e MapEntry.key string cast <<* " (at " <<* e MapEntry.value Declareable.pos << ')' << drop
+           message "\n- " <<* e .key string cast <<* " (at " <<* e .value Declareable.pos << ')' << drop
         } drop
         message fPos << '\n' << eputs
         1 exit
@@ -637,11 +637,11 @@ RootContext.endFile proc( RootContext FilePosition => ){
     }
     closed OpenFile.openModules clear
   }
-  closed OpenFile.globalPredeclared HashMap.size 0 > if{
+  closed OpenFile.globalPredeclared .size 0 > if{
     "Syntax Error: missing variables/procedures" string message =:
     closed OpenFile.globalPredeclared ^_ while{ ^> do
        string PredeclaredProc MapEntry e =:
-       message "\n- " <<* e MapEntry.key string cast <<* " (at " <<* e MapEntry.value Declareable.pos << ')' << drop
+       message "\n- " <<* e .key string cast <<* " (at " <<* e .value Declareable.pos << ')' << drop
     } drop
     message fPos << '\n' << eputs
     1 exit
@@ -1919,6 +1919,6 @@ main public proc( string list => ){
   "declared values:\n" puts
   context Context.elements ^_ while{ ^> do
       string Declareable MapEntry e =:
-      e MapEntry.key print ": " e MapEntry.value << println
+      e .key print ": " e .value << println
    } drop
 }

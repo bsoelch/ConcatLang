@@ -37,5 +37,5 @@ map 9 HashMap.remove println
 "map:" println
 
 map ^_ while{ ^> do e =::
-   { e MapEntry.key e MapEntry.value } "(%i,%s) " printf
+   { e .key e .value } "(%i,%s) " printf
 } drop

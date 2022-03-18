@@ -165,161 +165,164 @@ fprint  public proc( var FILE => bool ){ swap stringValue swap     fputs return 
 4 int IO_FLAG_SGN =$
 8 int IO_FLAG_SGN_SPACE =$
 
-Format tuple{ bool }
-Format.isValue proc( Format => bool   ){ .0 }
+Format struct{
+  bool :isValue
+}
 ## isValue:bool value:string$
-FormatString tuple{ bool string }
-Format.value   proc( FormatString => string ){ .1 }
+FormatString struct{ Format extend
+  string :value
+}
 ##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:byte (char)
-FormatValue tuple{ bool int int int bool int bool int bool byte }
-Format.index  proc( FormatValue => int  ){ .1 }
-Format.flags  proc( FormatValue => int  ){ .2 }
-Format.w      proc( FormatValue => int  ){ .3 }
-Format.w_ptr  proc( FormatValue => bool ){ .4 }
-Format.p      proc( FormatValue => int  ){ .5 }
-Format.p_ptr  proc( FormatValue => bool ){ .6 }
-Format.b      proc( FormatValue => int  ){ .7 }
-Format.b_ptr  proc( FormatValue => bool ){ .8 }
-Format.format proc( FormatValue => byte ){ .9 }
+FormatValue struct{ Format extend
+  int  :index
+  int  :flags
+  int  :w
+  bool :w_ptr
+  int  :p
+  bool :p_ptr
+  int  :b
+  bool :b_ptr
+  byte :format
+}
 
 IO_printValue proc( FormatValue var list => string ){ ## addLater runtime checks for correct types
   var list values =:
   FormatValue format =:
-  format Format.flags IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
-  format Format.w_ptr if{ values format Format.w [] int cast else format Format.w } int width =:
+  format .flags IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
+  format .w_ptr if{ values format .w [] int cast else format .w } int width =:
   width 0 < if{ ##negative precision => alignment on left side
     alignLeft ! alignLeft =
     width -_ width =
   }
-  format Format.p_ptr if{ values format Format.p  [] int cast else format Format.p  } int precision =:
+  format .p_ptr if{ values format .p  [] int cast else format .p  } int precision =:
   precision 0 < if{ ## 0 -> default
       "printf: precision has to be at greater that or equal to 0\n" eputs
       1 exit
   }
-  format Format.b_ptr if{ values format Format.b  [] int cast else format Format.b  } int base =:
+  format .b_ptr if{ values format .b  [] int cast else format .b  } int base =:
   base 0 == if{
     10 base =
   }
   '\0' byte plusSgn =:
-  format Format.flags IO_FLAG_SGN & 0 != if{
+  format .flags IO_FLAG_SGN & 0 != if{
     '+' plusSgn =
-  else format Format.flags IO_FLAG_SGN_SPACE & 0 != if
+  else format .flags IO_FLAG_SGN_SPACE & 0 != if
     ' ' plusSgn =
   }
-  format Format.format  switch{
+  format .format  switch{
   'b' case
-    values format Format.index [] bool cast if{ "true" else "false" }
+    values format .index [] bool cast if{ "true" else "false" }
     end-case
   'B' case
-    values format Format.index [] bool cast if{ "TRUE" else "FALSE" }
+    values format .index [] bool cast if{ "TRUE" else "FALSE" }
     end-case
   'i' case
     ""
     plusSgn '\0' != if{
-      values format Format.index [] int cast 0 >= if{
+      values format .index [] int cast 0 >= if{
         plusSgn <<
       }
     }
-    values format Format.index [] int cast base <<?i
+    values format .index [] int cast base <<?i
     end-case
   'I' case
     ""
     plusSgn '\0' != if{
-      values format Format.index [] int cast  0 >= if{
+      values format .index [] int cast  0 >= if{
         plusSgn <<
       }
     }
-    values format Format.index [] int cast  base <<?I
+    values format .index [] int cast  base <<?I
     end-case
   'u' case
     ""
     plusSgn '\0' != if{
       plusSgn <<
     }
-    values format Format.index [] uint cast base <<?u
+    values format .index [] uint cast base <<?u
     end-case
   'U' case
     ""
     plusSgn '\0' != if{
       plusSgn <<
     }
-    values format Format.index [] uint cast base <<?U
+    values format .index [] uint cast base <<?U
     end-case
   'd' case
     ""
     plusSgn '\0' != if{
-      values format Format.index [] int cast 0 >= if{
+      values format .index [] int cast 0 >= if{
         plusSgn <<
       }
     }
-    values format Format.index [] int cast <<i
+    values format .index [] int cast <<i
     end-case
   'x' case
     ""
     plusSgn '\0' != if{
       plusSgn <<
     }
-    values format Format.index [] uint cast <<x
+    values format .index [] uint cast <<x
    end-case
   'X' case
     ""
     plusSgn '\0' != if{
       plusSgn <<
     }
-    values format Format.index [] uint cast <<X
+    values format .index [] uint cast <<X
     end-case
   'e' case
     ""
     plusSgn '\0' != if{
-      values format Format.index [] float cast 0 >= if{
+      values format .index [] float cast 0 >= if{
         plusSgn <<
       }
     }
-    values format Format.index [] float cast precision base <<??e
+    values format .index [] float cast precision base <<??e
     end-case
   'E' case
     ""
     plusSgn '\0' != if{
-      values format Format.index [] float cast 0 >= if{
+      values format .index [] float cast 0 >= if{
         plusSgn <<
       }
     }
-    values format Format.index [] float cast precision base <<??E
+    values format .index [] float cast precision base <<??E
     end-case
   'f' case
     ""
     plusSgn '\0' != if{
-      values format Format.index [] float cast 0 >= if{
+      values format .index [] float cast 0 >= if{
         plusSgn <<
       }
     }
-    values format Format.index [] float cast precision base <<??f
+    values format .index [] float cast precision base <<??f
     end-case
   'F' case
     ""
     plusSgn '\0' != if{
-      values format Format.index [] float cast 0 >= if{
+      values format .index [] float cast 0 >= if{
         plusSgn <<
       }
     }
-    values format Format.index [] float cast precision base <<??F
+    values format .index [] float cast precision base <<??F
     end-case
   'c' case
-    { values format Format.index [] byte cast }
+    { values format .index [] byte cast }
     end-case
   's' 'S' case
-    values format Format.index [] stringValue
+    values format .index [] stringValue
     end-case
   '%' case
     "%"
     end-case
   default
-    format Format.format  " is no valid format specifier\n" >> eputs
+    format .format  " is no valid format specifier\n" >> eputs
     1 exit
   } string res =:
   res .length width < if{
     width res .length - int count =:
-    format Format.flags IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
+    format .flags IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
     count string new string padding =:
     padding 0 count padChar fill
     alignLeft if{
@@ -348,7 +351,7 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
   string format =:
   var list args =:
 
-  format .length 4 / union( FormatString FormatValue ) list new union( FormatString FormatValue ) list parts =:
+  format .length 4 / Format list new Format list parts =:
   0 int i0 =:
   0 int i  =:
   format .length int n  =:
@@ -556,10 +559,10 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
   0 i =
   while{ i parts .length < do
     tmp
-    parts i [] Format.isValue if{   ## Value format
+    parts i [] .isValue if{   ## Value format
       parts i [] args IO_printValue
     else ## string format
-      parts i [] Format.value
+      parts i [] FormatString cast .value
     }
     <<* tmp =
     i 1 + i =

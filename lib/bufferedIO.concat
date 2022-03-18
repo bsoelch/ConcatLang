@@ -5,10 +5,11 @@ core #import
 io #include
 io #namespace
 
-BufferedInput public tuple{ FILE byte list int }
-BufferedInput.file   proc( BufferedInput => FILE      ){ .0 }
-BufferedInput.buffer proc( BufferedInput => byte list ){ .1 }
-BufferedInput.cap    proc( BufferedInput => int       ){ .2 }
+BufferedInput public struct{
+  FILE      :file
+  byte list :buffer
+  int       :cap
+}
 
 newBufferedInput public proc( FILE #+ cap +# int => BufferedInput ){
     int cap =:
@@ -20,7 +21,7 @@ BufferedInput.readTo public proc( BufferedInput #+buffer+# byte list #+amount+# 
   int count =:
   byte list buffer =:
   BufferedInput in =:
-  in BufferedInput.buffer byte list inBuf =:
+  in .buffer byte list inBuf =:
   0 int nRead =:
   inBuf .length 0 > if{ ##read from buffer
     count inBuf .length < if{ count else inBuf .length } nRead =
@@ -29,7 +30,7 @@ BufferedInput.readTo public proc( BufferedInput #+buffer+# byte list #+amount+# 
     count nRead - count =
   }
   count 0 > if{ ## get more data from file
-    in BufferedInput.file inBuf 0 in BufferedInput.cap read int res =:
+    in .file inBuf 0 in .cap read int res =:
     res 0 < if{
       nRead 0 > if{ nRead else res } return
     }
@@ -46,9 +47,9 @@ BufferedInput.readTo public proc( BufferedInput #+buffer+# byte list #+amount+# 
 
 BufferedInput.nextByte public proc( BufferedInput => byte optional ){
   BufferedInput in =:
-  in BufferedInput.buffer byte list inBuf =:
+  in .buffer byte list inBuf =:
   inBuf .length 0 == if{
-    in BufferedInput.file inBuf 0 in BufferedInput.cap read int res =:
+    in .file inBuf 0 in .cap read int res =:
     res 0 <= if{
       byte empty return
     }
