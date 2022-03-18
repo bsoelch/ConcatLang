@@ -3,7 +3,11 @@ tests/generics :
 valueIO #include
 core #import
 
-genTuple tuple{ A <> B <> A B A }
+genTuple struct{ A <> B <>
+  A :a
+  B :b
+  A :c
+}
 
 float byte genTuple println
 
