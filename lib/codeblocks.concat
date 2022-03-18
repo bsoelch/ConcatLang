@@ -5,4 +5,6 @@ core #namespace
 ||{ public #define   if{ true  else #end
 &&{ public #define ! if{ false else #end
 
+for{ public #define while{ ^> do #end
+
 #end
