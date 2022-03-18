@@ -3854,7 +3854,7 @@ public class Interpreter {
                 stack.push(type instanceof Type.GenericParameter?Value.TRUE:Value.FALSE);
             }
             case HAS_VALUE -> {
-                Value value= stack.peek();
+                Value value= stack.pop();
                 stack.push(value.hasValue()?Value.TRUE:Value.FALSE);
             }
         }
