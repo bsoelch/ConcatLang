@@ -134,7 +134,7 @@ public class Type {
                 }
             }
         }
-        return this==t||t==ANY;
+        return equals(t)||t==ANY;
     }
 
     /**@return true if values of this type can be cast to type t*/
@@ -362,10 +362,9 @@ public class Type {
             return changed?create(baseName, isPublic,genericParams,newArgs,newElements,declaredAt):this;
         }
 
-        //TODO don't allow assigning/casting anonymous tuples to structs
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
-            if(t instanceof Tuple&&((Tuple) t).elementCount()<=elementCount()){
+            if(t.getClass()==Tuple.class&&((Tuple) t).elementCount()<=elementCount()){
                 for(int i=0;i<((Tuple) t).elements.length;i++){
                     if(!elements[i].canAssignTo(((Tuple) t).elements[i],bounds)){
                         return false;
@@ -404,7 +403,7 @@ public class Type {
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
             if (this == t) return true;
-            if (t.getClass()!=Tuple.class) return false;
+            if (t.getClass()!=getClass()) return false;
             Tuple tuple=(Tuple)t;
             if(tuple.elements.length!=elements.length)
                 return false;
@@ -446,28 +445,30 @@ public class Type {
     public static class Struct extends Tuple{
         final String[] fieldNames;
         final HashMap<String,Integer> fields;
+        final Struct extended;
 
-        static Struct create(String name,boolean isPublic,Type[] types,String[] fieldNames,FilePosition declaredAt){
+        static Struct create(String name,boolean isPublic,Struct extended,Type[] types,String[] fieldNames,FilePosition declaredAt){
             if(fieldNames.length!=types.length){
                 throw new IllegalArgumentException("fieldNames and types have to have the same length");
             }
-            return new Struct(name,name,isPublic,new GenericParameter[0],new Type[0],
-                    types,fieldNames,declaredAt);
+            return new Struct(name, name, isPublic, extended, new GenericParameter[0], new Type[0],
+                    types, fieldNames, declaredAt);
         }
-        public static Struct create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
+        public static Struct create(String name,boolean isPublic,Struct extended,GenericParameter[] genericParams,Type[] genericArgs,
                                    Type[] elements,String[] fieldNames, FilePosition declaredAt) {
             if(fieldNames.length!=elements.length){
                 throw new IllegalArgumentException("fieldNames and types have to have the same length");
             }
             String fullName = Tuple.processGenericArguments(name,genericParams, genericArgs, elements);
-            return new Struct(fullName,name,isPublic,genericParams, genericArgs,elements,fieldNames,declaredAt);
+            return new Struct(fullName, name, isPublic, extended, genericParams, genericArgs, elements, fieldNames, declaredAt);
         }
 
-        private Struct(String name,String baseName, boolean isPublic,
-                       GenericParameter[] genericParams,Type[] genArgs,
+        private Struct(String name, String baseName, boolean isPublic, Struct extended,
+                       GenericParameter[] genericParams, Type[] genArgs,
                        Type[] elements, String[] fieldNames, FilePosition declaredAt) {
             super(name,baseName,isPublic,genericParams,genArgs,elements, declaredAt);
             this.fieldNames = fieldNames;
+            this.extended = extended;
             fields=new HashMap<>();
             for(int i=0;i<fieldNames.length;i++){
                 fields.put(fieldNames[i],i);
@@ -482,6 +483,24 @@ public class Type {
         @Override
         public Interpreter.DeclareableType declarableType() {
             return Interpreter.DeclareableType.STRUCT;
+        }
+
+        @Override
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            if(!(t instanceof Struct))
+                return false;
+            return baseName.equals(((Struct)t).baseName)&&Objects.equals(extended,((Struct) t).extended)&&
+                    super.equals(t, generics);
+        }
+
+        @Override
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
+            return super.canAssignTo(t, bounds)||
+                    (t instanceof Struct&&extended!=null&&extended.canAssignTo(t));
+        }
+        @Override
+        protected boolean canCastTo(Type t, BoundMaps bounds) {
+            return canAssignTo(t, bounds)||t.canAssignTo(this,bounds.swapped());
         }
     }
 

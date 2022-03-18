@@ -645,6 +645,7 @@ public class Interpreter {
         final boolean isPublic;
         final GenericContext context;
         final ArrayList<StructField> fields=new ArrayList<>();
+        Type.Struct extended;
 
         StructBlock(String name,boolean isPublic,int start, FilePosition startPos, VariableContext parentContext) {
             super(start, BlockType.STRUCT, startPos, parentContext);
@@ -891,7 +892,7 @@ public class Interpreter {
             return DeclareableType.GENERIC_TUPLE;
         }
     }
-    private record GenericStruct(String name,boolean isPublic,Type.GenericParameter[] params,
+    private record GenericStruct(String name,boolean isPublic,Type.Struct extended,Type.GenericParameter[] params,
                                 Type[] types,String[] fieldNames,
                                 FilePosition declaredAt) implements NamedDeclareable {
         @Override
@@ -1755,8 +1756,10 @@ public class Interpreter {
                     if(!(block instanceof StructBlock)){
                         throw new SyntaxError("'"+str+"' can only be used in struct blocks",pos);
                     }
-                    if(((StructBlock) block).fields.size()>0){//addLater better error message
-                        throw new SyntaxError("unexpected '"+str+"' statement",pos);
+                    if(((StructBlock) block).extended!=null){
+                        throw new SyntaxError("structs can only contain one '"+str+"' statement",pos);
+                    }else if(((StructBlock) block).fields.size()>0){
+                        throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
                     }
                     List<Token> subList = tokens.subList(block.start, tokens.size());
                     TypeCheckResult r=typeCheck(subList,pState.getContext(),pState.globalVariables,
@@ -1765,11 +1768,12 @@ public class Interpreter {
                     if(r.types.size()!=1||r.types.get(1).type!=Type.TYPE||r.types.get(1).value==null){
                         throw new SyntaxError("value before '"+str+"' has to be one constant type",pos);
                     }
-                    try {//TODO remember extended struct
+                    try {
                         Type extended=r.types.get(1).value.asType();
                         if(!(extended instanceof Type.Struct)){
                             throw new SyntaxError("extended type has to be a struct got: "+extended,pos);
                         }
+                        ((StructBlock) block).extended=(Type.Struct) extended;
                         for(int i=0;i<((Type.Struct) extended).elements.length;i++){
                             ((StructBlock) block).fields.add(new StructField(((Type.Struct) extended).fieldNames[i],
                                     ((Type.Struct) extended).elements[i]));
@@ -2005,12 +2009,12 @@ public class Interpreter {
                             }
                             if(generics.size()>0){
                                 GenericStruct struct=new GenericStruct(((StructBlock) block).name,((StructBlock) block).isPublic,
-                                        generics.toArray(Type.GenericParameter[]::new),
+                                        ((StructBlock) block).extended,generics.toArray(Type.GenericParameter[]::new),
                                         types,fieldNames,block.startPos);
                                 pState.rootContext.declareNamedDeclareable(struct,ioContext);
                             }else{
                                 Type.Struct struct=Type.Struct.create(((StructBlock) block).name, ((StructBlock) block).isPublic,
-                                        types,fieldNames,block.startPos);
+                                        ((StructBlock) block).extended,types,fieldNames,block.startPos);
                                 pState.rootContext.declareNamedDeclareable(struct,ioContext);
                             }
                         }
@@ -3232,7 +3236,7 @@ public class Interpreter {
                         String structName=g.name;
                         Type[] genArgs = new Type[g.params.length];
                         getArguments(structName, genArgs, typeStack, ret, t.pos);
-                        Value structValue = Value.ofType(Type.Struct.create(g.name,g.isPublic,g.params.clone(), genArgs,
+                        Value structValue = Value.ofType(Type.Struct.create(g.name,g.isPublic,g.extended,g.params.clone(), genArgs,
                                 g.types.clone(),g.fieldNames.clone(), g.declaredAt));
                         typeStack.push(new TypeFrame(Type.TYPE,structValue,identifier.pos));
                         ret.add(new ValueToken(structValue,identifier.pos, false));
