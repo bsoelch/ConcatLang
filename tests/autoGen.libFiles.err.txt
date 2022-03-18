@@ -8,6 +8,7 @@ iterator:
 lists:
 math:
 numbers:
+range:
 stack:
 utf8:
 valueIO:

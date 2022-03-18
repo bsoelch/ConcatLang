@@ -9,6 +9,7 @@ iterator #include
 lists #include
 math #include
 numbers #include
+range #include
 stack #include
 utf8 #include
 valueIO #include

@@ -1,0 +1,82 @@
+lib/range :
+
+core #namespace
+stack #include
+
+intRange struct{
+  int :off
+  int :step
+  int :to
+}
+
+[n] public proc( int => intRange ){
+  n =::
+  n 0 > if{
+    0 1 n intRange new return
+  else
+    n 1 0 intRange new return
+  }
+}
+[n:m] public proc( int int => intRange ){
+  m =::
+  n =::
+  n 1 m intRange new return
+}
+[n:k:m] public proc( int int int => intRange ){
+  m =::
+  k =::
+  n =::
+  n k m intRange new return
+}
+
+^> public proc( intRange => intRange int optional ){
+  prev =::
+  prev .step 0 < if{
+    prev .off prev .to > if{
+      prev .off prev .step + next =::
+      next prev .step prev .to [n:k:m]   prev .off wrap return
+    }
+  else
+    prev .off prev .to < if{
+      prev .off prev .step + next =::
+      next prev .step prev .to [n:k:m]   prev .off wrap return
+    }
+  }
+  prev int empty return
+}
+
+filteredRange struct{
+  intRange             :base
+  ( int => bool ) list :filters
+}
+
+filter public proc( intRange ( int => bool ) => filteredRange ){
+  f =::
+  #+range+# { f } filteredRange new return
+}
+filter public proc( filteredRange ( int => bool ) => filteredRange ){
+  f =::
+  range =::
+  range .base  range .filters { f } *>> filteredRange new return
+}
+
+^> public proc( filteredRange => filteredRange int optional ){
+  prev =::
+  false match =::
+  prev .base while{ ^> do val =::
+    true match =
+    0 while{ dup prev .filters .length < do
+       val prev .filters 3 $dup [] () ! if{
+          false match =
+       }
+       1 +
+    } drop
+    match if{
+      #+newBase+# prev .filters filteredRange new val wrap return
+    }
+  }
+  #+newBase+# prev .filters filteredRange new int empty return
+}
+
+
+#end

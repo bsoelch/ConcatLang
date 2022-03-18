@@ -38,6 +38,10 @@ numbers:
 
 Stack:
 []
+range:
+
+Stack:
+[]
 stack:
 
 Stack:
