@@ -290,9 +290,9 @@ stringToInt public proc( #+source+# string #+base+# int #+signed+# bool => #+val
   else source 0 [] '+' == if
     1 i =
   }
-  signed if{ int_MAX uint cast else uint_MAX } base uint cast / int max =:
+  signed if{ int_MAX uint cast else uint_MAX } base uint cast / int maxVal =:
   while{ i source .length < do
-    res max > if{
+    res maxVal > if{
       res  sgn if{ -_ } StringParseError .ERR_OVERFLOW return
     }
     source i [] base valueOfDigit int tmp =:
@@ -382,7 +382,7 @@ stringToFloat public proc( #+str+# string #+base+# int => #+val+# float #+err-co
   0  int c =:
   0  int d =:
   -1 int e =:
-  1 53 << int max =: ## maximum precision of ieee float64
+  1 53 << int maxVal =: ## maximum precision of ieee float64
   while{ i str .length < do
     str i [] '.' == if{ ## str[i] == '.'
       d 0 != if{
@@ -397,7 +397,7 @@ stringToFloat public proc( #+str+# string #+base+# int => #+val+# float #+err-co
       tmp 0 < if{
         0.0 StringParseError .ERR_ILLEGAL_CHAR return
       }
-      val max < if{
+      val maxVal < if{
         val base * tmp + val =
         c d + c =
       else

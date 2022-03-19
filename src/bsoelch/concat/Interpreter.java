@@ -551,7 +551,12 @@ public class Interpreter {
                                 " contains a unreachable default statement",defaultStart);
                     }
                 }else if(blockJumps.size()<((Type.Enum) switchType).elementCount()){
-                    //addLater print missing cases
+                    ioContext.stdErr.println("missing cases in enum switch-case:");
+                    for(int i=0;i<((Type.Enum) switchType).elementCount();i++){
+                        if(!blockJumps.containsKey(((Type.Enum) switchType).entries[i])){
+                            ioContext.stdErr.println(" - "+((Type.Enum) switchType).entryNames[i]);
+                        }
+                    }
                     throw new SyntaxError("enum switch-case does not cover all cases",pos);
                 }
             }
@@ -1273,8 +1278,8 @@ public class Interpreter {
             putElement(name, generic);
             Declareable shadowed = parent.getDeclareable(name);
             if (shadowed != null) {//check for shadowing
-                ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
-                        "\n     shadows existing " + declarableName(shadowed.declarableType(),false)
+                ioContext.stdErr.println("Warning: "+declarableName(generic.declarableType(),false)+" " + name +
+                        " declared at " + pos +"\n     shadows existing " + declarableName(shadowed.declarableType(),false)
                         + " declared at "  + shadowed.declaredAt());
             }
         }

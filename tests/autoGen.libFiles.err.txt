@@ -10,5 +10,6 @@ math:
 numbers:
 range:
 stack:
+strings:
 utf8:
 valueIO:

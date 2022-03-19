@@ -2028,13 +2028,13 @@ public abstract class Value {
                 return new Value[]{ofFloat(values[0].asDouble()+values[1].asDouble())};
             }
         });
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"-") {
+        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"-") {
             @Override
             Value[] callWith(Value[] values) throws ConcatRuntimeError {
                 return new Value[]{ofInt(values[0].asLong()-values[1].asLong(),true)};
             }
         });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"-") {
+        procs.add(new InternalProcedure(new Type[]{integer,integer},new Type[]{Type.INT},"-") {
             @Override
             Value[] callWith(Value[] values) throws ConcatRuntimeError {
                 return new Value[]{ofInt(values[0].asLong()-values[1].asLong(),false)};

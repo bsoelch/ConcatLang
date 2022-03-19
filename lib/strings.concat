@@ -1,0 +1,100 @@
+lib/strings :
+
+core #namespace
+stack #include
+codeblocks #include
+math #include
+## TODO replace string with generic list once there are restricted generics
+cmp public proc( string string => int ){
+  b =::
+  a =::
+  a .length b .length min l =::
+  0 while{ dup l < do
+    a over [] b 2over [] - c =::
+    c 0 != if{ drop
+      c return
+    }
+    1 +
+  } drop
+  a .length b .length - int cast return
+}
+
+>  public proc( string string => bool ){ cmp 0 >  }
+<  public proc( string string => bool ){ cmp 0 <  }
+>= public proc( string string => bool ){ cmp 0 >= }
+<= public proc( string string => bool ){ cmp 0 <= }
+== public proc( string string => bool ){ cmp 0 == }
+!= public proc( string string => bool ){ cmp 0 != }
+
+startsWith public proc( A <?> A list A list => bool ){
+  b =::
+  a =::
+  a .length b .length < if{ false return }
+  0 while{ dup b .length < do
+    a over [] b 2over [] != if{ drop
+      false return
+    }
+    1 +
+  } drop
+  true return
+}
+endsWith public proc( A <?> A list A list => bool ){
+  b =::
+  a =::
+  a .length b .length - int off =:
+  off 0 < if{ false return }
+  0 while{ dup b .length < do
+    a over off + [] b 2over [] != if{ drop
+      false return
+    }
+    1 +
+  } drop
+  true return
+}
+indexOf public proc( A <?> A list A list => int ){
+  b =::
+  a =::
+  a .length b .length - int iMax =:
+  0 i =::
+  false match =::
+  while{ i iMax <= do
+    0 j =::
+    true match =
+    while{ match &&{ j b .length < } do
+      a i j + [] b j [] != if{
+        false match =
+      }
+      j 1 + j =
+    }
+    match if{
+      i return
+    }
+    i 1 + i =
+  }
+  -1 return
+}
+contains public proc( A <?> A list A list => bool ){ indexOf 0 >= }
+lastIndexOf public proc( A <?> A list A list => int ){
+  b =::
+  a =::
+  a .length b .length - int iMax =:
+  iMax i =::
+  false match =::
+  while{ i 0 >= do
+    0 j =::
+    true match =
+    while{ match &&{ j b .length < } do
+      a i j + [] b j [] != if{
+        false match =
+      }
+      j 1 + j =
+    }
+    match if{
+      i return
+    }
+    i 1 - i =
+  }
+  -1 return
+}
+
+#end

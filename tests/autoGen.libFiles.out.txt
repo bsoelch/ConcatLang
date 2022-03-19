@@ -46,6 +46,10 @@ stack:
 
 Stack:
 []
+strings:
+
+Stack:
+[]
 utf8:
 
 Stack:

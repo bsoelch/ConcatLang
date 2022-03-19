@@ -23,3 +23,14 @@ floatToBytes public native proc( float => byte list );
 bytesToFloat public native proc( byte list => float );
 
 #end
+
+core #namespace
+
+min public proc( int int => int ){
+  a =:: b =:: a b < if{ a else b }
+}
+max public proc( int int => int ){
+  a =:: b =:: a b > if{ a else b }
+}
+
+#end
