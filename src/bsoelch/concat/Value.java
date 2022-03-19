@@ -1541,6 +1541,7 @@ public abstract class Value {
                                             FilePosition endPos, Interpreter.ProcedureContext variableContext) {
         return new Procedure(name, isPublic, procType, tokens, null, new IdentityHashMap<>(), variableContext, declaredAt, endPos);
     }
+    enum TypeCheckState{UNCHECKED,CHECKING,CHECKED}
     static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Callable {
         final String name;
         final boolean isPublic;
@@ -1550,6 +1551,7 @@ public abstract class Value {
 
         final Interpreter.ProcedureContext context;
         ArrayList<Interpreter.Token> tokens;//not final, to make two-step compilation easier
+        TypeCheckState state=TypeCheckState.UNCHECKED;
 
         final Value[] curriedArgs;
         final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
@@ -1575,8 +1577,9 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type instanceof Type.Procedure){
+            if(type instanceof Type.Procedure){//FIXME check if casting is allowed
                 //TODO update generics
+                //TODO pass type-check state to child
                 return new Procedure(name, isPublic, type, tokens, curriedArgs, genericArgs, context, declaredAt, endPos);
             }
             return super.castTo(type);
@@ -1588,11 +1591,13 @@ public abstract class Value {
         }
 
         Value.Procedure withCurried(Value[] curried){
+            //TODO pass type-check state to child
             return new Procedure(name, isPublic, type, tokens, curried, genericArgs, context, declaredAt, endPos);
         }
         Value.Procedure withTypeArgs(IdentityHashMap<Type.GenericParameter,Type> update){
             IdentityHashMap<Type.GenericParameter, Type> newArgs = Type.mergeArgs(genericArgs, update);
             //TODO update types of curried arguments
+            //TODO pass type-check state to child
             return new Procedure(name, isPublic, type.replaceGenerics(update), tokens, curriedArgs, newArgs, context, declaredAt, endPos);
         }
 
@@ -1610,6 +1615,9 @@ public abstract class Value {
 
         @Override
         public ArrayList<Interpreter.Token> tokens() {
+            if(state!=TypeCheckState.CHECKED){
+                throw new RuntimeException("tokens() of Procedure should only be called after type checking");
+            }
             return tokens;
         }
 
