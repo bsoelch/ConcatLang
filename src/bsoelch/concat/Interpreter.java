@@ -619,11 +619,7 @@ public class Interpreter {
         final VariableContext context;
         ListBlock(int start, BlockType type, FilePosition startPos, VariableContext parentContext) {
             super(start, type, startPos, parentContext);
-            if(type==BlockType.ANONYMOUS_TUPLE){
-                this.context=new GenericContext(parentContext, true);
-            }else{
-                this.context=parentContext;
-            }
+            this.context=new BlockContext(parentContext);
         }
         @Override
         VariableContext context() {
@@ -632,12 +628,12 @@ public class Interpreter {
     }
     private static class ProcTypeBlock extends CodeBlock{
         final int separatorPos;
-        final GenericContext context;
+        final BlockContext context;
         ProcTypeBlock(ListBlock start,int separatorPos) {
             super(start.start,BlockType.PROC_TYPE,start.startPos, start.parentContext);
             this.separatorPos=separatorPos;
             assert start.type==BlockType.ANONYMOUS_TUPLE;
-            context=(GenericContext)start.context;
+            context=(BlockContext)start.context;
         }
         @Override
         VariableContext context() {
@@ -1826,7 +1822,6 @@ public class Interpreter {
                     }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
                         pState.openBlocks.removeLast();
                         pState.openBlocks.addLast(new ProcTypeBlock((ListBlock)block,tokens.size()));
-                        ((GenericContext)((ListBlock) block).context).lock();
                     }else{
                         throw new SyntaxError("'"+str+"' can only be used in proc- or proc-type blocks ",pos);
                     }
@@ -2054,7 +2049,6 @@ public class Interpreter {
                         throw new RuntimeException("openedContexts is out of sync with openBlocks");
                     }
                     if(open.type==BlockType.PROC_TYPE){
-                        ((GenericContext)open.context()).unbind();
                         List<Token> subList=tokens.subList(open.start, ((ProcTypeBlock)open).separatorPos);
                         Type[] inTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
@@ -2065,22 +2059,14 @@ public class Interpreter {
                                         new RandomAccessStack<>(8),null,pos,ioContext).tokens,false);
                         subList=tokens.subList(open.start,tokens.size());
                         subList.clear();
-                        ArrayList<Type.GenericParameter> generics=((GenericContext)open.context()).generics;
-                        Type.Procedure procType=(generics.size()>0)?
-                                Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),inTypes,outTypes):
-                                Type.Procedure.create(inTypes,outTypes);
+                        Type.Procedure procType=Type.Procedure.create(inTypes,outTypes);
                         tokens.add(new ValueToken(Value.ofType(procType),pos,false));
                     }else if(open.type==BlockType.ANONYMOUS_TUPLE){
-                        ((GenericContext)open.context()).unbind();
                         List<Token> subList=tokens.subList(open.start, tokens.size());
                         Type[] tupleTypes=ProcedureBlock.getSignature(
                                 typeCheck(subList,open.context(),pState.globalVariables,
                                         new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
                         subList.clear();
-                        if(((GenericContext)open.context()).generics.size()>0){
-                            throw new SyntaxError("generic parameters are not allowed in anonymous tuples",
-                                    ((GenericContext)open.context()).generics.get(0).declaredAt);
-                        }
                         tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(null, false, tupleTypes,pos)),
                                 pos,false));
                     }else /*if(open.type==BlockType.UNION)*/{
