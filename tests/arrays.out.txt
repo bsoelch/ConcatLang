@@ -19,6 +19,8 @@ TestA
 [5, 4, 3, 2, 1]
 [1, 3, 4, 2]
 [comparator, supported, sorting, with, now, is]
+[1, 4, 9, 16, 25]
+[1, 3, 5]
 
 Stack:
 []

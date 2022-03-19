@@ -1,8 +1,7 @@
 lib/lists :
 
-lists #namespace
+core #namespace
 codeblocks #include
-core #import
 
 ## TODO binary search
 
@@ -114,4 +113,29 @@ generic_mergesort public proc( A <?> A list ( A A => int ) => ){
   generic_mergesort_helper
 }
 
-#end ## lists
+map public proc( A <?> B <?> A list ( A => B ) => B list ){
+  f =::
+  l =::
+  l .length B list new res =::
+  0 i =::
+  res while{ i l .length < do
+    l i [] f () <<
+    i 1 + i =
+  }
+  #+res+# return
+}
+filter public proc( A <?> A list ( A => bool ) => A list ){
+  f =::
+  l =::
+  l .length A list new res =::
+  0 i =::
+  res while{ i l .length < do
+    l i [] f () if{
+      l i [] <<
+    }
+    i 1 + i =
+  }
+  #+res+# return
+}
+
+#end ## core
