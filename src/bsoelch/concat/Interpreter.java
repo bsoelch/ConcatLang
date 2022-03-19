@@ -903,7 +903,6 @@ public class Interpreter {
     }
 
     static abstract class VariableContext{
-        private final HashMap<String,Declareable> elements =new HashMap<>();
         int variables=0;
 
         public int varCount() {
@@ -913,15 +912,9 @@ public class Interpreter {
          * @param merge if true all procedures of the given name will be merged
          *             the returned value should not be modified if merge is true
         * */
-        protected Declareable getElement(String name,boolean merge){
-            return elements.get(name);
-        }
-        protected boolean containsElement(String name){
-            return elements.containsKey(name);
-        }
-        protected Declareable putElement(String name,Declareable val){
-            return elements.put(name,val);
-        }
+        protected abstract Declareable getElement(String name,boolean merge);
+        protected abstract boolean containsElement(String name);
+        protected abstract Declareable putElement(String name,Declareable val);
 
         void ensureDeclareable(String name, DeclareableType type, FilePosition pos) throws SyntaxError {
             Declareable prev= getElement(name,false);
@@ -931,9 +924,13 @@ public class Interpreter {
                         + " (declared at " + prev.declaredAt() + ")",pos);
             }
         }
+
+        int nextVarId() {
+            return variables++;
+        }
         VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
             ensureDeclareable(name,isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE,pos);
-            VariableId id = new VariableId(this,level(), variables++, type,isConstant, isPublic, pos);
+            VariableId id = new VariableId(this,level(), nextVarId(), type,isConstant, isPublic, pos);
             putElement(name, id);
             return id;
         }
@@ -983,105 +980,15 @@ public class Interpreter {
         abstract int level();
     }
 
-    record NamespaceBlock(String[] path, ArrayList<String> imports, FilePosition declaredAt){
-        @Override
-        public String toString() {
-            return Arrays.toString(path) +" declaredAt " + declaredAt;
-        }
-    }
-    /**File specific part of namespace parsing*/
-    private static class FileContext{
-        final ArrayList<String> globalImports=new ArrayList<>();
-        final ArrayList<NamespaceBlock> openNamespaces =new ArrayList<>();
-        final HashMap<String,Declareable> localDeclareables =new HashMap<>();
-    }
-    private static class RootContext extends VariableContext{//FIXME child contexts have to remember the state root context was in when they were created
-        RootContext() throws SyntaxError {
-            for(Value.InternalProcedure proc:Value.internalProcedures()){
-                Declareable prev=getElement(proc.name,false);
-                if(prev==null){
-                    putElement(proc.name,proc);
-                }else if(prev instanceof Callable){
-                    OverloadedProcedure overload=new OverloadedProcedure((Callable)prev);
-                    overload.addProcedure(proc,false);
-                    putElement(proc.name,overload);
-                }else if(prev instanceof OverloadedProcedure overload){
-                    overload.addProcedure(proc,false);
-                }else{
-                    throw new UnsupportedOperationException("multiple declarations of internal constant "+proc.name+":\n"
-                            +prev+", "+proc);
-                }
-            }
-        }
-        HashSet<String> namespaces=new HashSet<>();
-        ArrayDeque<FileContext> openFiles=new ArrayDeque<>();
+    private static abstract  class TopLevelContext extends VariableContext{
+        final ArrayList<String> imports=new ArrayList<>();
 
-        @Override
-        protected Declareable getElement(String name,boolean merge){
-            FileContext file=file();
-            if(file!=null){
-                Declareable d=file.localDeclareables.get(name);
-                if(d!=null){
-                    if(merge&&isCallable(d.declarableType())){
-                        return merge(d,super.getElement(name,true));
-                    }
-                    return d;
-                }
-            }
-            return super.getElement(name,true);
-        }
-        @Override
-        protected boolean containsElement(String name){
-            FileContext file=file();
-            if(file!=null&&file.localDeclareables.containsKey(name)){
-                return true;
-            }
-            return super.containsElement(name);
-        }
-        @Override
-        protected Declareable putElement(String name,Declareable val){
-            FileContext file=file();
-            if(file!=null&&!val.isPublic()){
-                return file.localDeclareables.put(name, val);
-            }
-            return super.putElement(name,val);
-        }
+        abstract RootContext root();
 
-        private FileContext file(){
-            return openFiles.peekLast();
-        }
-        void startFile(){
-            openFiles.addLast(new FileContext());
-        }
-        void startNamespace(String namespaceName, FilePosition declaredAt) throws SyntaxError {
-            Declareable d=getElement(inCurrentNamespace(namespaceName),false);
-            if(d!=null){
-                throw new SyntaxError("cannot declare namespace "+namespaceName+
-                        ", the identifier is already used by " + declarableName(d.declarableType(), true)
-                        + " (declared at " + d.declaredAt() + ")",declaredAt);
-            }
-            StringBuilder fullPath=new StringBuilder();
-            for(NamespaceBlock m:file().openNamespaces){
-                for(String s:m.path){
-                    fullPath.append(s).append(NAMESPACE_SEPARATOR);
-                }
-            }
-            String[] path = namespaceName.split(NAMESPACE_SEPARATOR);
-            for(String s:path){
-                fullPath.append(s);
-                namespaces.add(fullPath.toString());
-                fullPath.append(NAMESPACE_SEPARATOR);
-            }
-            file().openNamespaces.add(new NamespaceBlock(path,new ArrayList<>(),declaredAt));
-        }
         void addImport(String path,FilePosition pos) throws SyntaxError {
-            if(namespaces.contains(path)){
+            if(namespaces().contains(path)){
                 path+=NAMESPACE_SEPARATOR;
-                if(file().openNamespaces.size()>0){
-                    file().openNamespaces.get(file().openNamespaces.size()-1).imports.add(path);
-                }else{
-                    file().globalImports.add(path);
-                }
+                imports.add(path);
             }else if(containsElement(path)){
                 //addLater static imports
                 throw new UnsupportedOperationException("static imports are currently unimplemented");
@@ -1089,59 +996,27 @@ public class Interpreter {
                 throw new SyntaxError("namespace "+path+" does not exist",pos);
             }
         }
-        void endNamespace(FilePosition pos) throws SyntaxError {
-            if(file().openNamespaces.isEmpty()){
-                throw new SyntaxError("Unexpected End of namespace",pos);
-            }
-            file().openNamespaces.remove(file().openNamespaces.size() - 1);
-        }
-        void endFile(IOContext context){
-            FileContext ctx=openFiles.removeLast();
-            if(ctx.openNamespaces.size()>0) {
-                context.stdErr.println("unclosed namespaces at end of File:");
-                while(ctx.openNamespaces.size()>0){
-                    NamespaceBlock removed=ctx.openNamespaces.remove(ctx.openNamespaces.size()-1);
-                    context.stdErr.println(" - "+removed);
-                }
-            }
-        }
-        private String inCurrentNamespace(String name){
-            if(file().openNamespaces.size()>0){
-                StringBuilder path=new StringBuilder();
-                for(NamespaceBlock b:file().openNamespaces){
-                    for(String s:b.path){
-                        path.append(s).append(NAMESPACE_SEPARATOR);
-                    }
-                }
-                return path.append(name).toString();
-            }
-            return name;
-        }
-        private ArrayDeque<String> currentPaths() {
-            ArrayDeque<String> paths = new ArrayDeque<>(file().globalImports);
-            StringBuilder path=new StringBuilder();
-            for(NamespaceBlock m:file().openNamespaces){
-                for(String s:m.path){
-                    path.append(s).append(NAMESPACE_SEPARATOR);
-                    paths.add(path.toString());
-                }
-                String top=paths.removeLast();
-                paths.addAll(m.imports);
-                paths.add(top);//push imports below top path
-            }
-            return paths;
+
+        HashSet<String> namespaces() {
+            return root().namespaces;
         }
 
+        abstract String namespace();
+
         Declareable getDeclareable(String name){
-            Declareable d=null;
-            ArrayDeque<String> paths = currentPaths();
-            while(paths.size()>0){//go through all namespaces
-                d=merge(d,getElement(paths.removeLast()+name,true));
+            Declareable d=getElement(name,true);
+            ArrayDeque<String> paths = new ArrayDeque<>(imports);
+            while(paths.size()>0){//check all imports
+                d=merge(d,root().getElement(paths.removeLast()+name,true));
                 if(d!=null&&!isCallable(d.declarableType())){
                     return d;
                 }
             }
-            return merge(d,getElement(name,true));
+            if(this instanceof NamespaceContext){//check parent namespace (if existent)
+                return merge(d, ((NamespaceContext) this).parent.getDeclareable(name));
+            }else{
+                return d;
+            }
         }
         void checkShadowed(DeclareableType declaredType,String name,FilePosition pos,IOContext ioContext){
             Declareable shadowed = getDeclareable(name);
@@ -1153,26 +1028,26 @@ public class Interpreter {
         }
 
         void declareProcedure(Callable proc,IOContext ioContext) throws SyntaxError {
-            String localName= inCurrentNamespace(proc.name());
-            ensureDeclareable(localName,proc.declarableType(),proc.declaredAt());
+            String name= proc.name();
+            ensureDeclareable(name,proc.declarableType(),proc.declaredAt());
             checkShadowed(proc.declarableType(),proc.name(),proc.declaredAt(),ioContext);
-            Declareable prev = getElement(localName,false);
+            Declareable prev = getElement(name,false);
             if(prev instanceof Callable){
                 if(prev.isPublic() == proc.isPublic()){
                     OverloadedProcedure overloaded=new OverloadedProcedure((Callable)prev);
                     overloaded.addProcedure(proc,false);
-                    putElement(localName,overloaded);
+                    putElement(name,overloaded);
                 }else{
-                    putElement(localName,proc);
+                    putElement(name,proc);
                 }
             }else if(prev instanceof OverloadedProcedure overloaded){
                 if(prev.isPublic() == proc.isPublic()) {
                     overloaded.addProcedure(proc, false);
                 }else{
-                    putElement(localName,proc);
+                    putElement(name,proc);
                 }
             }else if(prev==null){
-                putElement(localName,proc);
+                putElement(name,proc);
             }else{
                 throw new RuntimeException("this path should be covered be ensureDeclareable");
             }
@@ -1184,17 +1059,19 @@ public class Interpreter {
             declareNamedDeclareable(anEnum,ioContext);
         }
         void declareNamedDeclareable(NamedDeclareable declareable, IOContext ioContext) throws SyntaxError {
-            String localName= inCurrentNamespace(declareable.name());
-            ensureDeclareable(localName,declareable.declarableType(),declareable.declaredAt());
+            String name= declareable.name();
+            ensureDeclareable(name,declareable.declarableType(),declareable.declaredAt());
             checkShadowed(declareable.declarableType(),declareable.name(),declareable.declaredAt(),ioContext);
-            putElement(localName,declareable);
+            putElement(name,declareable);
         }
 
         @Override
+        int nextVarId() {
+            return this instanceof RootContext?super.nextVarId():root().nextVarId();//declare variables in root
+        }
+        @Override
         VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
-            String name0=name;
-            name= inCurrentNamespace(name);
-            checkShadowed(isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE,name0,pos,ioContext);
+            checkShadowed(isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE,name,pos,ioContext);
             return super.declareVariable(name, type, isConstant, isPublic, pos,ioContext);
         }
         @Override
@@ -1213,13 +1090,142 @@ public class Interpreter {
             return 0;
         }
     }
+    private static class RootContext extends TopLevelContext{
+        private final HashMap<String,Declareable> elements =new HashMap<>();
+        HashSet<String> namespaces=new HashSet<>();
+
+        RootContext() throws SyntaxError {
+            for(Value.InternalProcedure proc:Value.internalProcedures()){
+                Declareable prev=getElement(proc.name,false);
+                if(prev==null){
+                    putElement(proc.name,proc);
+                }else if(prev instanceof Callable){
+                    OverloadedProcedure overload=new OverloadedProcedure((Callable)prev);
+                    overload.addProcedure(proc,false);
+                    putElement(proc.name,overload);
+                }else if(prev instanceof OverloadedProcedure overload){
+                    overload.addProcedure(proc,false);
+                }else{
+                    throw new UnsupportedOperationException("multiple declarations of internal constant "+proc.name+":\n"
+                            +prev+", "+proc);
+                }
+            }
+        }
+        @Override
+        RootContext root() {
+            return this;
+        }
+        @Override
+        protected Declareable getElement(String name,boolean merge){
+            return elements.get(name);
+        }
+        @Override
+        protected boolean containsElement(String name){
+            return elements.containsKey(name);
+        }
+        @Override
+        protected Declareable putElement(String name,Declareable val){
+            return elements.put(name,val);
+        }
+
+        @Override
+        String namespace() {
+            return "";
+        }
+    }
+    private static class FileContext extends TopLevelContext{
+        final RootContext root;
+        final HashMap<String,Declareable> localDeclareables =new HashMap<>();
+        FileContext(RootContext root) {
+            this.root = root;
+        }
+        @Override
+        RootContext root() {
+            return root;
+        }
+        @Override
+        protected Declareable getElement(String name, boolean merge) {
+            Declareable d=localDeclareables.get(name);
+            if(d!=null){
+                if(merge&&isCallable(d.declarableType())){
+                    return merge(d,root.getElement(name,true));
+                }
+                return d;
+            }
+            return root.getElement(name, merge);
+        }
+        @Override
+        protected boolean containsElement(String name) {
+            return localDeclareables.containsKey(name)||root.containsElement(name);
+        }
+        @Override
+        protected Declareable putElement(String name, Declareable val) {
+            if(!val.isPublic()){
+                return localDeclareables.put(name, val);
+            }
+            return root.putElement(name,val);
+        }
+        @Override
+        String namespace() {
+            return "";
+        }
+    }
+    private static class NamespaceContext extends TopLevelContext{
+        final TopLevelContext parent;
+        final String prefix;
+        NamespaceContext(String namespace,TopLevelContext parent) {
+            this.parent = parent;
+            this.prefix = namespace+NAMESPACE_SEPARATOR;
+
+            if(parent.namespace().length()>0){//add namespace path to namespaces
+                root().namespaces.add(parent.namespace()+NAMESPACE_SEPARATOR+namespace);
+            }else{
+                root().namespaces.add(namespace);
+            }
+        }
+        @Override
+        RootContext root() {
+            return parent.root();
+        }
+        @Override
+        protected Declareable getElement(String name, boolean merge) {
+            return parent.getElement(prefix+name,merge);
+        }
+        @Override
+        protected boolean containsElement(String name) {
+            return parent.containsElement(prefix+name);
+        }
+        @Override
+        protected Declareable putElement(String name, Declareable val) {
+            return parent.putElement(prefix+name,val);
+        }
+        @Override
+        String namespace() {
+            return parent.namespace()+prefix;
+        }
+    }
     private static class BlockContext extends VariableContext {
+        private final HashMap<String,Declareable> elements =new HashMap<>();
         final VariableContext parent;
 
         public BlockContext(VariableContext parent) {
             this.parent = parent;
             assert parent!=null;
         }
+
+        @Override
+        protected Declareable getElement(String name,boolean merge){
+            return elements.get(name);
+        }
+        @Override
+        protected boolean containsElement(String name){
+            return elements.containsKey(name);
+        }
+        @Override
+        protected Declareable putElement(String name,Declareable val){
+            return elements.put(name,val);
+        }
+
         @Override
         VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
             VariableId id = super.declareVariable(name, type, isConstant, isPublic, pos,ioContext);
@@ -1313,7 +1319,7 @@ public class Interpreter {
                 id=parent.wrapCurried(name, id, pos);//curry through parent
                 if(!id.isConstant){
                     throw new SyntaxError("external variable "+name+" is not constant",pos);
-                }else if(!(id.context instanceof RootContext)){
+                }else if(!(id.context instanceof TopLevelContext)){
                     id=new CurriedVariable(id,this, curried.size(), pos);
                     curried.add((CurriedVariable)id);//curry variable
                     putElement(name,id);//add curried variable to variable list
@@ -1389,6 +1395,8 @@ public class Interpreter {
 
         int openBlocks2=0;//number of opened blocks that will be processed in the next step
         final RootContext rootContext;
+        final ArrayDeque<TopLevelContext> openedFiles=new ArrayDeque<>();
+        private TopLevelContext topLevelContext;
         final HashSet<String> files=new HashSet<>();
         public HashMap<VariableId, Value> globalConstants =new HashMap<>();
         //proc-contexts that are currently open
@@ -1400,9 +1408,12 @@ public class Interpreter {
             this.rootContext = rootContext;
         }
 
+        TopLevelContext topLevelContext(){
+            return topLevelContext==null?rootContext:topLevelContext;
+        }
         VariableContext getContext(){
             VariableContext currentProc = openedContexts.peekLast();
-            return currentProc==null?rootContext:currentProc;
+            return currentProc==null?topLevelContext():currentProc;
         }
     }
     public Program parse(File file, ParserState pState, IOContext ioContext) throws IOException, SyntaxError {
@@ -1437,7 +1448,13 @@ public class Interpreter {
         }else{//ensure that each file is included only once
             pState.files.add(fileId);
         }
-        pState.rootContext.startFile();
+
+        //addLater? exteact startFile() to method
+        if(pState.topLevelContext()!=pState.rootContext){
+            pState.openedFiles.add(pState.topLevelContext());
+        }
+        pState.topLevelContext=new FileContext(pState.rootContext);
+
         reader.nextToken();
         WordState state=WordState.ROOT;
         while((c=reader.nextChar())>=0){
@@ -1536,7 +1553,7 @@ public class Interpreter {
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
         finishParsing(pState, ioContext,reader.currentPos());
-        Declareable main=pState.rootContext.getDeclareable("main");
+        Declareable main=pState.topLevelContext().getDeclareable("main");
         if(main instanceof Value.Procedure){
             typeCheckProcedure((Value.Procedure) main,pState.globalConstants,ioContext);
         }
@@ -1544,7 +1561,12 @@ public class Interpreter {
         if(pState.openBlocks.size()>0){
             throw new SyntaxError("unclosed block: "+pState.openBlocks.getLast(),pState.openBlocks.getLast().startPos);
         }
-        pState.rootContext.endFile(ioContext);
+
+        //addLater extract endFile() to method
+        //addLater report unclosed namespaces
+
+        pState.topLevelContext=pState.openedFiles.pollLast();
+
         return new Program(pState.globalCode,pState.files,pState.rootContext);
     }
 
@@ -1556,7 +1578,7 @@ public class Interpreter {
                     ((IdentifierToken)prev).name:null;
             if(pState.currentMacro!=null){
                 if(str.equals("#end")){
-                    pState.rootContext.declareNamedDeclareable(pState.currentMacro,ioContext);
+                    pState.topLevelContext().declareNamedDeclareable(pState.currentMacro,ioContext);
                     pState.currentMacro=null;
                 }else{
                     pState.currentMacro.content.add(new StringWithPos(str,pos));
@@ -1639,7 +1661,8 @@ public class Interpreter {
                     if(prevId != null){
                         tokens.remove(tokens.size()-1);
                         finishParsing(pState, ioContext,pos);
-                        pState.rootContext.startNamespace(prevId,pos);
+                        //addLater? extract startNamespace to method
+                        pState.topLevelContext=new NamespaceContext(prevId,pState.topLevelContext());
                     }else{
                         throw new SyntaxError("namespace name has to be an identifier",pos);
                     }
@@ -1649,7 +1672,12 @@ public class Interpreter {
                         throw new SyntaxError("namespaces can only be closed at root-level",pos);
                     }else{
                         finishParsing(pState, ioContext,pos);
-                        pState.rootContext.endNamespace(pos);
+                        //addLater? extract endNamespace to method
+                        if(pState.topLevelContext instanceof NamespaceContext){
+                            pState.topLevelContext=((NamespaceContext) pState.topLevelContext).parent;
+                        }else{
+                            throw new SyntaxError("unexpected end of namespace",pos);
+                        }
                     }
                 }
                 case "#import"-> {
@@ -1659,7 +1687,7 @@ public class Interpreter {
                     if(prevId != null){
                         tokens.remove(tokens.size()-1);
                         finishParsing(pState, ioContext,pos);
-                        pState.rootContext.addImport(prevId,pos);
+                        pState.topLevelContext().addImport(prevId,pos);
                     }else{
                         throw new SyntaxError("imported namespace name has to be an identifier",pos);
                     }
@@ -1715,7 +1743,7 @@ public class Interpreter {
                     }
                     name = ((IdentifierToken) prev).name;
                     TupleBlock tupleBlock = new TupleBlock(name,((IdentifierToken) prev).isPublic,
-                            0, pos, pState.rootContext);
+                            0, pos, pState.topLevelContext());
                     pState.openBlocks.add(tupleBlock);
                     pState.openedContexts.add(tupleBlock.context());
                 }
@@ -1734,7 +1762,7 @@ public class Interpreter {
                         throw new SyntaxError("token before enum has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
-                    pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublic, 0,pos,pState.rootContext));
+                    pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublic, 0,pos,pState.topLevelContext()));
                 }
                 case "struct{" -> {
                     String name;
@@ -1751,7 +1779,7 @@ public class Interpreter {
                     }
                     name = ((IdentifierToken) prev).name;
                     StructBlock structBlock = new StructBlock(name,((IdentifierToken) prev).isPublic,
-                            0, pos, pState.rootContext);
+                            0, pos, pState.topLevelContext());
                     pState.openBlocks.add(structBlock);
                     pState.openedContexts.add(structBlock.context());
                 }
@@ -1805,7 +1833,7 @@ public class Interpreter {
                     }
                     String name = ((IdentifierToken) prev).name;
                     ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublic, 0,
-                            pos, pState.rootContext, isNative);
+                            pos, pState.topLevelContext(), isNative);
                     pState.openBlocks.add(proc);
                     pState.openedContexts.add(proc.context());
                 }
@@ -1953,14 +1981,14 @@ public class Interpreter {
                                 Value.NativeProcedure proc=Value.createExternalProcedure(((ProcedureBlock) block).name,
                                         ((ProcedureBlock) block).isPublic, procType,block.startPos
                                 );
-                                pState.rootContext.declareProcedure(proc,ioContext);
+                                pState.topLevelContext().declareProcedure(proc,ioContext);
                             }else{
                                 if(((ProcedureBlock) block).name!=null){
                                     assert procType!=null;
                                     Value.Procedure proc=Value.createProcedure(((ProcedureBlock) block).name,
                                             ((ProcedureBlock) block).isPublic,procType, content,block.startPos,pos,context);
                                     assert context.curried.isEmpty();
-                                    pState.rootContext.declareProcedure(proc,ioContext);
+                                    pState.topLevelContext().declareProcedure(proc,ioContext);
                                 }else{
                                     tokens.add(new DeclareLambdaToken(ins,outs,generics,content,context,block.startPos,pos));
                                 }
@@ -1971,7 +1999,7 @@ public class Interpreter {
                                 tmp=tokens.get(block.start);
                                 throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
                             }
-                            pState.rootContext.declareEnum(((EnumBlock) block),ioContext);
+                            pState.topLevelContext().declareEnum(((EnumBlock) block),ioContext);
                         }
                         case TUPLE -> {
                             if(((TupleBlock) block).context != pState.openedContexts.pollLast()){
@@ -1988,11 +2016,11 @@ public class Interpreter {
                                 GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,((TupleBlock) block).isPublic,
                                         generics.toArray(Type.GenericParameter[]::new),
                                         types,block.startPos);
-                                pState.rootContext.declareNamedDeclareable(tuple,ioContext);
+                                pState.topLevelContext().declareNamedDeclareable(tuple,ioContext);
                             }else{
                                 Type.Tuple tuple=Type.Tuple.create(((TupleBlock) block).name, ((TupleBlock) block).isPublic,
                                         types,block.startPos);
-                                pState.rootContext.declareNamedDeclareable(tuple,ioContext);
+                                pState.topLevelContext().declareNamedDeclareable(tuple,ioContext);
                             }
                         }
                         case STRUCT ->{
@@ -2016,11 +2044,11 @@ public class Interpreter {
                                 GenericStruct struct=new GenericStruct(((StructBlock) block).name,((StructBlock) block).isPublic,
                                         ((StructBlock) block).extended,generics.toArray(Type.GenericParameter[]::new),
                                         types,fieldNames,block.startPos);
-                                pState.rootContext.declareNamedDeclareable(struct,ioContext);
+                                pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
                             }else{
                                 Type.Struct struct=Type.Struct.create(((StructBlock) block).name, ((StructBlock) block).isPublic,
                                         ((StructBlock) block).extended,types,fieldNames,block.startPos);
-                                pState.rootContext.declareNamedDeclareable(struct,ioContext);
+                                pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
                             }
                         }
                         case IF,WHILE,SWITCH_CASE ->
@@ -2247,9 +2275,16 @@ public class Interpreter {
                         }
                         prev = tokens.size()>0 ? tokens.get(tokens.size()-1) : null;
                         if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.WORD&&
-                                pState.rootContext.namespaces.contains(((IdentifierToken) prev).name)){
-                            tokens.set(tokens.size()-1,new IdentifierToken(isPtr?IdentifierType.PROC_ID:IdentifierType.WORD,
-                                    ((IdentifierToken) prev).name+NAMESPACE_SEPARATOR +name, false, false, pos));
+                                pState.topLevelContext().namespaces().contains(((IdentifierToken) prev).name)){
+                            String newName = ((IdentifierToken) prev).name + NAMESPACE_SEPARATOR + name;
+                            Declareable d=pState.topLevelContext().getDeclareable(newName);
+                            if(d instanceof Macro){
+                                tokens.remove(tokens.size()-1);
+                                expandMacro(pState,(Macro)d,pos,ioContext);
+                            }else {
+                                tokens.set(tokens.size() - 1, new IdentifierToken(isPtr ? IdentifierType.PROC_ID : IdentifierType.WORD,
+                                        newName, false, false, pos));
+                            }
                         }else{
                             tokens.add(new IdentifierToken(IdentifierType.GET_FIELD,name, false, false, pos));
                         }
@@ -2273,7 +2308,7 @@ public class Interpreter {
                             throw new SyntaxError(e,pos);
                         }
                     }else{
-                        Declareable d=pState.rootContext.getDeclareable(str);
+                        Declareable d=pState.topLevelContext().getDeclareable(str);
                         if(d instanceof Macro){
                             expandMacro(pState,(Macro)d,pos,ioContext);
                         }else{
@@ -2323,27 +2358,27 @@ public class Interpreter {
         }
     }
     private void finishParsing(ParserState pState, IOContext ioContext,FilePosition blockEnd) throws SyntaxError {
-        TypeCheckResult res=typeCheck(pState.tokens, pState.rootContext,pState.globalConstants,
+        TypeCheckResult res=typeCheck(pState.tokens, pState.topLevelContext(),pState.globalConstants,
                 pState.typeStack, null,blockEnd,ioContext);
         pState.globalCode.addAll(res.tokens);
         pState.typeStack=res.types;
         pState.tokens.clear();
     }
 
-    private void typeCheckProcedure(Value.Procedure p,HashMap<Interpreter.VariableId, Value> globalVariables, IOContext ioContext) throws SyntaxError {
-        if(p.state == Value.TypeCheckState.UNCHECKED){
-            p.state =Value.TypeCheckState.CHECKING;
+    private void typeCheckProcedure(Value.Procedure p,HashMap<Interpreter.VariableId, Value> globalConstants, IOContext ioContext) throws SyntaxError {
+        if(p.typeCheckState == Value.TypeCheckState.UNCHECKED){
+            p.typeCheckState =Value.TypeCheckState.CHECKING;
             TypeCheckResult res;
             RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(8);
             for(Type t:((Type.Procedure) p.type).inTypes){
                 typeStack.push(new TypeFrame(t,null, p.declaredAt));
             }
             p.context.bind();
-            res=typeCheck(p.tokens, p.context, globalVariables,typeStack,((Type.Procedure) p.type).outTypes,
+            res=typeCheck(p.tokens, p.context, globalConstants,typeStack,((Type.Procedure) p.type).outTypes,
                     p.endPos, ioContext);
             p.context.unbind();
             p.tokens=res.tokens;
-            p.state = Value.TypeCheckState.CHECKED;
+            p.typeCheckState = Value.TypeCheckState.CHECKED;
         }
     }
 
@@ -3070,7 +3105,7 @@ public class Interpreter {
                 Type.GenericProcedure.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes):
                 Type.Procedure.create(t.inTypes, outTypes);
         Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, newContext);
-        lambda.state = Value.TypeCheckState.CHECKED;//mark lambda as checked
+        lambda.typeCheckState = Value.TypeCheckState.CHECKED;//mark lambda as checked
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
         if(newContext.curried.isEmpty()){
@@ -3282,6 +3317,7 @@ public class Interpreter {
                     typeStack.push(new TypeFrame(token.value.type,token.value,t.pos));
                     ret.add(token);
                 }else if(d instanceof Value.Procedure proc){
+                    typeCheckProcedure(proc,globalConstants,ioContext);//type check procedure before it is pushed onto the stack
                     ValueToken token=new ValueToken(proc, t.pos,false);
                     typeStack.push(new TypeFrame(token.value.type,token.value,t.pos));
                     ret.add(token);

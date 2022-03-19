@@ -157,7 +157,7 @@ byteListToString public proc( byte list => string ){
 }
 
 print   public proc( var      =>      ){      stringValue           puts        }
-println public proc( var      =>      ){      stringValue '\n' <<  puts        }
+println public proc( var      =>      ){      stringValue '\n' <<  puts         }
 fprint  public proc( var FILE => bool ){ swap stringValue swap     fputs return }
 
 1 int IO_FLAG_PAD_0 =$

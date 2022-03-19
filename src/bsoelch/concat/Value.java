@@ -1539,7 +1539,8 @@ public abstract class Value {
 
     public static Procedure createProcedure(String name,boolean isPublic,Type.Procedure procType, ArrayList<Interpreter.Token> tokens, FilePosition declaredAt,
                                             FilePosition endPos, Interpreter.ProcedureContext variableContext) {
-        return new Procedure(name, isPublic, procType, tokens, null, new IdentityHashMap<>(), variableContext, declaredAt, endPos);
+        return new Procedure(name, isPublic, procType, tokens, null,
+                new IdentityHashMap<>(), variableContext, declaredAt, endPos,TypeCheckState.UNCHECKED);
     }
     enum TypeCheckState{UNCHECKED,CHECKING,CHECKED}
     static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Callable {
@@ -1551,14 +1552,14 @@ public abstract class Value {
 
         final Interpreter.ProcedureContext context;
         ArrayList<Interpreter.Token> tokens;//not final, to make two-step compilation easier
-        TypeCheckState state=TypeCheckState.UNCHECKED;
+        TypeCheckState typeCheckState;
 
         final Value[] curriedArgs;
         final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
 
         private Procedure(String name, boolean isPublic, Type procType, ArrayList<Interpreter.Token> tokens, Value[] curriedArgs,
                           IdentityHashMap<Type.GenericParameter, Type> genericArgs, Interpreter.ProcedureContext context,
-                          FilePosition declaredAt, FilePosition endPos) {
+                          FilePosition declaredAt, FilePosition endPos,TypeCheckState typeCheckState) {
             super(procType);
             this.name = name;
             this.isPublic = isPublic;
@@ -1568,6 +1569,7 @@ public abstract class Value {
             this.tokens=tokens;
             this.context=context;
             this.endPos = endPos;
+            this.typeCheckState =typeCheckState;
         }
 
         @Override
@@ -1579,8 +1581,8 @@ public abstract class Value {
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type instanceof Type.Procedure){//FIXME check if casting is allowed
                 //TODO update generics
-                //TODO pass type-check state to child
-                return new Procedure(name, isPublic, type, tokens, curriedArgs, genericArgs, context, declaredAt, endPos);
+                return new Procedure(name, isPublic, type, tokens, curriedArgs, genericArgs,
+                        context, declaredAt, endPos,typeCheckState);
             }
             return super.castTo(type);
         }
@@ -1591,14 +1593,13 @@ public abstract class Value {
         }
 
         Value.Procedure withCurried(Value[] curried){
-            //TODO pass type-check state to child
-            return new Procedure(name, isPublic, type, tokens, curried, genericArgs, context, declaredAt, endPos);
+            return new Procedure(name, isPublic, type, tokens, curried, genericArgs, context, declaredAt, endPos,typeCheckState);
         }
         Value.Procedure withTypeArgs(IdentityHashMap<Type.GenericParameter,Type> update){
             IdentityHashMap<Type.GenericParameter, Type> newArgs = Type.mergeArgs(genericArgs, update);
             //TODO update types of curried arguments
-            //TODO pass type-check state to child
-            return new Procedure(name, isPublic, type.replaceGenerics(update), tokens, curriedArgs, newArgs, context, declaredAt, endPos);
+            return new Procedure(name, isPublic, type.replaceGenerics(update), tokens, curriedArgs, newArgs,
+                    context, declaredAt, endPos,typeCheckState);
         }
 
         @Override
@@ -1615,7 +1616,7 @@ public abstract class Value {
 
         @Override
         public ArrayList<Interpreter.Token> tokens() {
-            if(state!=TypeCheckState.CHECKED){
+            if(typeCheckState !=TypeCheckState.CHECKED){
                 throw new RuntimeException("tokens() of Procedure should only be called after type checking");
             }
             return tokens;
@@ -2500,7 +2501,7 @@ public abstract class Value {
         }
         @Override
         public String stringValue() {
-            return name +(isPublic?"public ":"")+" native proc";
+            return name +(isPublic?"public ":"")+" native proc ";
         }
 
         @Override
