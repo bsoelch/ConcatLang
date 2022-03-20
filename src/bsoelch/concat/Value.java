@@ -1878,7 +1878,7 @@ public abstract class Value {
             }
         });
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone") {
                 @Override
@@ -1888,7 +1888,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone!") {
                 @Override
@@ -2161,7 +2161,7 @@ public abstract class Value {
         });
 
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT},
                     new Type[]{},"ensureCap") {
@@ -2173,7 +2173,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT,Type.UINT,a},
                     new Type[]{},"fill") {
@@ -2186,7 +2186,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a)},new Type[]{},"clear") {
                 @Override
@@ -2197,7 +2197,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),a},
                     new Type[]{Type.listOf(a)},"<<") {
@@ -2210,7 +2210,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(a)},
                     new Type[]{Type.listOf(a)},">>") {
@@ -2223,7 +2223,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
                     new Type[]{Type.listOf(a)},"<<*") {
@@ -2236,7 +2236,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
                     new Type[]{Type.listOf(a)},"*>>") {
@@ -2249,7 +2249,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT},
                     new Type[]{a},"[]") {
@@ -2270,7 +2270,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(a),Type.UINT},
                     new Type[]{},"[]=") {
@@ -2283,7 +2283,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT,Type.UINT},
                     new Type[]{Type.listOf(a)},"[:]") {
@@ -2295,7 +2295,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a),Type.UINT,Type.UINT},
                     new Type[]{},"[:]=") {
@@ -2310,7 +2310,7 @@ public abstract class Value {
 
 
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{Type.optionalOf(a)},"wrap") {
                 @Override
@@ -2320,7 +2320,7 @@ public abstract class Value {
             });
         }
         {
-            Type.GenericParameter a=new Type.GenericParameter(0,true,InternalProcedure.POSITION);
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.optionalOf(a)},new Type[]{Type.BOOL},"!") {
                 @Override

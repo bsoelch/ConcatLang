@@ -17,7 +17,7 @@ public class Interpreter {
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
     enum TokenType {
-        VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,UPDATE_GENERICS,NEW,NEW_LIST,
+        VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,NEW,NEW_LIST,
         STACK_DROP,STACK_DUP,STACK_SET,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
@@ -59,6 +59,10 @@ public class Interpreter {
         @Override
         public String toString() {
             return tokenType.toString();
+        }
+
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            return this;//TODO update generics in all Token types
         }
     }
     enum IdentifierType{
@@ -117,6 +121,19 @@ public class Interpreter {
         @Override
         public String toString() {
             return tokenType.toString()+": "+value;
+        }
+
+        @Override
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            if(value.type==Type.TYPE){
+                try {
+                    return new ValueToken(Value.ofType(value.asType().replaceGenerics(genericParams)),pos,cloneOnCreate);
+                } catch (TypeError e) {
+                    throw new RuntimeException(e);
+                }
+            }else{//TODO? replace generics in value.type
+                return this;
+            }
         }
     }
     static class StackModifierToken extends Token{
@@ -194,6 +211,11 @@ public class Interpreter {
         public String toString() {
             return tokenType.toString()+": "+target;
         }
+
+        @Override
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            return new TypedToken(tokenType,target==null?null:target.replaceGenerics(genericParams),pos);
+        }
     }
     static class ListCreatorToken extends Token implements CodeSection {
         final ArrayList<Token> tokens;
@@ -223,13 +245,6 @@ public class Interpreter {
             super(TokenType.CAST_ARG, pos);
             this.offset=offset;
             this.target=target;
-        }
-    }
-    static class GenericUpdateToken extends Token{
-        final IdentityHashMap<Type.GenericParameter,Type> update;
-        GenericUpdateToken(IdentityHashMap<Type.GenericParameter, Type> update,FilePosition pos) {
-            super(TokenType.UPDATE_GENERICS, pos);
-            this.update = update;
         }
     }
     static class DeclareLambdaToken extends Token{
@@ -747,16 +762,19 @@ public class Interpreter {
     }
 
     enum DeclareableType{
-        VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, GENERIC, NATIVE_PROC,
-        GENERIC_TUPLE, OVERLOADED_PROCEDURE, STRUCT, GENERIC_STRUCT
+        VARIABLE, CONSTANT_VARIABLE,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, GENERIC, NATIVE_PROC,
+        GENERIC_TUPLE, OVERLOADED_PROCEDURE, STRUCT, GENERIC_STRUCT, GENERIC_PROCEDURE,CONSTANT
     }
     static String declarableName(DeclareableType t, boolean a){
         switch (t){
+            case CONSTANT -> {
+                return a?"a constant":"constant";
+            }
             case VARIABLE -> {
                 return a?"a variable":"variable";
             }
-            case CONSTANT -> {
-                return a?"a constant":"constant";
+            case CONSTANT_VARIABLE -> {
+                return a?"a constant variable":"constant variable";
             }
             case CURRIED_VARIABLE -> {
                 return a?"a curried variable":"curried variable";
@@ -766,6 +784,9 @@ public class Interpreter {
             }
             case PROCEDURE -> {
                 return a?"a procedure":"procedure";
+            }
+            case GENERIC_PROCEDURE -> {
+                return a?"a generic procedure":"generic procedure";
             }
             case ENUM -> {
                 return a?"an enum":"enum";
@@ -804,11 +825,11 @@ public class Interpreter {
     }
     static boolean isCallable(DeclareableType type){
         switch (type){
-            case PROCEDURE,NATIVE_PROC,OVERLOADED_PROCEDURE -> {
+            case PROCEDURE,NATIVE_PROC,OVERLOADED_PROCEDURE,GENERIC_PROCEDURE -> {
                 return true;
             }
-            case VARIABLE,CONSTANT,CURRIED_VARIABLE,MACRO,
-                    ENUM,TUPLE,GENERIC,GENERIC_TUPLE,STRUCT,GENERIC_STRUCT -> {
+            case VARIABLE, CONSTANT_VARIABLE,CURRIED_VARIABLE,MACRO,
+                    ENUM,TUPLE,GENERIC,GENERIC_TUPLE,STRUCT,GENERIC_STRUCT,CONSTANT -> {
                 return false;
             }
         }
@@ -830,6 +851,15 @@ public class Interpreter {
         @Override
         public boolean isPublic() {
             return isPublic;
+        }
+    }
+
+    record Constant(String name, boolean isPublic, Value value,
+                    FilePosition declaredAt) implements NamedDeclareable {
+
+        @Override
+        public DeclareableType declarableType() {
+            return DeclareableType.CONSTANT;
         }
     }
     private static class VariableId implements Declareable{
@@ -865,7 +895,7 @@ public class Interpreter {
         }
         @Override
         public DeclareableType declarableType() {
-            return isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE;
+            return isConstant?DeclareableType.CONSTANT_VARIABLE :DeclareableType.VARIABLE;
         }
     }
     private static class CurriedVariable extends VariableId{
@@ -929,7 +959,7 @@ public class Interpreter {
             return variables++;
         }
         VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
-            ensureDeclareable(name,isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE,pos);
+            ensureDeclareable(name,isConstant?DeclareableType.CONSTANT_VARIABLE :DeclareableType.VARIABLE,pos);
             VariableId id = new VariableId(this,level(), nextVarId(), type,isConstant, isPublic, pos);
             putElement(name, id);
             return id;
@@ -1071,7 +1101,7 @@ public class Interpreter {
         }
         @Override
         VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
-            checkShadowed(isConstant?DeclareableType.CONSTANT:DeclareableType.VARIABLE,name,pos,ioContext);
+            checkShadowed(isConstant?DeclareableType.CONSTANT_VARIABLE :DeclareableType.VARIABLE,name,pos,ioContext);
             return super.declareVariable(name, type, isConstant, isPublic, pos,ioContext);
         }
         @Override
@@ -1275,7 +1305,7 @@ public class Interpreter {
             }
             Type.GenericParameter generic;
             ensureDeclareable(name,DeclareableType.GENERIC,pos);
-            generic = new Type.GenericParameter(generics.size(), isImplicit, pos);
+            generic = new Type.GenericParameter(name, generics.size(), isImplicit, pos);
             generics.add(generic);
             putElement(name, generic);
             Declareable shadowed = parent.getDeclareable(name);
@@ -1449,7 +1479,7 @@ public class Interpreter {
             pState.files.add(fileId);
         }
 
-        //addLater? exteact startFile() to method
+        //addLater? extract startFile() to method
         if(pState.topLevelContext()!=pState.rootContext){
             pState.openedFiles.add(pState.topLevelContext());
         }
@@ -1985,10 +2015,17 @@ public class Interpreter {
                             }else{
                                 if(((ProcedureBlock) block).name!=null){
                                     assert procType!=null;
-                                    Value.Procedure proc=Value.createProcedure(((ProcedureBlock) block).name,
-                                            ((ProcedureBlock) block).isPublic,procType, content,block.startPos,pos,context);
-                                    assert context.curried.isEmpty();
-                                    pState.topLevelContext().declareProcedure(proc,ioContext);
+                                    if(generics.size()>0){
+                                        GenericProcedure proc=new GenericProcedure(((ProcedureBlock) block).name,
+                                                ((ProcedureBlock) block).isPublic,procType, content,block.startPos,pos,context);
+                                        assert context.curried.isEmpty();
+                                        pState.topLevelContext().declareProcedure(proc,ioContext);
+                                    }else{
+                                        Value.Procedure proc=Value.createProcedure(((ProcedureBlock) block).name,
+                                                ((ProcedureBlock) block).isPublic,procType, content,block.startPos,pos,context);
+                                        assert context.curried.isEmpty();
+                                        pState.topLevelContext().declareProcedure(proc,ioContext);
+                                    }
                                 }else{
                                     tokens.add(new DeclareLambdaToken(ins,outs,generics,content,context,block.startPos,pos));
                                 }
@@ -2925,7 +2962,7 @@ public class Interpreter {
                             typeStack.get(((StackModifierToken)t).args[1]));
                     ret.add(t);
                 }
-                case CALL_PTR -> {
+                case CALL_PTR -> {//TODO don't allow generic procedure pointers
                     TypeFrame f=typeStack.pop();
                     if(f.type instanceof Type.Procedure){
                         IdentityHashMap<Type.GenericParameter,Type> generics =
@@ -3019,7 +3056,7 @@ public class Interpreter {
                     }
                 }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
-                        CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,UPDATE_GENERICS,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
+                        CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -3232,17 +3269,16 @@ public class Interpreter {
                 }
                 DeclareableType type = d.declarableType();
                 switch (type) {
-                    case PROCEDURE,NATIVE_PROC -> {
-                        Callable proc = (Callable) d;
-                        if(d instanceof Value.Procedure){//check procedures when they are called
-                            typeCheckProcedure((Value.Procedure) d,globalConstants,ioContext);
-                        }
-                        IdentityHashMap<Type.GenericParameter,Type> generics = typeCheckCall("procedure "+identifier.name,
-                                typeStack, proc.type(),ret,t.pos, false);
-                        CallToken token = new CallToken( proc, generics, identifier.pos);
+                    case PROCEDURE,NATIVE_PROC,GENERIC_PROCEDURE,OVERLOADED_PROCEDURE -> {
+                        OverloadedProcedure proc =
+                                d instanceof OverloadedProcedure?(OverloadedProcedure) d:new OverloadedProcedure((Callable) d);
+                        CallMatch match = typeCheckOverloadedCall(
+                                "procedure "+identifier.name, new OverloadedProcedure(proc),false,
+                                typeStack,globalConstants,ret,ioContext,t.pos);
+                        CallToken token = new CallToken( match.called, match.genericParams, identifier.pos);
                         ret.add(token);
                     }
-                    case VARIABLE, CONSTANT, CURRIED_VARIABLE -> {
+                    case VARIABLE, CONSTANT_VARIABLE, CURRIED_VARIABLE -> {
                         VariableId id = (VariableId) d;
                         id = context.wrapCurried(identifier.name, id, identifier.pos);
                         Value constValue = globalConstants.get(id);
@@ -3259,6 +3295,11 @@ public class Interpreter {
                             throw new RuntimeException("macros should already be resolved at this state of compilation");
                     case TUPLE, ENUM, GENERIC,STRUCT -> {
                         Value e = Value.ofType((Type) d);
+                        typeStack.push(new TypeFrame(e.type,e,t.pos));
+                        ret.add(new ValueToken(e, identifier.pos, false));
+                    }
+                    case CONSTANT -> {
+                        Value e = ((Constant) d).value;
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
                         ret.add(new ValueToken(e, identifier.pos, false));
                     }
@@ -3281,13 +3322,6 @@ public class Interpreter {
                                 g.types.clone(),g.fieldNames.clone(), g.declaredAt));
                         typeStack.push(new TypeFrame(Type.TYPE,structValue,identifier.pos));
                         ret.add(new ValueToken(structValue,identifier.pos, false));
-                    }
-                    case OVERLOADED_PROCEDURE -> {
-                        OverloadedProcedure proc = (OverloadedProcedure) d;
-                        CallMatch match = typeCheckOverloadedCall("procedure "+identifier.name,
-                                proc, false, typeStack, globalConstants, ret, ioContext, t.pos);
-                        CallToken token = new CallToken(match.called , match.genericParams, identifier.pos);
-                        ret.add(token);
                     }
                 }
             }
@@ -3550,8 +3584,10 @@ public class Interpreter {
                 }
             }
         }
+        /* TODO? update generics
         if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
             IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
+
             for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
                 if(e.getValue().min()!=null){
                     if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
@@ -3563,8 +3599,8 @@ public class Interpreter {
                     update.put(e.getKey(),e.getValue().max());
                 }
             }
-            ret.add(new GenericUpdateToken(update, pos));
         }
+        */
     }
 
     private IdentityHashMap<Type.GenericParameter,Type> typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
@@ -3640,7 +3676,6 @@ public class Interpreter {
                                               RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants,
                                               ArrayList<Token> tokens, IOContext ioContext, FilePosition pos)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
-        int offset=isPtr?1:0;
         Type[] typeArgs=null;
         if(proc.nGenericParams!=0){
             typeArgs=new Type[proc.nGenericParams];
@@ -3659,10 +3694,8 @@ public class Interpreter {
             }
             if(isPtr){//move pointer below the arguments
                 tokens.add(new StackModifierToken(TokenType.STACK_SET,new int[]{typeArgs.length+1,1},pos));
-                offset++;
             }
             tokens.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{typeArgs.length},pos));
-            offset++;
         }
         Type[] inTypes=new Type[proc.nArgs];
         for(int i=inTypes.length-1;i>=0;i--){
@@ -3715,9 +3748,18 @@ public class Interpreter {
                 }
             }
         }
-        for(CallMatch c:matchingCalls){
+        for(int i=0;i<matchingCalls.size();i++){
+            CallMatch c=matchingCalls.get(i);
             if(c.called instanceof Value.Procedure){
                 typeCheckProcedure((Value.Procedure)c.called,globalConstants,ioContext);
+            }else if(c.called instanceof GenericProcedure){//resolve generic procedure
+                Value.Procedure withPrams = ((GenericProcedure) c.called).withPrams(c.genericParams);
+                try {
+                    typeCheckProcedure(withPrams, globalConstants, ioContext);
+                }catch (SyntaxError err){
+                    throw new SyntaxError(err,pos);
+                }
+                matchingCalls.set(i,new CallMatch(withPrams,c.type,c.genericParams,c.nCasts,c.nImplicit));
             }
         }
         if(matchingCalls.size()==0){
@@ -3767,7 +3809,7 @@ public class Interpreter {
         CallMatch match = matchingCalls.get(0);
         for(int i=0;i< inTypes.length;i++){
             if(!inTypes[i].canAssignTo(match.type.inTypes[i])){
-                tokens.add(new ArgCastToken(inTypes.length-i+offset,match.type.inTypes[i],pos));
+                tokens.add(new ArgCastToken(inTypes.length-i+(isPtr?1:0),match.type.inTypes[i],pos));
             }
         }
         for(Type t:match.type.outTypes){
@@ -3995,18 +4037,6 @@ public class Interpreter {
                         }
                         Value val = stack.pop();
                         stack.push(val.castTo(type));
-                    }
-                    case UPDATE_GENERICS -> {
-                        assert next instanceof GenericUpdateToken;
-                        Value v=stack.pop();
-                        if(v instanceof Value.Procedure proc){
-                            stack.push(proc.withTypeArgs(((GenericUpdateToken)next).update));
-                        }else if(v instanceof Value.ExternalProcedure){
-                            //TODO? generic update for native procedures
-                            throw new UnsupportedOperationException("generic update for native procedures is not implemented");
-                        }else{
-                            throw new RuntimeException("unbound generics should only exist in procedure pointers");
-                        }
                     }
                     case NEW -> {
                         assert next instanceof TypedToken;

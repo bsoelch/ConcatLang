@@ -804,12 +804,14 @@ public class Type {
     }
 
     public static class GenericParameter extends Type implements Interpreter.Declareable {
+        final String label;
         final int id;
         final boolean isImplicit;
         final FilePosition declaredAt;
         private boolean isBound =true;
-        public GenericParameter(int id, boolean isImplicit, FilePosition pos) {
+        public GenericParameter(String label, int id, boolean isImplicit, FilePosition pos) {
             super("'"+id,false);
+            this.label = label;
             this.id=id;
             this.isImplicit = isImplicit;
             this.declaredAt=pos;
