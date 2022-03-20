@@ -81,7 +81,7 @@ indexOf public proc( A <?> A list A list => int ){
   }
   -1 return
 }
-contains public proc( A <?> A list A list => bool ){ indexOf 0 >= }
+isSublist public proc( A <?> A list A list => bool ){ indexOf 0 >= }
 lastIndexOf public proc( A <?> A list A list => int ){
   b =::
   a =::
