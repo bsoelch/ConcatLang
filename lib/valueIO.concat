@@ -90,9 +90,6 @@ utf8 #include
         i 1 + i =
       }
       res ')' << return
-    else value type cast .isGeneric if
-      ## addLater better printing of generic types
-      '\'' << value refId <<u return
     else value type == if
       "type"  <<* return
     else value bool == if

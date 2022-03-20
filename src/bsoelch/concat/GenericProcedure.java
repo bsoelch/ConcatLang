@@ -54,20 +54,21 @@ public class GenericProcedure implements Interpreter.Callable {
 
     private final HashMap<IdentityHashMap<Type.GenericParameter,Type>, Value.Procedure> cached=new HashMap<>();
     public Value.Procedure withPrams(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        Interpreter.ProcedureContext newContext=new Interpreter.ProcedureContext(context.parent);
+        for(Type.GenericParameter t:context.generics){
+            Type replace=genericParams.get(t);
+            if(replace!=null){
+                newContext.putElement(t.label,new Interpreter.Constant(t.name,false,Value.ofType(replace),t.declaredAt));
+            }else{//TODO choose better value for unbound generics
+                newContext.putElement(t.label,new Interpreter.Constant(t.name,false,Value.ofType(Type.ANY),t.declaredAt));
+                genericParams.put(t,Type.ANY);//add to missing params
+            }
+        }
         Value.Procedure proc=cached.get(genericParams);
         if(proc==null){
             ArrayList<Interpreter.Token> newTokens=new ArrayList<>(tokens.size());
             for(Interpreter.Token t:tokens){
                 newTokens.add(t.replaceGenerics(genericParams));
-            }
-            Interpreter.ProcedureContext newContext=new Interpreter.ProcedureContext(context.parent);
-            for(Type.GenericParameter t:context.generics){
-                Type replace=genericParams.get(t);
-                if(replace!=null){
-                    newContext.putElement(t.label,new Interpreter.Constant(t.name,false,Value.ofType(replace),t.declaredAt));
-                }else{//TODO choose better value for runtime generics
-                    newContext.putElement(t.label,new Interpreter.Constant(t.name,false,Value.ofType(Type.ANY),t.declaredAt));
-                }
             }
             //TODO merge procedures with equivalent bodies
             proc=Value.createProcedure(name,isPublic,procType.replaceGenerics(genericParams),newTokens,declaredAt,endPos,newContext);

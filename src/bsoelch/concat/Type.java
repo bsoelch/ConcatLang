@@ -114,8 +114,8 @@ public class Type {
         return canAssignTo(t,new BoundMaps());
     }
 
-    protected boolean canAssignTo(Type t, BoundMaps bounds){
-        if(t instanceof GenericParameter&&!((GenericParameter) t).isBound){
+    protected boolean canAssignTo(Type t, BoundMaps bounds){//TODO simplify assignment checks (left side of comparison should never be generic)
+        if(t instanceof GenericParameter){
             GenericBound bound=bounds.r.get(t);
             if(bound!=null){
                 if(bound.min==null||bound.min.canAssignTo(this,bounds.swapped())) {
@@ -634,7 +634,7 @@ public class Type {
         }
     }
 
-    public static class GenericProcedure extends Procedure {
+    public static class GenericProcedureType extends Procedure {
         final GenericParameter[] explicitGenerics;
         final GenericParameter[] implicitGenerics;
         final Type[] genericArgs;
@@ -646,7 +646,7 @@ public class Type {
             }
             return sb.append(getName(inTypes, outTypes)).toString();
         }
-        public static GenericProcedure create(GenericParameter[] genericParams,Type[] inTypes,Type[] outTypes) {
+        public static GenericProcedureType create(GenericParameter[] genericParams, Type[] inTypes, Type[] outTypes) {
             ArrayList<GenericParameter> explicitParams=new ArrayList<>(genericParams.length);
             ArrayList<GenericParameter> implicitParams=new ArrayList<>(genericParams.length);
             for (GenericParameter genericParam : genericParams) {
@@ -658,12 +658,12 @@ public class Type {
             }
             //Unwrap generic arguments
             String name = genericName(inTypes, outTypes, explicitParams);
-            return new GenericProcedure(name,explicitParams.toArray(GenericParameter[]::new),
+            return new GenericProcedureType(name,explicitParams.toArray(GenericParameter[]::new),
                     explicitParams.toArray(GenericParameter[]::new),implicitParams.toArray(GenericParameter[]::new),inTypes,outTypes);
         }
 
-        private GenericProcedure(String name, GenericParameter[] explicitGenerics, Type[] genericArgs,
-                                 GenericParameter[] implicitGenerics,Type[] inTypes, Type[] outTypes) {
+        private GenericProcedureType(String name, GenericParameter[] explicitGenerics, Type[] genericArgs,
+                                     GenericParameter[] implicitGenerics, Type[] inTypes, Type[] outTypes) {
             super(name, inTypes,outTypes);
             this.explicitGenerics = explicitGenerics;
             this.implicitGenerics = implicitGenerics;
@@ -694,27 +694,27 @@ public class Type {
                     changed=true;
                 }
             }
-            return changed?new GenericProcedure(genericName(newIn,newOut,Arrays.asList(newArgs)), explicitGenerics,
+            return changed?new GenericProcedureType(genericName(newIn,newOut,Arrays.asList(newArgs)), explicitGenerics,
                     newArgs,implicitGenerics,newIn,newOut):this;
         }
 
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
-            if((!(t instanceof GenericProcedure))||((GenericProcedure) t).explicitGenerics.length!= explicitGenerics.length)
+            if((!(t instanceof GenericProcedureType))||((GenericProcedureType) t).explicitGenerics.length!= explicitGenerics.length)
                 return false;
             for(int i = 0; i< genericArgs.length; i++){//map generic parameters to their equivalents
-                if(!genericArgs[i].equals(((GenericProcedure) t).genericArgs[i],generics))
+                if(!genericArgs[i].equals(((GenericProcedureType) t).genericArgs[i],generics))
                     return false;
             }
             return super.equals(t, generics);
         }
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
-            if(t instanceof GenericProcedure) {
-                if (((GenericProcedure) t).explicitGenerics.length != explicitGenerics.length)
+            if(t instanceof GenericProcedureType) {
+                if (((GenericProcedureType) t).explicitGenerics.length != explicitGenerics.length)
                     return false;
                 for (int i = 0; i < genericArgs.length; i++) {//map generic parameters to their equivalents
-                    if (!genericArgs[i].canAssignTo(((GenericProcedure) t).genericArgs[i], bounds))
+                    if (!genericArgs[i].canAssignTo(((GenericProcedureType) t).genericArgs[i], bounds))
                         return false;
                 }
             }
@@ -722,11 +722,11 @@ public class Type {
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
-            if(t instanceof GenericProcedure){
-                if(((GenericProcedure) t).explicitGenerics.length!= explicitGenerics.length)
+            if(t instanceof GenericProcedureType){
+                if(((GenericProcedureType) t).explicitGenerics.length!= explicitGenerics.length)
                     return false;
                 for(int i = 0; i< genericArgs.length; i++){//map generic parameters to their equivalents
-                    if(!genericArgs[i].canAssignTo(((GenericProcedure) t).genericArgs[i],bounds))
+                    if(!genericArgs[i].canAssignTo(((GenericProcedureType) t).genericArgs[i],bounds))
                         return false;
                 }
             }
@@ -808,19 +808,13 @@ public class Type {
         final int id;
         final boolean isImplicit;
         final FilePosition declaredAt;
-        private boolean isBound =true;
+
         public GenericParameter(String label, int id, boolean isImplicit, FilePosition pos) {
             super("'"+id,false);
             this.label = label;
             this.id=id;
             this.isImplicit = isImplicit;
             this.declaredAt=pos;
-        }
-        void bind(){
-            isBound = true;
-        }
-        void unbind(){
-            isBound = false;
         }
 
         @Override
@@ -833,8 +827,6 @@ public class Type {
         protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
             if(this==t)
                 return true;
-            if(isBound)
-                return false;
             if(t instanceof GenericParameter){
                 GenericParameter t1=generics.get(t);
                 GenericParameter this1=generics.get(this);
@@ -851,8 +843,8 @@ public class Type {
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(this==t)
                 return true;
-            if(isBound ||t instanceof GenericParameter)//TODO handling of bounds if both sides are unbound generics
-                return super.canAssignTo(t,bounds);
+            if(t instanceof GenericParameter)
+                throw new RuntimeException("generic parameter should not appear on both sides of a type comparison");
             GenericBound bound=bounds.l.get(this);
             if(bound!=null){
                 if(bound.max==null||t.canAssignTo(bound.max,bounds)) {
@@ -881,30 +873,6 @@ public class Type {
         public boolean isPublic() {
             return false;
         }
-    }
-
-    static IdentityHashMap<GenericParameter, Type> mergeArgs(IdentityHashMap<GenericParameter, Type> genArgs,
-                                                             IdentityHashMap<GenericParameter, Type> update) {
-        IdentityHashMap<GenericParameter,Type> newArgs=new IdentityHashMap<>();
-        IdentityHashMap<GenericParameter,Type> remaining=new IdentityHashMap<>(update);
-        for(Map.Entry<GenericParameter, Type> g: genArgs.entrySet()){
-            if(g.getValue() instanceof GenericParameter){
-                Type t= remaining.remove(g.getValue());
-                if(t!=null){
-                    newArgs.put(g.getKey(),t);
-                }else{
-                    newArgs.put(g.getKey(),g.getValue());
-                }
-            }else{
-                newArgs.put(g.getKey(),g.getValue());
-            }
-        }
-        for(Map.Entry<GenericParameter, Type> g: remaining.entrySet()){
-            if(newArgs.put(g.getKey(),g.getValue())!=null){
-                throw new RuntimeException("unexpected replacement of generic value");
-            }
-        }
-        return newArgs;
     }
 
     static class UnionType extends Type{
@@ -999,6 +967,12 @@ public class Type {
         OverloadedProcedurePointer(OverloadedProcedure proc, int tokenPos, FilePosition pushedAt) {
             super(proc.name+" .type", false);
             this.proc = proc;
+            this.tokenPos = tokenPos;
+            this.pushedAt=pushedAt;
+        }
+        OverloadedProcedurePointer(GenericProcedure proc, int tokenPos, FilePosition pushedAt) {
+            super(proc.name()+" .type", false);
+            this.proc = new OverloadedProcedure(proc);
             this.tokenPos = tokenPos;
             this.pushedAt=pushedAt;
         }

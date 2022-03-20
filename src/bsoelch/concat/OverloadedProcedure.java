@@ -20,7 +20,7 @@ public class OverloadedProcedure implements Interpreter.Declareable {
         procedures=new ArrayList<>();
         procedures.add(p0);
         nArgs= p0.type().inTypes.length;
-        nGenericParams=p0.type() instanceof Type.GenericProcedure?((Type.GenericProcedure)p0.type()).explicitGenerics.length:0;
+        nGenericParams=p0.type() instanceof Type.GenericProcedureType ?((Type.GenericProcedureType)p0.type()).explicitGenerics.length:0;
     }
 
     public OverloadedProcedure(OverloadedProcedure src) {
@@ -47,7 +47,7 @@ public class OverloadedProcedure implements Interpreter.Declareable {
         }
         {//check number of generic arguments
             int gen1 = 0;
-            if (newProc.type() instanceof Type.GenericProcedure genP) {
+            if (newProc.type() instanceof Type.GenericProcedureType genP) {
                 gen1 = genP.explicitGenerics.length;
             }//no else
             if (nGenericParams != gen1) {

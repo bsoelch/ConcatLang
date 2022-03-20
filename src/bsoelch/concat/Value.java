@@ -1580,7 +1580,6 @@ public abstract class Value {
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type instanceof Type.Procedure){//FIXME check if casting is allowed
-                //TODO update generics
                 return new Procedure(name, isPublic, type, tokens, curriedArgs, genericArgs,
                         context, declaredAt, endPos,typeCheckState);
             }
@@ -1594,12 +1593,6 @@ public abstract class Value {
 
         Value.Procedure withCurried(Value[] curried){
             return new Procedure(name, isPublic, type, tokens, curried, genericArgs, context, declaredAt, endPos,typeCheckState);
-        }
-        Value.Procedure withTypeArgs(IdentityHashMap<Type.GenericParameter,Type> update){
-            IdentityHashMap<Type.GenericParameter, Type> newArgs = Type.mergeArgs(genericArgs, update);
-            //TODO update types of curried arguments
-            return new Procedure(name, isPublic, type.replaceGenerics(update), tokens, curriedArgs, newArgs,
-                    context, declaredAt, endPos,typeCheckState);
         }
 
         @Override
@@ -1828,7 +1821,7 @@ public abstract class Value {
             super(Type.Procedure.create(inTypes, outTypes), name, POSITION);
         }
         protected InternalProcedure(Type.GenericParameter[] generics,Type[] inTypes, Type[] outTypes, String name) {
-            super(Type.GenericProcedure.create(generics,inTypes, outTypes), name, POSITION);
+            super(Type.GenericProcedureType.create(generics,inTypes, outTypes), name, POSITION);
         }
         @Override
         abstract Value[] callWith(Value[] values) throws ConcatRuntimeError;
@@ -1879,7 +1872,6 @@ public abstract class Value {
         });
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone") {
                 @Override
                 Value[] callWith(Value[] values){
@@ -1889,7 +1881,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone!") {
                 @Override
                 Value[] callWith(Value[] values){//addLater? implement deep clone in standard library
@@ -2162,7 +2153,6 @@ public abstract class Value {
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT},
                     new Type[]{},"ensureCap") {
                 @Override
@@ -2174,7 +2164,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT,Type.UINT,a},
                     new Type[]{},"fill") {
                 @Override
@@ -2187,7 +2176,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a)},new Type[]{},"clear") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
@@ -2198,7 +2186,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),a},
                     new Type[]{Type.listOf(a)},"<<") {
                 @Override
@@ -2211,7 +2198,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(a)},
                     new Type[]{Type.listOf(a)},">>") {
                 @Override
@@ -2224,7 +2210,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
                     new Type[]{Type.listOf(a)},"<<*") {
                 @Override
@@ -2237,7 +2222,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
                     new Type[]{Type.listOf(a)},"*>>") {
                 @Override
@@ -2250,7 +2234,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT},
                     new Type[]{a},"[]") {
                 @Override
@@ -2271,7 +2254,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(a),Type.UINT},
                     new Type[]{},"[]=") {
                 @Override
@@ -2284,7 +2266,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT,Type.UINT},
                     new Type[]{Type.listOf(a)},"[:]") {
                 @Override
@@ -2296,7 +2277,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a),Type.UINT,Type.UINT},
                     new Type[]{},"[:]=") {
                 @Override
@@ -2311,7 +2291,6 @@ public abstract class Value {
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{Type.optionalOf(a)},"wrap") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
@@ -2321,7 +2300,6 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            a.unbind();
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.optionalOf(a)},new Type[]{Type.BOOL},"!") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {

@@ -182,22 +182,13 @@ public class Interpreter {
     }
     static class CallToken extends Token {
         final Callable called;
-        final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
-        CallToken(Callable called, IdentityHashMap<Type.GenericParameter, Type> genericArgs, FilePosition pos) {
+        CallToken(Callable called, FilePosition pos) {
             super(TokenType.CALL_PROC, pos);
             this.called = called;
-            this.genericArgs = genericArgs;
         }
         @Override
         public String toString() {
             return tokenType.toString()+": "+ called;
-        }
-    }
-    static class CallPtrToken extends Token {
-        final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
-        CallPtrToken(IdentityHashMap<Type.GenericParameter, Type> genericArgs, FilePosition pos) {
-            super(TokenType.CALL_PTR, pos);
-            this.genericArgs = genericArgs;
         }
     }
 
@@ -1317,22 +1308,7 @@ public class Interpreter {
         }
         //disable declaration of generics
         void lock(){
-            if(locked){
-                throw new RuntimeException("lock can only be called once");
-            }
             locked=true;
-        }
-        /**binds all generics declared in this context*/
-        void bind(){
-            for(Type.GenericParameter p:generics){
-                p.bind();
-            }
-        }
-        /**unbinds all generics declared in this context*/
-        void unbind(){
-            for(Type.GenericParameter p:generics){
-                p.unbind();
-            }
         }
     }
 
@@ -1586,6 +1562,9 @@ public class Interpreter {
         Declareable main=pState.topLevelContext().getDeclareable("main");
         if(main instanceof Value.Procedure){
             typeCheckProcedure((Value.Procedure) main,pState.globalConstants,ioContext);
+            if(!((Value.Procedure) main).isPublic){
+                ioContext.stdErr.println("Warning: procedure main at "+((Value.Procedure) main).declaredAt+" is private");
+            }
         }
 
         if(pState.openBlocks.size()>0){
@@ -1870,6 +1849,7 @@ public class Interpreter {
                 case "lambda(","λ(" -> {
                     ProcedureBlock lambda = new ProcedureBlock(null, false, tokens.size(),pos, pState.getContext(), false);
                     pState.openBlocks.add(lambda);
+                    lambda.context().lock();//no generics in lambdas
                     pState.openedContexts.add(lambda.context());
                 }
                 case "=>" ->{
@@ -1983,7 +1963,6 @@ public class Interpreter {
                                 throw new RuntimeException("openedContexts is out of sync with openBlocks");
                             }
                             assert context != null;
-                            context.unbind();
                             Type[] ins=((ProcedureBlock) block).inTypes;
                             Type[] outs=((ProcedureBlock) block).outTypes;
                             ArrayList<Type.GenericParameter> generics=((ProcedureBlock) block).context.generics;
@@ -1991,7 +1970,7 @@ public class Interpreter {
                             if(((ProcedureBlock) block).state==ProcedureBlock.STATE_BODY) {
                                 if (outs != null) {
                                     procType=(generics.size()>0)?
-                                            Type.GenericProcedure.create(generics.toArray(Type.GenericParameter[]::new),ins,outs):
+                                            Type.GenericProcedureType.create(generics.toArray(Type.GenericParameter[]::new),ins,outs):
                                             Type.Procedure.create(ins,outs);
                                 }
                             }else{
@@ -2042,7 +2021,6 @@ public class Interpreter {
                             if(((TupleBlock) block).context != pState.openedContexts.pollLast()){
                                 throw new RuntimeException("openedContexts is out of sync with openBlocks");
                             }
-                            ((TupleBlock) block).context.unbind();
                             ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
                             List<Token> subList = tokens.subList(block.start, tokens.size());
                             Type[] types=ProcedureBlock.getSignature(
@@ -2065,7 +2043,6 @@ public class Interpreter {
                             if(((StructBlock) block).context != pState.openedContexts.pollLast()){
                                 throw new RuntimeException("openedContexts is out of sync with openBlocks");
                             }
-                            ((StructBlock) block).context.unbind();
                             if(tokens.size()>block.start){
                                 tmp=tokens.get(block.start);
                                 throw new SyntaxError("Unexpected token in struct:"+tmp,tmp.pos);
@@ -2203,7 +2180,7 @@ public class Interpreter {
                     tokens.add(new StackModifierToken(TokenType.STACK_SET,args,pos));
                 }
 
-                case "()"     -> tokens.add(new CallPtrToken(null, pos));
+                case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
 
 
                 case "new"       -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
@@ -2410,10 +2387,8 @@ public class Interpreter {
             for(Type t:((Type.Procedure) p.type).inTypes){
                 typeStack.push(new TypeFrame(t,null, p.declaredAt));
             }
-            p.context.bind();
             res=typeCheck(p.tokens, p.context, globalConstants,typeStack,((Type.Procedure) p.type).outTypes,
                     p.endPos, ioContext);
-            p.context.unbind();
             p.tokens=res.tokens;
             p.typeCheckState = Value.TypeCheckState.CHECKED;
         }
@@ -2965,15 +2940,14 @@ public class Interpreter {
                 case CALL_PTR -> {//TODO don't allow generic procedure pointers
                     TypeFrame f=typeStack.pop();
                     if(f.type instanceof Type.Procedure){
-                        IdentityHashMap<Type.GenericParameter,Type> generics =
-                                typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
-                        ret.add(new CallPtrToken(generics,t.pos));
+                        typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
+                        ret.add(new Token(TokenType.CALL_PTR,t.pos));
                     }else if(f.type instanceof Type.OverloadedProcedurePointer){
                         CallMatch call = typeCheckOverloadedCall("call-ptr", ((Type.OverloadedProcedurePointer) f.type).proc, true, typeStack,
                                 globalConstants, ret, ioContext, t.pos);
                         Callable proc=call.called;
                         setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) f.type), (Value) proc);
-                        ret.add(new CallPtrToken(call.genericParams,t.pos));
+                        ret.add(new Token(TokenType.CALL_PTR,t.pos));
                     }else{
                         throw new SyntaxError("invalid argument for operator '()': "+f.type,t.pos);
                     }
@@ -3122,9 +3096,7 @@ public class Interpreter {
         }
         ProcedureContext newContext=new ProcedureContext(context);
         newContext.generics.addAll(t.generics);//move generics to new context
-        newContext.bind();
         TypeCheckResult res=typeCheck(t.tokens,newContext, globalConstants,procTypes,t.outTypes,t.endPos, ioContext);
-        newContext.unbind();
         Type[] outTypes;
         if(t.outTypes!=null){
             outTypes=t.outTypes;
@@ -3139,7 +3111,7 @@ public class Interpreter {
             }
         }
         Type.Procedure procType=t.generics.size()>0?
-                Type.GenericProcedure.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes):
+                Type.GenericProcedureType.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes):
                 Type.Procedure.create(t.inTypes, outTypes);
         Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, newContext);
         lambda.typeCheckState = Value.TypeCheckState.CHECKED;//mark lambda as checked
@@ -3164,9 +3136,8 @@ public class Interpreter {
         try {
             Type type = ((ValueToken)prev).value.asType();
             if(type instanceof Type.Tuple){
-                IdentityHashMap<Type.GenericParameter,Type> generics = typeCheckCall("new", typeStack,
+                typeCheckCall("new", typeStack,
                         Type.Procedure.create(((Type.Tuple) type).elements,new Type[]{type}), ret, t.pos, false);
-                type=type.replaceGenerics(generics);
 
                 int c=((Type.Tuple) type).elementCount();
                 if(c < 0){
@@ -3275,7 +3246,7 @@ public class Interpreter {
                         CallMatch match = typeCheckOverloadedCall(
                                 "procedure "+identifier.name, new OverloadedProcedure(proc),false,
                                 typeStack,globalConstants,ret,ioContext,t.pos);
-                        CallToken token = new CallToken( match.called, match.genericParams, identifier.pos);
+                        CallToken token = new CallToken( match.called, identifier.pos);
                         ret.add(token);
                     }
                     case VARIABLE, CONSTANT_VARIABLE, CURRIED_VARIABLE -> {
@@ -3350,11 +3321,14 @@ public class Interpreter {
                     ValueToken token=new ValueToken(proc, t.pos,false);
                     typeStack.push(new TypeFrame(token.value.type,token.value,t.pos));
                     ret.add(token);
-                }else if(d instanceof Value.Procedure proc){
-                    typeCheckProcedure(proc,globalConstants,ioContext);//type check procedure before it is pushed onto the stack
-                    ValueToken token=new ValueToken(proc, t.pos,false);
-                    typeStack.push(new TypeFrame(token.value.type,token.value,t.pos));
+                }else if(d instanceof Value.Procedure proc) {
+                    typeCheckProcedure(proc, globalConstants, ioContext);//type check procedure before it is pushed onto the stack
+                    ValueToken token = new ValueToken(proc, t.pos, false);
+                    typeStack.push(new TypeFrame(token.value.type, token.value, t.pos));
                     ret.add(token);
+                }else if(d instanceof GenericProcedure proc){//TODO resolve explicit type-args
+                    typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,ret.size(),t.pos),null,t.pos));
+                    ret.add(new Token(TokenType.OVERLOADED_PROC_PTR,t.pos));//push placeholder token
                 }else if(d instanceof OverloadedProcedure proc){
                     typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,ret.size(),t.pos),null,t.pos));
                     ret.add(new Token(TokenType.OVERLOADED_PROC_PTR,t.pos));//push placeholder token
@@ -3455,15 +3429,15 @@ public class Interpreter {
                                             f.value.asType() instanceof Type.Tuple ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IS_TUPLE, t.pos));
                                 }
+                                case "isStruct" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType() instanceof Type.Struct ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_STRUCT, t.pos));
+                                }
                                 case "isUnion" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType() instanceof Type.UnionType ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IS_UNION, t.pos));
-                                }
-                                case "isGeneric" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType() instanceof Type.GenericParameter ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_GENEIRC, t.pos));
                                 }
                                 default -> hasField = false;
                             }
@@ -3559,7 +3533,24 @@ public class Interpreter {
             ArrayList<CallMatch> matches=new ArrayList<>();
             OverloadedProcedure proc = ((Type.OverloadedProcedurePointer) src).proc;
             for(Callable c: proc.procedures){
-                if(c.type().canAssignTo(target)){//TODO allow generics, allow casts
+                bounds=new Type.BoundMaps();
+                if(c.type().canAssignTo(target,bounds)){//TODO allow casts
+                    if(c instanceof GenericProcedure){
+                        assert bounds.r.size()==0;
+                        IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
+                        for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
+                            if(e.getValue().min()!=null){
+                                if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
+                                    update.put(e.getKey(),e.getValue().min());
+                                }else{
+                                    throw new SyntaxError("cannot cast from "+ src+" to "+ target, pos);
+                                }
+                            }else if(e.getValue().max()!=null){
+                                update.put(e.getKey(),e.getValue().max());
+                            }
+                        }
+                        c=((GenericProcedure) c).withPrams(update);
+                    }
                     matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,0));
                 }
             }
@@ -3583,53 +3574,19 @@ public class Interpreter {
                     ret.add(new ArgCastToken(stackPos, target, pos));
                 }
             }
-        }
-        /* TODO? update generics
-        if(bounds.l.size()>0||bounds.r.size()>0){//TODO handle bounds.r
-            IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
-
-            for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
-                if(e.getValue().min()!=null){
-                    if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
-                        update.put(e.getKey(),e.getValue().min());
-                    }else{
-                        throw new SyntaxError("cannot cast from "+ src+" to "+ target, pos);
-                    }
-                }else if(e.getValue().max()!=null){
-                    update.put(e.getKey(),e.getValue().max());
-                }
+            if(bounds.l.size()>0||bounds.r.size()>0){
+                //generics only exist in Tuple/Struct/Procedures concrete values should not contain any generic information
+                throw new RuntimeException("generics should not exist here");
             }
         }
-        */
     }
 
-    private IdentityHashMap<Type.GenericParameter,Type> typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
+    private void typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         int offset=isPtr?1:0;
-        IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
-        if(type instanceof Type.GenericProcedure){
-            Type[] typeArgs=new Type[((Type.GenericProcedure) type).explicitGenerics.length];
-            for(int i=typeArgs.length-1;i>=0;i--){
-                try {
-                    TypeFrame f=typeStack.pop();
-                    if(f.type!=Type.TYPE||f.value()==null){
-                        throw new SyntaxError("generic arguments have to be constant types",pos);
-                    }
-                    typeArgs[i]=f.value().asType();
-                    generics.put(((Type.GenericProcedure) type).explicitGenerics[i], typeArgs[i]);
-                }catch (RandomAccessStack.StackUnderflow e){
-                    throw new SyntaxError("missing generic argument for function call "+procName,pos);
-                }catch (TypeError e) {
-                    throw new SyntaxError(e,pos);
-                }
-            }
-            type= type.replaceGenerics(generics);
-            if(typeArgs.length>0){
-                if(isPtr){//move pointer below the arguments
-                    tokens.add(new StackModifierToken(TokenType.STACK_SET,new int[]{typeArgs.length+1,1},pos));
-                }
-                tokens.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{typeArgs.length},pos));
-            }
+        if(type instanceof Type.GenericProcedureType){
+            //generic procedures should be type-checked with typeCheckOverloadedCall()
+            throw new RuntimeException("unexpected generic procedure");
         }
         Type[] inTypes=new Type[type.inTypes.length];
         for(int i=inTypes.length-1;i>=0;i--){
@@ -3637,7 +3594,6 @@ public class Interpreter {
         }
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
-            //TODO allow overloaded procedure pointers
             if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
                 if(inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
                     tokens.add(new ArgCastToken(inTypes.length-i+offset,type.inTypes[i],pos));
@@ -3647,27 +3603,13 @@ public class Interpreter {
                 }
             }
         }
-        if(bounds.r.size()>0){//TODO handle bounds.l
-            IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
-            for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.r.entrySet()){
-                if(e.getValue().min()!=null){
-                    if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
-                        implicitGenerics.put(e.getKey(),e.getValue().min());
-                    }else{
-                        throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
-                                ": "+Arrays.toString(inTypes),pos);
-                    }
-                }else if(e.getValue().max()!=null){
-                    implicitGenerics.put(e.getKey(),e.getValue().max());
-                }
-            }
-            type=type.replaceGenerics(implicitGenerics);
-            generics.putAll(implicitGenerics);
+        if(bounds.l.size()>0||bounds.r.size()>0){
+            //generics only exist in Tuple/Struct/Procedures concrete values should not contain any generic information
+            throw new RuntimeException("generics should not exist here");
         }
         for(Type t:type.outTypes){
             typeStack.push(new TypeFrame(t,null,pos));
         }
-        return generics;
     }
 
     record CallMatch(Callable called,Type.Procedure type,IdentityHashMap<Type.GenericParameter,Type> genericParams,
@@ -3710,7 +3652,7 @@ public class Interpreter {
             int nCasts=0,nImplicit=0;
             if(typeArgs!=null) {//update type signature
                 for (int i = 0; i < typeArgs.length; i++) {
-                    generics.put(((Type.GenericProcedure) type).explicitGenerics[i], typeArgs[i]);
+                    generics.put(((Type.GenericProcedureType) type).explicitGenerics[i], typeArgs[i]);
                 }
                 type = type.replaceGenerics(generics);
             }
@@ -3725,7 +3667,8 @@ public class Interpreter {
                 }
             }
             if(isMatch){
-                if(bounds.r.size()>0){//TODO handle bounds.l
+                if(bounds.r.size()>0){
+                    assert bounds.l.size()==0;
                     nImplicit=bounds.r.size();
                     IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
                     for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.r.entrySet()){
@@ -3759,7 +3702,7 @@ public class Interpreter {
                 }catch (SyntaxError err){
                     throw new SyntaxError(err,pos);
                 }
-                matchingCalls.set(i,new CallMatch(withPrams,c.type,c.genericParams,c.nCasts,c.nImplicit));
+                matchingCalls.set(i,new CallMatch(withPrams,withPrams.type(),c.genericParams,c.nCasts,c.nImplicit));
             }
         }
         if(matchingCalls.size()==0){
@@ -3842,9 +3785,9 @@ public class Interpreter {
 
     public RandomAccessStack<Value> run(Program program, String[] arguments,IOContext context){
         RandomAccessStack<Value> stack=new RandomAccessStack<>(16);
-        Declareable main=program.rootContext.getElement("main",true);//TODO detect (?allow) non-public main procedures
+        Declareable main=program.rootContext.getElement("main",true);
         if(main==null){
-            recursiveRun(stack,program,null,null,null,new ArrayDeque<>(),context);
+            recursiveRun(stack,program,null,null,null,context);
         }else{
             if(program.tokens.size()>0){
                 context.stdErr.println("programs with main procedure cannot contain code at top level "+
@@ -3874,7 +3817,7 @@ public class Interpreter {
                         }
                     }
                 }
-                recursiveRun(stack,(Value.Procedure)main,new ArrayList<>(),null,null,new ArrayDeque<>(),context);
+                recursiveRun(stack,(Value.Procedure)main,new ArrayList<>(),null,null,context);
             }
         }
         return stack;
@@ -3934,6 +3877,10 @@ public class Interpreter {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.Tuple?Value.TRUE:Value.FALSE);
             }
+            case IS_STRUCT -> {
+                Type type = stack.pop().asType();
+                stack.push(type instanceof Type.Struct?Value.TRUE:Value.FALSE);
+            }
             case IS_UNION -> {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.UnionType?Value.TRUE:Value.FALSE);
@@ -3949,9 +3896,8 @@ public class Interpreter {
         }
     }
 
-    private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,
-                                  ArrayList<Variable[]> globalVariables, ArrayList<Variable[]> variables,
-                                  Value[] curried, ArrayDeque<IdentityHashMap<Type.GenericParameter,Type>> genArgs, IOContext context){
+    private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,ArrayList<Variable[]> globalVariables,
+                                  ArrayList<Variable[]> variables,Value[] curried, IOContext context){
         if(variables==null){
             variables=new ArrayList<>();
             variables.add(new Variable[program.context().varCount()]);
@@ -3961,34 +3907,13 @@ public class Interpreter {
         while(ip<tokens.size()){
             Token next=tokens.get(ip);
             boolean incIp=true;
-            if(next instanceof TypedToken){
-                Type target = ((TypedToken) next).target;
-                for(IdentityHashMap<Type.GenericParameter,Type> args:genArgs){
-                    target=target.replaceGenerics(args);
-                }
-                next=new TypedToken(next.tokenType, target,next.pos);
-            }
             try {
                 switch (next.tokenType) {
                     case NOP -> {}
                     case LAMBDA, VALUE -> {
                         assert next instanceof ValueToken;
                         ValueToken value = (ValueToken) next;
-                        if(value.value.type==Type.TYPE){
-                            //resolve generic types
-                            Type t=value.value.asType();
-                            for(IdentityHashMap<Type.GenericParameter,Type> args:genArgs){
-                                t=t.replaceGenerics(args);
-                            }
-                            stack.push(Value.ofType(t));
-                        }else if(value.value.type.isOptional()&&!value.value.hasValue()){
-                            //resolve generic types of empty optionals
-                            Type t=value.value.type.content();
-                            for(IdentityHashMap<Type.GenericParameter,Type> args:genArgs){
-                                t=t.replaceGenerics(args);
-                            }
-                            stack.push(Value.emptyOptional(t));
-                        }else if(value.cloneOnCreate){
+                        if(value.cloneOnCreate){
                             stack.push(value.value.clone(true));
                         }else{
                             stack.push(value.value);
@@ -4015,7 +3940,7 @@ public class Interpreter {
                     case NEW_LIST -> {//{ e1 e2 ... eN }
                         assert next instanceof ListCreatorToken;
                         RandomAccessStack<Value> listStack=new RandomAccessStack<>(((ListCreatorToken)next).tokens.size());
-                        ExitType res=recursiveRun(listStack,((ListCreatorToken)next),globalVariables,variables,curried,genArgs,context);
+                        ExitType res=recursiveRun(listStack,((ListCreatorToken)next),globalVariables,variables,curried,context);
                         if(res!=ExitType.NORMAL){
                             if(res==ExitType.ERROR) {
                                 context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
@@ -4112,10 +4037,6 @@ public class Interpreter {
                                 Type type= asVar.id.type;
                                 if(type == null){
                                     type = stack.pop().asType();
-                                }else{
-                                    for(IdentityHashMap<Type.GenericParameter,Type> args:genArgs){
-                                        type=type.replaceGenerics(args);
-                                    }
                                 }
                                 Value initValue=stack.pop();
                                 switch (asVar.variableType){
@@ -4147,7 +4068,7 @@ public class Interpreter {
                         return ExitType.ERROR;
                     }
                     case OVERLOADED_PROC_PTR -> {
-                        context.stdErr.println("unresolved procedure pointer: "+next.pos);
+                        context.stdErr.println("unresolved overloaded procedure pointer: "+next.pos);
                         return ExitType.ERROR;
                     }
                     case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL ->
@@ -4165,20 +4086,15 @@ public class Interpreter {
                     }
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Callable called;
-                        IdentityHashMap<Type.GenericParameter,Type> generics;
                         if(next.tokenType==TokenType.CALL_PROC){
                             assert next instanceof CallToken;
                             called=((CallToken) next).called;
-                            generics=((CallToken) next).genericArgs;
                         }else{
-                            assert next instanceof CallPtrToken;
                             Value ptr = stack.pop();
-                            generics=((CallPtrToken)next).genericArgs;
                             if(!(ptr instanceof Callable)){
                                 throw new ConcatRuntimeError("cannot call objects of type "+ptr.type);
                             }
                             called=(Callable) ptr;
-                            assert generics!=null;
                         }
                         if(called instanceof Value.NativeProcedure nativeProc){
                             int count=nativeProc.argCount();
@@ -4192,19 +4108,8 @@ public class Interpreter {
                             }
                         }else if(called instanceof Value.Procedure procedure){
                             assert ((Value.Procedure) called).context.curried.isEmpty() || procedure.curriedArgs != null;
-                            if(procedure.genericArgs.size()>0){
-                                generics=Type.mergeArgs(procedure.genericArgs,generics);
-                            }
-                            if(generics.size()>0){
-                                genArgs.addLast(generics);
-                            }
                             ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                    null,procedure.curriedArgs,genArgs,context);
-                            if(generics.size()>0){
-                                if(genArgs.pollLast()!=generics){
-                                    throw new RuntimeException("generic arguments out of sync");
-                                }
-                            }
+                                    null,procedure.curriedArgs,context);
                             if(e!=ExitType.NORMAL){
                                 if(e==ExitType.ERROR) {
                                     context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
@@ -4321,6 +4226,7 @@ public class Interpreter {
             }
             return;
         }
+        //TODO detect unchecked (unused) procedures
         PrintStream outTmp = System.out;
         System.setOut(context.stdOut);
         PrintStream errTmp = System.err;
