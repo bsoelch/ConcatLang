@@ -17,12 +17,11 @@ reverse public proc( A <?> A list  => ){
   }
 }
 
-mergesort_helper proc( union( byte codepoint uint int float ) list #+off+# int #+to+# int
-    #+buffer+#  union( byte codepoint uint int float ) list => ){
-  union( byte codepoint uint int float ) list buffer =:
+mergesort_helper proc( A <?> A list #+off+# int #+to+# int #+buffer+# A list => ){
+  A list buffer =:
   int to =:
   int off =:
-  union( byte codepoint uint int float ) list input =:
+  A list input =:
   off to < if{
     off to + 2 / int c =:
     input off c buffer mergesort_helper
@@ -35,7 +34,7 @@ mergesort_helper proc( union( byte codepoint uint int float ) list #+off+# int #
         off 1 + off =
       }
       off c < if{
-        while{ i to <= &&{ input off [] input i [] > } do
+        while{ i to <= &&{ input off [] input i [] <= ! } do
           i 1 + i =
         }
         i c - int delta =:
@@ -59,13 +58,16 @@ mergesort_helper proc( union( byte codepoint uint int float ) list #+off+# int #
   }
 }
 
-mergesort public proc( union( byte codepoint uint int float ) list => ){ #+ addLater make generic once restricted generics implemented +#
-  union( byte codepoint uint int float ) list input =:
-  #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / union( byte codepoint uint int float ) list new
-  mergesort_helper
+#+ sorts the given list
+  elements are compared using 'core .<='
+  the sorted list overwrites the given list
+ +#
+mergesort public proc( A <?> A list => ){
+  A list input =:
+  #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / A list new mergesort_helper
 }
 
-generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A list => ){
+mergesort2_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A list => ){
   A list buffer =:
   int to =:
   int off =:
@@ -73,9 +75,9 @@ generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off+# int #
   A list input =:
   off to < if{
     off to + 2 / int c =:
-    input cmp off c buffer generic_mergesort_helper
+    input cmp off c buffer mergesort2_helper
     c 1 + c =
-    input cmp c  to buffer generic_mergesort_helper
+    input cmp c  to buffer mergesort2_helper
     ## 0 ... c-1 and c...to-1 are sorted
     c int i =:
     while{ off c < &&{ c to <= } do
@@ -106,11 +108,16 @@ generic_mergesort_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off+# int #
     }
   }
 }
-generic_mergesort public proc( A <?> A list ( A A => int ) => ){
+
+#+ sorts the given list
+  elements are compared using the given comparison function
+  the sorted list overwrites the given list
+ +#
+mergesort2 public proc( A <?> A list ( A A => int ) => ){
   ( A A => int ) cmp =:
   A list input =:
   #+list+# input #+cmp+# cmp #+off+# 0 #+to+# input .length 1 - #+buffer+# input .length 2 / A list new
-  generic_mergesort_helper
+  mergesort2_helper
 }
 
 map public proc( A <?> B <?> A list ( A => B ) => B list ){

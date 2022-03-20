@@ -37,7 +37,7 @@ lenCmp proc( string string => int ){
   a .length b .length - int cast return
 }
 
-{ "sorting" "with" "comparator" "is" "now" "supported" } dup @lenCmp generic_mergesort println
+{ "sorting" "with" "comparator" "is" "now" "supported" } dup @lenCmp mergesort2 println
 
 { 1 2 3 4 5 } lambda( int => int ){ dup * } map println
 { 1 2 3 4 5 } lambda( int => bool ){ 2 % 0 != } filter println
