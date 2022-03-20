@@ -1111,7 +1111,7 @@ public class Interpreter {
             return 0;
         }
     }
-    private static class RootContext extends TopLevelContext{
+    static class RootContext extends TopLevelContext{
         private final HashMap<String,Declareable> elements =new HashMap<>();
         HashSet<String> namespaces=new HashSet<>();
 
@@ -1131,6 +1131,9 @@ public class Interpreter {
                             +prev+", "+proc);
                 }
             }
+        }
+        Iterable<Map.Entry<String,Declareable>> declareables(){
+            return elements.entrySet();
         }
         @Override
         RootContext root() {
@@ -1403,6 +1406,29 @@ public class Interpreter {
         final RootContext rootContext;
         final ArrayDeque<TopLevelContext> openedFiles=new ArrayDeque<>();
         private TopLevelContext topLevelContext;
+        void startFile(){
+            if(topLevelContext!=null){
+                openedFiles.add(topLevelContext);
+            }
+            topLevelContext=new FileContext(rootContext);
+        }
+        void startNamespace(String name){
+            if(topLevelContext==null){
+                throw new IllegalArgumentException("namespaces cannot exist outside of files");
+            }
+            topLevelContext=new NamespaceContext(name,topLevelContext);
+        }
+        void endNamespace(FilePosition pos) throws SyntaxError {
+            if(topLevelContext instanceof NamespaceContext){
+                topLevelContext=((NamespaceContext)topLevelContext).parent;
+            }else{
+                throw new SyntaxError("unexpected end of namespace",pos);
+            }
+        }
+        void endFile(){
+            //addLater report unclosed namespaces
+            topLevelContext=openedFiles.pollLast();
+        }
         final HashSet<String> files=new HashSet<>();
         public HashMap<VariableId, Value> globalConstants =new HashMap<>();
         //proc-contexts that are currently open
@@ -1455,11 +1481,7 @@ public class Interpreter {
             pState.files.add(fileId);
         }
 
-        //addLater? extract startFile() to method
-        if(pState.topLevelContext()!=pState.rootContext){
-            pState.openedFiles.add(pState.topLevelContext());
-        }
-        pState.topLevelContext=new FileContext(pState.rootContext);
+        pState.startFile();
 
         reader.nextToken();
         WordState state=WordState.ROOT;
@@ -1571,10 +1593,7 @@ public class Interpreter {
             throw new SyntaxError("unclosed block: "+pState.openBlocks.getLast(),pState.openBlocks.getLast().startPos);
         }
 
-        //addLater extract endFile() to method
-        //addLater report unclosed namespaces
-
-        pState.topLevelContext=pState.openedFiles.pollLast();
+        pState.endFile();
 
         return new Program(pState.globalCode,pState.files,pState.rootContext);
     }
@@ -1670,8 +1689,7 @@ public class Interpreter {
                     if(prevId != null){
                         tokens.remove(tokens.size()-1);
                         finishParsing(pState, ioContext,pos);
-                        //addLater? extract startNamespace to method
-                        pState.topLevelContext=new NamespaceContext(prevId,pState.topLevelContext());
+                        pState.startNamespace(prevId);
                     }else{
                         throw new SyntaxError("namespace name has to be an identifier",pos);
                     }
@@ -1681,12 +1699,7 @@ public class Interpreter {
                         throw new SyntaxError("namespaces can only be closed at root-level",pos);
                     }else{
                         finishParsing(pState, ioContext,pos);
-                        //addLater? extract endNamespace to method
-                        if(pState.topLevelContext instanceof NamespaceContext){
-                            pState.topLevelContext=((NamespaceContext) pState.topLevelContext).parent;
-                        }else{
-                            throw new SyntaxError("unexpected end of namespace",pos);
-                        }
+                        pState.endNamespace(pos);
                     }
                 }
                 case "#import"-> {
@@ -2937,7 +2950,7 @@ public class Interpreter {
                             typeStack.get(((StackModifierToken)t).args[1]));
                     ret.add(t);
                 }
-                case CALL_PTR -> {//TODO don't allow generic procedure pointers
+                case CALL_PTR -> {
                     TypeFrame f=typeStack.pop();
                     if(f.type instanceof Type.Procedure){
                         typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
@@ -3594,13 +3607,11 @@ public class Interpreter {
         }
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
-            if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
-                if(inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
-                    tokens.add(new ArgCastToken(inTypes.length-i+offset,type.inTypes[i],pos));
-                }else{
-                    throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
-                            ": "+Arrays.toString(inTypes),pos);
-                }
+            try{
+                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],tokens,pos);
+            }catch (SyntaxError e){
+                throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
+                        ": "+Arrays.toString(inTypes),pos);
             }
         }
         if(bounds.l.size()>0||bounds.r.size()>0){
@@ -3658,6 +3669,7 @@ public class Interpreter {
             }
             Type.BoundMaps bounds=new Type.BoundMaps();
             for(int i=0;i<inTypes.length;i++){
+                //TODO resolve overloaded procedure pointers
                 if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
                     nCasts++;
                     if(!inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
@@ -4102,7 +4114,7 @@ public class Interpreter {
                             for(int i=count-1;i>=0;i--){
                                 args[i]=stack.pop();
                             }
-                            args=nativeProc.callWith(args);//addLater? pass generic arguments to native call
+                            args=nativeProc.callWith(args);
                             for (Value arg : args) {
                                 stack.push(arg);
                             }
@@ -4211,7 +4223,7 @@ public class Interpreter {
         return ExitType.NORMAL;
     }
 
-    static void compileAndRun(String path,String[] arguments,IOContext context) throws IOException {
+    static Program compileAndRun(String path,String[] arguments,IOContext context) throws IOException {
         Interpreter ip = new Interpreter();
         Program program;
         try {
@@ -4224,7 +4236,7 @@ public class Interpreter {
                 s =(SyntaxError) s.getCause();
                 context.stdErr.println("  at "+ s.pos);
             }
-            return;
+            return null;
         }
         //TODO detect unchecked (unused) procedures
         PrintStream outTmp = System.out;
@@ -4239,6 +4251,7 @@ public class Interpreter {
         System.setErr(errTmp);
         context.stdOut.println("\nStack:");
         context.stdOut.println(stack);
+        return program;
     }
 
     public static void main(String[] args) throws IOException {
