@@ -468,6 +468,11 @@ public abstract class Value {
         }
 
         @Override
+        public long asLong() {
+            return codePoint;
+        }
+
+        @Override
         Object rawData() {
             return codePoint;
         }
