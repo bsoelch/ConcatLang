@@ -4,8 +4,8 @@ core #namespace
 stack #include
 codeblocks #include
 math #include
-## TODO replace string with generic list once there are restricted generics
-cmp public proc( string string => int ){
+
+lexCmp public proc( A <?> A list A list => int ){
   b =::
   a =::
   a .length b .length min l =::
@@ -19,12 +19,20 @@ cmp public proc( string string => int ){
   a .length b .length - int cast return
 }
 
->  public proc( string string => bool ){ cmp 0 >  }
-<  public proc( string string => bool ){ cmp 0 <  }
->= public proc( string string => bool ){ cmp 0 >= }
-<= public proc( string string => bool ){ cmp 0 <= }
-== public proc( string string => bool ){ cmp 0 == }
-!= public proc( string string => bool ){ cmp 0 != }
+## comparison operators for string and ustring
+>  public proc( string  string  => bool ){ lexCmp 0 >  }
+<  public proc( string  string  => bool ){ lexCmp 0 <  }
+>= public proc( string  string  => bool ){ lexCmp 0 >= }
+<= public proc( string  string  => bool ){ lexCmp 0 <= }
+== public proc( string  string  => bool ){ lexCmp 0 == }
+!= public proc( string  string  => bool ){ lexCmp 0 != }
+
+>  public proc( ustring ustring => bool ){ lexCmp 0 >  }
+<  public proc( ustring ustring => bool ){ lexCmp 0 <  }
+>= public proc( ustring ustring => bool ){ lexCmp 0 >= }
+<= public proc( ustring ustring => bool ){ lexCmp 0 <= }
+== public proc( ustring ustring => bool ){ lexCmp 0 == }
+!= public proc( ustring ustring => bool ){ lexCmp 0 != }
 
 startsWith public proc( A <?> A list A list => bool ){
   b =::
