@@ -1,0 +1,32 @@
+byte:0 wrap
+byte:1 wrap
+18
+23456789ABCDEFGHIL
+10
+JKLMNOPQRS
+10
+TUVWXYZabc
+10
+defghijklm
+10
+nopqrstuvw
+10
+xyz
+012345
+10
+6789ABCDEF
+10
+GHILJKLMNO
+10
+PQRSTUVWXY
+10
+Zabcdefghi
+10
+jklmnopqrs
+8
+tuvwxyz
+
+-1
+
+Stack:
+[]

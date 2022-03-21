@@ -1,0 +1,45 @@
+tests/lib/lists :
+
+core #namespace
+lists #include
+stack #include
+
+{ 1 2 3 4 } l =::
+l reverse
+l debugPrint
+
+"_________________________" debugPrint
+"sort:\n" debugPrint
+l mergesort
+l debugPrint
+l mergesort
+l debugPrint
+
+"_________________________" debugPrint
+"sort2:\n" debugPrint
+lambda( int int ){ - -_ } cmp =::
+l cmp mergesort2
+l debugPrint
+l cmp mergesort2
+l debugPrint
+
+lenCmp proc( string string => int ){
+  string a =:
+  string b =:
+  a .length b .length - int cast return
+}
+{ "sorting" "with" "comparator" "is" "now" "supported" } dup @lenCmp mergesort2 debugPrint
+
+"_________________________" debugPrint
+"map:\n" debugPrint
+
+{ 1 2 3 4 5 } lambda( int ){ dup * } map debugPrint
+{ 1 2 3 4 5 } lambda( int ){ i =:: { i } } map debugPrint
+
+"_________________________" debugPrint
+"filter:\n" debugPrint
+
+
+{ 1 2 3 4 5 } lambda( int => bool ){ 2 % 0 != } filter debugPrint
+
+#end

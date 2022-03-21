@@ -7,14 +7,6 @@ if(false)-elif(true)-end
 if(true)-elif-else-end
 if(false)-elif(true)-else-end
 if(false)-elif(false)-else-end
-A B true
-A B false
-A false
-A false
-A true
-A true
-A B true
-A B false
 do-while
 __________________________
 scopes:

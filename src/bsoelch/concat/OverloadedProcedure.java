@@ -96,4 +96,19 @@ public class OverloadedProcedure implements Interpreter.Declareable {
     public boolean isPublic() {
         return isPublic;
     }
+
+    @Override
+    public void markAsUsed() {
+        //do nothing
+    }
+
+    @Override
+    public boolean unused() {
+        for(Interpreter.Callable c:procedures){
+            if(c.unused()){
+                return true;
+            }
+        }
+        return false;
+    }
 }

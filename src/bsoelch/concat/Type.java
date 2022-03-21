@@ -455,6 +455,16 @@ public class Type {
         public boolean isPublic() {
             return isPublic;
         }
+
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
+        }
     }
 
     public static class Struct extends Tuple{
@@ -789,6 +799,16 @@ public class Type {
         public boolean isPublic() {
             return isPublic;
         }
+
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
+        }
     }
 
     public static class NativeType extends Type{
@@ -872,6 +892,16 @@ public class Type {
         @Override
         public boolean isPublic() {
             return false;
+        }
+
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
         }
     }
 

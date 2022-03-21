@@ -1,0 +1,12 @@
+tests/lib/stack :
+
+stack #include
+core #import
+
+{ 1 2 3 dup   } debugPrint
+{ 1 2 3 drop  } debugPrint
+{ 1 2 3 swap  } debugPrint
+{ 1 2 3 over  } debugPrint
+{ 1 2 3 2over } debugPrint
+{ 1 2 3 rot3  } debugPrint
+

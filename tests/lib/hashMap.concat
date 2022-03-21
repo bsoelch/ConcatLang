@@ -1,0 +1,41 @@
+tests/lib/hashMap :
+
+hashMap #include
+core #import
+hashMap #import
+
+{ 1 2 3 4 } hashCode debugPrint
+
+16 int string newHashMap map =::
+
+"__________________________" debugPrint
+"put:\n" debugPrint
+map 1 "one"   HashMap.put debugPrint
+map 2 "two"   HashMap.put debugPrint
+map 3 "tree"  HashMap.put debugPrint
+map 3 "three" HashMap.put debugPrint
+map 4 "four"  HashMap.put debugPrint
+map 5 "five"  HashMap.put debugPrint
+map 6 "six"   HashMap.put debugPrint
+
+"__________________________" debugPrint
+"contains:\n" debugPrint
+map 0 HashMap.contains debugPrint
+map 2 HashMap.contains debugPrint
+map 4 HashMap.contains debugPrint
+"__________________________" debugPrint
+"get:\n" debugPrint
+map 3 HashMap.get debugPrint
+map 6 HashMap.get debugPrint
+map 9 HashMap.get debugPrint
+"__________________________" debugPrint
+"remove:\n" debugPrint
+map 1 HashMap.remove debugPrint
+map 5 HashMap.remove debugPrint
+map 7 HashMap.remove debugPrint
+"__________________________" debugPrint
+"iterator:\n" debugPrint
+map ^_ while{ ^> do e =::
+  e .key   debugPrint
+  e .value debugPrint
+} 1 $drop

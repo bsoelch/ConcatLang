@@ -1,0 +1,24 @@
+[int:4, int:3, int:2, int:1]
+_________________________
+sort:
+
+[int:1, int:2, int:3, int:4]
+[int:1, int:2, int:3, int:4]
+_________________________
+sort2:
+
+[int:4, int:3, int:2, int:1]
+[int:4, int:3, int:2, int:1]
+[byte list:comparator, byte list:supported, byte list:sorting, byte list:with, byte list:now, byte list:is]
+_________________________
+map:
+
+[int:1, int:4, int:9, int:16, int:25]
+[int list:[int:1], int list:[int:2], int list:[int:3], int list:[int:4], int list:[int:5]]
+_________________________
+filter:
+
+[int:1, int:3, int:5]
+
+Stack:
+[]

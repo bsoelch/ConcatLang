@@ -1,0 +1,22 @@
+tests/lib/utf8 :
+
+core #namespace
+utf8 #include
+
+{ "append codepoint" '!' << } debugPrint
+{ "to ustring" codepoints } debugPrint
+{ u"to string" codepointsToString } debugPrint
+{ u"append" " string"  <<* } debugPrint
+{ "append " u"ustring" <<* } debugPrint
+{ "prepend " u"string" *>> } debugPrint
+{ u"prepend" " ustring" *>> } debugPrint
+{ u'p' "prepend codepoint" >> } debugPrint
+{ u'💻' codepointToString } debugPrint
+
+{ "A°💻" 0 nextCodepoint } debugPrint
+{ "A°💻" 1 nextCodepoint } debugPrint
+{ "A°💻" 2 nextCodepoint } debugPrint
+{ "A°💻" 3 nextCodepoint } debugPrint
+
+
+#end

@@ -1,0 +1,43 @@
+31810
+__________________________
+put:
+
+byte list empty
+byte list empty
+byte list empty
+byte list:tree wrap
+byte list empty
+byte list empty
+byte list empty
+__________________________
+contains:
+
+false
+true
+true
+__________________________
+get:
+
+byte list:three wrap
+byte list:six wrap
+byte list empty
+__________________________
+remove:
+
+byte list:one wrap
+byte list:five wrap
+byte list empty
+__________________________
+iterator:
+
+2
+two
+3
+three
+4
+four
+6
+six
+
+Stack:
+[]

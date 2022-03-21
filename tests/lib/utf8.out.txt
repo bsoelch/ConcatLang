@@ -1,0 +1,16 @@
+[byte list:append codepoint!]
+[codepoint list:to ustring]
+[byte list:to string]
+[codepoint list:append string]
+[byte list:append ustring]
+[codepoint list:prepend string]
+[byte list:prepend ustring]
+[byte list:pprepend codepoint]
+[byte list:💻]
+[byte list:A°💻, uint:1, codepoint:A, bool:true]
+[byte list:A°💻, uint:2, codepoint:°, bool:true]
+[byte list:A°💻, uint:6, codepoint:💻, bool:true]
+[byte list:A°💻, uint:6, codepoint:💻, bool:true]
+
+Stack:
+[]

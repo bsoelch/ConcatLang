@@ -1,0 +1,48 @@
+test/numbers :
+
+numbers #include
+core #import
+
+int_MIN debugPrint
+int_MAX debugPrint
+uint_MIN debugPrint
+uint_MAX debugPrint
+"_____________________________" debugPrint
+-123456  36 true true intToString debugPrint
+"" -42 <<u
+' '  << 2048 <<x
+' '  << -42 <<X
+'\n' << 0b11001001 2 <<?i
+' '  << 1024 20 <<?I
+' '  << 10  2 <<?u
+' '  << -1 32 <<?U
+debugPrint
+
+3.141592653589793238 pi =::
+"_____________________________" debugPrint
+"" pi <<f
+' '  << pi <<e
+'\n' << pi 11 <<?e
+' '  << pi 3  <<?f
+'\n' << pi 5 2  <<??e
+' '  << pi 0 16 <<??E
+'\n' << pi 5 16 <<??f
+' '  << pi 20 2  <<??F
+' '  << pi 99 62 <<??F
+debugPrint
+"_____________________________" debugPrint
+"12345" parseInt debugPrint
+"-1"   parseUInt debugPrint
+"12345" parseHex debugPrint
+"_____________________________" debugPrint
+pi 0 16 false false floatToString debugPrint
+pi debugPrint
+"3.141592653589793238" parseFloat debugPrint
+"11001001" 2 true stringToInt debugPrint debugPrint
+0.0 0 16 false false floatToString debugPrint
+ 1 0.0 / 0 16 false false floatToString debugPrint
+-1 0.0 / 0 16 false false floatToString debugPrint
+ 0 0.0 / 0 16 false false floatToString debugPrint
+"ffffffffffffffff" 16 false stringToInt debugPrint uint cast debugPrint
+"123456789abcdefg" 16 true  stringToInt debugPrint debugPrint
+"ffffffffffffffff" 16 true  stringToInt debugPrint debugPrint

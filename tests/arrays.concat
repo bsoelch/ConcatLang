@@ -22,22 +22,3 @@ dup 1000 ensureCap println
 dup clone  42 over .1 = println
 dup       2.0 over .0 = println
 .2 println
-
-lists #include
-{ 1 2 3 4 5 } dup mergesort println
-{ 5 4 3 2 1 } dup mergesort println
-
-{ 1 2 3 4 5 } dup reverse println
-
-{ 1 2 3 4 rot3 } println
-
-lenCmp proc( string string => int ){
-  string a =:
-  string b =:
-  a .length b .length - int cast return
-}
-
-{ "sorting" "with" "comparator" "is" "now" "supported" } dup @lenCmp mergesort2 println
-
-{ 1 2 3 4 5 } lambda( int => int ){ dup * } map println
-{ 1 2 3 4 5 } lambda( int => bool ){ 2 % 0 != } filter println

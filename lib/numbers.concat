@@ -333,10 +333,11 @@ parseInt  public proc( string => int ){
   source 10 true stringToInt
   "int" source checkErrCode
 }
-parseUInt public proc( string => int ){
+parseUInt public proc( string => uint ){
   string source =:
   source 10 false stringToInt
   "uint" source checkErrCode
+  #+intValue+# uint cast return
 }
 parseHex public proc( string => uint ){
   string source =:

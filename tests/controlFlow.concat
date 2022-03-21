@@ -78,16 +78,6 @@ else
   "if(false)-elif(false)-else-end\n" puts
 }
 
-
-"A " puts true  &&{ "B " puts true   } println
-"A " puts true  &&{ "B " puts false  } println
-"A " puts false &&{ "B " puts true   } println
-"A " puts false &&{ "B " puts false  } println
-"A " puts true  ||{ "B " puts true   } println
-"A " puts true  ||{ "B " puts false  } println
-"A " puts false ||{ "B " puts true   } println
-"A " puts false ||{ "B " puts false  } println
-
 while{ false do
   unreachable
 }

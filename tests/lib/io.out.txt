@@ -1,0 +1,13 @@
+128
+copied: 64
+true
+128
+true
+0
+true
+128
+true
+-1
+
+Stack:
+[]

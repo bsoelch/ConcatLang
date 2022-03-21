@@ -76,4 +76,18 @@ public class GenericProcedure implements Interpreter.Callable {
         }
         return proc;
     }
+
+    @Override
+    public boolean unused() {
+        for(Interpreter.Callable c:cached.values()){
+            if(!c.unused())
+                return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void markAsUsed() {
+        //do nothing
+    }
 }

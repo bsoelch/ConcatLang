@@ -1,0 +1,48 @@
+tests/lib/math :
+
+math #include
+math #import
+
+42 12 core .max debugPrint
+42 -1 core .min debugPrint
+
+"_________________________" debugPrint
+3.14159265 floatToBytes int list cast debugPrint
+{ 0xba 0xad 0xf0 0x0d } bytesToFloat debugPrint
+"_________________________" debugPrint
+ 1.5  ceil debugPrint
+ 1.25 ceil debugPrint
+-1.25 ceil debugPrint
+-1.5  ceil debugPrint
+ 1.5  floor debugPrint
+ 1.25 floor debugPrint
+-1.25 floor debugPrint
+-1.5  floor debugPrint
+ 1.5  round debugPrint
+ 1.25 round debugPrint
+-1.25 round debugPrint
+-1.5  round debugPrint
+"_________________________" debugPrint
+1 sin debugPrint
+1 cos debugPrint
+1 tan debugPrint
+"_________________________" debugPrint
+0.5 asin debugPrint
+0.5 acos debugPrint
+0.5 atan debugPrint
+1 0.0 / atan debugPrint
+"_________________________" debugPrint
+-1000 exp debugPrint
+1 exp debugPrint
+1000 exp debugPrint
+"_________________________" debugPrint
+-1 log debugPrint
+ 0 log debugPrint
+ 1 log debugPrint
+ 2 log debugPrint
+"_________________________" debugPrint
+ 2  3   pow debugPrint
+ 2  64  pow debugPrint
+ 2  0.5 pow debugPrint
+-1 -1   pow debugPrint
+-1  0.5 pow debugPrint

@@ -1,0 +1,19 @@
+tests/lib/bufferedIO :
+
+bufferedIO #include
+stack #include
+io #import
+core #import
+
+"./tests/testIO.txt" "rw" open if{ #+auto-unwrap+# else
+  "unable to open file " eputs 1 exit
+}
+10 newBufferedInput in =::
+in BufferedInput.nextByte debugPrint
+in BufferedInput.nextByte debugPrint
+10 byte list new buff =::
+while{
+  in buff 50 BufferedInput.readTo n =::
+  n debugPrint
+  n 0 > dup if{ buff 0 n [:] dup debugPrint clear }
+do }

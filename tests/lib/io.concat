@@ -1,0 +1,28 @@
+tests/lib/io :
+
+io #include
+stack #include
+core #import
+"./tests/testIO.txt" "rw" io .open if{ #+auto-unwrap+# else
+  "unable to open file " eputs 1 exit
+}
+io .FILE file =:
+64 byte list new IO_Buff =::
+file io .size      debugPrint
+file IO_Buff 0 64 io .read int n =:
+n 0 > if{
+  file IO_Buff 0 n io .write
+  #+return value of write+# if{
+    "copied: " puts n debugPrint
+  }
+  file io .truncate debugPrint
+  file io .pos      debugPrint
+  file 0 io .seek   debugPrint
+  file io .pos      debugPrint
+  file io .seekEnd  debugPrint
+  file io .pos      debugPrint
+  file io .close    debugPrint
+}
+
+##TODO? prepare fixed input to read in this file
+io .stdIn io .pos debugPrint

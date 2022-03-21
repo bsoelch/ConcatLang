@@ -807,6 +807,8 @@ public class Interpreter {
         DeclareableType declarableType();
         FilePosition declaredAt();
         boolean isPublic();
+        void markAsUsed();
+        boolean unused();
     }
     interface NamedDeclareable extends Declareable{
         String name();
@@ -826,7 +828,17 @@ public class Interpreter {
         }
         return false;
     }
-    record Macro(FilePosition pos, String name,boolean isPublic,ArrayList<StringWithPos> content) implements NamedDeclareable{
+    static class Macro implements NamedDeclareable{
+        final FilePosition pos;
+        final String name;
+        final boolean isPublic;
+        final ArrayList<StringWithPos> content;
+        Macro(FilePosition pos, String name,boolean isPublic,ArrayList<StringWithPos> content) {
+            this.pos=pos;
+            this.name=name;
+            this.isPublic=isPublic;
+            this.content=content;
+        }
         @Override
         public String toString() {
             return "macro " +name+":"+content;
@@ -834,6 +846,11 @@ public class Interpreter {
         @Override
         public DeclareableType declarableType() {
             return DeclareableType.MACRO;
+        }
+
+        @Override
+        public String name() {
+            return name;
         }
         @Override
         public FilePosition declaredAt() {
@@ -843,14 +860,57 @@ public class Interpreter {
         public boolean isPublic() {
             return isPublic;
         }
+
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
+        }
     }
 
-    record Constant(String name, boolean isPublic, Value value,
-                    FilePosition declaredAt) implements NamedDeclareable {
+    static final class Constant implements NamedDeclareable {
+        final String name;
+        final boolean isPublic;
+        final Value value;
+        final FilePosition declaredAt;
 
+        Constant(String name, boolean isPublic, Value value,
+                 FilePosition declaredAt) {
+            this.name = name;
+            this.isPublic = isPublic;
+            this.value = value;
+            this.declaredAt = declaredAt;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+        @Override
+        public boolean isPublic() {
+            return isPublic;
+        }
         @Override
         public DeclareableType declarableType() {
             return DeclareableType.CONSTANT;
+        }
+        @Override
+        public FilePosition declaredAt() {
+            return declaredAt;
+        }
+
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
         }
     }
     private static class VariableId implements Declareable{
@@ -888,6 +948,15 @@ public class Interpreter {
         public DeclareableType declarableType() {
             return isConstant?DeclareableType.CONSTANT_VARIABLE :DeclareableType.VARIABLE;
         }
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
+        }
     }
     private static class CurriedVariable extends VariableId{
         final VariableId source;
@@ -906,20 +975,96 @@ public class Interpreter {
         }
     }
 
-    private record GenericTuple(String name,boolean isPublic,Type.GenericParameter[] params,
-                                Type[] types,
-                                FilePosition declaredAt) implements NamedDeclareable {
+    private static final class GenericTuple implements NamedDeclareable {
+        final String name;
+        final boolean isPublic;
+        final Type.GenericParameter[] params;
+        final Type[] types;
+        final FilePosition declaredAt;
+
+        private GenericTuple(String name, boolean isPublic, Type.GenericParameter[] params,
+                             Type[] types,
+                             FilePosition declaredAt) {
+            this.name = name;
+            this.isPublic = isPublic;
+            this.params = params;
+            this.types = types;
+            this.declaredAt = declaredAt;
+        }
+
         @Override
         public DeclareableType declarableType() {
             return DeclareableType.GENERIC_TUPLE;
         }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public boolean isPublic() {
+            return isPublic;
+        }
+        @Override
+        public FilePosition declaredAt() {
+            return declaredAt;
+        }
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
+        }
     }
-    private record GenericStruct(String name,boolean isPublic,Type.Struct extended,Type.GenericParameter[] params,
-                                Type[] types,String[] fieldNames,
-                                FilePosition declaredAt) implements NamedDeclareable {
+
+    private static final class GenericStruct implements NamedDeclareable {
+        final String name;
+        final boolean isPublic;
+        final Type.Struct extended;
+        final Type.GenericParameter[] params;
+        final Type[] types;
+        final String[] fieldNames;
+        final FilePosition declaredAt;
+
+        private GenericStruct(String name, boolean isPublic, Type.Struct extended, Type.GenericParameter[] params,
+                              Type[] types, String[] fieldNames,
+                              FilePosition declaredAt) {
+            this.name = name;
+            this.isPublic = isPublic;
+            this.extended = extended;
+            this.params = params;
+            this.types = types;
+            this.fieldNames = fieldNames;
+            this.declaredAt = declaredAt;
+        }
+
         @Override
         public DeclareableType declarableType() {
             return DeclareableType.GENERIC_STRUCT;
+        }
+        @Override
+        public String name() {
+            return name;
+        }
+        @Override
+        public boolean isPublic() {
+            return isPublic;
+        }
+        public FilePosition declaredAt() {
+            return declaredAt;
+        }
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
         }
     }
 
@@ -1402,7 +1547,6 @@ public class Interpreter {
 
         RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(64);
 
-        int openBlocks2=0;//number of opened blocks that will be processed in the next step
         final RootContext rootContext;
         final ArrayDeque<TopLevelContext> openedFiles=new ArrayDeque<>();
         private TopLevelContext topLevelContext;
@@ -1897,71 +2041,58 @@ public class Interpreter {
                 }
                 case "{" -> {
                     tokens.add(new BlockToken(BlockTokenType.LIST,        pos,-1));
-                    pState.openBlocks2++;
+                    pState.openBlocks.add(new ListBlock(tokens.size(),BlockType.CONST_LIST,pos, pState.getContext()));
                 }
                 case "while{" -> {
                     tokens.add(new BlockToken(BlockTokenType.WHILE, pos, -1));
-                    pState.openBlocks2++;
+                    pState.openBlocks.add(new WhileBlock(tokens.size(),pos, pState.getContext()));
                 }
                 case "switch{" -> {
                     tokens.add(new BlockToken(BlockTokenType.SWITCH, pos, -1));
-                    pState.openBlocks2++;
+                    pState.openBlocks.add(new SwitchCaseBlock(Type.INT,tokens.size(),pos, pState.getContext()));
                 }
                 case "if{" -> {
                     tokens.add(new BlockToken(BlockTokenType.IF, pos, -1));
-                    pState.openBlocks2++;
+                    pState.openBlocks.add(new IfBlock(tokens.size(),pos, pState.getContext()));
                 }
                 case "do", "}do{" -> {
-                    if(pState.openBlocks2==0){
+                    if(!(pState.openBlocks.peekLast() instanceof WhileBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in while-blocks",pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.DO, pos, -1));
                 }
                 case "if", "}if{" -> {
-                    if(pState.openBlocks2==0){
+                    if(!(pState.openBlocks.peekLast() instanceof IfBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in if-blocks",pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType._IF, pos, -1));
                 }
                 case "else", "}else{" ->  {
-                    if(pState.openBlocks2==0){
+                    if(!(pState.openBlocks.peekLast() instanceof IfBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in if-blocks",pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.ELSE, pos, -1));
                 }
                 case "case" -> {
-                    if (pState.openBlocks2 == 0) {
+                    if(!(pState.openBlocks.peekLast() instanceof SwitchCaseBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.CASE, pos, -1));
                 }
                 case "default"  -> {
-                    if (pState.openBlocks2 == 0) {
+                    if(!(pState.openBlocks.peekLast() instanceof SwitchCaseBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.DEFAULT, pos, -1));
                 }
                 case "end-case" -> {//addLater? simplify end-case
-                    if (pState.openBlocks2 == 0) {
+                    if(!(pState.openBlocks.peekLast() instanceof SwitchCaseBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
                     tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
                 }
                 case "}" -> {
-                    CodeBlock block=pState.openBlocks.peekLast();
-                    if (!(block instanceof ProcedureBlock) || ((ProcedureBlock) block).name != null) {//ignore lambda blocks
-                        if(pState.openBlocks2>0){//process 'end' for blocks processed in 2nd compile step
-                            pState.openBlocks2--;
-                            if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
-                                    b.blockType==BlockTokenType.DO){//merge do-end
-                                tokens.set(tokens.size()-1,new BlockToken(BlockTokenType.DO_WHILE, pos, -1));
-                            }else{
-                                tokens.add(new BlockToken(BlockTokenType.END, pos, -1));
-                            }
-                            break;
-                        }
-                    }
-                    block=pState.openBlocks.pollLast();
+                    CodeBlock block=pState.openBlocks.pollLast();
                     if(block==null) {
                         throw new SyntaxError("unexpected '"+str+"' statement",pos);
                     }
@@ -2078,10 +2209,15 @@ public class Interpreter {
                                 pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
                             }
                         }
-                        case IF,WHILE,SWITCH_CASE ->
-                                throw new SyntaxError("blocks of type "+block.type+
-                                        " should not exist at this stage of compilation",pos);
-                        case UNION,ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST ->
+                        case IF,WHILE,SWITCH_CASE,CONST_LIST ->{
+                            if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
+                                    b.blockType==BlockTokenType.DO){//merge do-end
+                                tokens.set(tokens.size()-1,new BlockToken(BlockTokenType.DO_WHILE, pos, -1));
+                            }else{
+                                tokens.add(new BlockToken(BlockTokenType.END, pos, -1));
+                            }
+                        }
+                        case UNION,ANONYMOUS_TUPLE,PROC_TYPE ->
                                 throw new SyntaxError("unexpected '"+str+"' statement",pos);
                     }
                 }
@@ -2380,6 +2516,7 @@ public class Interpreter {
     }
 
     private void expandMacro(ParserState pState, Macro m, FilePosition pos, IOContext ioContext) throws SyntaxError {
+        m.markAsUsed();
         for(StringWithPos s:m.content){
             finishWord(s.str,pState,new FilePosition(s.start, pos),ioContext);
         }
@@ -2959,6 +3096,7 @@ public class Interpreter {
                         CallMatch call = typeCheckOverloadedCall("call-ptr", ((Type.OverloadedProcedurePointer) f.type).proc, true, typeStack,
                                 globalConstants, ret, ioContext, t.pos);
                         Callable proc=call.called;
+                        proc.markAsUsed();
                         setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) f.type), (Value) proc);
                         ret.add(new Token(TokenType.CALL_PTR,t.pos));
                     }else{
@@ -3251,6 +3389,7 @@ public class Interpreter {
                 if(d==null){
                     throw new SyntaxError("variable "+identifier.name+" does not exist",identifier.pos);
                 }
+                d.markAsUsed();
                 DeclareableType type = d.declarableType();
                 switch (type) {
                     case PROCEDURE,NATIVE_PROC,GENERIC_PROCEDURE,OVERLOADED_PROCEDURE -> {
@@ -3259,6 +3398,7 @@ public class Interpreter {
                         CallMatch match = typeCheckOverloadedCall(
                                 "procedure "+identifier.name, new OverloadedProcedure(proc),false,
                                 typeStack,globalConstants,ret,ioContext,t.pos);
+                        match.called.markAsUsed();
                         CallToken token = new CallToken( match.called, identifier.pos);
                         ret.add(token);
                     }
@@ -3331,10 +3471,12 @@ public class Interpreter {
                 if(d==null){
                     throw new SyntaxError("procedure "+identifier.name+" does not exist", t.pos);
                 }else if(d instanceof Value.NativeProcedure proc){
+                    d.markAsUsed();
                     ValueToken token=new ValueToken(proc, t.pos,false);
                     typeStack.push(new TypeFrame(token.value.type,token.value,t.pos));
                     ret.add(token);
                 }else if(d instanceof Value.Procedure proc) {
+                    d.markAsUsed();
                     typeCheckProcedure(proc, globalConstants, ioContext);//type check procedure before it is pushed onto the stack
                     ValueToken token = new ValueToken(proc, t.pos, false);
                     typeStack.push(new TypeFrame(token.value.type, token.value, t.pos));

@@ -1,0 +1,16 @@
+tests/lib/chars :
+
+core #namespace
+chars #include
+u'A' 5 +codepoint debugPrint
+'E' 'A' charDiff debugPrint
+'A' 5 +char debugPrint
+
+'A' ?WhiteSpace debugPrint
+' ' ?WhiteSpace debugPrint
+'\n' ?WhiteSpace debugPrint
+'\r' ?WhiteSpace debugPrint
+'\t' ?WhiteSpace debugPrint
+'\0' ?WhiteSpace debugPrint
+
+#end

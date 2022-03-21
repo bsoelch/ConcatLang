@@ -187,7 +187,7 @@ public abstract class Value {
             i++;
         }
         long res=0;
-        long max=unsigned?Long.divideUnsigned(-1,base):Long.MAX_VALUE/base;
+        long max=unsigned?Long.divideUnsigned(-1,base):(Long.MAX_VALUE/base+(sgn?1:0));
         for(;i<source.length();i++){
             if(res>max){//signed compare works here, since sign bit is 0 in all cases
                 throw new ConcatRuntimeError("invalid string-format for int \""+source+"\" (overflow)");
@@ -1645,6 +1645,16 @@ public abstract class Value {
         public Type.Procedure type() {
             return (Type.Procedure) type;
         }
+
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
+        }
     }
 
     public static Value wrap(Value v) throws ConcatRuntimeError {
@@ -1818,6 +1828,16 @@ public abstract class Value {
 
         @Override
         public abstract String stringValue();
+
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
+        }
     }
     public abstract static class InternalProcedure extends NativeProcedure{
         public static final FilePosition POSITION = new FilePosition("internal", 0, 0);

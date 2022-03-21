@@ -1,0 +1,12 @@
+F
+4
+F
+false
+true
+true
+true
+true
+false
+
+Stack:
+[]

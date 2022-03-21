@@ -1,0 +1,20 @@
+tests/lib/codeblocks :
+
+codeblocks #include
+core #import
+
+"&&:" debugPrint
+"A " debugPrint true  &&{ "B " debugPrint true   } debugPrint
+"A " debugPrint true  &&{ "B " debugPrint false  } debugPrint
+"A " debugPrint false &&{ "B " debugPrint true   } debugPrint
+"A " debugPrint false &&{ "B " debugPrint false  } debugPrint
+"_____________________" debugPrint
+"||:" debugPrint
+"A " debugPrint true  ||{ "B " debugPrint true   } debugPrint
+"A " debugPrint true  ||{ "B " debugPrint false  } debugPrint
+"A " debugPrint false ||{ "B " debugPrint true   } debugPrint
+"A " debugPrint false ||{ "B " debugPrint false  } debugPrint
+"_____________________" debugPrint
+range #include
+stack #include
+5 [n] for{ debugPrint } drop
