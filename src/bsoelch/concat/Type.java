@@ -553,7 +553,7 @@ public class Type {
         final Type[] outTypes;
 
 
-        static StringBuilder getName(Type[] inTypes, Type[] outTypes) {
+        static String getName(Type[] inTypes, Type[] outTypes) {
             StringBuilder name=new StringBuilder("( ");
             for(Type t: inTypes){
                 name.append(t.name).append(' ');
@@ -563,11 +563,10 @@ public class Type {
                 name.append(t.name).append(' ');
             }
             name.append(")");
-            return name;
+            return name.toString();
         }
         public static Procedure create(Type[] inTypes,Type[] outTypes){
-            StringBuilder name = getName(inTypes, outTypes);
-            return new Procedure(name.toString(),inTypes,outTypes);
+            return new Procedure(getName(inTypes, outTypes),inTypes,outTypes);
         }
 
         private Procedure(String name,Type[] inTypes,Type[] outTypes) {
@@ -712,8 +711,21 @@ public class Type {
                     changed=true;
                 }
             }
-            return changed?new GenericProcedureType(genericName(newIn,newOut,Arrays.asList(newArgs)), explicitGenerics,
-                    newArgs,implicitGenerics,newIn,newOut):this;
+            boolean isGeneric=false;
+            for(GenericParameter t:implicitGenerics){
+                if(!generics.containsKey(t)){
+                    isGeneric = true;
+                    break;
+                }
+            }
+            for(GenericParameter t:explicitGenerics){
+                if(!generics.containsKey(t)){
+                    isGeneric = true;
+                    break;
+                }
+            }
+            return changed?isGeneric?new GenericProcedureType(genericName(newIn,newOut,Arrays.asList(newArgs)), explicitGenerics,
+                            newArgs,implicitGenerics,newIn,newOut):new Procedure(getName(newIn,newOut),newIn,newOut):this;
         }
 
         @Override
@@ -1017,18 +1029,21 @@ public class Type {
 
     static class OverloadedProcedurePointer extends Type{
         final OverloadedProcedure proc;
+        final Type[] genArgs;
         final int tokenPos;
         final FilePosition pushedAt;
 
-        OverloadedProcedurePointer(OverloadedProcedure proc, int tokenPos, FilePosition pushedAt) {
+        OverloadedProcedurePointer(OverloadedProcedure proc, Type[] genArgs, int tokenPos, FilePosition pushedAt) {
             super(proc.name+" .type", false);
             this.proc = proc;
+            this.genArgs = genArgs;
             this.tokenPos = tokenPos;
             this.pushedAt=pushedAt;
         }
-        OverloadedProcedurePointer(GenericProcedure proc, int tokenPos, FilePosition pushedAt) {
+        OverloadedProcedurePointer(GenericProcedure proc, Type[] genArgs, int tokenPos, FilePosition pushedAt) {
             super(proc.name()+" .type", false);
             this.proc = new OverloadedProcedure(proc);
+            this.genArgs = genArgs;
             this.tokenPos = tokenPos;
             this.pushedAt=pushedAt;
         }

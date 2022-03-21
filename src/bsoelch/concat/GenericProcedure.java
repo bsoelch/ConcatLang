@@ -7,7 +7,7 @@ import java.util.IdentityHashMap;
 public class GenericProcedure implements Interpreter.Callable {
     final String name;
     final boolean isPublic;
-    final Type.Procedure procType;
+    final Type.GenericProcedureType procType;
     final FilePosition declaredAt;
 
     final FilePosition endPos;
@@ -15,7 +15,7 @@ public class GenericProcedure implements Interpreter.Callable {
 
     final ArrayList<Interpreter.Token> tokens;
 
-    public GenericProcedure(String name, boolean isPublic, Type.Procedure procType,
+    public GenericProcedure(String name, boolean isPublic, Type.GenericProcedureType procType,
                             ArrayList<Interpreter.Token> tokens, FilePosition declaredAt,
                             FilePosition endPos, Interpreter.ProcedureContext context) {
         this.name = name;
@@ -48,7 +48,7 @@ public class GenericProcedure implements Interpreter.Callable {
         return name;
     }
     @Override
-    public Type.Procedure type() {
+    public Type.GenericProcedureType type() {
         return procType;
     }
 

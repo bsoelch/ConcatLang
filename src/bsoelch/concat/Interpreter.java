@@ -2140,7 +2140,8 @@ public class Interpreter {
                                     assert procType!=null;
                                     if(generics.size()>0){
                                         GenericProcedure proc=new GenericProcedure(((ProcedureBlock) block).name,
-                                                ((ProcedureBlock) block).isPublic,procType, content,block.startPos,pos,context);
+                                                ((ProcedureBlock) block).isPublic,(Type.GenericProcedureType) procType,
+                                                content,block.startPos,pos,context);
                                         assert context.curried.isEmpty();
                                         pState.topLevelContext().declareProcedure(proc,ioContext);
                                     }else{
@@ -3066,7 +3067,7 @@ public class Interpreter {
                     assert t instanceof StackModifierToken;
                     TypeFrame duped=typeStack.get(((StackModifierToken)t).args[0]);
                     if(duped.type instanceof Type.OverloadedProcedurePointer opp){
-                        typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(opp.proc,ret.size(),opp.pushedAt),
+                        typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(opp.proc,opp.genArgs, ret.size(),opp.pushedAt),
                                 null,t.pos));
                         ret.add(new Token(TokenType.OVERLOADED_PROC_PTR,t.pos));
                     }else{
@@ -3087,23 +3088,8 @@ public class Interpreter {
                             typeStack.get(((StackModifierToken)t).args[1]));
                     ret.add(t);
                 }
-                case CALL_PTR -> {
-                    TypeFrame f=typeStack.pop();
-                    if(f.type instanceof Type.Procedure){
-                        typeCheckCall("call-ptr",typeStack, (Type.Procedure) f.type,ret,t.pos, true);
-                        ret.add(new Token(TokenType.CALL_PTR,t.pos));
-                    }else if(f.type instanceof Type.OverloadedProcedurePointer){
-                        CallMatch call = typeCheckOverloadedCall("call-ptr", ((Type.OverloadedProcedurePointer) f.type).proc, true, typeStack,
-                                globalConstants, ret, ioContext, t.pos);
-                        Callable proc=call.called;
-                        proc.markAsUsed();
-                        setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) f.type), (Value) proc);
-                        ret.add(new Token(TokenType.CALL_PTR,t.pos));
-                    }else{
-                        throw new SyntaxError("invalid argument for operator '()': "+f.type,t.pos);
-                    }
-                }
-
+                case CALL_PTR ->
+                    typeCheckCallPtr(typeStack, ret, globalConstants, ioContext, t.pos);
                 case LIST_OF -> {
                     TypeFrame f = typeStack.pop();
                     String name="list";
@@ -3212,6 +3198,27 @@ public class Interpreter {
             merge(typeStack,blockEnd,branch.types,branch.end,"return");
         }
         return new TypeCheckResult(ret,typeStack);
+    }
+
+    private void typeCheckCallPtr(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret,
+                                  HashMap<VariableId, Value> globalConstants, IOContext ioContext, FilePosition pos)
+            throws RandomAccessStack.StackUnderflow, SyntaxError {
+        TypeFrame f= typeStack.pop();
+        if(f.type instanceof Type.Procedure){
+            typeCheckCall("call-ptr", typeStack, (Type.Procedure) f.type, ret, pos, true);
+            ret.add(new Token(TokenType.CALL_PTR, pos));
+        }else if(f.type instanceof Type.OverloadedProcedurePointer){
+            CallMatch call = typeCheckOverloadedCall("call-ptr",
+                    ((Type.OverloadedProcedurePointer) f.type).proc,
+                    ((Type.OverloadedProcedurePointer) f.type).genArgs,
+                    typeStack, globalConstants, ret, ioContext, pos);
+            Callable proc=call.called;
+            proc.markAsUsed();
+            setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) f.type), (Value) proc);
+            ret.add(new Token(TokenType.CALL_PTR, pos));
+        }else{
+            throw new SyntaxError("invalid argument for operator '()': "+f.type, pos);
+        }
     }
 
     private void setOverloadedProcPtr(ArrayList<Token> ret, Type.OverloadedProcedurePointer opp, Value proc) throws SyntaxError {
@@ -3396,7 +3403,7 @@ public class Interpreter {
                         OverloadedProcedure proc =
                                 d instanceof OverloadedProcedure?(OverloadedProcedure) d:new OverloadedProcedure((Callable) d);
                         CallMatch match = typeCheckOverloadedCall(
-                                "procedure "+identifier.name, new OverloadedProcedure(proc),false,
+                                "procedure "+identifier.name, new OverloadedProcedure(proc),null,
                                 typeStack,globalConstants,ret,ioContext,t.pos);
                         match.called.markAsUsed();
                         CallToken token = new CallToken( match.called, identifier.pos);
@@ -3430,8 +3437,7 @@ public class Interpreter {
                     case GENERIC_TUPLE -> {
                         GenericTuple g = (GenericTuple) d;
                         String tupleName=g.name;
-                        Type[] genArgs = new Type[g.params.length];
-                        getArguments(tupleName, genArgs, typeStack, ret, t.pos);
+                        Type[] genArgs=getArguments(tupleName,DeclareableType.GENERIC_TUPLE,g.params.length, typeStack, ret, t.pos);
                         Value tupleType = Value.ofType(Type.Tuple.create(g.name,g.isPublic,g.params.clone(), genArgs,
                                 g.types.clone(), g.declaredAt));
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
@@ -3440,8 +3446,7 @@ public class Interpreter {
                     case GENERIC_STRUCT -> {
                         GenericStruct g = (GenericStruct) d;
                         String structName=g.name;
-                        Type[] genArgs = new Type[g.params.length];
-                        getArguments(structName, genArgs, typeStack, ret, t.pos);
+                        Type[] genArgs=getArguments(structName,DeclareableType.GENERIC_STRUCT, g.params.length, typeStack, ret, t.pos);
                         Value structValue = Value.ofType(Type.Struct.create(g.name,g.isPublic,g.extended,g.params.clone(), genArgs,
                                 g.types.clone(),g.fieldNames.clone(), g.declaredAt));
                         typeStack.push(new TypeFrame(Type.TYPE,structValue,identifier.pos));
@@ -3466,32 +3471,8 @@ public class Interpreter {
                             identifier.name+" (declared at "+d.declaredAt()+") is not a variable", t.pos);
                 }
             }
-            case PROC_ID -> {
-                Declareable d= context.getDeclareable(identifier.name);
-                if(d==null){
-                    throw new SyntaxError("procedure "+identifier.name+" does not exist", t.pos);
-                }else if(d instanceof Value.NativeProcedure proc){
-                    d.markAsUsed();
-                    ValueToken token=new ValueToken(proc, t.pos,false);
-                    typeStack.push(new TypeFrame(token.value.type,token.value,t.pos));
-                    ret.add(token);
-                }else if(d instanceof Value.Procedure proc) {
-                    d.markAsUsed();
-                    typeCheckProcedure(proc, globalConstants, ioContext);//type check procedure before it is pushed onto the stack
-                    ValueToken token = new ValueToken(proc, t.pos, false);
-                    typeStack.push(new TypeFrame(token.value.type, token.value, t.pos));
-                    ret.add(token);
-                }else if(d instanceof GenericProcedure proc){//TODO resolve explicit type-args
-                    typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,ret.size(),t.pos),null,t.pos));
-                    ret.add(new Token(TokenType.OVERLOADED_PROC_PTR,t.pos));//push placeholder token
-                }else if(d instanceof OverloadedProcedure proc){
-                    typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,ret.size(),t.pos),null,t.pos));
-                    ret.add(new Token(TokenType.OVERLOADED_PROC_PTR,t.pos));//push placeholder token
-                }else{
-                    throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
-                            identifier.name+" (declared at "+d.declaredAt()+") is not a procedure", t.pos);
-                }
-            }
+            case PROC_ID ->
+                typeCheckPushProcPointer(identifier, typeStack, ret, globalConstants, context, ioContext, t.pos);
             case GET_FIELD -> {
                 TypeFrame f=typeStack.pop();
                 boolean hasField=false;
@@ -3655,13 +3636,81 @@ public class Interpreter {
         }
     }
 
-    private void getArguments(String structName, Type[] genArgs, RandomAccessStack<TypeFrame> typeStack,
+    private void typeCheckPushProcPointer(IdentifierToken identifier, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret,
+                                          HashMap<VariableId, Value> globalConstants, VariableContext context, IOContext ioContext,
+                                          FilePosition pos) throws SyntaxError, RandomAccessStack.StackUnderflow {
+        Declareable d= context.getDeclareable(identifier.name);
+        if(d==null){
+            throw new SyntaxError("procedure "+ identifier.name+" does not exist", pos);
+        }else if(d instanceof Value.NativeProcedure proc){
+            Type.Procedure procType= (Type.Procedure) proc.type;
+            if(procType instanceof Type.GenericProcedureType genType &&
+                    ((Type.GenericProcedureType)procType).explicitGenerics.length>0) {
+                Type[] genArgs=getArguments(proc.name,DeclareableType.NATIVE_PROC,genType.explicitGenerics.length, typeStack, ret, pos);
+                IdentityHashMap<Type.GenericParameter, Type> genMap = new IdentityHashMap<>();
+                for (int i = 0; i < genArgs.length; i++) {
+                    genMap.put(genType.explicitGenerics[i], genArgs[i]);
+                }
+                procType=genType.replaceGenerics(genMap);
+                try {
+                    proc=(Value.NativeProcedure)proc.castTo(procType);
+                } catch (ConcatRuntimeError e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            d.markAsUsed();
+            typeStack.push(new TypeFrame(procType,proc, pos));
+            ValueToken token=new ValueToken(proc, pos,false);
+            ret.add(token);
+        }else if(d instanceof Value.Procedure proc) {
+            pushSimpleProcPointer(proc, typeStack, ret, globalConstants, ioContext, pos);
+        }else if(d instanceof GenericProcedure proc){
+            Type[] genArgs;
+            if(proc.procType.explicitGenerics.length>0) {
+                genArgs = getArguments(proc.name,DeclareableType.GENERIC_PROCEDURE,proc.procType.explicitGenerics.length,
+                        typeStack, ret, pos);
+            }else{
+                genArgs=new Type[0];
+            }
+            if(proc.procType.implicitGenerics.length==0){
+                IdentityHashMap<Type.GenericParameter,Type> genMap=new IdentityHashMap<>();
+                for(int i=0;i<genArgs.length;i++){
+                    genMap.put(proc.procType.explicitGenerics[i], genArgs[i]);
+                }
+                Value.Procedure non_generic=proc.withPrams(genMap);
+                pushSimpleProcPointer(non_generic, typeStack, ret, globalConstants, ioContext, pos);
+            }else{
+                typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, ret.size(), pos),null, pos));
+                ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
+            }
+        }else if(d instanceof OverloadedProcedure proc){
+            Type[] genArgs=getArguments(proc.name,DeclareableType.GENERIC_PROCEDURE,proc.nGenericParams, typeStack, ret, pos);
+            typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, ret.size(), pos),null, pos));
+            ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
+        }else{
+            throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
+                    identifier.name+" (declared at "+d.declaredAt()+") is not a procedure", pos);
+        }
+    }
+
+    private void pushSimpleProcPointer(Value.Procedure procedure, RandomAccessStack<TypeFrame> typeStack,
+                                       ArrayList<Token> ret, HashMap<VariableId, Value> globalConstants,
+                                       IOContext ioContext, FilePosition pos) throws SyntaxError {
+        procedure.markAsUsed();
+        typeCheckProcedure(procedure, globalConstants, ioContext);//type check procedure before it is pushed onto the stack
+        ValueToken token = new ValueToken(procedure, pos, false);
+        typeStack.push(new TypeFrame(token.value.type, token.value, pos));
+        ret.add(token);
+    }
+
+    private Type[] getArguments(String name,DeclareableType type,int nArgs, RandomAccessStack<TypeFrame> typeStack,
                               ArrayList<Token> ret, FilePosition pos) throws SyntaxError, RandomAccessStack.StackUnderflow {
+        Type[] genArgs=new Type[nArgs];
         Token prev;
         for (int j = genArgs.length - 1; j >= 0; j--) {
             if (ret.size() <= 0) {
                 throw new SyntaxError("Not enough arguments for " +
-                        declarableName(DeclareableType.GENERIC_TUPLE, false) + " " + structName,pos);
+                        declarableName(type, false) + " " + name,pos);
             }
             prev = ret.remove(ret.size()-1);
             if (!(prev instanceof ValueToken)) {
@@ -3677,6 +3726,7 @@ public class Interpreter {
                 throw new SyntaxError(e.getMessage(), prev.pos);
             }
         }
+        return genArgs;
     }
 
     private void typeCheckCast(Type src, int stackPos, Type target, ArrayList<Token> ret, FilePosition pos) throws SyntaxError {
@@ -3798,13 +3848,17 @@ public class Interpreter {
         return c;
     };
 
-    private CallMatch typeCheckOverloadedCall(String procName,OverloadedProcedure proc, boolean isPtr,
+    private CallMatch typeCheckOverloadedCall(String procName, OverloadedProcedure proc, Type[] ptrGenArgs,
                                               RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants,
                                               ArrayList<Token> tokens, IOContext ioContext, FilePosition pos)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         Type[] typeArgs=null;
         if(proc.nGenericParams!=0){
-            typeArgs = getTypeArgs(procName, proc.nGenericParams, isPtr, typeStack, tokens, pos);
+            if(ptrGenArgs!=null){
+                typeArgs=ptrGenArgs;
+            }else{
+                typeArgs=getArguments(procName,DeclareableType.GENERIC_PROCEDURE,proc.nGenericParams,typeStack, tokens, pos);
+            }
         }
         Type[] inTypes=new Type[proc.nArgs];
         for(int i=inTypes.length-1;i>=0;i--){
@@ -3815,33 +3869,11 @@ public class Interpreter {
             typeCheckPotentialCall(p1, typeArgs, inTypes, matchingCalls, pos);
         }
         CallMatch match = findMatchingCall(matchingCalls, proc, inTypes, globalConstants, ioContext, pos);
-        updateProcedureArguments(match, inTypes, tokens, isPtr, pos);
+        updateProcedureArguments(match, inTypes, tokens, ptrGenArgs!=null, pos);
         for(Type t:match.type.outTypes){
             typeStack.push(new TypeFrame(t,null,pos));
         }
         return match;
-    }
-    private Type[] getTypeArgs(String procName, int nGenericParams, boolean isPtr, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
-        Type[] typeArgs;
-        typeArgs=new Type[nGenericParams];
-        for(int i=typeArgs.length-1;i>=0;i--){
-            try {
-                TypeFrame f= typeStack.pop();
-                if(f.type!=Type.TYPE||f.value()==null){
-                    throw new SyntaxError("generic arguments have to be constant types", pos);
-                }
-                typeArgs[i]=f.value().asType();
-            }catch (RandomAccessStack.StackUnderflow e){
-                throw new SyntaxError("missing generic argument for function call "+ procName, pos);
-            }catch (TypeError e) {
-                throw new SyntaxError(e, pos);
-            }
-        }
-        if(isPtr){//move pointer below the arguments
-            tokens.add(new StackModifierToken(TokenType.STACK_SET,new int[]{typeArgs.length+1,1}, pos));
-        }
-        tokens.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{typeArgs.length}, pos));
-        return typeArgs;
     }
     private void typeCheckPotentialCall(Callable potentialCall, Type[] typeArgs, Type[] inTypes,
                            ArrayList<CallMatch> matchingCalls, FilePosition pos) throws SyntaxError {
@@ -4003,7 +4035,8 @@ public class Interpreter {
         }
         return matchingCalls.get(0);
     }
-    private void updateProcedureArguments(CallMatch match, Type[] inTypes, ArrayList<Token> tokens, boolean isPtr, FilePosition pos) throws SyntaxError {
+    private void updateProcedureArguments(CallMatch match, Type[] inTypes, ArrayList<Token> tokens, boolean isPtr,
+                                          FilePosition pos) throws SyntaxError {
         for(int i = 0; i< inTypes.length; i++){
             if (inTypes[i] instanceof Type.OverloadedProcedurePointer) {
                 CallMatch opp= match.opps.get((Type.OverloadedProcedurePointer) inTypes[i]);
