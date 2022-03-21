@@ -95,6 +95,12 @@ public class Type {
         BoundMaps swapped(){
             return new BoundMaps(r,l);
         }
+
+        BoundMaps copy() {
+            //noinspection unchecked
+            return new BoundMaps((IdentityHashMap<GenericParameter, GenericBound>) l.clone(),
+                    (IdentityHashMap<GenericParameter, GenericBound>) r.clone());
+        }
     }
 
     @Override
@@ -865,8 +871,26 @@ public class Type {
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(this==t)
                 return true;
-            if(t instanceof GenericParameter)
-                throw new RuntimeException("generic parameter should not appear on both sides of a type comparison");
+            if(t instanceof GenericParameter) {
+                GenericBound tBound=bounds.r.get((GenericParameter) t);
+                GenericBound mBound=bounds.l.get(this);
+                if(tBound!=null){
+                    if(mBound==null){
+                        bounds.l.put(this,tBound);
+                    }else{
+                        //TODO merge bounds
+                        throw new UnsupportedOperationException("unimplemented");
+                    }
+                }else{
+                    if(mBound==null){
+                        //TODO handle comparison with empty parameter
+                        throw new UnsupportedOperationException("unimplemented");
+                    }else{
+                        bounds.r.put((GenericParameter)t,mBound);
+                    }
+                }
+                return true;
+            }
             GenericBound bound=bounds.l.get(this);
             if(bound!=null){
                 if(bound.max==null||t.canAssignTo(bound.max,bounds)) {

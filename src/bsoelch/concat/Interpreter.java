@@ -3810,13 +3810,75 @@ public class Interpreter {
                 type = type.replaceGenerics(generics);
             }
             Type.BoundMaps bounds=new Type.BoundMaps();
+            boolean hasOpp=false;
             for(int i=0;i<inTypes.length;i++){
-                //TODO resolve overloaded procedure pointers
-                if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
+                if(inTypes[i] instanceof Type.OverloadedProcedurePointer){
+                    hasOpp=true;
+                }else if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
                     nCasts++;
                     if(!inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
                         isMatch=false;
                         break;
+                    }
+                }
+            }
+            if(hasOpp){
+                for(int i=0;i<inTypes.length;i++){
+                    if(inTypes[i] instanceof Type.OverloadedProcedurePointer opp){
+                        ArrayList<CallMatch> matches=new ArrayList<>();
+                        ArrayList<Type.BoundMaps> matchBounds=new ArrayList<>();
+                        boolean matchesParam;
+                        for(Callable c:opp.proc.procedures){
+                            matchesParam=true;
+                            Type.Procedure procType=c.type();
+                            Type.BoundMaps test=bounds.copy();
+                            if(procType.canAssignTo(type.inTypes[i],test)){
+                                IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
+                                if(test.l.size()>0){
+                                    for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:test.l.entrySet()){
+                                        if(e.getValue().min()!=null){
+                                            if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
+                                                implicitGenerics.put(e.getKey(),e.getValue().min());
+                                            }else{
+                                                matchesParam=false;
+                                                break;
+                                            }
+                                        }else if(e.getValue().max()!=null){
+                                            implicitGenerics.put(e.getKey(),e.getValue().max());
+                                        }
+                                    }
+                                    //update generics in generic parameters
+                                    for(Map.Entry<Type.GenericParameter, Type.GenericBound> p:test.r.entrySet()){
+                                        Type min = p.getValue().min();
+                                        Type max = p.getValue().max();
+                                        p.setValue(new Type.GenericBound(min==null?null:min.replaceGenerics(implicitGenerics),
+                                                max==null?null:max.replaceGenerics(implicitGenerics)));
+                                    }
+                                    procType=procType.replaceGenerics(implicitGenerics);
+                                }
+                                //check rBounds
+                                for(Type.GenericBound b:test.r.values()){
+                                    if(b.min()!=null&&b.max()!=null&&!b.min().canAssignTo(b.max())){
+                                        matchesParam=false;
+                                        break;
+                                    }
+                                }
+                                if(matchesParam){
+                                    matches.add(new CallMatch(c,procType,implicitGenerics,0,implicitGenerics.size()));
+                                    matchBounds.add(test);
+                                }
+                            }//addLater? allow casting
+                        }
+                        if(matches.size()==0){
+                            isMatch=false;
+                            break;
+                        }else if(matches.size()>1){
+                            //TODO handle multiple matches
+                            throw new UnsupportedOperationException("handling multiple matches is currently not supported");
+                        }
+                        inTypes[i]=matches.get(0).type;
+                        bounds=matchBounds.get(0);
+                        setOverloadedProcPtr(tokens,opp,(Value)matches.get(0).called);
                     }
                 }
             }
