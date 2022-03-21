@@ -3706,7 +3706,7 @@ public class Interpreter {
                         }
                         c=((GenericProcedure) c).withPrams(update);
                     }
-                    matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,0));
+                    matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,0,new HashMap<>()));
                 }
             }
             if(matches.isEmpty()){
@@ -3765,217 +3765,264 @@ public class Interpreter {
         }
     }
 
-    record CallMatch(Callable called,Type.Procedure type,IdentityHashMap<Type.GenericParameter,Type> genericParams,
-                     int nCasts,int nImplicit){}
+    record CallMatch(Callable called, Type.Procedure type, IdentityHashMap<Type.GenericParameter,Type> genericParams,
+                     int nCasts, int nImplicit,
+                    /*overloaded procedure pointers in the arguments of this call match*/
+                     HashMap<Type.OverloadedProcedurePointer,CallMatch> opps){}
+
+    private static final Comparator<CallMatch> compareBySignature = (m1, m2) -> {
+        int c = 0;
+        for (int i = 0; i < m1.type.inTypes.length; i++) {
+            if (c == 0) {
+                if (m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])) {
+                    if (!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])) {
+                        c = -1;
+                    }
+                } else {
+                    if (m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])) {
+                        c = 1;
+                    } else {
+                        return 0;
+                    }
+                }
+            } else if (c < 0) {
+                if (!m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])) {
+                    return 0;
+                }
+            } else {
+                if (!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])) {
+                    return 0;
+                }
+            }
+        }
+        return c;
+    };
+
     private CallMatch typeCheckOverloadedCall(String procName,OverloadedProcedure proc, boolean isPtr,
                                               RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants,
                                               ArrayList<Token> tokens, IOContext ioContext, FilePosition pos)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         Type[] typeArgs=null;
         if(proc.nGenericParams!=0){
-            typeArgs=new Type[proc.nGenericParams];
-            for(int i=typeArgs.length-1;i>=0;i--){
-                try {
-                    TypeFrame f=typeStack.pop();
-                    if(f.type!=Type.TYPE||f.value()==null){
-                        throw new SyntaxError("generic arguments have to be constant types",pos);
-                    }
-                    typeArgs[i]=f.value().asType();
-                }catch (RandomAccessStack.StackUnderflow e){
-                    throw new SyntaxError("missing generic argument for function call "+procName,pos);
-                }catch (TypeError e) {
-                    throw new SyntaxError(e,pos);
-                }
-            }
-            if(isPtr){//move pointer below the arguments
-                tokens.add(new StackModifierToken(TokenType.STACK_SET,new int[]{typeArgs.length+1,1},pos));
-            }
-            tokens.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{typeArgs.length},pos));
+            typeArgs = getTypeArgs(procName, proc.nGenericParams, isPtr, typeStack, tokens, pos);
         }
         Type[] inTypes=new Type[proc.nArgs];
         for(int i=inTypes.length-1;i>=0;i--){
             inTypes[i]=typeStack.pop().type;
         }
         ArrayList<CallMatch> matchingCalls=new ArrayList<>();
-        boolean isMatch;
         for(Callable p1:proc.procedures){
-            Type.Procedure type=p1.type();
-            isMatch=true;
-            IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
-            int nCasts=0,nImplicit=0;
-            if(typeArgs!=null) {//update type signature
-                for (int i = 0; i < typeArgs.length; i++) {
-                    generics.put(((Type.GenericProcedureType) type).explicitGenerics[i], typeArgs[i]);
-                }
-                type = type.replaceGenerics(generics);
-            }
-            Type.BoundMaps bounds=new Type.BoundMaps();
-            boolean hasOpp=false;
-            for(int i=0;i<inTypes.length;i++){
-                if(inTypes[i] instanceof Type.OverloadedProcedurePointer){
-                    hasOpp=true;
-                }else if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
-                    nCasts++;
-                    if(!inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
-                        isMatch=false;
-                        break;
-                    }
-                }
-            }
-            if(hasOpp){
-                for(int i=0;i<inTypes.length;i++){
-                    if(inTypes[i] instanceof Type.OverloadedProcedurePointer opp){
-                        ArrayList<CallMatch> matches=new ArrayList<>();
-                        ArrayList<Type.BoundMaps> matchBounds=new ArrayList<>();
-                        boolean matchesParam;
-                        for(Callable c:opp.proc.procedures){
-                            matchesParam=true;
-                            Type.Procedure procType=c.type();
-                            Type.BoundMaps test=bounds.copy();
-                            if(procType.canAssignTo(type.inTypes[i],test)){
-                                IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
-                                if(test.l.size()>0){
-                                    for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:test.l.entrySet()){
-                                        if(e.getValue().min()!=null){
-                                            if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
-                                                implicitGenerics.put(e.getKey(),e.getValue().min());
-                                            }else{
-                                                matchesParam=false;
-                                                break;
-                                            }
-                                        }else if(e.getValue().max()!=null){
-                                            implicitGenerics.put(e.getKey(),e.getValue().max());
-                                        }
-                                    }
-                                    //update generics in generic parameters
-                                    for(Map.Entry<Type.GenericParameter, Type.GenericBound> p:test.r.entrySet()){
-                                        Type min = p.getValue().min();
-                                        Type max = p.getValue().max();
-                                        p.setValue(new Type.GenericBound(min==null?null:min.replaceGenerics(implicitGenerics),
-                                                max==null?null:max.replaceGenerics(implicitGenerics)));
-                                    }
-                                    procType=procType.replaceGenerics(implicitGenerics);
-                                }
-                                //check rBounds
-                                for(Type.GenericBound b:test.r.values()){
-                                    if(b.min()!=null&&b.max()!=null&&!b.min().canAssignTo(b.max())){
-                                        matchesParam=false;
-                                        break;
-                                    }
-                                }
-                                if(matchesParam){
-                                    matches.add(new CallMatch(c,procType,implicitGenerics,0,implicitGenerics.size()));
-                                    matchBounds.add(test);
-                                }
-                            }//addLater? allow casting
-                        }
-                        if(matches.size()==0){
-                            isMatch=false;
-                            break;
-                        }else if(matches.size()>1){
-                            //TODO handle multiple matches
-                            throw new UnsupportedOperationException("handling multiple matches is currently not supported");
-                        }
-                        inTypes[i]=matches.get(0).type;
-                        bounds=matchBounds.get(0);
-                        setOverloadedProcPtr(tokens,opp,(Value)matches.get(0).called);
-                    }
-                }
-            }
-            if(isMatch){
-                if(bounds.r.size()>0){
-                    assert bounds.l.size()==0;
-                    nImplicit=bounds.r.size();
-                    IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
-                    for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.r.entrySet()){
-                        if(e.getValue().min()!=null){
-                            if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
-                                implicitGenerics.put(e.getKey(),e.getValue().min());
-                            }else{
-                                isMatch=false;
-                                break;
-                            }
-                        }else if(e.getValue().max()!=null){
-                            implicitGenerics.put(e.getKey(),e.getValue().max());
-                        }
-                    }
-                    type=type.replaceGenerics(implicitGenerics);
-                    generics.putAll(implicitGenerics);
-                }//no else
-                if(isMatch){
-                    matchingCalls.add(new CallMatch(p1,type,generics,nCasts,nImplicit));
-                }
-            }
+            typeCheckPotentialCall(p1, typeArgs, inTypes, matchingCalls, pos);
         }
-        for(int i=0;i<matchingCalls.size();i++){
-            CallMatch c=matchingCalls.get(i);
-            if(c.called instanceof Value.Procedure){
-                typeCheckProcedure((Value.Procedure)c.called,globalConstants,ioContext);
-            }else if(c.called instanceof GenericProcedure){//resolve generic procedure
-                Value.Procedure withPrams = ((GenericProcedure) c.called).withPrams(c.genericParams);
-                try {
-                    typeCheckProcedure(withPrams, globalConstants, ioContext);
-                }catch (SyntaxError err){
-                    throw new SyntaxError(err,pos);
-                }
-                matchingCalls.set(i,new CallMatch(withPrams,withPrams.type(),c.genericParams,c.nCasts,c.nImplicit));
-            }
-        }
-        if(matchingCalls.size()==0){
-            throw new SyntaxError("no version of "+proc.name+" matches the given arguments "+Arrays.toString(inTypes),pos);
-        }else if(matchingCalls.size()>1){
-            Comparator<CallMatch> matchSort= Comparator.comparingInt((CallMatch m) -> m.nCasts)
-                    .thenComparingInt(m -> m.nImplicit).thenComparing((m1,m2)->{
-                        int c=0;
-                        for(int i=0;i<m1.type.inTypes.length;i++){
-                            if (c == 0) {
-                                if(m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])){
-                                    if(!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])){
-                                        c=-1;
-                                    }
-                                }else{
-                                    if(m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])){
-                                        c=1;
-                                    }else{
-                                        return 0;
-                                    }
-                                }
-                            }else if(c<0){
-                                if(!m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])){
-                                    return 0;
-                                }
-                            }else{
-                                if(!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])){
-                                    return 0;
-                                }
-                            }
-                        }
-                        return c;
-                    });
-            matchingCalls.sort(matchSort);
-            int i=1;
-            while(i<matchingCalls.size()&&matchSort.compare(matchingCalls.get(0),matchingCalls.get(i))==0){
-                i++;
-            }
-            if(i>1){
-                ioContext.stdErr.println("more than one version of "+proc.name+" matches the given arguments "+Arrays.toString(inTypes));
-                for(int k=0;k<i;k++){
-                    ioContext.stdErr.println(proc.name+":"+matchingCalls.get(k).type+" at "+matchingCalls.get(k).called.declaredAt());
-                }
-                throw new SyntaxError("cannot resolve procedure call",pos);
-            }
-        }
-        CallMatch match = matchingCalls.get(0);
-        for(int i=0;i< inTypes.length;i++){
-            if(!inTypes[i].canAssignTo(match.type.inTypes[i])){
-                tokens.add(new ArgCastToken(inTypes.length-i+(isPtr?1:0),match.type.inTypes[i],pos));
-            }
-        }
+        CallMatch match = findMatchingCall(matchingCalls, proc, inTypes, globalConstants, ioContext, pos);
+        updateProcedureArguments(match, inTypes, tokens, isPtr, pos);
         for(Type t:match.type.outTypes){
             typeStack.push(new TypeFrame(t,null,pos));
         }
         return match;
     }
+    private Type[] getTypeArgs(String procName, int nGenericParams, boolean isPtr, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
+        Type[] typeArgs;
+        typeArgs=new Type[nGenericParams];
+        for(int i=typeArgs.length-1;i>=0;i--){
+            try {
+                TypeFrame f= typeStack.pop();
+                if(f.type!=Type.TYPE||f.value()==null){
+                    throw new SyntaxError("generic arguments have to be constant types", pos);
+                }
+                typeArgs[i]=f.value().asType();
+            }catch (RandomAccessStack.StackUnderflow e){
+                throw new SyntaxError("missing generic argument for function call "+ procName, pos);
+            }catch (TypeError e) {
+                throw new SyntaxError(e, pos);
+            }
+        }
+        if(isPtr){//move pointer below the arguments
+            tokens.add(new StackModifierToken(TokenType.STACK_SET,new int[]{typeArgs.length+1,1}, pos));
+        }
+        tokens.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{typeArgs.length}, pos));
+        return typeArgs;
+    }
+    private void typeCheckPotentialCall(Callable potentialCall, Type[] typeArgs, Type[] inTypes,
+                           ArrayList<CallMatch> matchingCalls, FilePosition pos) throws SyntaxError {
+        Type.Procedure type= potentialCall.type();
+        boolean isMatch=true;
+        IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
+        int nCasts=0,nImplicit=0;
+        HashMap<Type.OverloadedProcedurePointer,CallMatch> opps=new HashMap<>();
+        if(typeArgs !=null) {//update type signature
+            for (int i = 0; i < typeArgs.length; i++) {
+                generics.put(((Type.GenericProcedureType) type).explicitGenerics[i], typeArgs[i]);
+            }
+            type = type.replaceGenerics(generics);
+        }
+        Type.BoundMaps bounds=new Type.BoundMaps();
+        boolean hasOpp=false;
+        for(int i = 0; i< inTypes.length; i++){
+            if(inTypes[i] instanceof Type.OverloadedProcedurePointer){
+                hasOpp=true;
+            }else if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
+                nCasts++;
+                if(!inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
+                    isMatch=false;
+                    break;
+                }
+            }
+        }
+        if(hasOpp){
+            for(int i = 0; i< inTypes.length; i++){
+                if(inTypes[i] instanceof Type.OverloadedProcedurePointer){
+                    bounds = resolveOppParam(type.inTypes[i],bounds,(Type.OverloadedProcedurePointer)inTypes[i],
+                            opps, pos);
+                    if(bounds==null||!isMatch){
+                        isMatch=false;
+                        break;
+                    }
+                }
+            }
+        }
+        if(isMatch){
+            if(bounds.r.size()>0){
+                assert bounds.l.size()==0;
+                nImplicit=bounds.r.size();
+                IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
+                isMatch = resolveGenericParams(bounds.r, implicitGenerics);
+                type=type.replaceGenerics(implicitGenerics);
+                generics.putAll(implicitGenerics);
+            }//no else
+            if(isMatch){
+                matchingCalls.add(new CallMatch(potentialCall,type,generics,nCasts,nImplicit,opps));
+            }
+        }
+    }
+    private Type.BoundMaps resolveOppParam(Type calledType, Type.BoundMaps callBounds,
+                                           Type.OverloadedProcedurePointer param,
+                                           HashMap<Type.OverloadedProcedurePointer,CallMatch> opps,
+                                           FilePosition pos) throws SyntaxError {
+        ArrayList<CallMatch> matches=new ArrayList<>();
+        ArrayList<Type.BoundMaps> matchBounds=new ArrayList<>();
+        boolean matchesParam;
+        for(Callable c: param.proc.procedures){
+            matchesParam=true;
+            Type.Procedure procType=c.type();
+            Type.BoundMaps test= callBounds.copy();
+            if(procType.canAssignTo(calledType,test)){
+                IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
+                if(test.l.size()>0){
+                    IdentityHashMap<Type.GenericParameter, Type.GenericBound> l = test.l;
+                    matchesParam = resolveGenericParams(l, implicitGenerics);
+                    //update generics in generic parameters
+                    for(Map.Entry<Type.GenericParameter, Type.GenericBound> p:test.r.entrySet()){
+                        Type min = p.getValue().min();
+                        Type max = p.getValue().max();
+                        p.setValue(new Type.GenericBound(min==null?null:min.replaceGenerics(implicitGenerics),
+                                max==null?null:max.replaceGenerics(implicitGenerics)));
+                    }
+                    procType=procType.replaceGenerics(implicitGenerics);
+                    if(c instanceof GenericProcedure){
+                        c=((GenericProcedure) c).withPrams(implicitGenerics);
+                    }
+                }
+                //check rBounds
+                for(Type.GenericBound b:test.r.values()){
+                    if(b.min()!=null&&b.max()!=null&&!b.min().canAssignTo(b.max())){
+                        matchesParam=false;
+                        break;
+                    }
+                }
+                if(matchesParam){
+                    matches.add(new CallMatch(c,procType,implicitGenerics,0,implicitGenerics.size(),
+                            new HashMap<>()));
+                    matchBounds.add(test);
+                }
+            }//addLater? allow casting
+        }
+        if(matches.size()==0){
+            return null;
+        }else if(matches.size()>1){
+            //TODO handle multiple matches?
+            for(CallMatch m:matches){
+                System.err.println(" - "+m.type+":"+m.called.name()+" at "+m.called.declaredAt());
+            }
+            throw new SyntaxError("more than one version of "+ param.name+" matches the given type: "+
+                    param, pos);
+        }
+        opps.put(param,matches.get(0));
+        callBounds =matchBounds.get(0);
+        return callBounds;
+    }
+    private boolean resolveGenericParams(IdentityHashMap<Type.GenericParameter, Type.GenericBound> bounds,
+                                         IdentityHashMap<Type.GenericParameter, Type> implicitGenerics) {
+        for(Map.Entry<Type.GenericParameter, Type.GenericBound> e: bounds.entrySet()){
+            if(e.getValue().min()!=null){
+                if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
+                    implicitGenerics.put(e.getKey(),e.getValue().min());
+                }else{
+                    return false;
+                }
+            }else if(e.getValue().max()!=null){
+                implicitGenerics.put(e.getKey(),e.getValue().max());
+            }
+        }
+        return true;
+    }
+    private CallMatch findMatchingCall(ArrayList<CallMatch> matchingCalls, OverloadedProcedure proc,
+                                       Type[] inTypes, HashMap<VariableId, Value> globalConstants,
+                                       IOContext ioContext, FilePosition pos) throws SyntaxError {
+        for(int i = 0; i< matchingCalls.size(); i++){
+            CallMatch c= matchingCalls.get(i);
+            if(c.called instanceof Value.Procedure){
+                typeCheckProcedure((Value.Procedure)c.called, globalConstants, ioContext);
+            }else if(c.called instanceof GenericProcedure){//resolve generic procedure
+                Value.Procedure withPrams = ((GenericProcedure) c.called).withPrams(c.genericParams);
+                try {
+                    typeCheckProcedure(withPrams, globalConstants, ioContext);
+                }catch (SyntaxError err){
+                    throw new SyntaxError(err, pos);
+                }
+                matchingCalls.set(i,new CallMatch(withPrams,withPrams.type(),c.genericParams,c.nCasts,c.nImplicit,c.opps));
+            }
+        }
+        if(matchingCalls.size()==0){
+            throw new SyntaxError("no version of "+ proc.name+" matches the given arguments "+Arrays.toString(inTypes), pos);
+        }else if(matchingCalls.size()>1){
+            Comparator<CallMatch> matchSort= Comparator.comparingInt((CallMatch m) -> m.nCasts)
+                    .thenComparingInt(m -> m.nImplicit).thenComparing(compareBySignature);
+            matchingCalls.sort(matchSort);
+            int i=1;
+            while(i< matchingCalls.size()&&matchSort.compare(matchingCalls.get(0), matchingCalls.get(i))==0){
+                i++;
+            }
+            if(i>1){
+                ioContext.stdErr.println("more than one version of "+ proc.name+" matches the given arguments "+Arrays.toString(inTypes));
+                for(int k=0;k<i;k++){
+                    ioContext.stdErr.println(proc.name+":"+ matchingCalls.get(k).type+" at "+ matchingCalls.get(k).called.declaredAt());
+                }
+                throw new SyntaxError("cannot resolve procedure call", pos);
+            }
+        }
+        return matchingCalls.get(0);
+    }
+    private void updateProcedureArguments(CallMatch match, Type[] inTypes, ArrayList<Token> tokens, boolean isPtr, FilePosition pos) throws SyntaxError {
+        for(int i = 0; i< inTypes.length; i++){
+            if (inTypes[i] instanceof Type.OverloadedProcedurePointer) {
+                CallMatch opp= match.opps.get((Type.OverloadedProcedurePointer) inTypes[i]);
+                if(opp!=null&&!(opp.called instanceof OverloadedProcedure||opp.called instanceof GenericProcedure)){
+                    inTypes[i]=opp.type;
+                }else{
+                    throw new SyntaxError("unresolved overloaded procedure pointer in procedure signature: "+ inTypes[i], pos);
+                }
+            }//no else
+            if(!inTypes[i].canAssignTo(match.type.inTypes[i])){
+                tokens.add(new ArgCastToken(inTypes.length-i+(isPtr ?1:0), match.type.inTypes[i], pos));
+            }
+        }
+        for(Map.Entry<Type.OverloadedProcedurePointer, CallMatch> opp: match.opps.entrySet()){
+            //resolve overloaded procedure pointers
+            setOverloadedProcPtr(tokens,opp.getKey(),(Value)opp.getValue().called);
+        }
+    }
+
 
     static class Variable{
         final Type type;
