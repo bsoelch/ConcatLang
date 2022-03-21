@@ -58,10 +58,10 @@ newHashMap public proc( #+keyType+# K <> #+valType+# V <> #+cap+# int => K V Has
   data 0 K V HashMap new
 }
 
-HashMap.put public proc( K <?> V <?> #+map+# K V HashMap #+key+# K #+value+# V => #+prevVal+# V optional ){
-  V value =:
+HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap #+key+# K => #+prevVal+# V optional ){
   K key =:
   K V HashMap map =:
+  V value =:
   key hashCode uint hash =:
   hash map .data .length % uint i =:
   map .data i [] if{
@@ -90,6 +90,10 @@ HashMap.put public proc( K <?> V <?> #+map+# K V HashMap #+key+# K #+value+# V =
     map HashMap.incSize
     V empty return
   }
+}
+
+[]= public proc( K <?> V <?> #+value+# V #+map+# K V HashMap #+key+# K => #+prevVal+# V optional ){
+  HashMap.put return
 }
 
 HashMap.contains public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => bool ){
@@ -122,6 +126,9 @@ HashMap.get public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# 
     unwrapped .next entry =
   }
   V empty return
+}
+[] public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# V optional ){
+  HashMap.get return
 }
 
 HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevVal+# V optional ){

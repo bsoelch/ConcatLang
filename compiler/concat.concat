@@ -498,7 +498,7 @@ Context.declareVariable proc( #+context+# Context #+name+# string #+isConst+# bo
     context name dType fPos Context.ensureDeclareable name =
     dType fPos context Context.isGlobal context Context.level context .varCount VariableId new VariableId varId =:
     context Context.incVarCount
-    context .elements name varId HashMap.put drop
+    varId context .elements name HashMap.put drop
     varId return
 }
 Context.getDeclareable proc( #+context+# Context #+name+# string => Declareable optional ){
@@ -574,7 +574,7 @@ RootContext.startModule proc( RootContext #+name+# string #+declaredAt+# FilePos
   while{ i name .length < do
     fullPath name i [] << fullPath =
     name i [] MODULE_SEPARATOR == if{
-      context .namespaces fullPath clone true HashMap.put drop
+      true context .namespaces fullPath clone HashMap.put drop
       path tmp << path =
       "" tmp =
     else
@@ -584,7 +584,7 @@ RootContext.startModule proc( RootContext #+name+# string #+declaredAt+# FilePos
   }
   path tmp << path =
   fullPath MODULE_SEPARATOR << fullPath =
-  context .namespaces fullPath clone true HashMap.put drop
+  true context .namespaces fullPath clone HashMap.put drop
   context RootContext.file .openModules path fPos newOpenModule << drop
 }
 RootContext.addImport proc( RootContext #+name+# string #+declaredAt+# FilePosition => ){
@@ -711,7 +711,7 @@ RootContext.declareMacro proc( #+context+# RootContext #+macro+# Macro => ){
   macro .name string name =:
   RootContext context =:
   context name DeclareableType .MACRO macro .pos Context.ensureDeclareable name =
-  context .elements name macro HashMap.put drop
+  macro context .elements name HashMap.put drop
 }
 RootContext.removeMacro proc( #+context+# RootContext #+name+# string #+pos+# FilePosition => ){
   FilePosition fPos =:
@@ -737,14 +737,14 @@ RootContext.declareEnum proc( #+context+# RootContext #+source+# EnumBlock => ){
   RootContext context =:
   source .startPos name source .elements newEnum Enum anEnum =:
   context name DeclareableType .ENUM anEnum .pos Context.ensureDeclareable name =
-  context .elements name anEnum HashMap.put drop
+  anEnum context .elements name HashMap.put drop
   ##declare enum entries
   0 int i =:
   anEnum .enumType .fields NameWithPos list fields =:
   while{ i fields .length < do
     source .name clone MODULE_SEPARATOR << fields i [] .name <<* string fieldName =:
     context fieldName DeclareableType .ENUM_ENTRY fields i [] .pos Context.ensureDeclareable fieldName =
-    context .elements fieldName anEnum .enumType i newEnumEntry HashMap.put drop
+    anEnum .enumType i newEnumEntry context .elements fieldName HashMap.put drop
     i 1 + i =
   }
 }
@@ -753,7 +753,7 @@ RootContext.declareTuple proc( #+context+# RootContext #+tuple+# Tuple => ){
   aTuple .tupleType .name string name =:
   RootContext context =:
   context name DeclareableType .TUPLE aTuple .pos Context.ensureDeclareable name =
-  context .elements name aTuple HashMap.put drop
+  aTuple context .elements name HashMap.put drop
 }
 ##TODO RootContext.declareNativeProc
 ##TODO Context.wrapCurried
