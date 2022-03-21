@@ -60,7 +60,7 @@ public class Type {
             if(a.equals(b)) {
                 return a;
             }else{
-                throw new UnsupportedOperationException("merging different overloaded procedure pointer sis not implemented");
+                throw new UnsupportedOperationException("merging different overloaded procedure pointer is not implemented");
             }
         }
         if(a==ANY||b==null){
@@ -72,8 +72,8 @@ public class Type {
                 return b;
             }else if(b.canAssignTo(a)){
                 return a;
-            }else if((!strict)&&((a==UINT||a==INT)&&(b==UINT||b==INT))){
-                return a;
+            }else if((!strict)&&((a==UINT||a==INT)&&(b==UINT||b==INT))){//TODO better handling of implicit casting of numbers
+                return a==b?a:UnionType.create(new Type[]{a,b});
             }else if((!strict)&&((a==FLOAT&&(b==UINT||b==INT))||(b==FLOAT&&(a==UINT||a==INT)))){
                 return FLOAT;
             }else{
