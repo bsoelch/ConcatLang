@@ -6,6 +6,7 @@ the compiler will be updated once the language is stabilized
 
 the current version of the compiler is kept up to date as an example of a complex concat program
 +#
+##TODO update concat.concat
 
 ## currently in early development phase
 
@@ -302,9 +303,9 @@ VariableId.isConst proc( VariableId => bool ){
   .dType DeclareableType .FINAL_VARIABLE ==
 }
 
-CurriedVariable struct{ Declareable extend } ##TODO curried variable
-PredeclaredProc struct{ Declareable extend } ##TODO predeclared proc
-Procedure struct{ Declareable extend } ##TODO proc
+CurriedVariable struct{ Declareable extend }
+PredeclaredProc struct{ Declareable extend }
+Procedure struct{ Declareable extend }
 
 Enum struct{ Declareable extend
   EnumType :enumType
@@ -600,7 +601,6 @@ RootContext.addImport proc( RootContext #+name+# string #+declaredAt+# FilePosit
          file .globalImports name << drop
      }
   else context .elements name HashMap.get if
-    ##addLater static imports
     drop
     "static imports are currently unimplemented"
     1 exit
@@ -699,12 +699,10 @@ RootContext.declareProcedure proc( #+context+# RootContext #+name+# string #+pro
   RootContext context =:
   context name DeclareableType .PROCEDURE aProc .pos Context.ensureDeclareable name =
   context RootContext.predeclared name HashMap.remove if{
-    ##TODO handle predeclared procedure
     drop
   }
   context .elements name aProc HashMap.put drop
 }
-##addLater predeclareProcedure
 
 RootContext.declareMacro proc( #+context+# RootContext #+macro+# Macro => ){
   Macro macro =:
@@ -755,9 +753,6 @@ RootContext.declareTuple proc( #+context+# RootContext #+tuple+# Tuple => ){
   context name DeclareableType .TUPLE aTuple .pos Context.ensureDeclareable name =
   aTuple context .elements name HashMap.put drop
 }
-##TODO RootContext.declareNativeProc
-##TODO Context.wrapCurried
-
 
 TokenType enum{
   WORD
@@ -1112,7 +1107,6 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
                 fPos << '\n' << eputs
                 1 exit
               }
-              ##TODO check for curried variables
               ##context.wrapCurried(identifier.name,id,identifier.pos);
               TokenType .VARIABLE prev .pos AccessType .WRITE_VAR d VariableToken new
                 tokens tokens .length 1 - []=
@@ -1122,7 +1116,6 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             }
             end-case
           ADDRESS_OF case
-            ##TODO address of
             "unimplemented\n" eputs
             1 exit
             end-case
@@ -1138,7 +1131,6 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
               while{ i m .words .length < do
                 m .words i [] NameWithPos s =:
                 i 1 + m .words .length < if{ m .words i 1 + [] .name else "##" } string nxt =:
-                ##addLater remember position in macro for file-position
                 s .name nxt prev .pos openBlocks program parseWord
                 i 1 + i =
               }
@@ -1158,9 +1150,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
                 tokens tokens .length 1 - []=
               end-case
             FINAL_VARIABLE VARIABLE_ID case
-              ##addLater wrap curried variables
               ##id=context.wrapCurried(identifier.name,id,identifier.pos);
-              ##addLater pre-evaluate global constants
               TokenType .VARIABLE prev .pos AccessType .READ_VAR d VariableToken new
                 tokens tokens .length 1 - []=
             end-case
@@ -1174,7 +1164,6 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
               end-case
             }
           else
-            ##TODO resolve missing declarable
           }
         }
       }
@@ -1297,7 +1286,6 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
           word " can only be used in (lambda-)procedures " <<* fPos << '\n' << eputs
           1 exit
         }
-        ##TODO update procedure-block
         tokens TokenType .KEY_WORD fPos word WordToken new << tokens =
         end-case
       "while" case
@@ -1411,7 +1399,6 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
           word " can only be used in switch-blocks " <<*  fPos << '\n' << eputs
           1 exit
         }
-        ##TODO update switch-block
         tokens TokenType .KEY_WORD fPos word WordToken new << tokens =
         end-case
       "end" case
@@ -1482,11 +1469,9 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
           }
           end-case
         SWITCH_BLOCK case
-          ## TODO close switch block
           "Waring closing switch-blocks is currently not implemented\n" eputs
           end-case
         PROC_BLOCK case
-          ## TODO close proc block
           "Waring closing proc-blocks is currently not implemented\n" eputs
           end-case
         ENUM_BLOCK case
@@ -1658,7 +1643,6 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
   16 byte list new                    #+word+#
   fileName 1 1 FilePosition new       #+wordPos+#
   ParserReader new ParserReader reader =:
-  ## FIXME detect file header
   context RootContext.startFile
   ParseState .STATE_WORD ParseState state =:
   reader .pos "" newMacro 16 CodeBlock list new OpenBlocks new OpenBlocks openBlocks =:
@@ -1920,9 +1904,6 @@ constEvaluate proc( Token list => Token list ){
   }
   res return
 }
-
-##addLater typeCheckProgram
-##addLater compileProgram
 
 main public proc( string list => ){
   string list args =:
