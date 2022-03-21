@@ -228,10 +228,12 @@ public class Type {
             return wrapperName.equals(OPTIONAL);
         }
 
-        //addLater don't allow casts between mutable lists of different type
         @Override
         public boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
+                if(wrapperName.equals(LIST)&&!t.content().canAssignTo(content(),bounds)){
+                    return false;//mutable lists cannot be assigned to mutable lists of different type
+                }
                 return content().canAssignTo(t.content(),bounds);
             }else{
                 return super.canAssignTo(t,bounds);
