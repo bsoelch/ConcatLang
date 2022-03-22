@@ -185,6 +185,8 @@ public abstract class Value {
         boolean sgn=source.startsWith("-");
         if(sgn){
             i++;
+        }else if(source.startsWith("+")){
+            i++;
         }
         long res=0;
         long max=unsigned?Long.divideUnsigned(-1,base):(Long.MAX_VALUE/base+(sgn?1:0));
@@ -284,6 +286,10 @@ public abstract class Value {
     public static Value ofFloat(double d) {
         return new FloatValue(d);
     }
+    //maximum powers such that base^-pow > 0
+    static final int[] maxSafePows = {0,0, 1074, 678, 537, 462, 415, 382, 358, 339, 323, 310, 299, 290, 282, 275, 268, 262, 257, 253,
+            248, 244, 241, 237, 234, 231, 228, 226, 223, 221, 219, 216, 214, 213, 211, 209, 207, 206, 204, 203, 201, 200,
+            199, 198, 196, 195, 194, 193, 192, 191, 190, 189, 188, 187, 186, 185, 185, 184, 183, 182, 181, 181, 180, 179, 179};
     public static double parseFloat(String str, int base) throws ConcatRuntimeError {
         if(base<2||base>62){
             throw new ConcatRuntimeError("base out of range:"+base+" base has to be between 2 and 62");
@@ -291,6 +297,8 @@ public abstract class Value {
         int i=0;
         boolean sgn=str.startsWith("-");
         if(sgn){
+            i++;
+        }else if(str.startsWith("+")){
             i++;
         }
         long val=0;
@@ -319,7 +327,13 @@ public abstract class Value {
         if (e > 0) {
             c-=(int)parseInt(str.substring(e),base,false);
         }
-        return (sgn?-val:val)*Math.pow(base,-c);
+        //pow may underflow -> calculate power in steps to ensure that it will not underflow
+        double res=(sgn?-val:val);
+        if(c>maxSafePows[base]){
+            res*=Math.pow(base,-maxSafePows[base]);
+            c-=maxSafePows[base];
+        }
+        return res*Math.pow(base,-c);
     }
     private static class FloatValue extends Value implements NumberValue{
         final double floatValue;

@@ -46,3 +46,13 @@ pi debugPrint
 "ffffffffffffffff" 16 false stringToInt debugPrint uint cast debugPrint
 "123456789abcdefg" 16 true  stringToInt debugPrint debugPrint
 "ffffffffffffffff" 16 true  stringToInt debugPrint debugPrint
+
+"_____________________________" debugPrint
+"f.ffffffffffff8p+ff"  16 stringToFloat debugPrint debugPrint
+"0.00000000000004p-ff" 16 stringToFloat debugPrint debugPrint
+
+float_MIN_normal debugPrint
+float_MIN dup debugPrint
+2 / debugPrint
+float_MAX dup debugPrint
+2 * debugPrint
