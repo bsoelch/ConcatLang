@@ -1468,9 +1468,7 @@ public abstract class Value {
         if(elements.length!=type.elementCount()){
             throw new IllegalArgumentException("elements has to have the same length as types");
         }
-        for(int i=0;i<elements.length;i++){
-            elements[i]=elements[i].castTo(type.get(i));
-        }
+        //assume that elements have correct types
         return new TupleValue(type, elements);
     }
     private static class TupleValue extends Value{
@@ -1522,7 +1520,7 @@ public abstract class Value {
             if(index<0||index>=elements.length){
                 throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.length);
             }
-            elements[(int)index]=value.castTo(((Type.Tuple)type).get((int)index));
+            elements[(int)index]=value;//it is assumed that value has the correct type
         }
 
         @Override

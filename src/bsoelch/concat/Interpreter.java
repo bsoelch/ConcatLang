@@ -3360,8 +3360,14 @@ public class Interpreter {
         try {
             Type type = ((ValueToken)prev).value.asType();
             if(type instanceof Type.Tuple){
+                Type[] elements = new Type[((Type.Tuple) type).elements.length];
+                for(int i=0;i<elements.length;i++){
+                    Type e = ((Type.Tuple) type).elements[i];
+                    //unwrap mutable variables (mutable is a flag for the field accessibility not for the value)
+                    elements[i]= e.isMutable()? e.content(): e;
+                }
                 typeCheckCall("new", typeStack,
-                        Type.Procedure.create(((Type.Tuple) type).elements,new Type[]{type}), ret,ioContext, pos, false);
+                        Type.Procedure.create(elements,new Type[]{type}), ret,ioContext, pos, false);
 
                 int c=((Type.Tuple) type).elementCount();
                 if(c < 0){
@@ -3373,7 +3379,7 @@ public class Interpreter {
                     for(int j=c-1;j>=0;j--){
                         prev= ret.get(iMin+j);
                         if(prev instanceof ValueToken){
-                            values[j]=((ValueToken) prev).value.castTo(((Type.Tuple) type).get(j));
+                            values[j]=((ValueToken) prev).value.castTo(elements[j]);
                         }else{
                             break;
                         }
@@ -3549,7 +3555,8 @@ public class Interpreter {
                     if(f.type instanceof Type.Struct){
                         Integer index=((Type.Struct) f.type).fields.get(identifier.name);
                         if(index!=null){
-                            typeStack.push(new TypeFrame(((Type.Struct) f.type).elements[index],null, t.pos));
+                            Type elementType = ((Type.Struct) f.type).elements[index];
+                            typeStack.push(new TypeFrame(elementType.isMutable()?elementType.content():elementType,null, t.pos));
                             ret.add(new TupleElementAccess(index, false, t.pos));
                             hasField=true;
                         }
@@ -3679,23 +3686,33 @@ public class Interpreter {
                 TypeFrame f=typeStack.pop();
                 TypeFrame val=typeStack.pop();
                 boolean hasField=false;
-                if(f.type instanceof Type.Struct){
-                    Integer index=((Type.Struct) f.type).fields.get(identifier.name);
+                if(f.type instanceof Type.Struct struct){
+                    Integer index= struct.fields.get(identifier.name);
                     if(index!=null){
-                        Type fieldType = ((Type.Tuple) f.type).elements[index];
-                        typeCheckCast(val.type,2,fieldType, ret,ioContext, t.pos);
-                        ret.add(new TupleElementAccess(index, true, t.pos));
-                        hasField=true;
-                    }
-                }//no else
-                if(f.type instanceof Type.Tuple){
-                    try {
-                        int index = Integer.parseInt(identifier.name);
-                        if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
-                            Type fieldType = ((Type.Tuple) f.type).elements[index];
-                            typeCheckCast(val.type,2,fieldType, ret, ioContext,t.pos);
+                        Type fieldType = struct.elements[index];
+                        if(fieldType.isMutable()){
+                            typeCheckCast(val.type,2,fieldType.content(), ret,ioContext, t.pos);
                             ret.add(new TupleElementAccess(index, true, t.pos));
                             hasField=true;
+                        }else{
+                            throw new SyntaxError("field "+identifier.name+" of struct "+struct.baseName+" (declared at "+
+                                    struct.declaredAt+") is not mutable",t.pos);
+                        }
+                    }
+                }//no else
+                if(f.type instanceof Type.Tuple tuple){
+                    try {
+                        int index = Integer.parseInt(identifier.name);
+                        if(index>=0&&index< tuple.elementCount()){
+                            Type fieldType = tuple.elements[index];
+                            if(fieldType.isMutable()){
+                                typeCheckCast(val.type,2,fieldType.content(), ret, ioContext,t.pos);
+                                ret.add(new TupleElementAccess(index, true, t.pos));
+                                hasField=true;
+                            }else{
+                                throw new SyntaxError("field "+identifier.name+" of tuple "+ tuple.name+
+                                        " (declared at "+tuple.declaredAt+") is not mutable",t.pos);
+                            }
                         }
                     }catch (NumberFormatException ignored){}
                 }
@@ -4348,7 +4365,7 @@ public class Interpreter {
                             int count=((Type.Tuple)type).elementCount();
                             Value[] values=new Value[count];
                             for(int i=1;i<= values.length;i++){
-                                values[count-i]= stack.pop().castTo(((Type.Tuple) type).get(count-i));
+                                values[count-i]= stack.pop();//values should already have the correct types
                             }
                             stack.push(Value.createTuple((Type.Tuple)type,values));
                         }else if(type.isList()){

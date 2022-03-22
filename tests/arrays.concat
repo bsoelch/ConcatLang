@@ -17,7 +17,7 @@ core #import
 
 10 int list new dup println
 dup 1000 ensureCap println
-( int float int ) type testTuple =:
+( int mut float mut int ) type testTuple =:
 1 2 3 testTuple new dup println
 dup clone  42 over .1 = println
 dup       2.0 over .0 = println

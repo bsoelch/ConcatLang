@@ -24,15 +24,15 @@ io #import
 
 
 FilePosition struct{
-  string :fileName
-  uint   :line
-  uint   :posInLine
+  string   :fileName
+  uint mut :line
+  uint mut :posInLine
 }
 FilePosition.newLine    proc( FilePosition => ){
-  dup dup .1 1 + swap .1 = 1 swap .2 =
+  dup dup .line 1 + swap .line = 1 swap .posInLine =
 }
 FilePosition.nextChar   proc( FilePosition => ){
-  dup .2 1 + swap .2 =
+  dup .posInLine 1 + swap .posInLine =
 }
 << proc( string FilePosition => string ){
   FilePosition position =:
@@ -191,7 +191,7 @@ CodeBlock struct{
 }
 
 WhileBlock struct{ CodeBlock extend
-  int :forkPos
+  int mut :forkPos
 }
 newWhileBlock proc( #+startPos+# FilePosition #+start+# int => WhileBlock ){
   int start =:
@@ -200,7 +200,7 @@ newWhileBlock proc( #+startPos+# FilePosition #+start+# int => WhileBlock ){
 }
 
 IfBlock struct{  CodeBlock extend
-  int       :prevIf
+  int  mut  :prevIf
   uint list :else_positions
 }
 newIfBlock proc( #+startPos+# FilePosition #+start+# int => IfBlock ){
@@ -271,21 +271,21 @@ DeclareableType enum{
 }
 
 Declareable struct{
-  DeclareableType :dType
-  FilePosition    :pos
+  DeclareableType  :dType
+  FilePosition mut :pos
 }
 
 ContextType enum{ ROOT_CONTEXT PROC_CONTEXT BLOCK_CONTEXT }
 
 Context struct{
   string Declareable HashMap :elements
-  int                        :varCount
+  int mut                    :varCount
   ContextType                :cType
 }
 Context.incVarCount proc( Context => ){ dup .varCount 1 + swap .varCount = }
 
 Macro struct{ Declareable extend
-  string           :name
+  string mut       :name
   NameWithPos list :words
 }
 newMacro proc( FilePosition string => Macro ){
@@ -783,7 +783,7 @@ ValueToken struct{ Token extend
 BlockTokenType enum{ IF ELSE _IF END-IF WHILE DO END-WHILE DO-WHILE SWITCH CASE END-CASE DEFAULT END-SWITCH }
 BlockToken struct{ Token extend
   BlockTokenType :blockType
-  int            :target
+  int mut        :target
 }
 
 ContextToken struct{ Token extend
@@ -886,12 +886,12 @@ ParseState enum{
 }
 
 OpenBlocks struct{
-  Macro          :currentMacro
+  Macro mut      :currentMacro
   CodeBlock list :blocks
 }
 Program struct{
-  Token list :tokens
-  Context    :context
+  Token list  :tokens
+  Context mut :context
 }
 
 parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_blocks+# OpenBlocks
