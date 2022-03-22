@@ -2353,7 +2353,13 @@ public class Interpreter {
                 case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
 
-                case "list"     -> tokens.add(new Token(TokenType.LIST_OF,        pos));
+                case "mut"      ->
+                        throw new SyntaxError("marking types as mutable is currently not implemented",pos);
+                case "array"      ->
+                        throw new SyntaxError("fixed size array type is currently not implemented",pos);
+                case "memory"      ->
+                        throw new SyntaxError("memory type is currently not implemented",pos);
+                case "list"     -> tokens.add(new Token(TokenType.LIST_OF,        pos));//list may be changed to a composite type
                 case "optional" -> tokens.add(new Token(TokenType.OPTIONAL_OF,    pos));
                 case "empty"    -> tokens.add(new Token(TokenType.EMPTY_OPTIONAL, pos));
 
