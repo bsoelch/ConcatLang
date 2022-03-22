@@ -1647,16 +1647,9 @@ public class Interpreter {
         int c;
         String fileId=null;
         while((c=reader.nextChar())>=0){
-            if(Character.isWhitespace(c)){
-                if(fileId==null){
-                    fileId=reader.buffer.toString();
-                    reader.nextToken();
-                }else if(reader.buffer.toString().equals(":")){
-                    break;
-                }else{
-                    throw new SyntaxError("invalid start of file, all concat files have to start with \"<file-id> :\"",
-                            reader.currentPos());
-                }
+            if(c==':'){
+                fileId=reader.buffer.toString().trim();
+                break;
             }else{
                 reader.buffer.append((char) c);
             }

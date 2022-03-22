@@ -35,6 +35,12 @@ fib proc( int => int ){
 ```
 
 ## Syntax
+All concat files have to start with a unique file identifier,
+followed by a `:`, the file identifier is used to determine 
+which files already have been included.
+Any spaces at the start and end of the file 
+identifier are ignored.
+
 The code is a sequence of instructions 
 separated by whitespaces.
 
@@ -567,11 +573,11 @@ at the position of the first include of that file.
 Example:
 
 If the file `/path/to/a/file.concat` contains the code
-```C
+```
 "included file" println
 ```
 then 
-```C
+```
 stack #include
 "/path/to/a/file.concat" #include
 "/path/to/a/file.concat" #include
