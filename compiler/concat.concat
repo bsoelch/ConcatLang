@@ -99,7 +99,7 @@ WrapperType struct{ Type extend
   TUPLE_TYPE case
     t TupleType tt =:
     tt .name <<* '[' <<
-    0 int i =:
+    0 int mut i =:
     while{ i tt .types .length < do
       i 0 > if{ ", " <<* }
       tt .types i [] <<
@@ -110,7 +110,7 @@ WrapperType struct{ Type extend
   ENUM_TYPE case
     t EnumType et =:
     et .name <<* '[' <<
-    0 int i =:
+    0 int mut i =:
     while{ i et .fields .length < do
       i 0 > if{ ", " <<* }
       et .fields i [] .name <<*
@@ -121,17 +121,17 @@ WrapperType struct{ Type extend
   }
 }
 
-TypeType .PRIMITIVE_TYPE      bool PrimitiveType new Type Type.BOOL      =$
-TypeType .PRIMITIVE_TYPE      byte PrimitiveType new Type Type.BYTE      =$
-TypeType .PRIMITIVE_TYPE codepoint PrimitiveType new Type Type.CODEPOINT =$
-TypeType .PRIMITIVE_TYPE      uint PrimitiveType new Type Type.UINT      =$
-TypeType .PRIMITIVE_TYPE       int PrimitiveType new Type Type.INT       =$
-TypeType .PRIMITIVE_TYPE     float PrimitiveType new Type Type.FLOAT     =$
-TypeType .PRIMITIVE_TYPE      type PrimitiveType new Type Type.TYPE      =$
-TypeType .PRIMITIVE_TYPE       var PrimitiveType new Type Type.VAR       =$
+TypeType .PRIMITIVE_TYPE      bool PrimitiveType new Type Type.BOOL      =:
+TypeType .PRIMITIVE_TYPE      byte PrimitiveType new Type Type.BYTE      =:
+TypeType .PRIMITIVE_TYPE codepoint PrimitiveType new Type Type.CODEPOINT =:
+TypeType .PRIMITIVE_TYPE      uint PrimitiveType new Type Type.UINT      =:
+TypeType .PRIMITIVE_TYPE       int PrimitiveType new Type Type.INT       =:
+TypeType .PRIMITIVE_TYPE     float PrimitiveType new Type Type.FLOAT     =:
+TypeType .PRIMITIVE_TYPE      type PrimitiveType new Type Type.TYPE      =:
+TypeType .PRIMITIVE_TYPE       var PrimitiveType new Type Type.VAR       =:
 
-TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.BYTE      WrapperType new Type Type.STRING  =$
-TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.CODEPOINT WrapperType new Type Type.USTRING =$
+TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.BYTE      WrapperType new Type Type.STRING  =:
+TypeType .WRAPPER_TYPE WrapperTypeType .LIST Type.CODEPOINT WrapperType new Type Type.USTRING =:
 
 Value struct{
   Type :valType
@@ -165,8 +165,8 @@ Value struct{
   }
 }
 
-Type.BOOL true  Value new Value Value.TRUE  =$
-Type.BOOL false Value new Value Value.FALSE =$
+Type.BOOL true  Value new Value Value.TRUE  =:
+Type.BOOL false Value new Value Value.FALSE =:
 Value.ofByte      proc( byte       => Value ){ Type.BYTE      swap Value new return }
 Value.ofCodepoint proc( codepoint  => Value ){ Type.CODEPOINT swap Value new return }
 Value.ofInt       proc( int        => Value ){ Type.INT       swap Value new return }
@@ -493,7 +493,7 @@ Context.ensureDeclareable proc( #+context+# Context #+name+#string #+type+# Decl
 Context.declareVariable proc( #+context+# Context #+name+# string #+isConst+# bool #+pos+# FilePosition => VariableId ){
     FilePosition fPos =:
     bool isConst =:
-    string name =:
+    string mut name =:
     Context context =:
     isConst if{ DeclareableType .FINAL_VARIABLE else DeclareableType .VARIABLE_ID } DeclareableType dType =:
     context name dType fPos Context.ensureDeclareable name =
@@ -508,7 +508,7 @@ Context.getDeclareable proc( #+context+# Context #+name+# string => Declareable 
     context .cType switch{
     ROOT_CONTEXT case
       context RootContext.currentPaths string list paths =:
-      paths .length 1 - int i =:
+      paths .length 1 - int mut i =:
       while{ i 0 >= do ##go through all namespaces
         context .elements paths i [] clone name <<* HashMap.get dup .hasValue if{
           #+element+# Declareable optional cast return
@@ -541,11 +541,11 @@ RootContext.inCurrentModule proc( RootContext  #+name+# string => string ){
    string name =:
    #+context+# RootContext.file .openModules OpenModule list namespaces =:
    namespaces .length 0 > if{
-    "" string path =:
-     0 int i =:
+    "" string mut path =:
+     0 int mut i =:
      while{ i namespaces .length < do
         namespaces i [] .path string list paths =:
-        0 int j =:
+        0 int mut j =:
         while{ j paths .length < do
           path paths j [] <<* MODULE_SEPARATOR << path =
           j 1 + j =
@@ -568,10 +568,10 @@ RootContext.startModule proc( RootContext #+name+# string #+declaredAt+# FilePos
     fPos  << '\n' << eputs
     1 exit
   }
-  context "" RootContext.inCurrentModule string fullPath =:
-  16 string list new string list path =:
-  "" string tmp =:
-  0 int i =:
+  context "" RootContext.inCurrentModule string mut fullPath =:
+  16 string list new string list mut path =:
+  "" string mut tmp =:
+  0 int mut i =:
   while{ i name .length < do
     fullPath name i [] << fullPath =
     name i [] MODULE_SEPARATOR == if{
@@ -637,7 +637,7 @@ RootContext.endFile proc( RootContext FilePosition => ){
   context .openFiles context .openFiles .length 1 - context .openFiles .length [:] clear
   closed .openModules .length 0 > if{
     "unclosed namespaces at end of File:\n" eputs
-    closed .openModules .length 1 - int i =:
+    closed .openModules .length 1 - int mut i =:
     while{ i 0 >= do
       closed .openModules i [] OpenModule removed =:
       removed .predeclared .size 0 > if{
@@ -667,13 +667,13 @@ RootContext.endFile proc( RootContext FilePosition => ){
 
 RootContext.currentPaths proc( RootContext => string list ){
   #+context+# RootContext.file OpenFile file =:
-  file .globalImports clone string list paths =:
-  16 string new string path =:
+  file .globalImports clone string list mut paths =:
+  16 string new string mut path =:
   file .openModules OpenModule list namespaces =:
-  0 int i =:
+  0 int mut i =:
   while{ i namespaces .length < do
     namespaces i [] .path string list mPath =:
-    0 int j =:
+    0 int mut j =:
     while{ j mPath .length < do
       path mPath j [] <<* MODULE_SEPARATOR << path =
       j 1 + j =
@@ -706,7 +706,7 @@ RootContext.declareProcedure proc( #+context+# RootContext #+name+# string #+pro
 
 RootContext.declareMacro proc( #+context+# RootContext #+macro+# Macro => ){
   Macro macro =:
-  macro .name string name =:
+  macro .name string mut name =:
   RootContext context =:
   context name DeclareableType .MACRO macro .pos Context.ensureDeclareable name =
   macro context .elements name HashMap.put drop
@@ -731,16 +731,16 @@ RootContext.removeMacro proc( #+context+# RootContext #+name+# string #+pos+# Fi
 }
 RootContext.declareEnum proc( #+context+# RootContext #+source+# EnumBlock => ){
   EnumBlock source =:
-  source .name string name =:
+  source .name string mut name =:
   RootContext context =:
   source .startPos name source .elements newEnum Enum anEnum =:
   context name DeclareableType .ENUM anEnum .pos Context.ensureDeclareable name =
   anEnum context .elements name HashMap.put drop
   ##declare enum entries
-  0 int i =:
+  0 int mut i =:
   anEnum .enumType .fields NameWithPos list fields =:
   while{ i fields .length < do
-    source .name clone MODULE_SEPARATOR << fields i [] .name <<* string fieldName =:
+    source .name clone MODULE_SEPARATOR << fields i [] .name <<* string mut fieldName =:
     context fieldName DeclareableType .ENUM_ENTRY fields i [] .pos Context.ensureDeclareable fieldName =
     anEnum .enumType i newEnumEntry context .elements fieldName HashMap.put drop
     i 1 + i =
@@ -748,7 +748,7 @@ RootContext.declareEnum proc( #+context+# RootContext #+source+# EnumBlock => ){
 }
 RootContext.declareTuple proc( #+context+# RootContext #+tuple+# Tuple => ){
   Tuple aTuple =:
-  aTuple .tupleType .name string name =:
+  aTuple .tupleType .name string mut name =:
   RootContext context =:
   context name DeclareableType .TUPLE aTuple .pos Context.ensureDeclareable name =
   aTuple context .elements name HashMap.put drop
@@ -897,8 +897,8 @@ Program struct{
 parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_blocks+# OpenBlocks
   #+program+# Program => ){
   Program program =:
-  program .context Context context =:
-  program .tokens Token list tokens =:
+  program .context Context mut context =:
+  program .tokens Token list mut tokens =:
   OpenBlocks openBlocks =:
   FilePosition fPos =:
   string       next =:
@@ -1127,7 +1127,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             MACRO case
               d Macro m =:
               tokens tokens .length 1 - tokens .length [:] clear ##remove prev
-              0 int i =:
+              0 int mut i =:
               while{ i m .words .length < do
                 m .words i [] NameWithPos s =:
                 i 1 + m .words .length < if{ m .words i 1 + [] .name else "##" } string nxt =:
@@ -1168,16 +1168,16 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
         }
       }
       ## try parsing as integer
-      0 int off =:
+      0 int mut off =:
       ## detect signs
-      false bool sgn =:
+      false bool mut sgn =:
            word 0 [] '-' ==  if{
         true sgn =
         off 1 + off =
       else word 0 [] '+' == if
         off 1 + off =
       }
-      10 int base =:
+      10 int mut base =:
       ##detect base modifiers
       word .length off - 3 > if{
              word off off 2 + [:] "0b" ==  if{
@@ -1429,7 +1429,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
             ## close-else context
             tokens TokenType .CONTEXT_CLOSE fPos Token new << tokens =
           }
-          0 int i =:
+          0 int mut i =:
           while{ i iBlock .else_positions .length < do
             tokens iBlock .else_positions i [] [] Token tmp =:
             tmp .tokenType TokenType .BLOCK_TOKEN == &&{ tmp BlockToken cast .blockType BlockTokenType .ELSE == }
@@ -1487,8 +1487,8 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition #+open_bloc
           tokens tBlock .start tokens .length [:] Token list subList =:
           subList constEvaluate Token list values =:
           subList clear
-          values .length Type list new Type list types =:
-          0 int i =:
+          values .length Type list new Type list mut types =:
+          0 int mut i =:
           while{ i values .length < do
             values i [] .tokenType TokenType .VALUE != if{
               "tokens of type:" TokenType .fieldNames values i [] .tokenType [] <<* " are not allowed in tuple signatures " <<*
@@ -1632,7 +1632,7 @@ readEscapeChar proc( ParserReader => ){
 parseFile proc( #+fileName+# string #+program+# Program =>  ){
   Program program =:
   program .context Context context =:
-  program .tokens Token list tokens =:
+  program .tokens Token list mut tokens =:
   string fileName =:
   fileName "r" open if{ #+auto-unwrap+# else
     "file \"" fileName "\" not found\n" <<* <<* eputs
@@ -1644,17 +1644,17 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
   fileName 1 1 FilePosition new       #+wordPos+#
   ParserReader new ParserReader reader =:
   context RootContext.startFile
-  ParseState .STATE_WORD ParseState state =:
+  ParseState .STATE_WORD ParseState mut state =:
   reader .pos "" newMacro 16 CodeBlock list new OpenBlocks new OpenBlocks openBlocks =:
 
-  "" string prevWord =:
-  fileName 1 1 FilePosition new FilePosition prevPos =:
+  "" string mut prevWord =:
+  fileName 1 1 FilePosition new FilePosition mut prevPos =:
 
   while{ reader ParserReader.nextByte do
     #+next-char+#
     state switch{
       STATE_WORD case
-        byte next =:
+        byte mut next =:
         next ?WhiteSpace if{
           reader .word .length 0 > if{
             reader .word clone string nextWord =:
@@ -1844,8 +1844,8 @@ parseFile proc( #+fileName+# string #+program+# Program =>  ){
 
 constEvaluate proc( Token list => Token list ){
   Token list tokens =:
-  tokens .length Token list new Token list res =:
-  0 int i =:
+  tokens .length Token list new Token list mut res =:
+  0 int mut i =:
   while{ i tokens .length < do
     tokens i [] .tokenType switch{
       VALUE case
@@ -1911,7 +1911,7 @@ main public proc( string list => ){
     "usage: <pathToFile> \n" puts ## "usage: <pathToFile> (-lib <libPath>)"
     0 exit
   }
-  args 1 [] string path =:
+  args 1 [] string mut path =:
   path .length 0 > &&{ path 0 [] '.' == } if{ ##local path
     args 0 [] clone path 1 path .length [:] <<* path =
   }
@@ -1919,7 +1919,7 @@ main public proc( string list => ){
   16 Token list new Token list tokens =:
   newRootContext RootContext context =:
   path tokens context Program new parseFile
-  0 int i =:
+  0 int mut i =:
   while{ i tokens .length < do
     tokens i [] Token token =:
     "" token << " " <<* token .pos << '\n' << puts

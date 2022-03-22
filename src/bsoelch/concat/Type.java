@@ -47,14 +47,6 @@ public class Type {
         return WrapperType.BYTES;
     }
 
-    private Type(String name, boolean switchable) {
-        this.name = name;
-        this.switchable = switchable;
-    }
-
-    final String name;
-    final boolean switchable;
-
     public static Type commonSuperType(Type a, Type b,boolean strict) {
         if(a instanceof OverloadedProcedurePointer||b instanceof OverloadedProcedurePointer) {
             if(a.equals(b)) {
@@ -102,6 +94,14 @@ public class Type {
                     (IdentityHashMap<GenericParameter, GenericBound>) r.clone());
         }
     }
+
+    private Type(String name, boolean switchable) {
+        this.name = name;
+        this.switchable = switchable;
+    }
+
+    final String name;
+    final boolean switchable;
 
     @Override
     public final boolean equals(Object o) {
@@ -166,6 +166,9 @@ public class Type {
     public boolean isOptional() {
         return false;
     }
+    public boolean isMutable() {
+        return false;
+    }
     public Type content() {//addLater make type-data getters return optional
         throw new UnsupportedOperationException();
     }
@@ -183,6 +186,13 @@ public class Type {
     }
 
 
+    public static Type mutable(Type contentType){
+        if(contentType instanceof WrapperType&&((WrapperType) contentType).wrapperName.equals(WrapperType.MUTABLE)){
+            return contentType;
+        }else{
+            return WrapperType.create(WrapperType.MUTABLE,contentType);
+        }
+    }
     public static Type listOf(Type contentType){
         return WrapperType.create(WrapperType.LIST,contentType);
     }
@@ -194,6 +204,7 @@ public class Type {
     private static class WrapperType extends Type {
         static final String LIST = "list";
         static final String OPTIONAL = "optional";
+        static final String MUTABLE = "mut";
 
         static final WrapperType BYTES= new WrapperType(LIST,Type.BYTE);
         static final WrapperType UNICODE_STRING= new WrapperType(LIST,Type.CODEPOINT);
@@ -226,6 +237,10 @@ public class Type {
         }
 
         @Override
+        public boolean isMutable() {
+            return wrapperName.equals(MUTABLE);
+        }
+        @Override
         public boolean isList() {
             return wrapperName.equals(LIST);
         }
@@ -237,8 +252,9 @@ public class Type {
         @Override
         public boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                if(wrapperName.equals(LIST)&&!t.content().canAssignTo(content(),bounds.swapped())){
-                    return false;//mutable lists cannot be assigned to mutable lists of different type
+                if((wrapperName.equals(LIST)||//remove list once mutability is correctly implemented for containers
+                        wrapperName.equals(MUTABLE))&&!t.content().canAssignTo(content(),bounds.swapped())){
+                    return false;//mutable values cannot be assigned to mutable values of a different type
                 }
                 return content().canAssignTo(t.content(),bounds);
             }else{

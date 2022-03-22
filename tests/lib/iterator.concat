@@ -11,7 +11,7 @@ reverse proc( string => string ){
   toReverse .length string new res =::
   ## Iterate though the elements in reverse order
   toReverse _^ while{ <^ do
-    byte cast res swap << res =
+    byte cast res swap << drop
   } drop
   res return
 }
@@ -19,7 +19,7 @@ reverse proc( string => string ){
 "Hello World" reverse debugPrint
 
 sum proc( A <?> A list => A ){
-  0 A tmp =: ## Initialize sum to 0
+  0 A mut tmp =: ## Initialize sum to 0
   ## Iterate though all elements of the list
   ^_ for{
     tmp swap + tmp =

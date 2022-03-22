@@ -10,14 +10,14 @@ io #include
 math #include
 math #import
 
- 0xffffffffffffffffu uint uint_MAX public =$
-                  0u uint uint_MIN public =$
- 0x7fffffffffffffff   int  int_MAX public =$
--0x8000000000000000   int  int_MIN public =$
+ 0xffffffffffffffffu uint uint_MAX public =:
+                  0u uint uint_MIN public =:
+ 0x7fffffffffffffff   int  int_MAX public =:
+-0x8000000000000000   int  int_MIN public =:
 
-0xf.ffffffffffff8p+ff  float float_MAX public =$
-0x0.4p-ff              float float_MIN_normal public =$
-0x0.00000000000004p-ff float float_MIN public =$
+0xf.ffffffffffff8p+ff  float float_MAX public =:
+0x0.4p-ff              float float_MIN_normal public =:
+0x0.00000000000004p-ff float float_MIN public =:
 
 float_NaN public #define 0 0.0 / #end ##addLater make constants (once '/' can be pre-evaluated )
 float_Positive_Infinity public #define 1 0.0 / #end
@@ -56,7 +56,7 @@ getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
   bool big =:
   bool signed =:
   int base =:
-  uint value =:
+  uint mut value =:
   base 2 < ||{ base 62 > } if{
     ## even though printing recursively calls this function
     ## this error check should not be activated when <<i is called normally
@@ -70,7 +70,7 @@ getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
       '-' <<
       value int cast -_ value =
   }
-  1u uint p =:
+  1u uint mut p =:
   while{ value p / base >= do p base * p = }
   while{ p 0 > do
       value p /  base big getDigit <<
@@ -116,7 +116,7 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
   bool  big =:
   int   base =:
   int   precision =:
-  float value =:
+  float mut value =:
   base 2 < ||{ base 62 > } if{
     "Base out of range: " base <<i ", base has to be between 2 and 62\n" <<* eputs
     1 exit
@@ -137,11 +137,11 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
     value -_ value =
   }
   0b1e-110100 #+2^-52+# value * float eps =: ##? better implementation of eps
-  value log base log / floor int e =:
-  e int e_max =:
-  base e float cast pow float p =:
-  64 int list new int list buff =:
-  0 int n =:
+  value log base log / floor int mut e =:
+  e int mut e_max =:
+  base e float cast pow float mut p =:
+  64 int list new int list mut buff =:
+  0 int mut n =:
   while{ p eps > do
     value p / floor int cast int d =:
     buff d << buff =
@@ -156,8 +156,8 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
     precision
   } n =
   buff n [] base 2 / >= if{
-    n 1 - int j =:
-    true bool inc =:
+    n 1 - int mut j =:
+    true bool mut inc =:
     while{ inc &&{ j 0 >= } do
       buff j [] 1 +  buff j []=
       buff j [] base >= if{
@@ -284,9 +284,9 @@ stringToInt public proc( #+source+# string #+base+# int #+signed+# bool => #+val
   source .length 0 == if{
     0 StringParseError .ERR_EMPTY return
   }
-  0 int res =:
-  0 int i =:
-  false bool sgn =:
+  0 int mut res =:
+  0 int mut i =:
+  false bool mut sgn =:
   source 0 [] '-' == if{
     true sgn =
     1 i =
@@ -368,7 +368,7 @@ isExpChar proc( #+char+# byte #+base+# int => bool ){
 ## maximum powers such that base^-pow > 0
 { 0 0 1074 678 537 462 415 382 358 339 323 310 299 290 282 275 268 262 257 253 248 244
   241 237 234 231 228 226 223 221 219 216 214 213 211 209 207 206 204 203 201 200 199
-  198 196 195 194 193 192 191 190 189 188 187 186 185 185 184 183 182 181 181 180 179 179 } int list maxSafePowers =$
+  198 196 195 194 193 192 191 190 189 188 187 186 185 185 184 183 182 181 181 180 179 179 } int list maxSafePowers =:
 
 stringToFloat public proc( #+str+# string #+base+# int => #+val+# float #+err-code+# StringParseError ){
   int base =:
@@ -379,18 +379,18 @@ stringToFloat public proc( #+str+# string #+base+# int => #+val+# float #+err-co
   str .length 0 == if{
     0.0 StringParseError .ERR_EMPTY return
   }
-  0 int val =:
-  0 int i =:
-  false bool sgn =:
+  0 int mut val =:
+  0 int mut i =:
+  false bool mut sgn =:
   str 0 [] '-' == if{
     true sgn =
     1 i =
   else str 0 [] '+' == if
     1 i =
   }
-  0  int c =:
-  0  int d =:
-  -1 int e =:
+  0  int mut c =:
+  0  int mut d =:
+  -1 int mut e =:
   1 53 << int maxVal =: ## maximum precision of ieee float64
   while{ i str .length < do
     str i [] '.' == if{ ## str[i] == '.'

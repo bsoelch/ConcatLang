@@ -273,7 +273,7 @@ reverse a string:
 reverse proc( string => string ){
   string toReverse =:
   ## store type and length of the list
-  toReverse .length string new string res =:
+  toReverse .length string new string mut res =:
   ## Iterate though the elements in reverse order
   toReverse _^ while{ <^ do
     res swap << res =
@@ -285,7 +285,7 @@ reverse proc( string => string ){
 
 Sum all elements of a list
 ```
-0 int tmp =: ## Initialize sum to 0
+0 int mut tmp =: ## Initialize sum to 0
 ## Iterate though all elements of the list
 ^_ for{
  tmp swap + tmp =
@@ -420,7 +420,7 @@ else true }if{
  "different"
 else
  "brackets"
-} string count =:
+} string aString =:
 
 ```
 
@@ -537,15 +537,13 @@ they are evaluated while parsing and therefor only work if
 placed directly after the corresponding variable
 - `=` change read variable to write variable
 - `=:` change read-variable to declare-variable
-- `=$` change read-variable to declare-constant
 
 Examples:
 ```Python
-1 int a =: #+ declare a as integer with value 1 +#
+1 int mut a =: #+ declare a as integer with value 1 +#
 42 a = #+ store 42 in a +#
 a println  #+ print the value of a +#
-3.14 float a =: #+ redeclare a as float +#
-2.718281828 float e =$ #+ declare a constant with the name e+#
+2.718281828 float e =: #+ declare a constant with the name e+#
 ```
 
 #### Scopes

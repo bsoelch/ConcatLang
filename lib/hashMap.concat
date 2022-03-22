@@ -8,8 +8,8 @@ core #import
 
 listHash public proc( A <?> A list => uint ){
   A list value =:
-  0 uint hash =:
-  0 uint i =:
+  0 uint mut hash =:
+  0 uint mut i =:
   while{ i value .length < do
     hash 31 * value i [] hashCode + hash =
     i 1 + i =
@@ -23,8 +23,8 @@ hashCode public proc( var => uint ){
   valType .isList if{
     value listHash return
   else valType ( ) <= if
-    0 uint hash =:
-    0 uint i =:
+    0 uint mut hash =:
+    0 uint mut i =:
     while{ i value ( ) cast .length < do
       hash 31 * value ( ) cast i [] hashCode + hash =
       i 1 + i =
@@ -65,7 +65,7 @@ HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap #+key+# K =
   key hashCode uint hash =:
   hash map .data .length % uint i =:
   map .data i [] if{
-    K V HashMapEntry entry =:
+    K V HashMapEntry mut entry =:
     while{ entry .next do
       entry .key key == if{ drop ##drop next
         ##replace does not change size
@@ -101,7 +101,7 @@ HashMap.contains public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => bool 
   K V HashMap map =:
   key hashCode uint hash =:
   hash map .data .length % uint i =:
-  map .data i [] K V HashMapEntry optional entry =:
+  map .data i [] K V HashMapEntry optional mut entry =:
   while{ entry do
     K V HashMapEntry unwrapped =:
     unwrapped .key key == if{
@@ -117,7 +117,7 @@ HashMap.get public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# 
   K V HashMap map =:
   key hashCode uint hash =:
   hash map .data .length % uint i =:
-  map .data i [] K V HashMapEntry optional entry =:
+  map .data i [] K V HashMapEntry optional mut entry =:
   while{ entry do
     K V HashMapEntry unwrapped =:
     unwrapped .key key == if{
@@ -137,7 +137,7 @@ HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevV
   key hashCode uint hash =:
   hash map .data .length % uint i =:
   map .data i [] if{
-    K V HashMapEntry entry =:
+    K V HashMapEntry mut entry =:
     entry .key key == if{
       map HashMap.decSize
       entry .value ## get previous value

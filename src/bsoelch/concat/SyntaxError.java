@@ -7,6 +7,11 @@ public class SyntaxError extends Exception {
         this.pos=pos;
     }
 
+    public SyntaxError(SyntaxError parent, FilePosition pos) {
+        super(parent.getMessage()+"\n  at "+parent.pos);
+        this.pos=pos;
+    }
+
     public SyntaxError(Throwable parent, FilePosition pos) {
         super(parent);
         this.pos=pos;

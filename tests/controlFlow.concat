@@ -90,15 +90,15 @@ while{ dup puts false do } drop
   false bool a =:
 }
 a println
-                  false  if{
-else 1 int a =: false if
-else a 1 + a =  false if
-else a 1 + a =  false if
+                    false  if{
+else 1 int mut a =: false if
+else a 1 + a =      false if
+else a 1 + a =      false if
 else
  a println
 }
-5 int i =:
-5 int j =:
+5 int mut i =:
+5 int mut j =:
 while{ i 0 > do
   i i * int j =:
   i 1 - i =

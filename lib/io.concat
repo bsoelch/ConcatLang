@@ -2,11 +2,11 @@ lib/io :
 
 io #namespace
 
-type FILE public native =$
+type FILE public native =:
 
-FILE stdIn  public native =$
-FILE stdOut public native =$
-FILE stdErr public native =$
+FILE stdIn  public native =:
+FILE stdOut public native =:
+FILE stdErr public native =:
 
 open     public native proc( #+path+# string #+flags+#string => FILE optional ){ }
 close    public native proc( FILE => bool ){ }

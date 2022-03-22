@@ -38,7 +38,7 @@ stack #include
 } drop
 "___________________________" debugPrint
 
-3 50 [n:m] lambda( int ){ 2 % 0 != } filter for{ int k =$
+3 50 [n:m] lambda( int ){ 2 % 0 != } filter for{ int k =:
   k debugPrint
   lambda( int ){ k % 0 != } filter ##filter out all multiples of k
 } drop

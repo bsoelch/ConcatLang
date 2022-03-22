@@ -10,8 +10,8 @@ utf8 #include
 
 <<list public proc( A <?> string A list => string ){
   A list value =:
-  '[' << string res =:
-  0 int i =:
+  '[' << string mut res =:
+  0 int mut i =:
   while{ i value .length < do
     i 0 > if{
       res ", " <<* res =
@@ -36,8 +36,8 @@ utf8 #include
   else value .type ustring == if
     value <<* return
   else value .type ( ) <= if
-    '(' << string res =:
-    0 int i =:
+    '(' << string mut res =:
+    0 int mut i =:
     while{ i value ( ) cast .length < do
       i 0 > if{
         res ", " <<* res =
@@ -60,9 +60,9 @@ utf8 #include
     else value type cast .isTuple if
       value type cast .name <<* return ## return tuple-name
     else value type cast .isProc if
-      "( " <<* string res =:
-      value type cast .inTypes type list args =:
-      0 int i =:
+      "( " <<* string mut res =:
+      value type cast .inTypes type list mut args =:
+      0 int mut i =:
       while{ i args .length < do
         res args i [] <<s " " <<* res =
         i 1 + i =
@@ -82,9 +82,9 @@ utf8 #include
     else value type cast .isEnum if
       value type cast .name <<* return ## return enum-name
     else value type cast .isUnion if
-      "union( " <<* string res =:
+      "union( " <<* string mut res =:
       value type cast .inTypes type list args =:
-      0 int i =:
+      0 int mut i =:
       while{ i args .length < do
         res args i [] <<s " " <<* res =
         i 1 + i =
@@ -140,9 +140,9 @@ byteToString public proc( byte => string ){
 
 byteListToString public proc( byte list => string ){
   byte list bytes =:
-  bytes .length 6 * string new string res =:
+  bytes .length 6 * string new string mut res =:
   res "[" <<* res =
-  0 int i =:
+  0 int mut i =:
   while{ i bytes .length < do
     i 0 > if{
       res ", " <<* res =
@@ -157,10 +157,10 @@ print   public proc( var      =>      ){      stringValue           puts        
 println public proc( var      =>      ){      stringValue '\n' <<  puts         }
 fprint  public proc( var FILE => bool ){ swap stringValue swap     fputs return }
 
-1 int IO_FLAG_PAD_0 =$
-2 int IO_FLAG_ALIGN_LEFT =$
-4 int IO_FLAG_SGN =$
-8 int IO_FLAG_SGN_SPACE =$
+1 int IO_FLAG_PAD_0 =:
+2 int IO_FLAG_ALIGN_LEFT =:
+4 int IO_FLAG_SGN =:
+8 int IO_FLAG_SGN_SPACE =:
 
 Format struct{
   bool :isValue
@@ -185,8 +185,8 @@ FormatValue struct{ Format extend
 IO_printValue proc( FormatValue var list => string ){ ## addLater runtime checks for correct types
   var list values =:
   FormatValue format =:
-  format .flags IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft =:
-  format .w_ptr if{ values format .w [] int cast else format .w } int width =:
+  format .flags IO_FLAG_ALIGN_LEFT & 0 != bool mut alignLeft =:
+  format .w_ptr if{ values format .w [] int cast else format .w } int mut width =:
   width 0 < if{ ##negative precision => alignment on left side
     alignLeft ! alignLeft =
     width -_ width =
@@ -196,11 +196,8 @@ IO_printValue proc( FormatValue var list => string ){ ## addLater runtime checks
       "printf: precision has to be at greater that or equal to 0\n" eputs
       1 exit
   }
-  format .b_ptr if{ values format .b  [] int cast else format .b  } int base =:
-  base 0 == if{
-    10 base =
-  }
-  '\0' byte plusSgn =:
+  format .b_ptr if{ values format .b  [] int cast else format .b  } #+base+# dup 0 == if{ drop 10 } int base =:
+  '\0' byte mut plusSgn =:
   format .flags IO_FLAG_SGN & 0 != if{
     '+' plusSgn =
   else format .flags IO_FLAG_SGN_SPACE & 0 != if
@@ -316,7 +313,7 @@ IO_printValue proc( FormatValue var list => string ){ ## addLater runtime checks
   default
     format .format  " is no valid format specifier\n" >> eputs
     1 exit
-  } string res =:
+  } string mut res =:
   res .length width < if{
     width res .length - int count =:
     format .flags IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
@@ -334,7 +331,7 @@ IO_printValue proc( FormatValue var list => string ){ ## addLater runtime checks
 isFormatChar proc( #+char+# byte => bool ){
   byte c =:
   "bBiIuUdxXfFeEcsS%" string formats =:
-  0 int i =:
+  0 int mut i =:
   while{ i formats .length < do
     formats i [] c == if{
       true return
@@ -348,14 +345,14 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
   string format =:
   var list args =:
 
-  format .length 4 / Format list new Format list parts =:
-  0 int i0 =:
-  0 int i  =:
+  format .length 4 / Format list new Format list mut parts =:
+  0 int mut i0 =:
+  0 int mut i  =:
   format .length int n  =:
-   0 int count =:
-  -1 int maxFormat =:
-  0 byte tmpC =:
-  0 string new string tmp =:
+   0 int mut count =:
+  -1 int mut maxFormat =:
+  0 byte mut tmpC =:
+  0 string new string mut tmp =:
   while{ i0 n < do
     i0 i =
     while{ i format .length < &&{ format i [] '%' != } do
@@ -385,15 +382,15 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
         }
         parts   false "%" FormatString new   << parts =
       else
-        count int  index =:
+        count int  mut index =:
         count 1 +  count =
-        0     int  flags =:
-        0     int  w     =:
-        false bool w_ptr =:
-        0     int  p     =:
-        false bool p_ptr =:
-        0     int  b     =:
-        false bool b_ptr =:
+        0     int  mut flags =:
+        0     int  mut w     =:
+        false bool mut w_ptr =:
+        0     int  mut p     =:
+        false bool mut p_ptr =:
+        0     int  mut b     =:
+        false bool mut b_ptr =:
         0 i =
         tmp clear
         tmp _formatString .length ensureCap
@@ -411,7 +408,7 @@ sprintf public proc( #+args+# var list #+format+# string => string ){
         ## '+'  The result will always include a sign
         ## ' '  The result will include a leading space for positive values
         ## '0'  The result will be zero-padded
-        0 int i1 =:
+        0 int mut i1 =:
         while{ i1 tmp .length < &&{ tmp i1 [] '0' == } do
           flags IO_FLAG_PAD_0 | flags =
           i1 1 + i1 =

@@ -39,9 +39,9 @@ numbers  #include
 
 <<* public proc( string ustring => string ){
   ustring append =:
-  string  value  =:
+  string  mut value  =:
   value value .length append .length + ensureCap
-  0 int i =:
+  0 int mut i =:
   while{ i append .length < do
     value append i [] << value =
     i 1 + i =
@@ -49,10 +49,10 @@ numbers  #include
   value return
 }
 *>> public proc( ustring string => string ){
-  string  value  =:
+  string  mut value  =:
   ustring append =:
   value value .length append .length + ensureCap
-  append .length 1 - int i =:
+  append .length 1 - int mut i =:
   while{ i 0 >= do
     append i [] value >> value =
     i 1 - i =
@@ -62,7 +62,7 @@ numbers  #include
 
 <<* public proc( ustring string => ustring ){
   string  append  =:
-  ustring value   =:
+  ustring mut value   =:
   value value .length append .length + ensureCap
   append 0u
   while{ nextCodepoint do
@@ -93,13 +93,13 @@ the value of the read codepoint (of 0 if the end of the string was reached)
 followed by the index after the next codepoint and the string
 +#
 nextCodepoint public proc( string #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool ){
-  uint   index =:
+  uint   mut index =:
   string value =:
   while{ index value .length < &&{ value index [] int cast 0xc0 & 0x80 == } do
     index 1 + index = ## skip parts of unfinished codepoint
   }
   while{ index value .length < do
-    value index [] int char =:
+    value index [] int mut char =:
     char 0x80 & 0 == if{ ## ascii - character
       value  index 1u +  char codepoint cast  true return
     else ## multi - char codepoint
@@ -107,8 +107,8 @@ nextCodepoint public proc( string #+index+# uint => string #+end+# uint #+next+#
         char 1 << char =
         1 +
       }
-      int count =:
-      char 0xff & count >> int res =:
+      int mut count =:
+      char 0xff & count >> int mut res =:
       index count + value .length > if{
         value value .length  0 codepoint cast  false return
       }

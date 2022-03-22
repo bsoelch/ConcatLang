@@ -18,11 +18,11 @@ newBufferedInput public proc( FILE #+ cap +# int => BufferedInput ){
 }
 
 BufferedInput.readTo public proc( BufferedInput #+buffer+# byte list #+amount+# int => #+n-read+#int ){
-  int count =:
+  int mut count =:
   byte list buffer =:
   BufferedInput in =:
   in .buffer byte list inBuf =:
-  0 int nRead =:
+  0 int mut nRead =:
   inBuf .length 0 > if{ ##read from buffer
     count inBuf .length < if{ count else inBuf .length } nRead =
     buffer inBuf 0 nRead [:] <<* drop

@@ -31,7 +31,7 @@ public class Interpreter {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
-        LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,//compile time operations
+        MARK_MUTABLE,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,//compile time operations
         NOP,OVERLOADED_PROC_PTR
     }
 
@@ -66,7 +66,7 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE,CONST_DECLARE, WORD,PROC_ID,VAR_WRITE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE
+        DECLARE, WORD,PROC_ID,VAR_WRITE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE
     }
     static class IdentifierToken extends Token {
         final IdentifierType type;
@@ -80,8 +80,8 @@ public class Interpreter {
             }else if(name.isEmpty()){
                 throw new SyntaxError("Identifiers have to be nonempty",pos);
             }//no else
-            if((isNative||isPublic)&&(type!=IdentifierType.WORD&&type!=IdentifierType.DECLARE&&
-                    type!=IdentifierType.CONST_DECLARE&&type!=IdentifierType.IMPLICIT_DECLARE)){
+            if((isNative||isPublic)&&(type!=IdentifierType.WORD&&
+                    type!=IdentifierType.DECLARE &&type!=IdentifierType.IMPLICIT_DECLARE)){
                 throw new SyntaxError("modifiers can only be used in declarations",pos);
             }
             this.isNative = isNative;
@@ -339,8 +339,8 @@ public class Interpreter {
                         "or part of the current context");
             }
             if(access==AccessType.WRITE){
-                if(id.isConstant){
-                    throw new SyntaxError("cannot write to constant variable "+name,pos);
+                if(!id.isMutable){
+                    throw new SyntaxError("cannot write to immutable variable "+name,pos);
                 }
             }
         }
@@ -796,7 +796,7 @@ public class Interpreter {
     }
 
     enum DeclareableType{
-        VARIABLE, CONSTANT_VARIABLE,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, GENERIC, NATIVE_PROC,
+        MUTABLE_VARIABLE, VARIABLE,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, GENERIC, NATIVE_PROC,
         GENERIC_TUPLE, OVERLOADED_PROCEDURE, STRUCT, GENERIC_STRUCT, GENERIC_PROCEDURE,CONSTANT
     }
     static String declarableName(DeclareableType t, boolean a){
@@ -804,11 +804,11 @@ public class Interpreter {
             case CONSTANT -> {
                 return a?"a constant":"constant";
             }
+            case MUTABLE_VARIABLE -> {
+                return a?"a mutable variable":"mutable variable";
+            }
             case VARIABLE -> {
                 return a?"a variable":"variable";
-            }
-            case CONSTANT_VARIABLE -> {
-                return a?"a constant variable":"constant variable";
             }
             case CURRIED_VARIABLE -> {
                 return a?"a curried variable":"curried variable";
@@ -864,7 +864,7 @@ public class Interpreter {
             case PROCEDURE,NATIVE_PROC,OVERLOADED_PROCEDURE,GENERIC_PROCEDURE -> {
                 return true;
             }
-            case VARIABLE, CONSTANT_VARIABLE,CURRIED_VARIABLE,MACRO,
+            case MUTABLE_VARIABLE, VARIABLE,CURRIED_VARIABLE,MACRO,
                     ENUM,TUPLE,GENERIC,GENERIC_TUPLE,STRUCT,GENERIC_STRUCT,CONSTANT -> {
                 return false;
             }
@@ -962,14 +962,14 @@ public class Interpreter {
         final Type type;
         final boolean isPublic;
         int id;
-        final boolean isConstant;
+        final boolean isMutable;
         final FilePosition declaredAt;
-        VariableId(VariableContext context, int level, int id, Type type, boolean isConstant, boolean isPublic, FilePosition declaredAt){
+        VariableId(VariableContext context, int level, int id, Type type, boolean isMutable, boolean isPublic, FilePosition declaredAt){
             this.context=context;
             this.id=id;
             this.level=level;
             this.type=type;
-            this.isConstant=isConstant;
+            this.isMutable = isMutable;
             this.isPublic = isPublic;
             this.declaredAt=declaredAt;
         }
@@ -989,7 +989,7 @@ public class Interpreter {
         }
         @Override
         public DeclareableType declarableType() {
-            return isConstant?DeclareableType.CONSTANT_VARIABLE :DeclareableType.VARIABLE;
+            return isMutable ?DeclareableType.MUTABLE_VARIABLE :DeclareableType.VARIABLE;
         }
         boolean unused=true;
         @Override
@@ -1004,7 +1004,7 @@ public class Interpreter {
     private static class CurriedVariable extends VariableId{
         final VariableId source;
         CurriedVariable(VariableId source,VariableContext context, int id, FilePosition declaredAt) {
-            super(context,0, id, source.type, true, false, declaredAt);
+            super(context,0, id, source.type, false, false, declaredAt);
             this.source = source;
         }
         @Override
@@ -1137,9 +1137,9 @@ public class Interpreter {
         int nextVarId() {
             return variables++;
         }
-        VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
-            ensureDeclareable(name,isConstant?DeclareableType.CONSTANT_VARIABLE :DeclareableType.VARIABLE,pos);
-            VariableId id = new VariableId(this,level(), nextVarId(), type,isConstant, isPublic, pos);
+        VariableId declareVariable(String name, Type type, boolean isMutable, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
+            ensureDeclareable(name, isMutable ?DeclareableType.MUTABLE_VARIABLE:DeclareableType.VARIABLE,pos);
+            VariableId id = new VariableId(this,level(), nextVarId(), type, isMutable, isPublic, pos);
             putElement(name, id);
             return id;
         }
@@ -1279,9 +1279,9 @@ public class Interpreter {
             return this instanceof RootContext?super.nextVarId():root().nextVarId();//declare variables in root
         }
         @Override
-        VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
-            checkShadowed(isConstant?DeclareableType.CONSTANT_VARIABLE :DeclareableType.VARIABLE,name,pos,ioContext);
-            return super.declareVariable(name, type, isConstant, isPublic, pos,ioContext);
+        VariableId declareVariable(String name, Type type, boolean isMutable, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
+            checkShadowed(isMutable ?DeclareableType.MUTABLE_VARIABLE:DeclareableType.VARIABLE,name,pos,ioContext);
+            return super.declareVariable(name, type, isMutable, isPublic, pos,ioContext);
         }
         @Override
         VariableId wrapCurried(String name, VariableId id, FilePosition pos){
@@ -1439,8 +1439,8 @@ public class Interpreter {
         }
 
         @Override
-        VariableId declareVariable(String name, Type type, boolean isConstant, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
-            VariableId id = super.declareVariable(name, type, isConstant, isPublic, pos,ioContext);
+        VariableId declareVariable(String name, Type type, boolean isMutable, boolean isPublic, FilePosition pos, IOContext ioContext) throws SyntaxError {
+            VariableId id = super.declareVariable(name, type, isMutable, isPublic, pos,ioContext);
             Declareable shadowed = parent.getDeclareable(name);
             if (shadowed != null) {//check for shadowing
                 ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
@@ -1514,7 +1514,7 @@ public class Interpreter {
             ProcedureContext procedure = id.context.procedureContext();
             if(procedure !=this){
                 id=parent.wrapCurried(name, id, pos);//curry through parent
-                if(!id.isConstant){
+                if(id.isMutable){
                     throw new SyntaxError("external variable "+name+" is not constant",pos);
                 }else if(!(id.context instanceof TopLevelContext)){
                     id=new CurriedVariable(id,this, curried.size(), pos);
@@ -2353,8 +2353,7 @@ public class Interpreter {
                 case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
 
-                case "mut"      ->
-                        throw new SyntaxError("marking types as mutable is currently not implemented",pos);
+                case "mut"        -> tokens.add(new Token(TokenType.MARK_MUTABLE,    pos));
                 case "array"      ->
                         throw new SyntaxError("fixed size array type is currently not implemented",pos);
                 case "memory"      ->
@@ -2425,17 +2424,6 @@ public class Interpreter {
                                 ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '=::' modifier "+prev,prev.pos);
-                    }
-                    tokens.set(tokens.size()-1,prev);
-                }
-                case "=$" -> {
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '=$' modifier",pos);
-                    }else if(prevId!=null){
-                        prev=new IdentifierToken(IdentifierType.CONST_DECLARE,prevId,
-                                ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '=$' modifier: "+prev,prev.pos);
                     }
                     tokens.set(tokens.size()-1,prev);
                 }
@@ -3142,6 +3130,32 @@ public class Interpreter {
                 }
                 case CALL_PTR ->
                     typeCheckCallPtr(typeStack, ret, globalConstants, ioContext, t.pos);
+                case MARK_MUTABLE -> {//TODO? merge code for type modifiers
+                    TypeFrame f = typeStack.pop();
+                    String name="mut";
+                    if(f.type!=Type.TYPE) {
+                        throw new SyntaxError("invalid argument-type for '" + name + "':" + f.type +
+                                " argument has to be a constant type", t.pos);
+                    }else if(f.value!=null){
+                        f=new TypeFrame(Type.TYPE,Value.ofType(Type.mutable(f.value.asType())),t.pos);
+                    }else{
+                        throw new SyntaxError("argument of '"+name+"' has to be a constant type",t.pos);
+                    }
+                    typeStack.push(f);
+
+                    if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
+                        try {
+                            ret.set(ret.size()-1,
+                                    new ValueToken(Value.ofType(
+                                            Type.mutable(((ValueToken)prev).value.asType())),
+                                            t.pos, false));
+                        } catch (ConcatRuntimeError e) {
+                            throw new SyntaxError(e, t.pos);
+                        }
+                    }else{
+                        throw new SyntaxError("token before of '"+name+"' has to be a constant type",t.pos);
+                    }
+                }
                 case LIST_OF -> {
                     TypeFrame f = typeStack.pop();
                     String name="list";
@@ -3383,7 +3397,7 @@ public class Interpreter {
             }
             ret.add(new TypedToken(TokenType.NEW,type, pos));
         } catch (ConcatRuntimeError e) {
-            throw new SyntaxError(e.getMessage(), prev.pos);
+            throw new SyntaxError(e, prev.pos);
         }
     }
 
@@ -3392,7 +3406,7 @@ public class Interpreter {
         Token prev;
         IdentifierToken identifier=(IdentifierToken) t;
         switch (identifier.type) {
-            case DECLARE, CONST_DECLARE, IMPLICIT_DECLARE -> {
+            case DECLARE, IMPLICIT_DECLARE -> {
                 try {//remember constant declarations
                     Type type;
                     if(identifier.type==IdentifierType.IMPLICIT_DECLARE){
@@ -3408,23 +3422,27 @@ public class Interpreter {
                     }else {
                         throw new SyntaxError("Token before declaration has to be a type", identifier.pos);
                     }
-                    AccessType accessType =
-                            (identifier.type == IdentifierType.DECLARE||identifier.type==IdentifierType.IMPLICIT_DECLARE) ?
-                                    AccessType.DECLARE : AccessType.CONST_DECLARE;
-                    VariableId id = context.declareVariable(
-                            identifier.name, type, accessType != AccessType.DECLARE,
+                    boolean isMutable=type.isMutable();
+                    if(isMutable){
+                        type=type.content();
+                    }else if(identifier.type==IdentifierType.IMPLICIT_DECLARE){
+                        //addLater automatically mark (implicit) variables that are not modified as immutable
+                        isMutable=true;
+                    }
+                    AccessType accessType = isMutable ? AccessType.DECLARE : AccessType.CONST_DECLARE;
+                    VariableId id = context.declareVariable( identifier.name, type, isMutable,
                             identifier.isPublic, identifier.pos, ioContext);
                     //only remember root-level constants
                     if (identifier.isNative) {
-                        if(identifier.type==IdentifierType.DECLARE){
-                            throw new SyntaxError("native variables have to be constant",t.pos);
+                        if(isMutable){
+                            throw new SyntaxError("native variables have to be immutable",t.pos);
                         }
                         globalConstants.put(id, Value.loadNativeConstant(type, identifier.name, t.pos));
                         break;
                     }
                     TypeFrame val = typeStack.pop();
                     typeCheckCast(val.type,1, id.type, ret,ioContext, t.pos);
-                    if (id.isConstant && id.context.procedureContext() == null
+                    if (!id.isMutable && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         globalConstants.put(id, ((ValueToken) prev).value.clone(true).castTo(type));
                         if(val.type != ((ValueToken) prev).value.type){
@@ -3433,10 +3451,9 @@ public class Interpreter {
                         ret.remove(ret.size() - 1);
                         break;//don't add token to code
                     }
-                    ret.add(new VariableToken(identifier.pos, identifier.name, id,
-                            accessType, context));
+                    ret.add(new VariableToken(identifier.pos, identifier.name, id,accessType, context));
                 } catch (ConcatRuntimeError e) {
-                    throw new SyntaxError(e.getMessage(), t.pos);
+                    throw new SyntaxError(e, t.pos);
                 }
             }
             case WORD -> {
@@ -3460,7 +3477,7 @@ public class Interpreter {
                         CallToken token = new CallToken( match.called, identifier.pos);
                         ret.add(token);
                     }
-                    case VARIABLE, CONSTANT_VARIABLE, CURRIED_VARIABLE -> {
+                    case MUTABLE_VARIABLE, VARIABLE, CURRIED_VARIABLE -> {
                         VariableId id = (VariableId) d;
                         id = context.wrapCurried(identifier.name, id, identifier.pos);
                         Value constValue = globalConstants.get(id);
@@ -3473,7 +3490,7 @@ public class Interpreter {
                                     AccessType.READ, context));
                         }
                     }
-                    case MACRO ->
+                    case MACRO -> //FIXME this case can appear when macro is defined after procedure that uses it
                             throw new RuntimeException("macros should already be resolved at this state of compilation");
                     case TUPLE, ENUM, GENERIC,STRUCT -> {
                         Value e = Value.ofType((Type) d);
@@ -3509,7 +3526,7 @@ public class Interpreter {
                 Declareable d= context.getDeclareable(identifier.name);
                 if(d==null){
                     throw new SyntaxError("variable "+identifier.name+" does not exist", t.pos);
-                }else if(d.declarableType()==DeclareableType.VARIABLE){
+                }else if(d.declarableType()==DeclareableType.MUTABLE_VARIABLE){
                     VariableId id=(VariableId) d;
                     context.wrapCurried(identifier.name,id,identifier.pos);
                     assert !globalConstants.containsKey(id);
@@ -3519,7 +3536,7 @@ public class Interpreter {
                             AccessType.WRITE, context));
                 }else{
                     throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
-                            identifier.name+" (declared at "+d.declaredAt()+") is not a variable", t.pos);
+                            identifier.name+" (declared at "+d.declaredAt()+") is not a mutable variable", t.pos);
                 }
             }
             case PROC_ID ->
@@ -3774,7 +3791,7 @@ public class Interpreter {
                     throw new RuntimeException("type-stack out of sync with tokens");
                 }
             } catch (TypeError e) {
-                throw new SyntaxError(e.getMessage(), prev.pos);
+                throw new SyntaxError(e, prev.pos);
             }
         }
         return genArgs;
@@ -4428,7 +4445,7 @@ public class Interpreter {
                         context.stdErr.println("unresolved overloaded procedure pointer: "+next.pos);
                         return ExitType.ERROR;
                     }
-                    case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL ->
+                    case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,MARK_MUTABLE ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN -> {

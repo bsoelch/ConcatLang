@@ -1,13 +1,14 @@
 lib/lists :
 
 core #namespace
+stack #include
 codeblocks #include
 
 ## TODO binary search
 
 reverse public proc( A <?> A list  => ){
   A list toReverse =:
-  0 int i =:
+  0 int mut i =:
   toReverse .length 1 - int maxId =:
   while{ i toReverse .length 2 / < do
     toReverse i [] A tmp =:
@@ -20,15 +21,15 @@ reverse public proc( A <?> A list  => ){
 mergesort_helper proc( A <?> A list #+off+# int #+to+# int #+buffer+# A list => ){
   A list buffer =:
   int to =:
-  int off =:
+  int mut off =:
   A list input =:
   off to < if{
-    off to + 2 / int c =:
+    off to + 2 / int mut c =:
     input off c buffer mergesort_helper
     c 1 + c =
     input c  to buffer mergesort_helper
     ## 0 ... c-1 and c...to-1 are sorted
-    c int i =:
+    c int mut i =:
     while{ off c < &&{ c to <= } do
       while{ off c < &&{ input off [] input c [] <= } do
         off 1 + off =
@@ -40,13 +41,13 @@ mergesort_helper proc( A <?> A list #+off+# int #+to+# int #+buffer+# A list => 
         i c - int delta =:
         delta c off - <= if{
           buffer clear
-          buffer input c i [:] <<* buffer = ## store data in buffer
+          buffer input c i [:] <<* drop ## store data in buffer
           input off c [:]  input off delta + c delta + [:]= ## move remaining part of left half to the right
           buffer  input off  off delta + [:]= ## get the elements from buffer
           buffer clear
         else
           buffer clear
-          buffer input off c [:] <<* buffer = ## store data in buffer
+          buffer input off c [:] <<* drop ## store data in buffer
           input c i [:]  input off  off delta + [:]= ## move remaining part of left half to the right
           buffer  input off delta + i [:]= ## get the elements from buffer
           buffer clear
@@ -70,16 +71,16 @@ mergesort public proc( A <?> A list => ){
 mergesort2_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A list => ){
   A list buffer =:
   int to =:
-  int off =:
+  int mut off =:
   ( A A => int ) cmp =:
   A list input =:
   off to < if{
-    off to + 2 / int c =:
+    off to + 2 / int mut c =:
     input cmp off c buffer mergesort2_helper
     c 1 + c =
     input cmp c  to buffer mergesort2_helper
     ## 0 ... c-1 and c...to-1 are sorted
-    c int i =:
+    c int mut i =:
     while{ off c < &&{ c to <= } do
       while{ off c < &&{ input off [] input c [] cmp () 0 <= } do
         off 1 + off =
@@ -91,13 +92,13 @@ mergesort2_helper proc( A <?> A list #+cmp+# ( A A => int ) #+off+# int #+to+# i
         i c - int delta =:
         delta c off - <= if{
           buffer clear
-          buffer input c i [:] <<* buffer = ## store data in buffer
+          buffer input c i [:] <<* drop ## store data in buffer
           input off c [:]  input off delta + c delta + [:]= ## move remaining part of left half to the right
           buffer  input off  off delta + [:]= ## get the elements from buffer
           buffer clear
         else
           buffer clear
-          buffer input off c [:] <<* buffer = ## store data in buffer
+          buffer input off c [:] <<* drop ## store data in buffer
           input c i [:]  input off  off delta + [:]= ## move remaining part of left half to the right
           buffer  input off delta + i [:]= ## get the elements from buffer
           buffer clear

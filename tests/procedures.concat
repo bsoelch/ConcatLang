@@ -5,7 +5,8 @@ valueIO #include
 core #import
 
 sqrt proc( float => float ){
-  dup float a =$ float x =:
+  dup float a =:
+  float mut x =:
   while{ x x * a - 1E-16 > do
    a x / x + 2 / x =
   }
@@ -38,13 +39,13 @@ lambda( int => bool ){ 0 != } intToBool =::
 2 3 lambda( int int => float ){ + 2.0 / } () println
 
 lambda( ){
-  "currying" string a =$
+  "currying" string a =:
   lambda( ){
-    " is"    string b =$
+    " is"    string b =:
     lambda( ){
-      " now" string c =$
+      " now" string c =:
       lambda( ){
-        " supported!" string d =$
+        " supported!" string d =:
         lambda( ){
           a b <<* c <<* d <<* println
         }
@@ -54,7 +55,7 @@ lambda( ){
 } () () () () ()
 
 curriedMinus proc( int => ( int => int ) ){
-  int a =$
+  int a =:
   lambda( int => int ){
     int b =:
     a b -
