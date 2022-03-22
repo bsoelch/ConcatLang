@@ -62,7 +62,7 @@ public class Interpreter {
         }
 
         public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
-            return this;//TODO update generics in all Token types
+            return this;
         }
     }
     enum IdentifierType{
@@ -131,7 +131,7 @@ public class Interpreter {
                 } catch (TypeError e) {
                     throw new RuntimeException(e);
                 }
-            }else{//TODO? replace generics in value.type
+            }else{//value.type should not contain any generics
                 return this;
             }
         }
@@ -190,6 +190,8 @@ public class Interpreter {
         public String toString() {
             return tokenType.toString()+": "+ called;
         }
+
+        //call tokens are only created after generics are resolved
     }
 
     static class TypedToken extends Token {
@@ -228,6 +230,19 @@ public class Interpreter {
         public VariableContext context() {
             return null;
         }
+
+        @Override
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            boolean changed=false;
+            ArrayList<Token> newTokens=new ArrayList<>(tokens.size());
+            Token newT;
+            for(Token t:tokens){
+                newT=t.replaceGenerics(genericParams);
+                newTokens.add(newT);
+                changed|=newT!=t;
+            }
+            return changed?new ListCreatorToken(newTokens,pos):this;
+        }
     }
     static class ArgCastToken extends Token{
         final int offset;
@@ -236,6 +251,11 @@ public class Interpreter {
             super(TokenType.CAST_ARG, pos);
             this.offset=offset;
             this.target=target;
+        }
+
+        @Override
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            return new ArgCastToken(offset,target.replaceGenerics(genericParams),pos);
         }
     }
     static class DeclareLambdaToken extends Token{
@@ -254,6 +274,29 @@ public class Interpreter {
             this.tokens = tokens;
             this.context = context;
             this.endPos=endPos;
+        }
+
+        @Override
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            boolean changed=false;
+            Type[] newIn = new Type[inTypes.length];
+            for(int i=0;i<inTypes.length;i++){
+                newIn[i]=inTypes[i].replaceGenerics(genericParams);
+                changed|=newIn[i]!=inTypes[i];
+            }
+            Type[] newOut = new Type[outTypes.length];
+            for(int i=0;i<outTypes.length;i++){
+                newOut[i]=outTypes[i].replaceGenerics(genericParams);
+                changed|=newOut[i]!=outTypes[i];
+            }
+            ArrayList<Token> newTokens=new ArrayList<>(tokens.size());
+            Token newT;
+            for(Token t:tokens){
+                newT=t.replaceGenerics(genericParams);
+                newTokens.add(newT);
+                changed|=newT!=t;
+            }
+            return changed?new DeclareLambdaToken(newIn,newOut,generics,newTokens,context,pos,endPos):this;
         }
     }
     static class TupleElementAccess extends Token{
@@ -2031,6 +2074,9 @@ public class Interpreter {
                     }else if(block.type==BlockType.PROCEDURE){
                         //handle procedure separately since : does not change context of produce a jump
                         ProcedureBlock proc=(ProcedureBlock) block;
+                        if(proc.state==ProcedureBlock.STATE_BODY){
+                            throw new SyntaxError("unexpected '"+str+"'",pos);
+                        }
                         List<Token> outs = tokens.subList(proc.start, tokens.size());
                         proc.addOuts(typeCheck(outs,block.context(),pState.globalConstants,
                                 new RandomAccessStack<>(8),null,pos,ioContext).tokens,pos);

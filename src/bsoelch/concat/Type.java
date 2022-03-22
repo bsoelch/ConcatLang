@@ -120,7 +120,7 @@ public class Type {
         return canAssignTo(t,new BoundMaps());
     }
 
-    protected boolean canAssignTo(Type t, BoundMaps bounds){//TODO simplify assignment checks (left side of comparison should never be generic)
+    protected boolean canAssignTo(Type t, BoundMaps bounds){
         if(t instanceof GenericParameter){
             GenericBound bound=bounds.r.get(t);
             if(bound!=null){

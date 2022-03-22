@@ -1598,7 +1598,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type instanceof Type.Procedure){//FIXME check if casting is allowed
+            if(type instanceof Type.Procedure&&this.type.canCastTo(type)){
                 return new Procedure(name, isPublic, type, tokens, curriedArgs, genericArgs,
                         context, declaredAt, endPos,typeCheckState);
             }
