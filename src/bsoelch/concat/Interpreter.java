@@ -3001,7 +3001,7 @@ public class Interpreter {
                 case OPERATOR ->
                         throw new RuntimeException("internal field access operations should not exist at this stage of compilation "+t.pos);
                 case NEW ->
-                    typeCheckNew(typeStack, ret, t);
+                    typeCheckNew(typeStack, ret, ioContext,t.pos);
                 case DECLARE_LAMBDA -> {//parse lambda-procedures
                     assert t instanceof DeclareLambdaToken;
                     typeCheckLambda(globalConstants,context, typeStack, ioContext, ret, (DeclareLambdaToken)t);
@@ -3045,7 +3045,7 @@ public class Interpreter {
                     }
                     Type target=((ValueToken) prev).value.asType();
                     TypeFrame f=typeStack.pop();
-                    typeCheckCast(f.type,1,target, ret, t.pos);
+                    typeCheckCast(f.type,1,target, ret,ioContext, t.pos);
                     typeStack.push(new TypeFrame(target,null,t.pos));
                 }
                 case STACK_DROP ->{
@@ -3205,7 +3205,7 @@ public class Interpreter {
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         TypeFrame f= typeStack.pop();
         if(f.type instanceof Type.Procedure){
-            typeCheckCall("call-ptr", typeStack, (Type.Procedure) f.type, ret, pos, true);
+            typeCheckCall("call-ptr", typeStack, (Type.Procedure) f.type, ret,ioContext, pos, true);
             ret.add(new Token(TokenType.CALL_PTR, pos));
         }else if(f.type instanceof Type.OverloadedProcedurePointer){
             CallMatch call = typeCheckOverloadedCall("call-ptr",
@@ -3282,11 +3282,11 @@ public class Interpreter {
         }
     }
 
-    private void typeCheckNew(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, Token t)
+    private void typeCheckNew(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, IOContext ioContext,FilePosition pos)
             throws SyntaxError, RandomAccessStack.StackUnderflow {
         Token prev;
         if(ret.size()<1||!((prev= ret.remove(ret.size()-1)) instanceof ValueToken)) {
-            throw new SyntaxError("token before of new has to be a type", t.pos);
+            throw new SyntaxError("token before of new has to be a type", pos);
         }
         if(typeStack.pop().type!=Type.TYPE){
             throw new RuntimeException("type-stack out of sync with tokens");
@@ -3295,7 +3295,7 @@ public class Interpreter {
             Type type = ((ValueToken)prev).value.asType();
             if(type instanceof Type.Tuple){
                 typeCheckCall("new", typeStack,
-                        Type.Procedure.create(((Type.Tuple) type).elements,new Type[]{type}), ret, t.pos, false);
+                        Type.Procedure.create(((Type.Tuple) type).elements,new Type[]{type}), ret,ioContext, pos, false);
 
                 int c=((Type.Tuple) type).elementCount();
                 if(c < 0){
@@ -3314,8 +3314,7 @@ public class Interpreter {
                     }
                     if(c==0||values[0]!=null){//all types resolved successfully
                         ret.subList(iMin, ret.size()).clear();
-                        ret.add(new ValueToken(Value.createTuple((Type.Tuple)type,values),
-                                t.pos, false));
+                        ret.add(new ValueToken(Value.createTuple((Type.Tuple)type,values),pos, false));
                         return;
                     }
                 }
@@ -3323,14 +3322,14 @@ public class Interpreter {
                 TypeFrame f= typeStack.pop();
                 if(f.type!=Type.UINT&&f.type!=Type.INT){
                     throw new SyntaxError("invalid argument for '"+type+" new': "+f.type+
-                            " expected an integer", t.pos);
+                            " expected an integer", pos);
                 }
-                typeStack.push(new TypeFrame(type,null, t.pos));
+                typeStack.push(new TypeFrame(type,null, pos));
                 //addLater? support new-list in pre-evaluation
             }else{
-                throw new SyntaxError("cannot apply 'new' to type "+type, t.pos);
+                throw new SyntaxError("cannot apply 'new' to type "+type, pos);
             }
-            ret.add(new TypedToken(TokenType.NEW,type, t.pos));
+            ret.add(new TypedToken(TokenType.NEW,type, pos));
         } catch (ConcatRuntimeError e) {
             throw new SyntaxError(e.getMessage(), prev.pos);
         }
@@ -3372,7 +3371,7 @@ public class Interpreter {
                         break;
                     }
                     TypeFrame val = typeStack.pop();
-                    typeCheckCast(val.type,1, id.type, ret, t.pos);
+                    typeCheckCast(val.type,1, id.type, ret,ioContext, t.pos);
                     if (id.isConstant && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         globalConstants.put(id, ((ValueToken) prev).value.clone(true).castTo(type));
@@ -3463,7 +3462,7 @@ public class Interpreter {
                     context.wrapCurried(identifier.name,id,identifier.pos);
                     assert !globalConstants.containsKey(id);
                     TypeFrame f = typeStack.pop();
-                    typeCheckCast(f.type,1, id.type, ret, t.pos);
+                    typeCheckCast(f.type,1, id.type, ret, ioContext,t.pos);
                     ret.add(new VariableToken(identifier.pos,identifier.name,id,
                             AccessType.WRITE, context));
                 }else{
@@ -3614,7 +3613,7 @@ public class Interpreter {
                     Integer index=((Type.Struct) f.type).fields.get(identifier.name);
                     if(index!=null){
                         Type fieldType = ((Type.Tuple) f.type).elements[index];
-                        typeCheckCast(val.type,2,fieldType, ret, t.pos);
+                        typeCheckCast(val.type,2,fieldType, ret,ioContext, t.pos);
                         ret.add(new TupleElementAccess(index, true, t.pos));
                         hasField=true;
                     }
@@ -3624,7 +3623,7 @@ public class Interpreter {
                         int index = Integer.parseInt(identifier.name);
                         if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
                             Type fieldType = ((Type.Tuple) f.type).elements[index];
-                            typeCheckCast(val.type,2,fieldType, ret, t.pos);
+                            typeCheckCast(val.type,2,fieldType, ret, ioContext,t.pos);
                             ret.add(new TupleElementAccess(index, true, t.pos));
                             hasField=true;
                         }
@@ -3729,7 +3728,8 @@ public class Interpreter {
         return genArgs;
     }
 
-    private void typeCheckCast(Type src, int stackPos, Type target, ArrayList<Token> ret, FilePosition pos) throws SyntaxError {
+    private void typeCheckCast(Type src, int stackPos, Type target, ArrayList<Token> ret,
+                               IOContext ioContext, FilePosition pos) throws SyntaxError {
         Type.BoundMaps bounds=new Type.BoundMaps();
         if(src instanceof Type.OverloadedProcedurePointer){
             if(!(target instanceof Type.Procedure)){
@@ -3760,10 +3760,15 @@ public class Interpreter {
                 }
             }
             if(matches.isEmpty()){
+                for(Callable c:proc.procedures){
+                    ioContext.stdErr.println(" - "+c.name()+":"+c.type()+" at "+c.declaredAt());
+                }
                 throw new SyntaxError("no version of "+proc.name+" matches "+target,pos);
             }else if(matches.size()>1){
-                //addLater print matching versions
-                //addLater better version resolving
+                //addLater resolve best match (if possible)
+                for(CallMatch c:matches){
+                    ioContext.stdErr.println(" - "+c.called.name()+":"+c.type+" at "+c.called.declaredAt());
+                }
                 throw new SyntaxError("more than one version of "+proc.name+" matches "+target,pos);
             }
             setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) src),(Value)matches.get(0).called);
@@ -3786,7 +3791,8 @@ public class Interpreter {
         }
     }
 
-    private void typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type, ArrayList<Token> tokens, FilePosition pos, boolean isPtr)
+    private void typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type,
+                               ArrayList<Token> tokens,IOContext ioContext,FilePosition pos, boolean isPtr)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         int offset=isPtr?1:0;
         if(type instanceof Type.GenericProcedureType){
@@ -3800,7 +3806,7 @@ public class Interpreter {
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
             try{
-                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],tokens,pos);
+                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],tokens,ioContext,pos);
             }catch (SyntaxError e){
                 throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
                         ": "+Arrays.toString(inTypes),pos);
@@ -3972,7 +3978,7 @@ public class Interpreter {
         if(matches.size()==0){
             return null;
         }else if(matches.size()>1){
-            //TODO handle multiple matches?
+            //TODO resolve best match (if possible) otherwise return null
             for(CallMatch m:matches){
                 System.err.println(" - "+m.type+":"+m.called.name()+" at "+m.called.declaredAt());
             }
@@ -4016,6 +4022,9 @@ public class Interpreter {
             }
         }
         if(matchingCalls.size()==0){
+            for(Callable c:proc.procedures){
+                ioContext.stdErr.println(" - "+c.name()+":"+ c.type()+" at "+ c.declaredAt());
+            }
             throw new SyntaxError("no version of "+ proc.name+" matches the given arguments "+Arrays.toString(inTypes), pos);
         }else if(matchingCalls.size()>1){
             Comparator<CallMatch> matchSort= Comparator.comparingInt((CallMatch m) -> m.nCasts)
@@ -4522,7 +4531,6 @@ public class Interpreter {
             }
             return null;
         }
-        //TODO detect unchecked (unused) procedures
         PrintStream outTmp = System.out;
         System.setOut(context.stdOut);
         PrintStream errTmp = System.err;
