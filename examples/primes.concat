@@ -14,7 +14,7 @@ printPrimes proc( int => ){
   }
   "" 2 <<i ", " <<* puts
   ##primes > 2
-  3 nMax [n:m] lambda( int ){ 2 % 0 != } filter for{ int k =:
+  3 nMax [n:m] lambda( int ){ 2 % 0 != } filter for{ k =::
     "" k <<i ", " <<* puts
     lambda( int ){ k % 0 != } filter ##filter out all multiples of k
   } drop
