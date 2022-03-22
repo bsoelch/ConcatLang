@@ -237,7 +237,7 @@ public class Type {
         @Override
         public boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                if(wrapperName.equals(LIST)&&!t.content().canAssignTo(content(),bounds)){
+                if(wrapperName.equals(LIST)&&!t.content().canAssignTo(content(),bounds.swapped())){
                     return false;//mutable lists cannot be assigned to mutable lists of different type
                 }
                 return content().canAssignTo(t.content(),bounds);
@@ -501,6 +501,13 @@ public class Type {
                        Type[] elements, String[] fieldNames, FilePosition declaredAt) {
             super(name,baseName,isPublic,genericParams,genArgs,elements, declaredAt);
             this.fieldNames = fieldNames;
+            if(extended!=null){
+                IdentityHashMap<GenericParameter,Type> update=new IdentityHashMap<>();
+                for(int i=0;i<genericParams.length;i++){
+                    update.put(genericParams[i],genArgs[i]);
+                }
+                extended=extended.replaceGenerics(update);//update generic arguments in extended tuple
+            }
             this.extended = extended;
             fields=new HashMap<>();
             for(int i=0;i<fieldNames.length;i++){
@@ -540,7 +547,7 @@ public class Type {
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
             return super.canAssignTo(t, bounds)||
-                    (t instanceof Struct&&extended!=null&&extended.canAssignTo(t));
+                    (t instanceof Struct&&extended!=null&&extended.canAssignTo(t,bounds));
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
@@ -890,8 +897,21 @@ public class Type {
                     if(mBound==null){
                         bounds.l.put(this,tBound);
                     }else{
-                        //TODO merge bounds
-                        throw new UnsupportedOperationException("unimplemented");
+                        Type newMax;
+                        if(tBound.max==null){
+                            newMax=mBound.max;
+                        }else if(mBound.max==null){
+                            newMax=tBound.max;
+                        }else if(tBound.max.canAssignTo(mBound.max)){
+                            newMax=tBound.max;
+                        }else if(mBound.max.canAssignTo(tBound.max)){
+                            newMax=mBound.max;
+                        }else{
+                            return false;
+                        }
+                        GenericBound commonBounds=new GenericBound(commonSuperType(mBound.min,tBound.min,false),newMax);
+                        bounds.r.put((GenericParameter) t,commonBounds);
+                        bounds.r.put((GenericParameter) t,commonBounds);
                     }
                 }else{
                     if(mBound==null){
@@ -905,9 +925,11 @@ public class Type {
             }
             GenericBound bound=bounds.l.get(this);
             if(bound!=null){
-                if(bound.max==null||t.canAssignTo(bound.max,bounds)) {
+                if(bound.min!=null&&!bound.min.canAssignTo(t,bounds)){
+                    return false;
+                }else if(bound.max==null||t.canAssignTo(bound.max,bounds.swapped())) {
                     bound=new GenericBound(bound.min,t);
-                }else if(!bound.max.canAssignTo(t,bounds.swapped())){
+                }else if(!bound.max.canAssignTo(t,bounds)){
                     return false;
                 }
             }else{
