@@ -1913,7 +1913,7 @@ public abstract class Value {
                 }
             });
         }
-        {//cloning an immutable lists creates a mutable copy
+        {//cloning an immutable copy of a mutable list
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.mutableListOf(a)},
                     new Type[]{Type.listOf(a)},"mut~") {

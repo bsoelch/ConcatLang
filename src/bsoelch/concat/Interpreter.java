@@ -3169,14 +3169,14 @@ public class Interpreter {
                         if (f.value == null) {
                             throw new SyntaxError("type argument of '"+name+"' has to be a constant",t.pos);
                         }
-                        f = new TypeFrame(Type.TYPE, Value.ofType(Type.mutable(f.value.asType())), t.pos);
+                        f = new TypeFrame(Type.TYPE, Value.ofType(f.value.asType().mutable()), t.pos);
                         typeStack.push(f);
 
                         if (ret.size() > 0 && (prev = ret.get(ret.size() - 1)) instanceof ValueToken) {
                             try {
                                 ret.set(ret.size() - 1,
                                         new ValueToken(Value.ofType(
-                                                Type.mutable(((ValueToken) prev).value.asType())),
+                                                ((ValueToken) prev).value.asType().mutable()),
                                                 t.pos, false));
                             } catch (ConcatRuntimeError e) {
                                 throw new SyntaxError(e, t.pos);
@@ -3196,14 +3196,14 @@ public class Interpreter {
                         if (f.value == null) {
                             throw new SyntaxError("type argument of '"+name+"' has to be a constant",t.pos);
                         }
-                        f = new TypeFrame(Type.TYPE, Value.ofType(Type.maybeMutable(f.value.asType())), t.pos);
+                        f = new TypeFrame(Type.TYPE, Value.ofType(f.value.asType().maybeMutable()), t.pos);
                         typeStack.push(f);
 
                         if (ret.size() > 0 && (prev = ret.get(ret.size() - 1)) instanceof ValueToken) {
                             try {
                                 ret.set(ret.size() - 1,
                                         new ValueToken(Value.ofType(
-                                                Type.maybeMutable(((ValueToken) prev).value.asType())),
+                                                ((ValueToken) prev).value.asType().maybeMutable()),
                                                 t.pos, false));
                             } catch (ConcatRuntimeError e) {
                                 throw new SyntaxError(e, t.pos);
@@ -3561,7 +3561,7 @@ public class Interpreter {
                     case TUPLE, ENUM, GENERIC,STRUCT -> {
                         Type asType=(Type)d;
                         if(isMutable){
-                            asType=Type.mutable(asType);
+                            asType=asType.mutable();
                         }
                         Value e = Value.ofType(asType);
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
@@ -3572,7 +3572,7 @@ public class Interpreter {
                         if(isMutable){
                             if(e.type==Type.TYPE){
                                 try {
-                                    e=Value.ofType(Type.mutable(e.asType()));
+                                    e=Value.ofType(e.asType().mutable());
                                 } catch (TypeError ex) {
                                     throw new SyntaxError(ex,t.pos);
                                 }
@@ -3591,7 +3591,7 @@ public class Interpreter {
                         Type typeValue = Type.Tuple.create(g.name, g.isPublic, g.params.clone(), genArgs,
                                 g.types.clone(), g.declaredAt);
                         if(isMutable){
-                            typeValue=Type.mutable(typeValue);
+                            typeValue=typeValue.mutable();
                         }
                         Value tupleType = Value.ofType(typeValue);
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
@@ -3604,7 +3604,7 @@ public class Interpreter {
                         Type typeValue = Type.Struct.create(g.name, g.isPublic, g.extended, g.params.clone(), genArgs,
                                 g.fields,g.types.clone(), g.declaredAt);
                         if(isMutable){
-                            typeValue=Type.mutable(typeValue);
+                            typeValue=typeValue.mutable();
                         }
                         Value structValue = Value.ofType(typeValue);
                         typeStack.push(new TypeFrame(Type.TYPE,structValue,identifier.pos));

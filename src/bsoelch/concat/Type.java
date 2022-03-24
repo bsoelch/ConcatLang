@@ -211,22 +211,15 @@ public class Type {
     public List<String> fields(){
         throw new UnsupportedOperationException();
     }
-
-
-    public static Type mutable(Type contentType){
-        if(contentType instanceof WrapperType&&((WrapperType) contentType).wrapperName.equals(WrapperType.LIST)){
-            return WrapperType.create(WrapperType.MUTABLE_LIST, contentType.content());
-        }else{
-            throw new UnsupportedOperationException(contentType+" cannot be mutable");
-        }
+    /**returns the mutable version of this type*/
+    public Type mutable(){
+        throw new UnsupportedOperationException(this+" cannot be mutable");
     }
-    public static Type maybeMutable(Type contentType){
-        if(contentType instanceof WrapperType&&((WrapperType) contentType).wrapperName.equals(WrapperType.LIST)){
-            return WrapperType.create(WrapperType.MAYBE_MUTABLE_LIST, contentType.content());
-        }else{
-            throw new UnsupportedOperationException("unimplemented");
-        }
+    /**returns the semi-mutable version of this type*/
+    public Type maybeMutable(){
+        throw new UnsupportedOperationException(this+" cannot be mutable");
     }
+
     public static Type mutableListOf(Type contentType){
         return WrapperType.create(WrapperType.MUTABLE_LIST,contentType);
     }
@@ -281,6 +274,22 @@ public class Type {
         public int depth() {
             return content().depth()+1;
         }
+
+        @Override
+        public Type mutable() {
+            if(wrapperName.equals(LIST)){
+                return create(MUTABLE_LIST,contentType);
+            }
+            return super.mutable();
+        }
+        @Override
+        public Type maybeMutable() {
+            if(wrapperName.equals(LIST)){
+                return create(MAYBE_MUTABLE_LIST,contentType);
+            }
+            return super.maybeMutable();
+        }
+
         @Override
         public boolean isList() {
             return wrapperName.equals(LIST);
@@ -351,6 +360,7 @@ public class Type {
         final FilePosition declaredAt;
         final Type[] elements;
         final boolean isPublic;
+        final Mutability mutability;
 
         final String baseName;
 
@@ -368,12 +378,13 @@ public class Type {
             }else{
                 typeName=name;
             }
-            return new Tuple(typeName,name,isPublic, new GenericParameter[0], new Type[0], elements, declaredAt);
+            return new Tuple(typeName,name,isPublic, new GenericParameter[0], new Type[0], elements,
+                    Mutability.IMMUTABLE, declaredAt);
         }
         public static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
                                           Type[] elements, FilePosition declaredAt) {
             String fullName = processGenericArguments(name,genericParams, genericArgs, elements);
-            return new Tuple(fullName,name,isPublic,genericParams, genericArgs,elements, declaredAt);
+            return new Tuple(fullName,name,isPublic,genericParams, genericArgs,elements, Mutability.IMMUTABLE, declaredAt);
         }
 
         private static String processGenericArguments(String baseName,GenericParameter[] genericParams,
@@ -406,7 +417,7 @@ public class Type {
 
 
         private Tuple(String name, String baseName, boolean isPublic, GenericParameter[] genericParams,
-                      Type[] genericArgs,Type[] elements, FilePosition declaredAt){
+                      Type[] genericArgs, Type[] elements, Mutability mutability, FilePosition declaredAt){
             super(name, false);
             this.isPublic = isPublic;
             this.genericParams = genericParams;
@@ -414,6 +425,7 @@ public class Type {
             this.elements=elements;
             this.declaredAt = declaredAt;
             this.baseName=baseName;
+            this.mutability = mutability;
         }
 
         @Override
@@ -434,7 +446,7 @@ public class Type {
             return d+1;
         }
         boolean isMutable(int index){
-            return true;//TODO make tuple elements immutable by default and allow marking the whole Tuple as mutable
+            return mutability==Mutability.MUTABLE;
         }
 
         Tuple replaceGenerics(IdentityHashMap<GenericParameter,Type> generics, BiFunction<Type[],Type[],Tuple> create){
@@ -460,6 +472,19 @@ public class Type {
             }
             return changed?create.apply(newArgs,newElements):this;
         }
+
+        @Override
+        public Tuple mutable() {
+            return new Tuple(name,baseName,isPublic,genericParams,genericArgs,elements,Mutability.MUTABLE,declaredAt);
+        }
+        public boolean isMutable() {//addLater make isMutable to function of Type
+            return mutability==Mutability.MUTABLE;
+        }
+        @Override
+        public Tuple maybeMutable() {
+            return new Tuple(name,baseName,isPublic,genericParams,genericArgs,elements,Mutability.UNDECIDED,declaredAt);
+        }
+
         @Override
         Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             return replaceGenerics(generics,(newArgs,newElements)->
@@ -573,7 +598,7 @@ public class Type {
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
             return new Struct(name, name, isPublic, extended, new GenericParameter[0], new Type[0],
-                    types, fields, declaredAt);
+                    types, fields,Mutability.IMMUTABLE,declaredAt);
         }
         static Struct create(String name,boolean isPublic,Struct extended,GenericParameter[] genericParams,Type[] genericArgs,
                                    StructField[] fields,Type[] types, FilePosition declaredAt) {
@@ -581,13 +606,14 @@ public class Type {
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
             String fullName = Tuple.processGenericArguments(name,genericParams, genericArgs, types);
-            return new Struct(fullName, name, isPublic, extended, genericParams, genericArgs, types, fields, declaredAt);
+            return new Struct(fullName, name, isPublic, extended, genericParams, genericArgs, types, fields,
+                    Mutability.IMMUTABLE, declaredAt);
         }
 
         private Struct(String name, String baseName, boolean isPublic, Struct extended,
                        GenericParameter[] genericParams, Type[] genArgs,
-                       Type[] elements, StructField[] fields, FilePosition declaredAt) {
-            super(name,baseName,isPublic,genericParams,genArgs,elements, declaredAt);
+                       Type[] elements, StructField[] fields,Mutability mutability, FilePosition declaredAt) {
+            super(name,baseName,isPublic,genericParams,genArgs,elements, mutability, declaredAt);
             if(extended!=null){
                 IdentityHashMap<GenericParameter,Type> update=new IdentityHashMap<>();
                 for(int i=0;i<genericParams.length;i++){
@@ -606,8 +632,20 @@ public class Type {
         }
 
         @Override
+        public Struct mutable() {
+            return new Struct(name,baseName,isPublic,extended==null?null:extended.mutable(),
+                    genericParams,genericArgs,elements,fields,Mutability.MUTABLE,declaredAt);
+        }
+
+        @Override
+        public Struct maybeMutable() {
+            return new Struct(name,baseName,isPublic,extended==null?null:extended.maybeMutable(),
+                    genericParams,genericArgs,elements,fields,Mutability.UNDECIDED,declaredAt);
+        }
+
+        @Override
         boolean isMutable(int index) {
-            return fields[index].mutable();
+            return super.isMutable(index)&&fields[index].mutable();
         }
 
         @Override
