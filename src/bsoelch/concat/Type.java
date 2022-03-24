@@ -379,7 +379,8 @@ public class Type {
             return new Tuple(fullName,name,isPublic,genericParams, genericArgs,elements, declaredAt);
         }
 
-        private static String processGenericArguments(String baseName,GenericParameter[] genericParams, Type[] genericArgs, Type[] elements) {
+        private static String processGenericArguments(String baseName,GenericParameter[] genericParams,
+                                                      Type[] genericArgs, Type[] elements) {
             if(genericParams.length!= genericArgs.length){
                 throw new IllegalArgumentException("Number of generic arguments ("+ genericArgs.length+
                         ") does not match number of generic parameters ("+ genericParams.length+")");
@@ -434,6 +435,9 @@ public class Type {
                 d=Math.max(d,t.depth());
             }
             return d+1;
+        }
+        boolean isMutable(int index){
+            return true;//TODO make tuple elements immutable by default and allow marking the whole Tuple as mutable
         }
 
         Tuple replaceGenerics(IdentityHashMap<GenericParameter,Type> generics, BiFunction<Type[],Type[],Tuple> create){
@@ -560,32 +564,33 @@ public class Type {
         }
     }
 
+    record StructField(String name,boolean mutable,FilePosition declaredAt){}
     public static class Struct extends Tuple{
+        final StructField[] fields;
         final String[] fieldNames;
-        final HashMap<String,Integer> fields;
+        final HashMap<String,Integer> indexByName;
         final Struct extended;
 
-        static Struct create(String name,boolean isPublic,Struct extended,Type[] types,String[] fieldNames,FilePosition declaredAt){
-            if(fieldNames.length!=types.length){
-                throw new IllegalArgumentException("fieldNames and types have to have the same length");
+        static Struct create(String name,boolean isPublic,Struct extended,StructField[] fields,Type[] types,FilePosition declaredAt){
+            if(fields.length!=types.length){
+                throw new IllegalArgumentException("fields and types have to have the same length");
             }
             return new Struct(name, name, isPublic, extended, new GenericParameter[0], new Type[0],
-                    types, fieldNames, declaredAt);
+                    types, fields, declaredAt);
         }
-        public static Struct create(String name,boolean isPublic,Struct extended,GenericParameter[] genericParams,Type[] genericArgs,
-                                   Type[] elements,String[] fieldNames, FilePosition declaredAt) {
-            if(fieldNames.length!=elements.length){
-                throw new IllegalArgumentException("fieldNames and types have to have the same length");
+        static Struct create(String name,boolean isPublic,Struct extended,GenericParameter[] genericParams,Type[] genericArgs,
+                                   StructField[] fields,Type[] types, FilePosition declaredAt) {
+            if(fields.length!=types.length){
+                throw new IllegalArgumentException("fields and types have to have the same length");
             }
-            String fullName = Tuple.processGenericArguments(name,genericParams, genericArgs, elements);
-            return new Struct(fullName, name, isPublic, extended, genericParams, genericArgs, elements, fieldNames, declaredAt);
+            String fullName = Tuple.processGenericArguments(name,genericParams, genericArgs, types);
+            return new Struct(fullName, name, isPublic, extended, genericParams, genericArgs, types, fields, declaredAt);
         }
 
         private Struct(String name, String baseName, boolean isPublic, Struct extended,
                        GenericParameter[] genericParams, Type[] genArgs,
-                       Type[] elements, String[] fieldNames, FilePosition declaredAt) {
+                       Type[] elements, StructField[] fields, FilePosition declaredAt) {
             super(name,baseName,isPublic,genericParams,genArgs,elements, declaredAt);
-            this.fieldNames = fieldNames;
             if(extended!=null){
                 IdentityHashMap<GenericParameter,Type> update=new IdentityHashMap<>();
                 for(int i=0;i<genericParams.length;i++){
@@ -594,10 +599,18 @@ public class Type {
                 extended=extended.replaceGenerics(update);//update generic arguments in extended tuple
             }
             this.extended = extended;
-            fields=new HashMap<>();
-            for(int i=0;i<fieldNames.length;i++){
-                fields.put(fieldNames[i],i);
+            this.fields=fields;
+            indexByName =new HashMap<>(fields.length);
+            fieldNames=new String[fields.length];
+            for(int i=0;i< fields.length;i++){
+                fieldNames[i]=fields[i].name;
+                indexByName.put(fields[i].name,i);
             }
+        }
+
+        @Override
+        boolean isMutable(int index) {
+            return fields[index].mutable();
         }
 
         @Override
@@ -614,7 +627,7 @@ public class Type {
         Struct replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             return (Struct)replaceGenerics(generics,(newArgs,newElements)->
                     create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                            genericParams,newArgs,newElements,fieldNames,declaredAt));
+                   genericParams,newArgs,fields,newElements,declaredAt));
         }
 
         @Override

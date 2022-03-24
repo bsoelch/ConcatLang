@@ -24,9 +24,9 @@ io #import
 
 
 FilePosition struct{
-  string   :fileName
-  uint mut :line
-  uint mut :posInLine
+  string :fileName
+  uint   :line      mut
+  uint   :posInLine mut
 }
 FilePosition.newLine    proc( FilePosition => ){
   dup dup .line 1 + swap .line = 1 swap .posInLine =
@@ -190,7 +190,7 @@ CodeBlock struct{
 }
 
 WhileBlock struct{ CodeBlock extend
-  int mut :forkPos
+  int :forkPos mut
 }
 newWhileBlock proc( #+startPos+# FilePosition #+start+# int => WhileBlock ){
   int start =:
@@ -199,7 +199,7 @@ newWhileBlock proc( #+startPos+# FilePosition #+start+# int => WhileBlock ){
 }
 
 IfBlock struct{  CodeBlock extend
-  int  mut      :prevIf
+  int           :prevIf         mut
   uint mut list :else_positions
 }
 newIfBlock proc( #+startPos+# FilePosition #+start+# int => IfBlock ){
@@ -270,21 +270,21 @@ DeclareableType enum{
 }
 
 Declareable struct{
-  DeclareableType  :dType
-  FilePosition mut :pos
+  DeclareableType :dType
+  FilePosition    :pos mut
 }
 
 ContextType enum{ ROOT_CONTEXT PROC_CONTEXT BLOCK_CONTEXT }
 
 Context struct{
   string Declareable HashMap :elements
-  int mut                    :varCount
+  int                        :varCount mut
   ContextType                :cType
 }
 Context.incVarCount proc( Context => ){ dup .varCount 1 + swap .varCount = }
 
 Macro struct{ Declareable extend
-  string mut           :name
+  string               :name mut
   NameWithPos mut list :words
 }
 newMacro proc( FilePosition string => Macro ){
@@ -787,7 +787,7 @@ ValueToken struct{ Token extend
 BlockTokenType enum{ IF ELSE _IF END-IF WHILE DO END-WHILE DO-WHILE SWITCH CASE END-CASE DEFAULT END-SWITCH }
 BlockToken struct{ Token extend
   BlockTokenType :blockType
-  int mut        :target
+  int            :target    mut
 }
 
 ContextToken struct{ Token extend
@@ -890,12 +890,12 @@ ParseState enum{
 }
 
 OpenBlocks struct{
-  Macro mut          :currentMacro
+  Macro              :currentMacro mut
   CodeBlock mut list :blocks
 }
 Program struct{
   Token mut list :tokens
-  Context mut    :context
+  Context        :context mut
 }
 
 parseWord proc( #+word+# mut?-string #+next+# mut?-string #+pos+# FilePosition #+open_blocks+# OpenBlocks

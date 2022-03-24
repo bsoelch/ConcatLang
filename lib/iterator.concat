@@ -3,8 +3,8 @@ lib/iterator :
 core #namespace
 
 Iterator public struct{ A <>
-  A list  :list
-  int mut :index
+  A list :list
+  int    :index mut
 }
 
 ^_ public proc( A <?> A list => A Iterator ){

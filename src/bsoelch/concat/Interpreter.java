@@ -1083,18 +1083,17 @@ public class Interpreter {
         final Type.Struct extended;
         final Type.GenericParameter[] params;
         final Type[] types;
-        final String[] fieldNames;
+        final Type.StructField[] fields;
         final FilePosition declaredAt;
 
         private GenericStruct(String name, boolean isPublic, Type.Struct extended, Type.GenericParameter[] params,
-                              Type[] types, String[] fieldNames,
-                              FilePosition declaredAt) {
+                              Type[] types,Type.StructField[] fields, FilePosition declaredAt) {
             this.name = name;
             this.isPublic = isPublic;
             this.extended = extended;
             this.params = params;
             this.types = types;
-            this.fieldNames = fieldNames;
+            this.fields = fields;
             this.declaredAt = declaredAt;
         }
 
@@ -1553,9 +1552,9 @@ public class Interpreter {
         }
     }
 
-    record StructField(String name,Type type){}
+    record StructFieldWithType(Type.StructField field, Type type){}
     static class StructContext extends GenericContext{
-        final ArrayList<StructField> fields=new ArrayList<>();
+        final ArrayList<StructFieldWithType> fields=new ArrayList<>();
         StructContext(VariableContext parent, boolean allowImplicit) {
             super(parent, allowImplicit);
         }
@@ -2037,7 +2036,7 @@ public class Interpreter {
                         }
                         ((StructBlock) block).extended=(Type.Struct) extended;
                         for(int i=0;i<((Type.Struct) extended).elements.length;i++){
-                            ((StructBlock) block).context.fields.add(new StructField(((Type.Struct) extended).fieldNames[i],
+                            ((StructBlock) block).context.fields.add(new StructFieldWithType(((Type.Struct) extended).fields[i],
                                     ((Type.Struct) extended).elements[i]));
                         }
                     } catch (TypeError e) {
@@ -2266,10 +2265,10 @@ public class Interpreter {
                                 throw new SyntaxError("Unexpected token in struct: "+tmp,tmp.pos);
                             }
                             ArrayList<Type.GenericParameter> generics= structContext.generics;
-                            String[] fieldNames=new String[structContext.fields.size()];
+                            Type.StructField[] fieldNames=new Type.StructField[structContext.fields.size()];
                             Type[] types=new Type[fieldNames.length];
                             for(int i=0;i<types.length;i++){
-                                fieldNames[i]= structContext.fields.get(i).name;
+                                fieldNames[i]= structContext.fields.get(i).field;
                                 types[i]= structContext.fields.get(i).type;
                             }
                             if(generics.size()>0){
@@ -2279,7 +2278,7 @@ public class Interpreter {
                                 pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
                             }else{
                                 Type.Struct struct=Type.Struct.create(((StructBlock) block).name, ((StructBlock) block).isPublic,
-                                        ((StructBlock) block).extended,types,fieldNames,block.startPos);
+                                        ((StructBlock) block).extended,fieldNames,types,block.startPos);
                                 pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
                             }
                         }
@@ -3611,7 +3610,7 @@ public class Interpreter {
                         String structName=g.name;
                         Type[] genArgs=getArguments(structName,DeclareableType.GENERIC_STRUCT, g.params.length, typeStack, ret, t.pos);
                         Type typeValue = Type.Struct.create(g.name, g.isPublic, g.extended, g.params.clone(), genArgs,
-                                g.types.clone(), g.fieldNames.clone(), g.declaredAt);
+                                g.fields,g.types.clone(), g.declaredAt);
                         if(isMutable){
                             typeValue=Type.mutable(typeValue);
                         }
@@ -3647,7 +3646,7 @@ public class Interpreter {
                 boolean hasField=false;
                 try {
                     if(f.type instanceof Type.Struct){
-                        Integer index=((Type.Struct) f.type).fields.get(identifier.name);
+                        Integer index=((Type.Struct) f.type).indexByName.get(identifier.name);
                         if(index!=null){
                             Type elementType = ((Type.Struct) f.type).elements[index];
                             typeStack.push(new TypeFrame(elementType.isMutable()?elementType.content():elementType,null, t.pos));
@@ -3791,16 +3790,16 @@ public class Interpreter {
                 TypeFrame val=typeStack.pop();
                 boolean hasField=false;
                 if(f.type instanceof Type.Struct struct){
-                    Integer index= struct.fields.get(identifier.name);
+                    Integer index= struct.indexByName.get(identifier.name);
                     if(index!=null){
-                        Type fieldType = struct.elements[index];
-                        if(fieldType.isMutable()){
-                            typeCheckCast(val.type,2,fieldType.content(), ret,ioContext, t.pos);
+                        Type.StructField field = struct.fields[index];
+                        if(field.mutable()){
+                            typeCheckCast(val.type,2,struct.elements[index], ret,ioContext, t.pos);
                             ret.add(new TupleElementAccess(index, true, t.pos));
                             hasField=true;
                         }else{
-                            throw new SyntaxError("field "+identifier.name+" of struct "+struct.baseName+" (declared at "+
-                                    struct.declaredAt+") is not mutable",t.pos);
+                            throw new SyntaxError("field "+identifier.name+" (declared at "+ field.declaredAt()+
+                                    ") of struct "+struct.baseName+" (declared at "+struct.declaredAt+") is not mutable",t.pos);
                         }
                     }
                 }//no else
@@ -3809,8 +3808,8 @@ public class Interpreter {
                         int index = Integer.parseInt(identifier.name);
                         if(index>=0&&index< tuple.elementCount()){
                             Type fieldType = tuple.elements[index];
-                            if(fieldType.isMutable()){
-                                typeCheckCast(val.type,2,fieldType.content(), ret, ioContext,t.pos);
+                            if(tuple.isMutable(index)){
+                                typeCheckCast(val.type,2,fieldType, ret, ioContext,t.pos);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -3839,7 +3838,8 @@ public class Interpreter {
                 if(typeStack.pop().type != Type.TYPE){
                     throw new RuntimeException("type stack out of sync with token list");
                 }
-                ((StructContext)context).fields.add(new StructField(identifier.name, type));
+                ((StructContext)context).fields.add(new StructFieldWithType(
+                        new Type.StructField(identifier.name,identifier.isMutable(),t.pos),type));
             }
         }
     }

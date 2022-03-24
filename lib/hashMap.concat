@@ -36,17 +36,17 @@ hashCode public proc( var => uint ){
 }
 
 MapEntry public struct{ K <> V <>
-  K mut :key
-  V mut :value
+  K :key mut
+  V :value mut
 }
 
 HashMapEntry struct{ K <> V <> K V MapEntry extend
-  K V MapEntry optional mut :next ## use MapEntry instead of HashMapEntry because self-containing structs are not supported
+  K V MapEntry optional :next mut ## use MapEntry instead of HashMapEntry because self-containing structs are not supported
 }
 
 HashMap public struct{ K <> V <>
   K V HashMapEntry optional mut list :data  ## addLater? (automatically) adjust capacity if size gets to large
-  int mut :size
+  int :size mut
 }
 HashMap.incSize proc( K <?> V <?> K V HashMap => ){ dup .size 1 + swap .size = }
 HashMap.decSize proc( K <?> V <?> K V HashMap => ){ dup .size 1 - swap .size = }
@@ -162,9 +162,9 @@ HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevV
 }
 
 HashMapItr public struct{ K <> V <>
-  K V HashMap                   :map
-  int mut                       :index
-  K V HashMapEntry optional mut :next
+  K V HashMap               :map
+  int                       :index mut
+  K V HashMapEntry optional :next  mut
 }
 HashMapItr.incI  proc( K <?> V <?> K V HashMapItr => ){ dup .index 1 + swap .index = }
 
