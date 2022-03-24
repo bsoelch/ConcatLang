@@ -48,12 +48,12 @@ intRange struct{
 
 filteredRange struct{
   intRange                 :base
-  ( int => bool ) mut list :filters
+  ( int => bool ) list mut :filters
 }
 
 filter public proc( intRange ( int => bool ) => filteredRange ){
   f =::
-  #+range+# 16 ( int => bool ) mut list new f << filteredRange new return
+  #+range+# 16 ( int => bool ) list mut new f << filteredRange new return
 }
 filter public proc( filteredRange ( int => bool ) => filteredRange ){
   f =::

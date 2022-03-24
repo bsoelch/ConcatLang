@@ -10,8 +10,8 @@ FILE stdErr public native =:
 
 open     public native proc( #+path+# string #+flags+#string => FILE optional ){ }
 close    public native proc( FILE => bool ){ }
-read     public native proc( FILE #+buff+# byte mut  list #+off+# int #+count+# int => int  ){ }
-write    public native proc( FILE #+buff+# byte mut? list #+off+# int #+count+# int => bool ){ }
+read     public native proc( FILE #+buff+# byte list mut  #+off+# int #+count+# int => int  ){ }
+write    public native proc( FILE #+buff+# byte list mut? #+off+# int #+count+# int => bool ){ }
 size     public native proc( FILE => int  ){ }
 pos      public native proc( FILE => int  ){ }
 truncate public native proc( FILE => bool ){ }
@@ -22,17 +22,16 @@ seek     public native proc( FILE int => bool ){ }
 core #namespace
 
 stack #include
-types #include
 io #import
 
-fputs public proc( mut?-string FILE => bool ){
+fputs public proc( string mut? FILE => bool ){
   FILE file =:
   string str =:
   file str 0 str .length io .write
 }
 
 ## specialized procedures for writing to stdout and stderr
- puts public proc( mut?-string => ){ io .stdOut core .fputs drop }
-eputs public proc( mut?-string => ){ io .stdErr core .fputs drop }
+ puts public proc( string mut? => ){ io .stdOut core .fputs drop }
+eputs public proc( string mut? => ){ io .stdErr core .fputs drop }
 
 #end

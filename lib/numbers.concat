@@ -3,7 +3,6 @@ lib/numbers :
 core #namespace
 
 stack #include
-types #include
 codeblocks #include
 chars #include
 io #include
@@ -40,7 +39,7 @@ getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
     value 0 < ||{ value base >= } if{
         ## even though <<i calls this function
         ## this error check should not be activated when <<i is called normally
-        32 mut-string new
+        32 string mut new
         "Digit out of range: " <<* value <<i " base: " <<* base <<i '\n' << eputs
         1 exit
     }
@@ -54,7 +53,7 @@ getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
     }
 }
 
-<<???i public proc( #+buffer+#mut-string #+value+# uint #+base+# int #+signed+# bool #+big+# bool => mut-string ){
+<<???i public proc( #+buffer+#string mut #+value+# uint #+base+# int #+signed+# bool #+big+# bool => string mut ){
   bool big =:
   bool signed =:
   int base =:
@@ -62,7 +61,7 @@ getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
   base 2 < ||{ base 62 > } if{
     ## even though printing recursively calls this function
     ## this error check should not be activated when <<i is called normally
-    64 mut-string new
+    64 string mut new
     "Base out of range: " <<* base <<i ", base has to be between 2 and 62\n" <<* eputs
     1 exit
   }
@@ -81,47 +80,47 @@ getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
       p base / p =
   }
 }
-intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => mut-string ){
+intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool => string mut ){
   bool big =:
   bool signed =:
   int base =:
   int value =:
-  64 mut-string new value base signed big <<???i return
+  64 string mut new value base signed big <<???i return
 }
 
-<<?i public proc( #+buffer+#mut-string #+value+# int #+base+# int => mut-string ){
+<<?i public proc( #+buffer+#string mut #+value+# int #+base+# int => string mut ){
   #+signed+# true  #+big+# false <<???i return
 }
-<<?I public proc( #+buffer+#mut-string #+value+# int #+base+# int => mut-string ){
+<<?I public proc( #+buffer+#string mut #+value+# int #+base+# int => string mut ){
   #+signed+# true  #+big+# true  <<???i return
 }
-<<?u public proc( #+buffer+#mut-string #+value+# int #+base+# int => mut-string ){
+<<?u public proc( #+buffer+#string mut #+value+# int #+base+# int => string mut ){
   #+signed+# false #+big+# false <<???i return
 }
-<<?U public proc( #+buffer+#mut-string #+value+# int #+base+# int => mut-string ){
+<<?U public proc( #+buffer+#string mut #+value+# int #+base+# int => string mut ){
   #+signed+# false #+big+# true  <<???i return
 }
-<<i public proc( #+buffer+#mut-string #+value+# int => mut-string ){
+<<i public proc( #+buffer+#string mut #+value+# int => string mut ){
   #+base+# 10 #+signed+# true  #+big+# false <<???i
 }
-<<u public proc( #+buffer+#mut-string #+value+# int => mut-string ){
+<<u public proc( #+buffer+#string mut #+value+# int => string mut ){
   #+base+# 10 #+signed+# false #+big+# false <<???i
 }
-<<x public proc( #+buffer+#mut-string #+value+# int => mut-string ){
+<<x public proc( #+buffer+#string mut #+value+# int => string mut ){
   #+base+# 16 #+signed+# false #+big+# false <<???i
 }
-<<X public proc( #+buffer+#mut-string #+value+# int => mut-string ){
+<<X public proc( #+buffer+#string mut #+value+# int => string mut ){
   #+base+# 16 #+signed+# false #+big+# true  <<???i
 }
 
-<<????f public proc( #+buffer+# mut-string #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => mut-string ){
+<<????f public proc( #+buffer+# string mut #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string mut ){
   bool  sci =:
   bool  big =:
   int   base =:
   int   precision =:
   float value mut =:
   base 2 < ||{ base 62 > } if{
-    64 mut-string new
+    64 string mut new
     "Base out of range: " <<* base <<i ", base has to be between 2 and 62\n" <<* eputs
     1 exit
   }
@@ -144,7 +143,7 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
   value log base log / floor int e mut =:
   e int e_max mut =:
   base e float cast pow float p mut =:
-  64 int mut list new buff =::
+  64 int list mut new buff =::
   0 n =::
   while{ p eps > do
     value p / floor int cast int d =:
@@ -216,38 +215,38 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
   }
   return
 }
-<<??f public proc( #+buffer+# mut-string #+value+# float #+precision+# int #+base+# int => mut-string ){
+<<??f public proc( #+buffer+# string mut #+value+# float #+precision+# int #+base+# int => string mut ){
   #+big+# false #+sci+# false <<????f
 }
-<<??F public proc( #+buffer+# mut-string #+value+# float #+precision+# int #+base+# int => mut-string ){
+<<??F public proc( #+buffer+# string mut #+value+# float #+precision+# int #+base+# int => string mut ){
   #+big+# true  #+sci+# false <<????f
 }
-<<??e public proc( #+buffer+# mut-string #+value+# float #+precision+# int #+base+# int => mut-string ){
+<<??e public proc( #+buffer+# string mut #+value+# float #+precision+# int #+base+# int => string mut ){
   #+big+# false #+sci+# true  <<????f
 }
-<<??E public proc( #+buffer+# mut-string #+value+# float #+precision+# int #+base+# int => mut-string ){
+<<??E public proc( #+buffer+# string mut #+value+# float #+precision+# int #+base+# int => string mut ){
   #+big+# true  #+sci+# true  <<????f
 }
-<<?f public proc( #+buffer+# mut-string #+value+# float #+precision+# int => mut-string ){
+<<?f public proc( #+buffer+# string mut #+value+# float #+precision+# int => string mut ){
   #+base+# 10 #+big+# false #+sci+# false <<????f
 }
-<<?e public proc( #+buffer+# mut-string #+value+# float #+precision+# int => mut-string ){
+<<?e public proc( #+buffer+# string mut #+value+# float #+precision+# int => string mut ){
   #+base+# 10 #+big+# false #+sci+# true  <<????f
 }
-<<f public proc( #+buffer+# mut-string #+value+# float => mut-string ){
+<<f public proc( #+buffer+# string mut #+value+# float => string mut ){
   #+precision+# 0 #+base+# 10 #+big+# false #+sci+# false <<????f
 }
-<<e public proc( #+buffer+# mut-string #+value+# float => mut-string ){
+<<e public proc( #+buffer+# string mut #+value+# float => string mut ){
   #+precision+# 0 #+base+# 10 #+big+# false #+sci+# true  <<????f
 }
 
-floatToString public proc( #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => mut-string ){
+floatToString public proc( #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => string mut ){
   bool  sci =:
   bool  big =:
   int   base =:
   int   precision =:
   float value =:
-  64 mut-string new
+  64 string mut new
   value precision base big sci <<????f return
 }
 
@@ -279,7 +278,7 @@ StringParseError public enum{
   ERR_ILLEGAL_CHAR
 }
 
-stringToInt public proc( #+source+# mut?-string #+base+# int #+signed+# bool => #+val+# int #+err-code+# StringParseError ){
+stringToInt public proc( #+source+# string mut? #+base+# int #+signed+# bool => #+val+# int #+err-code+# StringParseError ){
   bool signed =:
   int  base =:
   string source =:
@@ -319,39 +318,39 @@ checkErrCode proc( #+err-code+# StringParseError #+type-name+# string #+source+#
   #+err-code+# switch{
   ERR_NONE case end-case
   ERR_BASE case
-      100 mut-string new
+      100 string mut new
       "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (base outside of allowed rage)\n" <<* eputs
       1 exit
   end-case
   ERR_EMPTY case
-      100 mut-string new
+      100 string mut new
       "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (empty-string)\n" <<* eputs
       1 exit
   end-case
   ERR_ILLEGAL_CHAR case
-      100 mut-string new
+      100 string mut new
       "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (illegal-character)\n" <<* eputs
       1 exit
   end-case
   ERR_OVERFLOW case
-      100 mut-string new
+      100 string mut new
       "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (overflow)\n" <<* eputs
       1 exit
   end-case
   }
 }
-parseInt  public proc( mut?-string => int ){
+parseInt  public proc( string mut? => int ){
   string source =:
   source 10 true stringToInt
   "int" source checkErrCode
 }
-parseUInt public proc( mut?-string => uint ){
+parseUInt public proc( string mut? => uint ){
   string source =:
   source 10 false stringToInt
   "uint" source checkErrCode
   #+intValue+# uint cast return
 }
-parseHex public proc( mut?-string => uint ){
+parseHex public proc( string mut? => uint ){
   string source =:
   source 16 true stringToInt
   "uint" source checkErrCode
@@ -379,7 +378,7 @@ isExpChar proc( #+char+# byte #+base+# int => bool ){
   241 237 234 231 228 226 223 221 219 216 214 213 211 209 207 206 204 203 201 200 199
   198 196 195 194 193 192 191 190 189 188 187 186 185 185 184 183 182 181 181 180 179 179 } int list maxSafePowers =:
 
-stringToFloat public proc( #+str+# mut?-string #+base+# int => #+val+# float #+err-code+# StringParseError ){
+stringToFloat public proc( #+str+# string mut? #+base+# int => #+val+# float #+err-code+# StringParseError ){
   int base =:
   string str =:
   base 2 < ||{ base 62 > } if{

@@ -3,12 +3,11 @@ lib/utf8 :
 core #namespace
 
 stack #include
-types #include
 io #include
 numbers  #include
 
 
-<< public proc( mut-string codepoint => mut-string ){
+<< public proc( string mut codepoint => string mut ){
   uint cp =:
   str =::
        cp 0x80    < if{   ## ascii - character
@@ -27,20 +26,20 @@ numbers  #include
         cp        0x3f & 0x80 | byte cast << return
   else
     ## don't exit on invalid codepoints, only display waring message
-    35 mut-string new
+    35 string mut new
     "Codepoint out of range: 0x" <<* cp int cast <<X '\n' << eputs
     str return
   }
 }
 
->> public proc( codepoint mut-string => mut-string ){
+>> public proc( codepoint string mut => string mut ){
   str =::
   cp =::
   str 0 0 [:] cp << drop
   str return
 }
 
-<<* public proc( mut-string mut?-ustring => mut-string ){
+<<* public proc( string mut ustring mut? => string mut ){
   append =::
   value  =::
   value value .length append .length + ensureCap
@@ -51,7 +50,7 @@ numbers  #include
   }
   value return
 }
-*>> public proc( mut?-ustring mut-string => mut-string ){
+*>> public proc( ustring mut? string mut => string mut ){
   value =::
   append =::
   value value .length append .length + ensureCap
@@ -63,7 +62,7 @@ numbers  #include
   value return
 }
 
-<<* public proc( mut-ustring mut?-string => mut-ustring ){
+<<* public proc( ustring mut string mut? => ustring mut ){
   append =::
   value  =::
   value value .length append .length + ensureCap
@@ -73,20 +72,20 @@ numbers  #include
   } 3 $drop ## drop remaining data
   value return
 }
-*>> public proc( mut?-string mut-ustring => mut-ustring ){
+*>> public proc( string mut? ustring mut => ustring mut ){
   value  =::
   append =::
   value 0 0 [:] append <<* drop
   value return
 }
 
-codepointToString public proc( codepoint => mut-string ){
-  4 mut-string new swap << return
+codepointToString public proc( codepoint => string mut ){
+  4 string mut new swap << return
 }
 
-codepointsToString public proc( mut?-ustring => mut-string ){
+codepointsToString public proc( ustring mut? => string mut ){
   ustring source =:
-  source .length mut-string new source <<* return
+  source .length string mut new source <<* return
 }
 
 #+
@@ -95,7 +94,7 @@ returns true/false depending of if there was a next codepoint
 the value of the read codepoint (of 0 if the end of the string was reached)
 followed by the index after the next codepoint and the string
 +#
-nextCodepoint public proc( mut?-string #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool ){
+nextCodepoint public proc( string mut? #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool ){
   uint   index mut =:
   string value =:
   while{ index value .length < &&{ value index [] int cast 0xc0 & 0x80 == } do
@@ -137,9 +136,9 @@ nextCodepoint public proc( mut?-string #+index+# uint => string #+end+# uint #+n
   value index  0 codepoint cast  false return
 }
 
-codepoints public proc( mut?-string => mut-ustring ){
+codepoints public proc( string mut? => ustring mut ){
   string source =:
-  source .length mut-ustring new source <<* return
+  source .length ustring mut new source <<* return
 }
 
 #end ##core

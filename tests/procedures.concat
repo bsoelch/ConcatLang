@@ -1,7 +1,6 @@
 test/procedures :
 
 stack #include
-types #include
 valueIO #include
 core #import
 
@@ -48,7 +47,7 @@ lambda( ){
       lambda( ){
         " supported!" string d =:
         lambda( ){
-          32 mut-string new a <<* b <<* c <<* d <<* println
+          32 string mut new a <<* b <<* c <<* d <<* println
         }
       }
     }

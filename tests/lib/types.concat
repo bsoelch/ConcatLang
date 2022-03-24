@@ -1,9 +1,0 @@
-tests/types:
-
-types #include
-core #import
-
-mut-string   debugPrint
-mut-ustring  debugPrint
-mut?-string  debugPrint
-mut?-ustring debugPrint

@@ -3,14 +3,13 @@ lib/valueIO :
 core #namespace
 
 stack #include
-types #include
 io #include
 io #import
 numbers #include
 utf8 #include
 
 
-<<list public proc( A <?> mut-string A list => mut-string ){
+<<list public proc( A <?> string mut A list => string mut ){
   A list value =:
   '[' << res =::
   0 i =::
@@ -23,7 +22,7 @@ utf8 #include
   }
   res ']' << return
 }
-<<optional public proc( A <?> mut-string A optional => mut-string ){
+<<optional public proc( A <?> string mut A optional => string mut ){
   A optional value =:
   value if{
     #+value+# <<s " wrap" <<* return
@@ -31,11 +30,11 @@ utf8 #include
     value .type .content <<s " empty" <<* return
   }
 }
-<<s public proc( mut-string var => mut-string ){
+<<s public proc( string mut var => string mut ){
   var value =:
-  value .type string == ||{ value .type mut-string == } if{
+  value .type string == ||{ value .type string mut == } if{
     value string cast <<* return
-  else value .type ustring == ||{ value .type mut-ustring == } if
+  else value .type ustring == ||{ value .type ustring mut == } if
     value ustring cast <<* return
   else value .type ( ) <= if
     '(' << res =::
@@ -59,10 +58,10 @@ utf8 #include
       "string" <<* return
     else value ustring == if
       "ustring" <<* return
-    else value mut-string == if
-      "mut-string" <<* return
-    else value mut-ustring == if
-      "mut-ustring" <<* return
+    else value string mut == if
+      "string mut" <<* return
+    else value ustring mut == if
+      "ustring mut" <<* return
     else value type cast .isTuple if
       value type cast .name <<* return ## return tuple-name
     else value type cast .isProc if
@@ -96,10 +95,10 @@ utf8 #include
         i 1 + i =
       }
       res ')' << return
-    else value type cast .isMutable if
-      value type cast .content <<s " mut" <<* return
-    else value type cast .isMaybeMutable if
-      value type cast .content <<s " mut?" <<* return
+    else value type cast .isMutableList if
+      value type cast .content <<s " list mut" <<* return
+    else value type cast .isMaybeMutableList if
+      value type cast .content <<s " list mut?" <<* return
     else value type == if
       "type"  <<* return
     else value bool == if
@@ -138,23 +137,23 @@ utf8 #include
     value .type <<s "@" <<* value refId <<X return
   else unreachable }
 }
-stringValue public proc( var => mut-string ){
+stringValue public proc( var => string mut ){
   var val =:
-  16 mut-string new  val <<s return
+  16 string mut new  val <<s return
 }
 
-<<byte public proc( mut-string byte => mut-string ){
+<<byte public proc( string mut byte => string mut ){
     byte value =:
     "0x" <<* value int cast  <<x return
 }
-byteToString public proc( byte => mut-string ){
+byteToString public proc( byte => string mut ){
   byte value =:
-  4 mut-string new value <<byte return
+  4 string mut new value <<byte return
 }
 
-byteListToString public proc( byte list => mut-string ){
+byteListToString public proc( byte list => string mut ){
   byte list bytes =:
-  bytes .length 6 * mut-string new res =::
+  bytes .length 6 * string mut new res =::
   res "[" <<* res =
   0 int i mut =:
   while{ i bytes .length < do
@@ -197,7 +196,7 @@ FormatValue struct{ Format extend
 }
 
 ##TODO replace with append version
-IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime checks for correct types
+IO_printValue proc( FormatValue var list => string mut ){ ## addLater runtime checks for correct types
   var list values =:
   FormatValue format =:
   format .flags IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft mut =:
@@ -220,15 +219,15 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
   }
   format .format  switch{
   'b' case
-    5 mut-string new
+    5 string mut new
     values format .index [] bool cast if{ "true" else "false" } <<*
     end-case
   'B' case
-    5 mut-string new
+    5 string mut new
     values format .index [] bool cast if{ "TRUE" else "FALSE" } <<*
     end-case
   'i' case
-    64 mut-string new
+    64 string mut new
     plusSgn '\0' != if{
       values format .index [] int cast 0 >= if{
         plusSgn <<
@@ -237,7 +236,7 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
     values format .index [] int cast base <<?i
     end-case
   'I' case
-    64 mut-string new
+    64 string mut new
     plusSgn '\0' != if{
       values format .index [] int cast  0 >= if{
         plusSgn <<
@@ -246,21 +245,21 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
     values format .index [] int cast  base <<?I
     end-case
   'u' case
-    64 mut-string new
+    64 string mut new
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast base <<?u
     end-case
   'U' case
-    64 mut-string new
+    64 string mut new
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast base <<?U
     end-case
   'd' case
-    64 mut-string new
+    64 string mut new
     plusSgn '\0' != if{
       values format .index [] int cast 0 >= if{
         plusSgn <<
@@ -269,21 +268,21 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
     values format .index [] int cast <<i
     end-case
   'x' case
-    16 mut-string new
+    16 string mut new
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast <<x
    end-case
   'X' case
-    16 mut-string new
+    16 string mut new
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast <<X
     end-case
   'e' case
-    32 mut-string new
+    32 string mut new
     plusSgn '\0' != if{
       values format .index [] float cast 0 >= if{
         plusSgn <<
@@ -292,7 +291,7 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
     values format .index [] float cast precision base <<??e
     end-case
   'E' case
-    32 mut-string new
+    32 string mut new
     plusSgn '\0' != if{
       values format .index [] float cast 0 >= if{
         plusSgn <<
@@ -301,7 +300,7 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
     values format .index [] float cast precision base <<??E
     end-case
   'f' case
-    32 mut-string new
+    32 string mut new
     plusSgn '\0' != if{
       values format .index [] float cast 0 >= if{
         plusSgn <<
@@ -310,7 +309,7 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
     values format .index [] float cast precision base <<??f
     end-case
   'F' case
-    32 mut-string new
+    32 string mut new
     plusSgn '\0' != if{
       values format .index [] float cast 0 >= if{
         plusSgn <<
@@ -319,23 +318,23 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
     values format .index [] float cast precision base <<??F
     end-case
   'c' case
-    1 mut-string new values format .index [] byte cast <<
+    1 string mut new values format .index [] byte cast <<
     end-case
   's' 'S' case
     values format .index [] stringValue
     end-case
   '%' case
-    1 mut-string new '%' <<
+    1 string mut new '%' <<
     end-case
   default
-    32 mut-string new
+    32 string mut new
     format .format << " is no valid format specifier\n" <<* eputs
     1 exit
   } res =::
   res .length width < if{
     width res .length - int count =:
     format .flags IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
-    count mut-string new padding =::
+    count string mut new padding =::
     padding 0 count padChar fill
     alignLeft if{
       res padding <<* res =
@@ -359,18 +358,18 @@ isFormatChar proc( #+char+# byte => bool ){
   false
 }
 
-sprintf public proc( #+args+# var list #+format+# string => mut-string ){
+sprintf public proc( #+args+# var list #+format+# string => string mut ){
   string format =:
   var list args =:
 
-  format .length 4 / Format mut list new parts =::
+  format .length 4 / Format list mut new parts =::
   0 int i0 mut =:
   0 int i mut =:
   format .length int n  =:
    0 int count mut =:
   -1 int maxFormat mut =:
   0 byte tmpC mut =:
-  0 mut-string new tmp =::
+  0 string mut new tmp =::
   while{ i0 n < do
     i0 i =
     while{ i format .length < &&{ format i [] '%' != } do
@@ -386,7 +385,7 @@ sprintf public proc( #+args+# var list #+format+# string => mut-string ){
         i0 1 + i0 =
       }
       i0 format .length >= if{
-        64 mut-string new
+        64 string mut new
         "printf: unfinished or invalid format String: " <<* format i format .length [:] stringValue  <<* '\n' << eputs
         1 exit
       }
@@ -395,7 +394,7 @@ sprintf public proc( #+args+# var list #+format+# string => mut-string ){
       i0 1 + i0 =
       _formatChar '%' == if{
         _formatString .length 0 > if{
-          128 mut-string new
+          128 string mut new
           "printf: invalid Format String: \"" <<* _formatString <<*
            "\" format '%' does not allow any additional parameters\n" <<* eputs
            1 exit
@@ -485,7 +484,7 @@ sprintf public proc( #+args+# var list #+format+# string => mut-string ){
                _formatChar 'f' ==  if{ else _formatChar 'F' == if
           else _formatChar 'e' == if else _formatChar 'E' == if
           else
-            128 mut-string new
+            128 string mut new
             "printf: invalid Format String: \"" <<* _formatString <<* _formatChar <<
                              "\" precision-parameter only allowed for formats f, F, e, E, s and S\n" <<* eputs
             1 exit
@@ -513,7 +512,7 @@ sprintf public proc( #+args+# var list #+format+# string => mut-string ){
           else _formatChar 'f' == if else _formatChar 'F' == if
           else _formatChar 'e' == if else _formatChar 'E' == if
           else
-            128 mut-string new
+            128 string mut new
             "printf: invalid Format String: \"" <<* _formatString <<* _formatChar <<
                              "\" base-parameter only allowed for formats i,u,f,e and s\n" <<* eputs
             1 exit
@@ -536,13 +535,13 @@ sprintf public proc( #+args+# var list #+format+# string => mut-string ){
             }
             i 1 + i =
           else
-            64 mut-string new
+            64 string mut new
             "printf: invalid Format String: \"" <<* _formatString <<* _formatChar << "\"\n" <<* eputs
             1 exit
           }
         }
         i _formatString .length < ||{ tmp .length 0 > } if{
-          64 mut-string new
+          64 string mut new
           "printf: invalid Format String: \"" <<* _formatString <<* _formatChar << "\"\n" <<* eputs
           1 exit
         }
@@ -570,7 +569,7 @@ sprintf public proc( #+args+# var list #+format+# string => mut-string ){
   }
   maxFormat 1 + count =
   count args .length != if{
-    64 mut-string new
+    64 string mut new
     "wrong number of arguments: " <<* args .length <<i " expected " <<* count <<i
     '\n' << eputs
     1 exit

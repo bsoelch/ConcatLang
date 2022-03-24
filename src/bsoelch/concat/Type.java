@@ -64,15 +64,13 @@ public class Type {
                 return Optional.of(FLOAT);
             }else if((!strict)&&a.canAssignTo(ANY)&&b.canAssignTo(ANY)){
                 return Optional.of(ANY);
-            }else if(a.isList()&&b.isList()){
+            }else if((a.isList()&&(b.isMutableList()||b.isMaybeMutableList()))
+                    ||(b.isList()&&(a.isMutableList()||a.isMaybeMutableList()))){
                 Type a1=a.content(),b1=b.content();
-                if((a1.isMutable()||a1.isMaybeMutable())&&!b1.isMutable()&&(a1.content().equals(b1))){
-                    return Optional.of(Type.listOf(Type.maybeMutable(b1)));
-                }else if((b1.isMutable()||b1.isMaybeMutable())&&!a1.isMutable()&&(b1.content().equals(a1))){
-                    return Optional.of(Type.listOf(Type.maybeMutable(a1)));
-                }else if((a1.isMutable()&&b1.isMaybeMutable())||(b1.isMutable()&&a1.isMaybeMutable())
-                        &&(a1.content().equals(b1.content()))){
-                    return Optional.of(Type.listOf(Type.maybeMutable(a1.content())));
+                if(a1.canAssignTo(b1)){
+                    return Optional.of(Type.maybeMutableListOf(b1));
+                }else if(b1.canAssignTo(a1)){
+                    return Optional.of(Type.maybeMutableListOf(a1));
                 }
             }
             //TODO allow merging to a common non-var supertype
@@ -157,8 +155,6 @@ public class Type {
                     return true;
                 }
             }
-        }else if(t instanceof WrapperType&&((WrapperType) t).wrapperName.equals(WrapperType.MAYBE_MUTABLE)){
-            return canAssignTo(t.content(),bounds);
         }
         return equals(t)||t==ANY;
     }
@@ -185,13 +181,13 @@ public class Type {
     public boolean isList() {
         return false;
     }
+    public boolean isMutableList() {
+        return false;
+    }
+    public boolean isMaybeMutableList() {
+        return false;
+    }
     public boolean isOptional() {
-        return false;
-    }
-    public boolean isMutable() {
-        return false;
-    }
-    public boolean isMaybeMutable() {
         return false;
     }
     public boolean isRawString(){
@@ -218,18 +214,24 @@ public class Type {
 
 
     public static Type mutable(Type contentType){
-        if(contentType instanceof WrapperType&&((WrapperType) contentType).wrapperName.equals(WrapperType.MUTABLE)){
-            return contentType;
+        if(contentType instanceof WrapperType&&((WrapperType) contentType).wrapperName.equals(WrapperType.LIST)){
+            return WrapperType.create(WrapperType.MUTABLE_LIST, contentType.content());
         }else{
-            return WrapperType.create(WrapperType.MUTABLE,contentType);
+            throw new UnsupportedOperationException(contentType+" cannot be mutable");
         }
     }
     public static Type maybeMutable(Type contentType){
-        if(contentType instanceof WrapperType&&((WrapperType) contentType).wrapperName.equals(WrapperType.MAYBE_MUTABLE)){
-            return contentType;
+        if(contentType instanceof WrapperType&&((WrapperType) contentType).wrapperName.equals(WrapperType.LIST)){
+            return WrapperType.create(WrapperType.MAYBE_MUTABLE_LIST, contentType.content());
         }else{
-            return WrapperType.create(WrapperType.MAYBE_MUTABLE,contentType);
+            throw new UnsupportedOperationException("unimplemented");
         }
+    }
+    public static Type mutableListOf(Type contentType){
+        return WrapperType.create(WrapperType.MUTABLE_LIST,contentType);
+    }
+    public static Type maybeMutableListOf(Type contentType){
+        return WrapperType.create(WrapperType.MAYBE_MUTABLE_LIST,contentType);
     }
     public static Type listOf(Type contentType){
         return WrapperType.create(WrapperType.LIST,contentType);
@@ -242,8 +244,8 @@ public class Type {
     private static class WrapperType extends Type {
         static final String LIST = "list";
         static final String OPTIONAL = "optional";
-        static final String MUTABLE = "mut";
-        static final String MAYBE_MUTABLE = "mut?";
+        static final String MUTABLE_LIST = "list mut";
+        static final String MAYBE_MUTABLE_LIST = "list mut?";
 
         static final WrapperType BYTES= new WrapperType(LIST,Type.BYTE);
         static final WrapperType UNICODE_STRING= new WrapperType(LIST,Type.CODEPOINT);
@@ -258,10 +260,6 @@ public class Type {
                 } else if (contentType == BYTE) {
                     return BYTES;
                 }
-            }else if(wrapperName.equals(MUTABLE)&&contentType.isMutable()){
-                return (WrapperType) contentType;
-            }else if(wrapperName.equals(MAYBE_MUTABLE)&&contentType.isMaybeMutable()){
-                return (WrapperType) contentType;
             }
             //addLater? caching
             return new WrapperType(wrapperName,contentType);
@@ -284,24 +282,22 @@ public class Type {
             return content().depth()+1;
         }
         @Override
-        public boolean isMutable() {
-            return wrapperName.equals(MUTABLE);
-        }
-        @Override
-        public boolean isMaybeMutable() {
-            return wrapperName.equals(MAYBE_MUTABLE);
-        }
-        @Override
         public boolean isList() {
             return wrapperName.equals(LIST);
         }
+        public boolean isMutableList() {
+            return wrapperName.equals(MUTABLE_LIST);
+        }
+        public boolean isMaybeMutableList() {
+            return wrapperName.equals(MAYBE_MUTABLE_LIST);
+        }
         @Override
         public boolean isRawString() {
-            return contentType==BYTE||contentType.equals(mutable(BYTE))||contentType.equals(maybeMutable(BYTE));
+            return contentType==BYTE;
         }
         @Override
         public boolean isUnicodeString() {
-            return contentType==CODEPOINT||contentType.equals(mutable(CODEPOINT))||contentType.equals(maybeMutable(CODEPOINT));
+            return contentType==CODEPOINT;
         }
         @Override
         public boolean isOptional() {
@@ -311,14 +307,15 @@ public class Type {
         @Override
         public boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                if(wrapperName.equals(MUTABLE)&&!t.content().canAssignTo(content(),bounds.swapped())){
+                if(wrapperName.equals(MUTABLE_LIST)&&!t.content().canAssignTo(content(),bounds.swapped())){
                     return false;//mutable values cannot be assigned to mutable values of a different type
                 }
                 return content().canAssignTo(t.content(),bounds);
-            }else if(t instanceof WrapperType&&wrapperName.equals(MUTABLE)&&((WrapperType)t).wrapperName.equals(MAYBE_MUTABLE)){
+            }else if((wrapperName.equals(LIST)||wrapperName.equals(MUTABLE_LIST))&&
+                    t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(MAYBE_MUTABLE_LIST)){
                 return content().canAssignTo(t.content(),bounds);
             }else{
-                return (t!=ANY||!wrapperName.equals(MUTABLE))&&super.canAssignTo(t,bounds);
+                return super.canAssignTo(t,bounds);
             }
         }
 

@@ -3,8 +3,8 @@ tests/lib/utf8 :
 core #namespace
 utf8 #include
 
-mut-s #define 16 mut-string new #end
-mut-u #define 16 mut-ustring new #end
+mut-s #define 16 string mut new #end
+mut-u #define 16 ustring mut new #end
 
 { mut-s "append codepoint" <<* '!' << } debugPrint
 { "to ustring" codepoints } debugPrint

@@ -7,17 +7,17 @@ io #namespace
 
 BufferedInput public struct{
   FILE          :file
-  byte mut list :buffer
+  byte list mut :buffer
   int           :cap
 }
 
 newBufferedInput public proc( FILE #+ cap +# int => BufferedInput ){
     int cap =:
     FILE file =:
-    file cap byte mut list new cap BufferedInput new return
+    file cap byte list mut new cap BufferedInput new return
 }
 
-BufferedInput.readTo public proc( BufferedInput #+buffer+# byte mut list #+amount+# uint => #+n-read+#int ){
+BufferedInput.readTo public proc( BufferedInput #+buffer+# byte list mut #+amount+# uint => #+n-read+#int ){
   count =::
   buffer =::
   in =::

@@ -6,7 +6,7 @@ codeblocks #include
 
 ## TODO binary search
 
-reverse public proc( A <?> A mut list  => ){
+reverse public proc( A <?> A list mut  => ){
   toReverse =::
   0 i =::
   toReverse .length 1 - int maxId =:
@@ -18,7 +18,7 @@ reverse public proc( A <?> A mut list  => ){
   }
 }
 
-mergesort_helper proc( A <?> A mut list #+off+# int #+to+# int #+buffer+# A mut list => ){
+mergesort_helper proc( A <?> A list mut #+off+# int #+to+# int #+buffer+# A list mut => ){
   buffer =::
   int to =:
   int off mut =:
@@ -63,12 +63,12 @@ mergesort_helper proc( A <?> A mut list #+off+# int #+to+# int #+buffer+# A mut 
   elements are compared using 'core .<='
   the sorted list overwrites the given list
  +#
-mergesort public proc( A <?> A mut list => ){
+mergesort public proc( A <?> A list mut => ){
   input =::
-  #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / A mut list new mergesort_helper
+  #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / A list mut new mergesort_helper
 }
 
-mergesort2_helper proc( A <?> A mut list #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A mut list => ){
+mergesort2_helper proc( A <?> A list mut #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A list mut => ){
   buffer =::
   int to =:
   int off mut =:
@@ -114,17 +114,17 @@ mergesort2_helper proc( A <?> A mut list #+cmp+# ( A A => int ) #+off+# int #+to
   elements are compared using the given comparison function
   the sorted list overwrites the given list
  +#
-mergesort2 public proc( A <?> A mut list ( A A => int ) => ){
+mergesort2 public proc( A <?> A list mut ( A A => int ) => ){
   ( A A => int ) cmp =:
   input =::
-  #+list+# input #+cmp+# cmp #+off+# 0 #+to+# input .length 1 - #+buffer+# input .length 2 / A mut list new
+  #+list+# input #+cmp+# cmp #+off+# 0 #+to+# input .length 1 - #+buffer+# input .length 2 / A list mut new
   mergesort2_helper
 }
 
-map public proc( A <?> B <?> A mut? list ( A => B ) => B mut list ){
+map public proc( A <?> B <?> A list mut? ( A => B ) => B list mut ){
   f =::
   l =::
-  l .length B mut list new res =::
+  l .length B list mut new res =::
   0 i =::
   res while{ i l .length < do
     l i [] f () <<
@@ -132,10 +132,10 @@ map public proc( A <?> B <?> A mut? list ( A => B ) => B mut list ){
   }
   #+res+# return
 }
-filter public proc( A <?> A mut? list ( A => bool ) => A mut list ){
+filter public proc( A <?> A list mut? ( A => bool ) => A list mut ){
   f =::
   l =::
-  l .length A mut list new res =::
+  l .length A list mut new res =::
   0 i =::
   res while{ i l .length < do
     l i [] f () if{

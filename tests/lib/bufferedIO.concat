@@ -11,7 +11,7 @@ core #import
 10 newBufferedInput in =::
 in BufferedInput.nextByte debugPrint
 in BufferedInput.nextByte debugPrint
-10 byte mut list new buff =::
+10 byte list mut new buff =::
 while{
   in buff 50 BufferedInput.readTo n =::
   n debugPrint

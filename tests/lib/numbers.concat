@@ -9,7 +9,7 @@ uint_MIN debugPrint
 uint_MAX debugPrint
 "_____________________________" debugPrint
 -123456  36 true true intToString debugPrint
-128 mut-string new
+128 string mut new
         -42 <<u
 ' '  << 2048 <<x
 ' '  << -42 <<X
@@ -21,7 +21,7 @@ debugPrint
 
 3.141592653589793238 pi =::
 "_____________________________" debugPrint
-128 mut-string new
+128 string mut new
         pi <<f
 ' '  << pi <<e
 '\n' << pi 11 <<?e

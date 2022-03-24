@@ -1,7 +1,0 @@
-byte mut list
-codepoint mut list
-byte mut? list
-codepoint mut? list
-
-Stack:
-[]

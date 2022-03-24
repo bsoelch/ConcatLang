@@ -7,7 +7,7 @@ core #import
   "unable to open file " eputs 1 exit
 }
 io .FILE file =:
-64 byte mut list new IO_Buff =::
+64 byte list mut new IO_Buff =::
 file io .size      debugPrint
 file IO_Buff 0 64 io .read int n =:
 n 0 > if{

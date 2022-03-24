@@ -966,7 +966,7 @@ public class Interpreter {
             return unused;
         }
     }
-    enum Mutability{MUTABLE,IMMUTABLE,UNDECIDED}
+
     private static class VariableId implements Declareable{
         final VariableContext context;
         final int level;
@@ -3420,12 +3420,7 @@ public class Interpreter {
         try {
             Type type = ((ValueToken)prev).value.asType();
             if(type instanceof Type.Tuple){
-                Type[] elements = new Type[((Type.Tuple) type).elements.length];
-                for(int i=0;i<elements.length;i++){
-                    Type e = ((Type.Tuple) type).elements[i];
-                    //unwrap mutable variables (mutable is a flag for the field accessibility not for the value)
-                    elements[i]= e.isMutable()? e.content(): e;
-                }
+                Type[] elements = ((Type.Tuple) type).elements;
                 typeCheckCall("new", typeStack,
                         Type.Procedure.create(elements,new Type[]{type}), ret,ioContext, pos, false);
 
@@ -3450,7 +3445,7 @@ public class Interpreter {
                         return;
                     }
                 }
-            }else if(type.isList()){
+            }else if(type.isList()||type.isMutableList()){
                 TypeFrame f= typeStack.pop();
                 if(f.type!=Type.UINT&&f.type!=Type.INT){
                     throw new SyntaxError("invalid argument for '"+type+" new': "+f.type+
@@ -3490,9 +3485,6 @@ public class Interpreter {
                     }
                     Mutability mutability=identifier.isMutable()?Mutability.MUTABLE:
                             identifier.type==IdentifierType.IMPLICIT_DECLARE?Mutability.UNDECIDED:Mutability.IMMUTABLE;
-                    if(type.isMutable()){
-                        type=type.content();
-                    }
                     VariableId id = context.declareVariable( identifier.name, type, mutability,
                             identifier.isPublic(), identifier.pos, ioContext);
                     //only remember root-level constants
@@ -3648,8 +3640,7 @@ public class Interpreter {
                     if(f.type instanceof Type.Struct){
                         Integer index=((Type.Struct) f.type).indexByName.get(identifier.name);
                         if(index!=null){
-                            Type elementType = ((Type.Struct) f.type).elements[index];
-                            typeStack.push(new TypeFrame(elementType.isMutable()?elementType.content():elementType,null, t.pos));
+                            typeStack.push(new TypeFrame(((Type.Struct) f.type).elements[index],null, t.pos));
                             ret.add(new TupleElementAccess(index, false, t.pos));
                             hasField=true;
                         }
@@ -3679,7 +3670,8 @@ public class Interpreter {
                                 ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
                                 hasField = true;
                             }
-                        }else if (identifier.name.equals("length") && (f.type.isList() || f.type instanceof Type.Tuple)) {
+                        }else if (identifier.name.equals("length") && (f.type.isList() ||f.type.isMutableList()||
+                                f.type.isMaybeMutableList()|| f.type instanceof Type.Tuple)) {
                             typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
                             ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
                             hasField = true;
@@ -3744,15 +3736,15 @@ public class Interpreter {
                                             f.value.asType() instanceof Type.UnionType ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IS_UNION, t.pos));
                                 }
-                                case "isMutable" -> {
+                                case "isMutableList" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isMutable() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MUTABLE, t.pos));
+                                            f.value.asType().isMutableList() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MUTABLE_LIST, t.pos));
                                 }
-                                case "isMaybeMutable" -> {
+                                case "isMaybeMutableList" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isMaybeMutable() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MAYBE_MUTABLE, t.pos));
+                                            f.value.asType().isMaybeMutableList() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MAYBE_MUTABLE_LIST, t.pos));
                                 }
                                 default -> hasField = false;
                             }
@@ -4400,13 +4392,13 @@ public class Interpreter {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.GenericParameter?Value.TRUE:Value.FALSE);
             }
-            case IS_MUTABLE -> {
+            case IS_MUTABLE_LIST -> {
                 Type type = stack.pop().asType();
-                stack.push(type.isMutable()?Value.TRUE:Value.FALSE);
+                stack.push(type.isMutableList()?Value.TRUE:Value.FALSE);
             }
-            case IS_MAYBE_MUTABLE -> {
+            case IS_MAYBE_MUTABLE_LIST -> {
                 Type type = stack.pop().asType();
-                stack.push(type.isMaybeMutable()?Value.TRUE:Value.FALSE);
+                stack.push(type.isMaybeMutableList()?Value.TRUE:Value.FALSE);
             }
             case HAS_VALUE -> {
                 Value value= stack.pop();
@@ -4501,7 +4493,7 @@ public class Interpreter {
                                 values[count-i]= stack.pop();//values should already have the correct types
                             }
                             stack.push(Value.createTuple((Type.Tuple)type,values));
-                        }else if(type.isList()){
+                        }else if(type.isList()||type.isMutableList()){
                             long initCap= stack.pop().asLong();
                             stack.push(Value.createList(type,initCap));
                         }else{
