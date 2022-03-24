@@ -21,15 +21,15 @@ reverse public proc( A <?> A mut list  => ){
 mergesort_helper proc( A <?> A mut list #+off+# int #+to+# int #+buffer+# A mut list => ){
   buffer =::
   int to =:
-  int mut off =:
+  int off mut =:
   input =::
   off to < if{
-    off to + 2 / int mut c =:
+    off to + 2 / int c mut =:
     input off c buffer mergesort_helper
     c 1 + c =
     input c  to buffer mergesort_helper
     ## 0 ... c-1 and c...to-1 are sorted
-    c int mut i =:
+    c int i mut =:
     while{ off c < &&{ c to <= } do
       while{ off c < &&{ input off [] input c [] <= } do
         off 1 + off =
@@ -71,16 +71,16 @@ mergesort public proc( A <?> A mut list => ){
 mergesort2_helper proc( A <?> A mut list #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A mut list => ){
   buffer =::
   int to =:
-  int mut off =:
+  int off mut =:
   ( A A => int ) cmp =:
   input =::
   off to < if{
-    off to + 2 / int mut c =:
+    off to + 2 / int c mut =:
     input cmp off c buffer mergesort2_helper
     c 1 + c =
     input cmp c  to buffer mergesort2_helper
     ## 0 ... c-1 and c...to-1 are sorted
-    c int mut i =:
+    c int i mut =:
     while{ off c < &&{ c to <= } do
       while{ off c < &&{ input off [] input c [] cmp () 0 <= } do
         off 1 + off =

@@ -66,32 +66,45 @@ public class Interpreter {
         }
     }
     enum IdentifierType{
-        DECLARE, WORD,PROC_ID,VAR_WRITE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE
+        DECLARE, WORD,PROC_ID,VAR_WRITE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE,DECLARE_FIELD
     }
     static class IdentifierToken extends Token {
+        static final int FLAG_NATIVE=1;
+        static final int FLAG_PUBLIC=2;
+        static final int FLAG_MUTABLE=4;
+
         final IdentifierType type;
-        final boolean isNative;
-        final boolean isPublic;
+        final int flags;
+
         final String name;
-        IdentifierToken(IdentifierType type, String name, boolean isNative, boolean isPublic, FilePosition pos) throws SyntaxError {
+        IdentifierToken(IdentifierType type, String name, int flags, FilePosition pos) throws SyntaxError {
             super(TokenType.IDENTIFIER, pos);
             if(name.startsWith(".")||name.startsWith(":")||name.startsWith("@")){
                 throw new SyntaxError("Identifiers cannot start with '.' ':' or '@'",pos);
             }else if(name.isEmpty()){
                 throw new SyntaxError("Identifiers have to be nonempty",pos);
             }//no else
-            if((isNative||isPublic)&&(type!=IdentifierType.WORD&&
-                    type!=IdentifierType.DECLARE &&type!=IdentifierType.IMPLICIT_DECLARE)){
-                throw new SyntaxError("modifiers can only be used in declarations",pos);
+            if(flags!=0&&(type!=IdentifierType.WORD&&type!=IdentifierType.DECLARE &&type!=IdentifierType.IMPLICIT_DECLARE)){
+                if(flags!=FLAG_MUTABLE||type!=IdentifierType.DECLARE_FIELD){
+                    throw new SyntaxError("modifiers can only be used in declarations",pos);
+                }
             }
-            this.isNative = isNative;
-            this.isPublic = isPublic;
+            this.flags = flags;
             this.name = name;
             this.type=type;
         }
         @Override
         public String toString() {
             return type.toString()+": \""+ name +"\"";
+        }
+        boolean isPublic(){
+            return (flags&FLAG_PUBLIC)!=0;
+        }
+        boolean isNative(){
+            return (flags&FLAG_NATIVE)!=0;
+        }
+        boolean isMutable(){
+            return (flags&FLAG_MUTABLE)!=0;
         }
     }
     static class InternalFieldToken extends Token {
@@ -691,19 +704,17 @@ public class Interpreter {
             return context;
         }
     }
-    record StructField(String name,Type type){}
     private static class StructBlock extends CodeBlock{
         final String name;
         final boolean isPublic;
-        final GenericContext context;
-        final ArrayList<StructField> fields=new ArrayList<>();
+        final StructContext context;
         Type.Struct extended;
 
         StructBlock(String name,boolean isPublic,int start, FilePosition startPos, VariableContext parentContext) {
             super(start, BlockType.STRUCT, startPos, parentContext);
             this.name=name;
             this.isPublic=isPublic;
-            context=new GenericContext(parentContext,false);
+            context=new StructContext(parentContext,false);
         }
 
         @Override
@@ -1542,6 +1553,14 @@ public class Interpreter {
         }
     }
 
+    record StructField(String name,Type type){}
+    static class StructContext extends GenericContext{
+        final ArrayList<StructField> fields=new ArrayList<>();
+        StructContext(VariableContext parent, boolean allowImplicit) {
+            super(parent, allowImplicit);
+        }
+    }
+
     interface CodeSection{
         ArrayList<Token> tokens();
         VariableContext context();
@@ -1866,7 +1885,7 @@ public class Interpreter {
                     if(prevId!=null){
                         tokens.remove(tokens.size()-1);
                         finishParsing(pState, ioContext,pos);
-                        pState.currentMacro=new Macro(pos,prevId,((IdentifierToken) prev).isPublic,new ArrayList<>());
+                        pState.currentMacro=new Macro(pos,prevId,((IdentifierToken) prev).isPublic(),new ArrayList<>());
                     }else{
                         throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
                     }
@@ -1953,7 +1972,7 @@ public class Interpreter {
                         throw new SyntaxError("token before tuple has to be an identifier",pos);
                     }
                     name = ((IdentifierToken) prev).name;
-                    TupleBlock tupleBlock = new TupleBlock(name,((IdentifierToken) prev).isPublic,
+                    TupleBlock tupleBlock = new TupleBlock(name,((IdentifierToken) prev).isPublic(),
                             0, pos, pState.topLevelContext());
                     pState.openBlocks.add(tupleBlock);
                     pState.openedContexts.add(tupleBlock.context());
@@ -1973,7 +1992,7 @@ public class Interpreter {
                         throw new SyntaxError("token before enum has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
-                    pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublic, 0,pos,pState.topLevelContext()));
+                    pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublic(), 0,pos,pState.topLevelContext()));
                 }
                 case "struct{" -> {
                     String name;
@@ -1989,7 +2008,7 @@ public class Interpreter {
                         throw new SyntaxError("token before struct has to be an identifier",pos);
                     }
                     name = ((IdentifierToken) prev).name;
-                    StructBlock structBlock = new StructBlock(name,((IdentifierToken) prev).isPublic,
+                    StructBlock structBlock = new StructBlock(name,((IdentifierToken) prev).isPublic(),
                             0, pos, pState.topLevelContext());
                     pState.openBlocks.add(structBlock);
                     pState.openedContexts.add(structBlock.context());
@@ -2001,7 +2020,7 @@ public class Interpreter {
                     }
                     if(((StructBlock) block).extended!=null){
                         throw new SyntaxError("structs can only contain one '"+str+"' statement",pos);
-                    }else if(((StructBlock) block).fields.size()>0){
+                    }else if(((StructBlock) block).context.fields.size()>0){
                         throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
                     }
                     List<Token> subList = tokens.subList(block.start, tokens.size());
@@ -2018,7 +2037,7 @@ public class Interpreter {
                         }
                         ((StructBlock) block).extended=(Type.Struct) extended;
                         for(int i=0;i<((Type.Struct) extended).elements.length;i++){
-                            ((StructBlock) block).fields.add(new StructField(((Type.Struct) extended).fieldNames[i],
+                            ((StructBlock) block).context.fields.add(new StructField(((Type.Struct) extended).fieldNames[i],
                                     ((Type.Struct) extended).elements[i]));
                         }
                     } catch (TypeError e) {
@@ -2037,13 +2056,13 @@ public class Interpreter {
                     boolean isNative=false;
                     if(!(prev instanceof IdentifierToken)){
                         throw new SyntaxError("token before '"+str+"' has to be an identifier",pos);
-                    }else if(((IdentifierToken) prev).isNative){
+                    }else if(((IdentifierToken) prev).isNative()){
                         isNative=true;
                     }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
                         throw new SyntaxError("token before '"+str+"' has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
-                    ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublic, 0,
+                    ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublic(), 0,
                             pos, pState.topLevelContext(), isNative);
                     pState.openBlocks.add(proc);
                     pState.openedContexts.add(proc.context());
@@ -2233,19 +2252,25 @@ public class Interpreter {
                         }
                         case STRUCT ->{
                             assert block instanceof StructBlock;
-                            if(((StructBlock) block).context != pState.openedContexts.pollLast()){
+                            StructContext structContext = ((StructBlock) block).context;
+                            assert structContext!=null;
+                            if(structContext != pState.openedContexts.pollLast()){
                                 throw new RuntimeException("openedContexts is out of sync with openBlocks");
                             }
-                            if(tokens.size()>block.start){
-                                tmp=tokens.get(block.start);
-                                throw new SyntaxError("Unexpected token in struct:"+tmp,tmp.pos);
+                            List<Token> subList = tokens.subList(block.start, tokens.size());
+                            ArrayList<Token> body=typeCheck(subList, block.context(), pState.globalConstants,
+                                            new RandomAccessStack<>(8),null,pos,ioContext).tokens;
+                            subList.clear();
+                            if(body.size()>0){
+                                tmp=body.get(0);
+                                throw new SyntaxError("Unexpected token in struct: "+tmp,tmp.pos);
                             }
-                            ArrayList<Type.GenericParameter> generics=((StructBlock) block).context.generics;
-                            String[] fieldNames=new String[((StructBlock) block).fields.size()];
+                            ArrayList<Type.GenericParameter> generics= structContext.generics;
+                            String[] fieldNames=new String[structContext.fields.size()];
                             Type[] types=new Type[fieldNames.length];
                             for(int i=0;i<types.length;i++){
-                                fieldNames[i]=((StructBlock) block).fields.get(i).name;
-                                types[i]=((StructBlock) block).fields.get(i).type;
+                                fieldNames[i]= structContext.fields.get(i).name;
+                                types[i]= structContext.fields.get(i).type;
                             }
                             if(generics.size()>0){
                                 GenericStruct struct=new GenericStruct(((StructBlock) block).name,((StructBlock) block).isPublic,
@@ -2355,7 +2380,6 @@ public class Interpreter {
                 case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
 
-                case "mut"        -> tokens.add(new Token(TokenType.MARK_MUTABLE,       pos));
                 case "mut?"       -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
                 case "array"      ->
                         throw new SyntaxError("fixed size array type is currently not implemented",pos);
@@ -2396,10 +2420,10 @@ public class Interpreter {
                     }else if(prev instanceof IdentifierToken){
                         if(((IdentifierToken) prev).type == IdentifierType.WORD){
                             prev=new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,
-                                    ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
+                                    ((IdentifierToken) prev).flags, prev.pos);
                         }else if(((IdentifierToken) prev).type == IdentifierType.GET_FIELD){
                             prev=new IdentifierToken(IdentifierType.SET_FIELD,((IdentifierToken) prev).name,
-                                    ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
+                                    ((IdentifierToken) prev).flags, prev.pos);
                         }else{
                             throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
                         }
@@ -2412,8 +2436,7 @@ public class Interpreter {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '=:' modifier",pos);
                     }else if(prevId!=null){
-                        prev=new IdentifierToken(IdentifierType.DECLARE,prevId,
-                                ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
+                        prev=new IdentifierToken(IdentifierType.DECLARE,prevId,((IdentifierToken) prev).flags, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '=:' modifier "+prev,prev.pos);
                     }
@@ -2423,8 +2446,7 @@ public class Interpreter {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '=::' modifier",pos);
                     }else if(prevId!=null){
-                        prev=new IdentifierToken(IdentifierType.IMPLICIT_DECLARE,prevId,
-                                ((IdentifierToken) prev).isNative, ((IdentifierToken) prev).isPublic, prev.pos);
+                        prev=new IdentifierToken(IdentifierType.IMPLICIT_DECLARE,prevId,((IdentifierToken) prev).flags, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '=::' modifier "+prev,prev.pos);
                     }
@@ -2434,11 +2456,11 @@ public class Interpreter {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
                     }else if(prevId!=null){
-                        if(((IdentifierToken) prev).isNative){
+                        if(((IdentifierToken) prev).isNative()){
                             throw new SyntaxError("duplicate modifier for identifier "+prevId+" : '"+str+"'",pos);
                         }
                         prev=new IdentifierToken(IdentifierType.WORD,prevId,
-                                true, ((IdentifierToken) prev).isPublic, prev.pos);
+                                ((IdentifierToken) prev).flags|IdentifierToken.FLAG_NATIVE, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
                     }
@@ -2448,15 +2470,31 @@ public class Interpreter {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
                     }else if(prevId!=null){
-                        if(((IdentifierToken) prev).isPublic){
+                        if(((IdentifierToken) prev).isPublic()){
                             throw new SyntaxError("duplicate modifier for identifier "+prevId+" : '"+str+"'",pos);
                         }
                         prev=new IdentifierToken(IdentifierType.WORD,prevId,
-                                ((IdentifierToken) prev).isNative,true, prev.pos);
+                                ((IdentifierToken) prev).flags|IdentifierToken.FLAG_PUBLIC, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
                     }
                     tokens.set(tokens.size()-1,prev);
+                }
+                case "mut"  -> {
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
+                    }
+                    if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
+                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){//mut as name modifier
+                        if(((IdentifierToken) prev).isMutable()){
+                            throw new SyntaxError("duplicate modifier for identifier "+prevId+" : '"+str+"'",pos);
+                        }
+                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
+                                ((IdentifierToken) prev).flags|IdentifierToken.FLAG_MUTABLE, prev.pos);
+                        tokens.set(tokens.size()-1,prev);
+                    }else {
+                        tokens.add(new Token(TokenType.MARK_MUTABLE, pos));
+                    }
                 }
                 case "<>", "<?>" ->{
                     if(prev==null){
@@ -2490,30 +2528,15 @@ public class Interpreter {
                                 expandMacro(pState,(Macro)d,pos,ioContext);
                             }else {
                                 tokens.set(tokens.size() - 1, new IdentifierToken(isPtr ? IdentifierType.PROC_ID : IdentifierType.WORD,
-                                        newName, false, false, pos));
+                                        newName, 0, pos));
                             }
                         }else{
-                            tokens.add(new IdentifierToken(IdentifierType.GET_FIELD,name, false, false, pos));
+                            tokens.add(new IdentifierToken(IdentifierType.GET_FIELD,name, 0, pos));
                         }
                     }else if(str.startsWith("@")){
-                        tokens.add(new IdentifierToken(IdentifierType.PROC_ID, str.substring(1), false, false, pos));
+                        tokens.add(new IdentifierToken(IdentifierType.PROC_ID, str.substring(1), 0, pos));
                     }else if(str.startsWith(":")){
-                        CodeBlock block=pState.openBlocks.peek();
-                        if(!(block instanceof StructBlock)){
-                            throw new SyntaxError("fields can only be declared in structs",pos);
-                        }
-                        List<Token> subList = tokens.subList(block.start, tokens.size());
-                        TypeCheckResult r=typeCheck(subList,pState.getContext(),pState.globalConstants,
-                                new RandomAccessStack<>(8),null,pos,ioContext);
-                        subList.clear();
-                        if(r.types.size()!=1||r.types.get(1).type!=Type.TYPE||r.types.get(1).value==null){
-                            throw new SyntaxError("value before field declaration has to be one constant type",pos);
-                        }
-                        try {
-                            ((StructBlock) block).fields.add(new StructField(str.substring(1),r.types.get(1).value.asType()));
-                        } catch (TypeError e) {
-                            throw new SyntaxError(e,pos);
-                        }
+                        tokens.add(new IdentifierToken(IdentifierType.DECLARE_FIELD, str.substring(1), 0, pos));
                     }else{
                         Declareable d=pState.topLevelContext().getDeclareable(str);
                         if(d instanceof Macro){
@@ -2523,7 +2546,7 @@ public class Interpreter {
                             if(last instanceof EnumBlock){
                                 ((EnumBlock) last).add(str,pos);
                             }else{
-                                tokens.add(new IdentifierToken(IdentifierType.WORD, str, false, false, pos));
+                                tokens.add(new IdentifierToken(IdentifierType.WORD, str, 0, pos));
                             }
                         }
                     }
@@ -3466,15 +3489,15 @@ public class Interpreter {
                     }else {
                         throw new SyntaxError("Token before declaration has to be a type", identifier.pos);
                     }
-                    Mutability mutability=type.isMutable()?Mutability.MUTABLE:
+                    Mutability mutability=identifier.isMutable()?Mutability.MUTABLE:
                             identifier.type==IdentifierType.IMPLICIT_DECLARE?Mutability.UNDECIDED:Mutability.IMMUTABLE;
                     if(type.isMutable()){
                         type=type.content();
                     }
                     VariableId id = context.declareVariable( identifier.name, type, mutability,
-                            identifier.isPublic, identifier.pos, ioContext);
+                            identifier.isPublic(), identifier.pos, ioContext);
                     //only remember root-level constants
-                    if (identifier.isNative) {
+                    if (identifier.isNative()) {
                         if(id.mutability==Mutability.MUTABLE){
                             throw new SyntaxError("native variables have to be immutable",t.pos);
                         }else if(identifier.type==IdentifierType.IMPLICIT_DECLARE){
@@ -3500,7 +3523,8 @@ public class Interpreter {
                 }
             }
             case WORD -> {
-                if(identifier.isNative||identifier.isPublic){
+                boolean isMutable=identifier.isMutable();
+                if((identifier.flags|IdentifierToken.FLAG_MUTABLE)!=IdentifierToken.FLAG_MUTABLE){
                     throw new SyntaxError("modifiers can only be used in declarations",t.pos);
                 }
                 Declareable d = context.getDeclareable(identifier.name);
@@ -3511,6 +3535,10 @@ public class Interpreter {
                 DeclareableType type = d.declarableType();
                 switch (type) {
                     case PROCEDURE,NATIVE_PROC,GENERIC_PROCEDURE,OVERLOADED_PROCEDURE -> {
+                        if(isMutable){
+                            throw new SyntaxError("values of type "+declarableName(type,false)+
+                                    " cannot be marked as mutable",t.pos);
+                        }
                         OverloadedProcedure proc =
                                 d instanceof OverloadedProcedure?(OverloadedProcedure) d:new OverloadedProcedure((Callable) d);
                         CallMatch match = typeCheckOverloadedCall(
@@ -3521,6 +3549,10 @@ public class Interpreter {
                         ret.add(token);
                     }
                     case VARIABLE, CURRIED_VARIABLE -> {
+                        if(isMutable){//addLater better error message
+                            throw new SyntaxError("values of type "+declarableName(type,false)+
+                                    " cannot be marked as mutable",t.pos);
+                        }
                         VariableId id = (VariableId) d;
                         id = context.wrapCurried(identifier.name, id, identifier.pos);
                         Value constValue = globalConstants.get(id);
@@ -3536,12 +3568,28 @@ public class Interpreter {
                     case MACRO -> //FIXME this case can appear when macro is defined after procedure that uses it
                             throw new RuntimeException("macros should already be resolved at this state of compilation");
                     case TUPLE, ENUM, GENERIC,STRUCT -> {
-                        Value e = Value.ofType((Type) d);
+                        Type asType=(Type)d;
+                        if(isMutable){
+                            asType=Type.mutable(asType);
+                        }
+                        Value e = Value.ofType(asType);
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
                         ret.add(new ValueToken(e, identifier.pos, false));
                     }
                     case CONSTANT -> {
                         Value e = ((Constant) d).value;
+                        if(isMutable){
+                            if(e.type==Type.TYPE){
+                                try {
+                                    e=Value.ofType(Type.mutable(e.asType()));
+                                } catch (TypeError ex) {
+                                    throw new SyntaxError(ex,t.pos);
+                                }
+                            }else{
+                                throw new SyntaxError("values of type "+e.type+
+                                        " cannot be marked as mutable",t.pos);
+                            }
+                        }
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
                         ret.add(new ValueToken(e, identifier.pos, false));
                     }
@@ -3549,8 +3597,12 @@ public class Interpreter {
                         GenericTuple g = (GenericTuple) d;
                         String tupleName=g.name;
                         Type[] genArgs=getArguments(tupleName,DeclareableType.GENERIC_TUPLE,g.params.length, typeStack, ret, t.pos);
-                        Value tupleType = Value.ofType(Type.Tuple.create(g.name,g.isPublic,g.params.clone(), genArgs,
-                                g.types.clone(), g.declaredAt));
+                        Type typeValue = Type.Tuple.create(g.name, g.isPublic, g.params.clone(), genArgs,
+                                g.types.clone(), g.declaredAt);
+                        if(isMutable){
+                            typeValue=Type.mutable(typeValue);
+                        }
+                        Value tupleType = Value.ofType(typeValue);
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
                         ret.add(new ValueToken(tupleType,identifier.pos, false));
                     }
@@ -3558,8 +3610,12 @@ public class Interpreter {
                         GenericStruct g = (GenericStruct) d;
                         String structName=g.name;
                         Type[] genArgs=getArguments(structName,DeclareableType.GENERIC_STRUCT, g.params.length, typeStack, ret, t.pos);
-                        Value structValue = Value.ofType(Type.Struct.create(g.name,g.isPublic,g.extended,g.params.clone(), genArgs,
-                                g.types.clone(),g.fieldNames.clone(), g.declaredAt));
+                        Type typeValue = Type.Struct.create(g.name, g.isPublic, g.extended, g.params.clone(), genArgs,
+                                g.types.clone(), g.fieldNames.clone(), g.declaredAt);
+                        if(isMutable){
+                            typeValue=Type.mutable(typeValue);
+                        }
+                        Value structValue = Value.ofType(typeValue);
                         typeStack.push(new TypeFrame(Type.TYPE,structValue,identifier.pos));
                         ret.add(new ValueToken(structValue,identifier.pos, false));
                     }
@@ -3766,6 +3822,24 @@ public class Interpreter {
                 }
                 if(!hasField)
                     throw new SyntaxError(f.type+" does not have a mutable field "+identifier.name,t.pos);
+            }
+            case DECLARE_FIELD -> {
+                if(!(context instanceof StructContext)){
+                    throw new SyntaxError("field declarations are only allowed in structs",t.pos);
+                }
+                if (ret.size() <= 0 || !((prev = ret.remove(ret.size() - 1)) instanceof ValueToken)) {
+                    throw new SyntaxError("Token before declaration has to be a type", identifier.pos);
+                }
+                Type type;
+                try {
+                    type = ((ValueToken) prev).value.asType();
+                } catch (TypeError e) {
+                    throw new SyntaxError(e,t.pos);
+                }
+                if(typeStack.pop().type != Type.TYPE){
+                    throw new RuntimeException("type stack out of sync with token list");
+                }
+                ((StructContext)context).fields.add(new StructField(identifier.name, type));
             }
         }
     }

@@ -4,7 +4,7 @@ core #namespace
 valueIO #include
 
 uintToBytes public proc( uint => byte list ){
-  uint mut val =:
+  uint val mut =:
   8 byte mut list new rawData =::
   0 i =::
   while{ i 8 < do
@@ -22,10 +22,10 @@ uintFromBytes public proc( byte list => uint ){
     "too much bytes from convert to int:" puts rawData .length print " maximum: 8\n" puts
     1 exit
   }
-  0 uint mut val =:
+  0 uint val mut =:
   rawData .length 0 > if{
-    0 uint mut shift =:
-    0 uint mut i =:
+    0 uint shift mut =:
+    0 uint i mut =:
     while{ i rawData .length < do
       val rawData i [] uint cast shift << | val =
       shift 8 + shift =

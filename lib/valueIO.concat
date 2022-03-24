@@ -67,7 +67,7 @@ utf8 #include
       value type cast .name <<* return ## return tuple-name
     else value type cast .isProc if
       "( " <<* res =::
-      value type cast .inTypes type list mut args =:
+      value type cast .inTypes type list args mut =:
       0 i =::
       while{ i args .length < do
         res args i [] <<s " " <<* res =
@@ -156,7 +156,7 @@ byteListToString public proc( byte list => mut-string ){
   byte list bytes =:
   bytes .length 6 * mut-string new res =::
   res "[" <<* res =
-  0 int mut i =:
+  0 int i mut =:
   while{ i bytes .length < do
     i 0 > if{
       res ", " <<* res =
@@ -200,8 +200,8 @@ FormatValue struct{ Format extend
 IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime checks for correct types
   var list values =:
   FormatValue format =:
-  format .flags IO_FLAG_ALIGN_LEFT & 0 != bool mut alignLeft =:
-  format .w_ptr if{ values format .w [] int cast else format .w } int mut width =:
+  format .flags IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft mut =:
+  format .w_ptr if{ values format .w [] int cast else format .w } int width mut =:
   width 0 < if{ ##negative precision => alignment on left side
     alignLeft ! alignLeft =
     width -_ width =
@@ -212,7 +212,7 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
       1 exit
   }
   format .b_ptr if{ values format .b  [] int cast else format .b  } #+base+# dup 0 == if{ drop 10 } int base =:
-  '\0' byte mut plusSgn =:
+  '\0' byte plusSgn mut =:
   format .flags IO_FLAG_SGN & 0 != if{
     '+' plusSgn =
   else format .flags IO_FLAG_SGN_SPACE & 0 != if
@@ -349,7 +349,7 @@ IO_printValue proc( FormatValue var list => mut-string ){ ## addLater runtime ch
 isFormatChar proc( #+char+# byte => bool ){
   byte c =:
   "bBiIuUdxXfFeEcsS%" string formats =:
-  0 int mut i =:
+  0 int i mut =:
   while{ i formats .length < do
     formats i [] c == if{
       true return
@@ -364,12 +364,12 @@ sprintf public proc( #+args+# var list #+format+# string => mut-string ){
   var list args =:
 
   format .length 4 / Format mut list new parts =::
-  0 int mut i0 =:
-  0 int mut i  =:
+  0 int i0 mut =:
+  0 int i mut =:
   format .length int n  =:
-   0 int mut count =:
-  -1 int mut maxFormat =:
-  0 byte mut tmpC =:
+   0 int count mut =:
+  -1 int maxFormat mut =:
+  0 byte tmpC mut =:
   0 mut-string new tmp =::
   while{ i0 n < do
     i0 i =
@@ -402,15 +402,15 @@ sprintf public proc( #+args+# var list #+format+# string => mut-string ){
         }
         parts   false "%" FormatString new   << parts =
       else
-        count int  mut index =:
+        count int  index mut =:
         count 1 +  count =
-        0     int  mut flags =:
-        0     int  mut w     =:
-        false bool mut w_ptr =:
-        0     int  mut p     =:
-        false bool mut p_ptr =:
-        0     int  mut b     =:
-        false bool mut b_ptr =:
+        0     int  flags mut =:
+        0     int  w     mut =:
+        false bool w_ptr mut =:
+        0     int  p     mut =:
+        false bool p_ptr mut =:
+        0     int  b     mut =:
+        false bool b_ptr mut =:
         0 i =
         tmp clear
         tmp _formatString .length ensureCap
@@ -428,7 +428,7 @@ sprintf public proc( #+args+# var list #+format+# string => mut-string ){
         ## '+'  The result will always include a sign
         ## ' '  The result will include a leading space for positive values
         ## '0'  The result will be zero-padded
-        0 int mut i1 =:
+        0 int i1 mut =:
         while{ i1 tmp .length < &&{ tmp i1 [] '0' == } do
           flags IO_FLAG_PAD_0 | flags =
           i1 1 + i1 =

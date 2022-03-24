@@ -279,7 +279,7 @@ reverse a string:
 reverse proc( string => string ){
   string toReverse =:
   ## store type and length of the list
-  toReverse .length string new string mut res =:
+  toReverse .length string new string res mut =:
   ## Iterate though the elements in reverse order
   toReverse _^ while{ <^ do
     res swap << res =
@@ -291,7 +291,7 @@ reverse proc( string => string ){
 
 Sum all elements of a list
 ```
-0 int mut tmp =: ## Initialize sum to 0
+0 int tmp mut =: ## Initialize sum to 0
 ## Iterate though all elements of the list
 ^_ for{
  tmp swap + tmp =
@@ -546,7 +546,7 @@ placed directly after the corresponding variable
 
 Examples:
 ```Python
-1 int mut a =: #+ declare a as integer with value 1 +#
+1 int a mut =: #+ declare a as integer with value 1 +#
 42 a = #+ store 42 in a +#
 a println  #+ print the value of a +#
 2.718281828 float e =: #+ declare a constant with the name e+#

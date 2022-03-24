@@ -22,7 +22,7 @@ BufferedInput.readTo public proc( BufferedInput #+buffer+# byte mut list #+amoun
   buffer =::
   in =::
   in .buffer inBuf =::
-  0 int mut nRead =:
+  0 int nRead mut =:
   inBuf .length 0 > if{ ##read from buffer
     count inBuf .length < if{ count else inBuf .length } nRead =
     buffer inBuf 0 nRead [:] <<* drop

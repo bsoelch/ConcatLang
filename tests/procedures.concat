@@ -7,7 +7,7 @@ core #import
 
 sqrt proc( float => float ){
   dup float a =:
-  float mut x =:
+  float x mut =:
   while{ x x * a - 1E-16 > do
    a x / x + 2 / x =
   }

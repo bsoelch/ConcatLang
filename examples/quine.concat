@@ -2,12 +2,12 @@ quine :
 
 valueIO #include
 core #import
-0 int mut i =:
+0 int i mut =:
 "quine :
 
 valueIO #include
 core #import
-0 int mut i =:
+0 int i mut =:
 * string str =:
 while{ i str .length < do
  str i [] int cast 0x2a == if{

@@ -20,7 +20,7 @@ reverse proc( string => mut-string ){
 "Hello World" reverse debugPrint
 
 sum proc( A <?> A list => A ){
-  0 A mut tmp =: ## Initialize sum to 0
+  0 A tmp mut =: ## Initialize sum to 0
   ## Iterate though all elements of the list
   ^_ for{
     tmp swap + tmp =
