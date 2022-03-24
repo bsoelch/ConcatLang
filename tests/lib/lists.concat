@@ -4,7 +4,7 @@ core #namespace
 lists #include
 stack #include
 
-{ 1 2 3 4 } l =::
+4 int mut list new { 1 2 3 4 } <<* l =::
 l reverse
 l debugPrint
 
@@ -28,7 +28,7 @@ lenCmp proc( string string => int ){
   string b =:
   a .length b .length - int cast return
 }
-{ "sorting" "with" "comparator" "is" "now" "supported" } dup @lenCmp mergesort2 debugPrint
+6 string mut list new { "sorting" "with" "comparator" "is" "now" "supported" } <<* dup @lenCmp mergesort2 debugPrint
 
 "_________________________" debugPrint
 "map:\n" debugPrint

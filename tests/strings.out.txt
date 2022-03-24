@@ -3,13 +3,7 @@ Hello World
 240(0xf0)
 128187(💻)
 7
-ustring[3]:a°💻
 3
-string[7]:a°💻
-string[7]:a°💻
-string[7]:a°💻
-ustring[3]:a°💻
-ustring[3]:a°💻
 
 Stack:
 []

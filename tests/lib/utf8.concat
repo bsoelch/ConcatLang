@@ -3,14 +3,17 @@ tests/lib/utf8 :
 core #namespace
 utf8 #include
 
-{ "append codepoint" '!' << } debugPrint
+mut-s #define 16 mut-string new #end
+mut-u #define 16 mut-ustring new #end
+
+{ mut-s "append codepoint" <<* '!' << } debugPrint
 { "to ustring" codepoints } debugPrint
 { u"to string" codepointsToString } debugPrint
-{ u"append" " string"  <<* } debugPrint
-{ "append " u"ustring" <<* } debugPrint
-{ "prepend " u"string" *>> } debugPrint
-{ u"prepend" " ustring" *>> } debugPrint
-{ u'p' "prepend codepoint" >> } debugPrint
+{ mut-u u"append" <<* " string"  <<* } debugPrint
+{ mut-s "append " <<* u"ustring" <<* } debugPrint
+{ "prepend " mut-u u"string"  <<* *>> } debugPrint
+{ u"prepend" mut-s " ustring" <<* *>> } debugPrint
+{ u'p' mut-u "prepend codepoint" <<* >> } debugPrint
 { u'💻' codepointToString } debugPrint
 
 { "A°💻" 0 nextCodepoint } debugPrint

@@ -146,7 +146,7 @@ public abstract class Value {
     }
 
     public boolean isString(){
-        return Type.RAW_STRING().equals(type)||Type.UNICODE_STRING().equals(type);
+        return type.isRawString()||type.isUnicodeString();
     }
     public abstract String stringValue();
 
@@ -287,7 +287,7 @@ public abstract class Value {
         return new FloatValue(d);
     }
     //maximum powers such that base^-pow > 0
-    static final int[] maxSafePows = {0,0, 1074, 678, 537, 462, 415, 382, 358, 339, 323, 310, 299, 290, 282, 275, 268, 262, 257, 253,
+    static final int[] maxSafePowers = {0,0, 1074, 678, 537, 462, 415, 382, 358, 339, 323, 310, 299, 290, 282, 275, 268, 262, 257, 253,
             248, 244, 241, 237, 234, 231, 228, 226, 223, 221, 219, 216, 214, 213, 211, 209, 207, 206, 204, 203, 201, 200,
             199, 198, 196, 195, 194, 193, 192, 191, 190, 189, 188, 187, 186, 185, 185, 184, 183, 182, 181, 181, 180, 179, 179};
     public static double parseFloat(String str, int base) throws ConcatRuntimeError {
@@ -329,9 +329,9 @@ public abstract class Value {
         }
         //pow may underflow -> calculate power in steps to ensure that it will not underflow
         double res=(sgn?-val:val);
-        if(c>maxSafePows[base]){
-            res*=Math.pow(base,-maxSafePows[base]);
-            c-=maxSafePows[base];
+        if(c> maxSafePowers[base]){
+            res*=Math.pow(base,-maxSafePowers[base]);
+            c-= maxSafePowers[base];
         }
         return res*Math.pow(base,-c);
     }
@@ -401,14 +401,6 @@ public abstract class Value {
         private TypeValue(Type typeValue) {
             super(Type.TYPE);
             this.typeValue = typeValue;
-        }
-
-        @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if((typeValue instanceof Type.Enum||typeValue instanceof Type.Tuple)&&type==Type.RAW_STRING()){
-                return ofString(typeValue.name,false);
-            }
-            return super.castTo(type);
         }
 
         @Override
@@ -604,7 +596,7 @@ public abstract class Value {
         if(!listType.isList()){
             throw new IllegalArgumentException(listType+" is no valid list-type");
         }
-        if(listType==Type.RAW_STRING()){
+        if(listType.isRawString()){
             byte[] bytes=new byte[elements.size()];
             for(int i=0;i<elements.size();i++){
                 bytes[i]=elements.get(i).asByte();
@@ -620,7 +612,7 @@ public abstract class Value {
         }else if(initCap>Integer.MAX_VALUE){
             throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
         }
-        if(type==Type.RAW_STRING()){
+        if(type.isRawString()){
             return new ByteListImpl((int)initCap);
         }else{
             return new ListValue(type,new ArrayList<>((int) initCap));
@@ -696,12 +688,13 @@ public abstract class Value {
             }
             return elements.get((int)index);
         }
+        /**value is assumed to have the correct type*/
         @Override
         public void set(long index,Value value) throws ConcatRuntimeError {
             if(index<0||index>=elements.size()){
                 throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.size());
             }
-            elements.set((int)index,value.castTo(type.content()));
+            elements.set((int)index,value);
         }
         @Override
         public Value getSlice(long off, long to) throws ConcatRuntimeError {
@@ -711,22 +704,19 @@ public abstract class Value {
             return new ListSlice(this,(int)off,(int)to);
         }
 
+        /**value is assumed to have the correct type*/
         @Override
         public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
             if(off<0||to>elements.size()||off>to){
                 throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+elements.size());
             }
             List<Value> sublist=elements.subList((int)off,(int)to);
-            try {
-                Type content=type.content();
-                List<Value> add=value.getElements().stream().map(e->e.unsafeCastTo(content)).toList();
-                sublist.clear();
-                sublist.addAll(add);
-            }catch (WrappedConcatError e){
-                throw e.wrapped;
-            }
+            List<Value> add=value.getElements().stream().toList();
+            sublist.clear();
+            sublist.addAll(add);
         }
 
+        /**val is assumed to have the correct type*/
         @Override
         public void fill(Value val, long off, long count) throws ConcatRuntimeError {
             if(off<0){
@@ -738,7 +728,6 @@ public abstract class Value {
             if(off+count>Integer.MAX_VALUE){
                 throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
             }
-            val=val.castTo(type.content());
             elements.ensureCapacity((int)(off+count));
             int set=(int)Math.min(elements.size()-off,count);
             int add=(int)(count-set);
@@ -758,19 +747,21 @@ public abstract class Value {
             elements.ensureCapacity((int)newCap);
         }
 
+        /**value is assumed to have the correct type*/
         @Override
-        public void push(Value value, boolean start) throws ConcatRuntimeError {
+        public void push(Value value, boolean start){
             if(start){
-                elements.add(0,value.castTo(type.content()));
+                elements.add(0,value);
             }else{
-                elements.add(value.castTo(type.content()));
+                elements.add(value);
             }
         }
+        /**value is assumed to have the correct type*/
         @Override
         public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
             if(value.type.isList()){
                 try{
-                    List<Value> push=value.getElements().stream().map(v->v.unsafeCastTo(type.content())).toList();
+                    List<Value> push=value.getElements().stream().toList();
                     if(start){
                         elements.addAll(0,push);
                     }else{
@@ -803,7 +794,7 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            if(Type.CODEPOINT.equals(type.content())){
+            if(isString()){
                 StringBuilder str=new StringBuilder();
                 for(Value v:elements){
                     str.append(Character.toChars(((CodepointValue)v).getChar()));
@@ -967,11 +958,11 @@ public abstract class Value {
         }
 
         @Override
-        public void push(Value value, boolean start) throws ConcatRuntimeError {
+        public void push(Value value, boolean start) {
             if(start){
-                list.elements.add(off,value.castTo(type.content()));
+                list.elements.add(off,value);
             }else{
-                list.elements.add(to,value.castTo(type.content()));
+                list.elements.add(to,value);
             }
             to++;
         }
@@ -979,7 +970,7 @@ public abstract class Value {
         public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
             if(value.type.isList()){
                 try{
-                    List<Value> push=value.getElements().stream().map(v->v.unsafeCastTo(type.content())).toList();
+                    List<Value> push=value.getElements().stream().toList();
                     if(start){
                         list.elements.addAll(off,push);
                     }else{
@@ -1916,6 +1907,26 @@ public abstract class Value {
                 }
             });
         }
+        {//cloning an immutable lists creates a mutable copy
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a)},
+                    new Type[]{Type.listOf(Type.mutable(a))},"clone") {
+                @Override
+                Value[] callWith(Value[] values){
+                    return new Value[]{values[0].clone(false)};
+                }
+            });
+        }
+        {//cloning an immutable lists creates a mutable copy
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(Type.mutable(a))},
+                    new Type[]{Type.listOf(a)},"mut~") {
+                @Override
+                Value[] callWith(Value[] values){
+                    return new Value[]{values[0].clone(false)};
+                }
+            });
+        }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone!") {
@@ -2190,7 +2201,7 @@ public abstract class Value {
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT},
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(Type.mutable(a)),Type.UINT},
                     new Type[]{},"ensureCap") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
@@ -2201,8 +2212,8 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT,Type.UINT,a},
-                    new Type[]{},"fill") {
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},
+                    new Type[]{Type.listOf(Type.mutable(a)),Type.UINT,Type.UINT,a},new Type[]{},"fill") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off count val
@@ -2213,7 +2224,8 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a)},new Type[]{},"clear") {
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},
+                    new Type[]{Type.listOf(Type.mutable(a))},new Type[]{},"clear") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     values[0].clear();
@@ -2223,8 +2235,8 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),a},
-                    new Type[]{Type.listOf(a)},"<<") {
+            Type list = Type.listOf(Type.mutable(a));
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{list,a},new Type[]{list},"<<") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off count val
@@ -2235,8 +2247,8 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(a)},
-                    new Type[]{Type.listOf(a)},">>") {
+            Type list = Type.listOf(Type.mutable(a));
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,list},new Type[]{list},">>") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off count val
@@ -2247,8 +2259,9 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
-                    new Type[]{Type.listOf(a)},"<<*") {
+            Type mutList = Type.listOf(Type.mutable(a));
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{mutList,Type.listOf(Type.maybeMutable(a))},
+                    new Type[]{mutList},"<<*") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off count val
@@ -2259,8 +2272,9 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a)},
-                    new Type[]{Type.listOf(a)},"*>>") {
+            Type mutList = Type.listOf(Type.mutable(a));
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(Type.maybeMutable(a)),mutList},
+                    new Type[]{mutList},"*>>") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off count val
@@ -2271,7 +2285,7 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT},
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(Type.maybeMutable(a)),Type.UINT},
                     new Type[]{a},"[]") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
@@ -2291,7 +2305,7 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(a),Type.UINT},
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.listOf(Type.mutable(a)),Type.UINT},
                     new Type[]{},"[]=") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
@@ -2314,8 +2328,8 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.listOf(a),Type.UINT,Type.UINT},
-                    new Type[]{},"[:]=") {
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(Type.mutable(a)),
+                    Type.listOf(Type.maybeMutable(a)), Type.UINT,Type.UINT}, new Type[]{},"[:]=") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list val off to
@@ -2379,7 +2393,7 @@ public abstract class Value {
                 return ofInt((Long) jValue,type==Type.UINT);
             }else if(type==Type.FLOAT){
                 return ofFloat((Double)jValue);
-            }else if(type==Type.RAW_STRING()){
+            }else if(type.isRawString()){
                 Object[] parts=(Object[])jValue;
                 byte[] bytes=(byte[])parts[0];
                 int off  = (int)parts[1];
@@ -2416,7 +2430,7 @@ public abstract class Value {
             return double.class;
         }else if(t == Type.ANY){
             return Object.class;
-        }else if(t==Type.RAW_STRING()){
+        }else if(t.isRawString()){
             return Object[].class;//bytes,off,len,init
         }else if(t.isOptional()){
             jClass(t.content());//check content Type
@@ -2493,7 +2507,7 @@ public abstract class Value {
         Value[] callWith(Value[] values) throws ConcatRuntimeError {
             Object[] nativeArgs=new Object[values.length];
             for(int i=0;i<values.length;i++){
-                nativeArgs[i]=values[i].castTo( ((Type.Procedure)type).inTypes[i]).rawData();
+                nativeArgs[i]=values[i].rawData();
             }
             try {
                 Object res=nativeMethod.invoke(null,nativeArgs);
@@ -2516,7 +2530,7 @@ public abstract class Value {
         }
         @Override
         public String stringValue() {
-            return name +(isPublic?"public ":"")+" native proc ";
+            return name+(isPublic?" public ":"")+" native proc ";
         }
 
         @Override

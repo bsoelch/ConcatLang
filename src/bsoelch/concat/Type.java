@@ -47,31 +47,44 @@ public class Type {
         return WrapperType.BYTES;
     }
 
-    public static Type commonSuperType(Type a, Type b,boolean strict) {
-        if(a instanceof OverloadedProcedurePointer||b instanceof OverloadedProcedurePointer) {
-            if(a.equals(b)) {
-                return a;
-            }else{
-                throw new UnsupportedOperationException("merging different overloaded procedure pointer is not implemented");
-            }
-        }
-        if(a==ANY||b==null){
-            return a;
-        }else if(a==null||b==ANY){
-            return b;
+
+    public static Optional<Type> commonSuperType(Type a, Type b,boolean strict) {
+        if(a==b||b==null){
+            return Optional.of(a);
+        }else if(a==null){
+            return Optional.of(b);
         }else {
             if(a.canAssignTo(b)){
-                return b;
+                return Optional.of(b);
             }else if(b.canAssignTo(a)){
-                return a;
+                return Optional.of(a);
             }else if((!strict)&&((a==UINT||a==INT)&&(b==UINT||b==INT))){//TODO better handling of implicit casting of numbers
-                return a==b?a:UnionType.create(new Type[]{a,b});
+                return Optional.of(UnionType.create(new Type[]{a,b}));
             }else if((!strict)&&((a==FLOAT&&(b==UINT||b==INT))||(b==FLOAT&&(a==UINT||a==INT)))){
-                return FLOAT;
-            }else{
-                return ANY;
+                return Optional.of(FLOAT);
+            }else if((!strict)&&a.canAssignTo(ANY)&&b.canAssignTo(ANY)){
+                return Optional.of(ANY);
+            }else if(a.isList()&&b.isList()){
+                Type a1=a.content(),b1=b.content();
+                if((a1.isMutable()||a1.isMaybeMutable())&&!b1.isMutable()&&(a1.content().equals(b1))){
+                    return Optional.of(Type.listOf(Type.maybeMutable(b1)));
+                }else if((b1.isMutable()||b1.isMaybeMutable())&&!a1.isMutable()&&(b1.content().equals(a1))){
+                    return Optional.of(Type.listOf(Type.maybeMutable(a1)));
+                }else if((a1.isMutable()&&b1.isMaybeMutable())||(b1.isMutable()&&a1.isMaybeMutable())
+                        &&(a1.content().equals(b1.content()))){
+                    return Optional.of(Type.listOf(Type.maybeMutable(a1.content())));
+                }
             }
+            //TODO allow merging to a common non-var supertype
+            return Optional.empty();
         }
+    }
+    public static Type commonSuperTypeThrow(Type a, Type b,boolean strict) {
+        Optional<Type> opt=commonSuperType(a, b, strict);
+        if(opt.isEmpty()){
+            throw new WrappedConcatError(new TypeError("Cannot merge types "+a+" and "+b));
+        }
+        return opt.get();
     }
 
     static class BoundMaps{
@@ -127,7 +140,11 @@ public class Type {
                 if(bound.min==null||bound.min.canAssignTo(this,bounds.swapped())) {
                     bound=new GenericBound(this,bound.max);
                 }else if(!canAssignTo(bound.min,bounds)){ //addLater use bounds in commonSuperType
-                    bound=new GenericBound(commonSuperType(this, bound.min, false),bound.max);
+                    Optional<Type> newMin=commonSuperType(this, bound.min, false);
+                    if(newMin.isEmpty()) {
+                        return false;
+                    }
+                    bound = new GenericBound(newMin.get(), bound.max);
                 }
             }else{
                 bound=new GenericBound(this,null);
@@ -140,6 +157,8 @@ public class Type {
                     return true;
                 }
             }
+        }else if(t instanceof WrapperType&&((WrapperType) t).wrapperName.equals(WrapperType.MAYBE_MUTABLE)){
+            return canAssignTo(t.content(),bounds);
         }
         return equals(t)||t==ANY;
     }
@@ -160,6 +179,9 @@ public class Type {
         return this;
     }
 
+    public int depth() {
+        return 0;
+    }
     public boolean isList() {
         return false;
     }
@@ -167,6 +189,15 @@ public class Type {
         return false;
     }
     public boolean isMutable() {
+        return false;
+    }
+    public boolean isMaybeMutable() {
+        return false;
+    }
+    public boolean isRawString(){
+        return false;
+    }
+    public boolean isUnicodeString(){
         return false;
     }
     public Type content() {//addLater make type-data getters return optional
@@ -193,6 +224,13 @@ public class Type {
             return WrapperType.create(WrapperType.MUTABLE,contentType);
         }
     }
+    public static Type maybeMutable(Type contentType){
+        if(contentType instanceof WrapperType&&((WrapperType) contentType).wrapperName.equals(WrapperType.MAYBE_MUTABLE)){
+            return contentType;
+        }else{
+            return WrapperType.create(WrapperType.MAYBE_MUTABLE,contentType);
+        }
+    }
     public static Type listOf(Type contentType){
         return WrapperType.create(WrapperType.LIST,contentType);
     }
@@ -205,6 +243,7 @@ public class Type {
         static final String LIST = "list";
         static final String OPTIONAL = "optional";
         static final String MUTABLE = "mut";
+        static final String MAYBE_MUTABLE = "mut?";
 
         static final WrapperType BYTES= new WrapperType(LIST,Type.BYTE);
         static final WrapperType UNICODE_STRING= new WrapperType(LIST,Type.CODEPOINT);
@@ -219,6 +258,10 @@ public class Type {
                 } else if (contentType == BYTE) {
                     return BYTES;
                 }
+            }else if(wrapperName.equals(MUTABLE)&&contentType.isMutable()){
+                return (WrapperType) contentType;
+            }else if(wrapperName.equals(MAYBE_MUTABLE)&&contentType.isMaybeMutable()){
+                return (WrapperType) contentType;
             }
             //addLater? caching
             return new WrapperType(wrapperName,contentType);
@@ -237,12 +280,28 @@ public class Type {
         }
 
         @Override
+        public int depth() {
+            return content().depth()+1;
+        }
+        @Override
         public boolean isMutable() {
             return wrapperName.equals(MUTABLE);
         }
         @Override
+        public boolean isMaybeMutable() {
+            return wrapperName.equals(MAYBE_MUTABLE);
+        }
+        @Override
         public boolean isList() {
             return wrapperName.equals(LIST);
+        }
+        @Override
+        public boolean isRawString() {
+            return contentType==BYTE||contentType.equals(mutable(BYTE))||contentType.equals(maybeMutable(BYTE));
+        }
+        @Override
+        public boolean isUnicodeString() {
+            return contentType==CODEPOINT||contentType.equals(mutable(CODEPOINT))||contentType.equals(maybeMutable(CODEPOINT));
         }
         @Override
         public boolean isOptional() {
@@ -252,13 +311,14 @@ public class Type {
         @Override
         public boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                if((wrapperName.equals(LIST)||//remove list once mutability is correctly implemented for containers
-                        wrapperName.equals(MUTABLE))&&!t.content().canAssignTo(content(),bounds.swapped())){
+                if(wrapperName.equals(MUTABLE)&&!t.content().canAssignTo(content(),bounds.swapped())){
                     return false;//mutable values cannot be assigned to mutable values of a different type
                 }
                 return content().canAssignTo(t.content(),bounds);
+            }else if(t instanceof WrapperType&&wrapperName.equals(MUTABLE)&&((WrapperType)t).wrapperName.equals(MAYBE_MUTABLE)){
+                return content().canAssignTo(t.content(),bounds);
             }else{
-                return super.canAssignTo(t,bounds);
+                return (t!=ANY||!wrapperName.equals(MUTABLE))&&super.canAssignTo(t,bounds);
             }
         }
 
@@ -365,6 +425,15 @@ public class Type {
         @Override
         public String typeName() {
             return name;
+        }
+
+        @Override
+        public int depth() {
+            int d=0;
+            for(Type t:elements){
+                d=Math.max(d,t.depth());
+            }
+            return d+1;
         }
 
         Tuple replaceGenerics(IdentityHashMap<GenericParameter,Type> generics, BiFunction<Type[],Type[],Tuple> create){
@@ -608,6 +677,18 @@ public class Type {
         }
 
         @Override
+        public int depth() {
+            int d=0;
+            for(Type t:inTypes){
+                d=Math.max(d,t.depth());
+            }
+            for(Type t:outTypes){
+                d=Math.max(d,t.depth());
+            }
+            return d+1;
+        }
+
+        @Override
         Procedure replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             Type[] newIns=new Type[inTypes.length];
             boolean changed=false;
@@ -674,7 +755,7 @@ public class Type {
         }
     }
 
-    public static class GenericProcedureType extends Procedure {
+    public static class GenericProcedureType extends Procedure {//addLater? merge with Procedure
         final GenericParameter[] explicitGenerics;
         final GenericParameter[] implicitGenerics;
         final Type[] genericArgs;
@@ -763,26 +844,10 @@ public class Type {
         }
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
-            if(t instanceof GenericProcedureType) {
-                if (((GenericProcedureType) t).explicitGenerics.length != explicitGenerics.length)
-                    return false;
-                for (int i = 0; i < genericArgs.length; i++) {//map generic parameters to their equivalents
-                    if (!genericArgs[i].canAssignTo(((GenericProcedureType) t).genericArgs[i], bounds))
-                        return false;
-                }
-            }
             return super.canAssignTo(t, bounds);
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
-            if(t instanceof GenericProcedureType){
-                if(((GenericProcedureType) t).explicitGenerics.length!= explicitGenerics.length)
-                    return false;
-                for(int i = 0; i< genericArgs.length; i++){//map generic parameters to their equivalents
-                    if(!genericArgs[i].canAssignTo(((GenericProcedureType) t).genericArgs[i],bounds))
-                        return false;
-                }
-            }
             return super.canCastTo(t, bounds);
         }
     }
@@ -925,7 +990,11 @@ public class Type {
                         }else{
                             return false;
                         }
-                        GenericBound commonBounds=new GenericBound(commonSuperType(mBound.min,tBound.min,false),newMax);
+                        Optional<Type> newMin = commonSuperType(mBound.min, tBound.min, false);
+                        if(newMin.isEmpty()){
+                            return false;
+                        }
+                        GenericBound commonBounds=new GenericBound(newMin.get(),newMax);
                         bounds.r.put((GenericParameter) t,commonBounds);
                         bounds.r.put((GenericParameter) t,commonBounds);
                     }
@@ -1010,6 +1079,14 @@ public class Type {
             this.elements = elements;
         }
 
+        @Override
+        public int depth() {
+            int d = 0;
+            for(Type t : elements){
+                d = Math.max(d, t.depth());
+            }
+            return d+1;
+        }
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             if(!(t instanceof UnionType)||((UnionType) t).elements.length!=elements.length){

@@ -45,7 +45,7 @@ HashMapEntry struct{ K <> V <> K V MapEntry extend
 }
 
 HashMap public struct{ K <> V <>
-  K V HashMapEntry optional list :data  ## addLater? (automatically) adjust capacity if size gets to large
+  K V HashMapEntry optional mut list :data  ## addLater? (automatically) adjust capacity if size gets to large
   int mut :size
 }
 HashMap.incSize proc( K <?> V <?> K V HashMap => ){ dup .size 1 + swap .size = }
@@ -53,7 +53,7 @@ HashMap.decSize proc( K <?> V <?> K V HashMap => ){ dup .size 1 - swap .size = }
 
 newHashMap public proc( #+keyType+# K <> #+valType+# V <> #+cap+# int => K V HashMap ){
   int cap =:
-  cap K V HashMapEntry optional list new K V HashMapEntry optional list data =:
+  cap K V HashMapEntry optional mut list new data =::
   data 0 cap K V HashMapEntry empty fill
   data 0 K V HashMap new
 }

@@ -50,6 +50,10 @@ strings:
 
 Stack:
 []
+types:
+
+Stack:
+[]
 utf8:
 
 Stack:

@@ -6,22 +6,22 @@ io #include
 io #namespace
 
 BufferedInput public struct{
-  FILE      :file
-  byte list :buffer
-  int       :cap
+  FILE          :file
+  byte mut list :buffer
+  int           :cap
 }
 
 newBufferedInput public proc( FILE #+ cap +# int => BufferedInput ){
     int cap =:
     FILE file =:
-    file cap byte list new cap BufferedInput new return
+    file cap byte mut list new cap BufferedInput new return
 }
 
-BufferedInput.readTo public proc( BufferedInput #+buffer+# byte list #+amount+# int => #+n-read+#int ){
-  int mut count =:
-  byte list buffer =:
-  BufferedInput in =:
-  in .buffer byte list inBuf =:
+BufferedInput.readTo public proc( BufferedInput #+buffer+# byte mut list #+amount+# uint => #+n-read+#int ){
+  count =::
+  buffer =::
+  in =::
+  in .buffer inBuf =::
   0 int mut nRead =:
   inBuf .length 0 > if{ ##read from buffer
     count inBuf .length < if{ count else inBuf .length } nRead =
@@ -47,7 +47,7 @@ BufferedInput.readTo public proc( BufferedInput #+buffer+# byte list #+amount+# 
 
 BufferedInput.nextByte public proc( BufferedInput => byte optional ){
   BufferedInput in =:
-  in .buffer byte list inBuf =:
+  in .buffer inBuf =::
   inBuf .length 0 == if{
     in .file inBuf 0 in .cap read int res =:
     res 0 <= if{

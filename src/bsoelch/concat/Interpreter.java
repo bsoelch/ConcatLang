@@ -31,7 +31,7 @@ public class Interpreter {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
-        MARK_MUTABLE,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,//compile time operations
+        MARK_MUTABLE,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL, MARK_MAYBE_MUTABLE,//compile time operations
         NOP,OVERLOADED_PROC_PTR
     }
 
@@ -1650,6 +1650,8 @@ public class Interpreter {
             if(c==':'){
                 fileId=reader.buffer.toString().trim();
                 break;
+            }else if(c=='\n'||c=='\r'){
+                break;//invalid fileId
             }else{
                 reader.buffer.append((char) c);
             }
@@ -2353,7 +2355,8 @@ public class Interpreter {
                 case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
 
-                case "mut"        -> tokens.add(new Token(TokenType.MARK_MUTABLE,    pos));
+                case "mut"        -> tokens.add(new Token(TokenType.MARK_MUTABLE,       pos));
+                case "mut?"       -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
                 case "array"      ->
                         throw new SyntaxError("fixed size array type is currently not implemented",pos);
                 case "memory"      ->
@@ -2630,8 +2633,11 @@ public class Interpreter {
             TypeFrame t1= main.get(p);
             TypeFrame t2= branch.get(p);
             if((!t1.equals(t2))){
-                //TODO? warning when incompatible types (i.e. string and int) are merged
-                main.set(p,new TypeFrame(Type.commonSuperType(t1.type,t2.type,true),null,t1.pushedAt));
+                Optional<Type> merged = Type.commonSuperType(t1.type, t2.type, true);
+                if(merged.isEmpty()){
+                    throw new SyntaxError("Cannot merge "+t1.type+" and "+t2.type,endMain);
+                }
+                main.set(p,new TypeFrame(merged.get(),null,t1.pushedAt));
                 //addLater? better position reporting for merged positions
             }
         }
@@ -2882,7 +2888,11 @@ public class Interpreter {
                                 case CONST_LIST -> {
                                     Type type = null;
                                     for (TypeFrame f : typeStack) {
-                                        type = Type.commonSuperType(type, f.type, true);
+                                        Optional<Type> merged = Type.commonSuperType(type, f.type, false);
+                                        if(merged.isEmpty()){
+                                            throw new SyntaxError("cannot merge types "+type+" and "+f.type,t.pos);
+                                        }
+                                        type = merged.get();
                                     }
                                     if (type == null) {
                                         type = Type.ANY;
@@ -3133,27 +3143,55 @@ public class Interpreter {
                 case MARK_MUTABLE -> {//TODO? merge code for type modifiers
                     TypeFrame f = typeStack.pop();
                     String name="mut";
-                    if(f.type!=Type.TYPE) {
-                        throw new SyntaxError("invalid argument-type for '" + name + "':" + f.type +
-                                " argument has to be a constant type", t.pos);
-                    }else if(f.value!=null){
-                        f=new TypeFrame(Type.TYPE,Value.ofType(Type.mutable(f.value.asType())),t.pos);
-                    }else{
-                        throw new SyntaxError("argument of '"+name+"' has to be a constant type",t.pos);
-                    }
-                    typeStack.push(f);
+                    if(f.type==Type.TYPE) {
+                        if (f.value == null) {
+                            throw new SyntaxError("type argument of '"+name+"' has to be a constant",t.pos);
+                        }
+                        f = new TypeFrame(Type.TYPE, Value.ofType(Type.mutable(f.value.asType())), t.pos);
+                        typeStack.push(f);
 
-                    if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
-                        try {
-                            ret.set(ret.size()-1,
-                                    new ValueToken(Value.ofType(
-                                            Type.mutable(((ValueToken)prev).value.asType())),
-                                            t.pos, false));
-                        } catch (ConcatRuntimeError e) {
-                            throw new SyntaxError(e, t.pos);
+                        if (ret.size() > 0 && (prev = ret.get(ret.size() - 1)) instanceof ValueToken) {
+                            try {
+                                ret.set(ret.size() - 1,
+                                        new ValueToken(Value.ofType(
+                                                Type.mutable(((ValueToken) prev).value.asType())),
+                                                t.pos, false));
+                            } catch (ConcatRuntimeError e) {
+                                throw new SyntaxError(e, t.pos);
+                            }
+                        } else {
+                            throw new SyntaxError("token before of '" + name + "' has to be a constant type", t.pos);
                         }
                     }else{
-                        throw new SyntaxError("token before of '"+name+"' has to be a constant type",t.pos);
+                        throw new SyntaxError("invalid argument-type for '" + name + "':" + f.type +
+                                " argument has to be a constant type", t.pos);
+                    }
+                }
+                case MARK_MAYBE_MUTABLE -> {
+                    TypeFrame f = typeStack.pop();
+                    String name="mut?";
+                    if(f.type==Type.TYPE) {
+                        if (f.value == null) {
+                            throw new SyntaxError("type argument of '"+name+"' has to be a constant",t.pos);
+                        }
+                        f = new TypeFrame(Type.TYPE, Value.ofType(Type.maybeMutable(f.value.asType())), t.pos);
+                        typeStack.push(f);
+
+                        if (ret.size() > 0 && (prev = ret.get(ret.size() - 1)) instanceof ValueToken) {
+                            try {
+                                ret.set(ret.size() - 1,
+                                        new ValueToken(Value.ofType(
+                                                Type.maybeMutable(((ValueToken) prev).value.asType())),
+                                                t.pos, false));
+                            } catch (ConcatRuntimeError e) {
+                                throw new SyntaxError(e, t.pos);
+                            }
+                        } else {
+                            throw new SyntaxError("token before of '" + name + "' has to be a constant type", t.pos);
+                        }
+                    }else{
+                        throw new SyntaxError("invalid argument-type for '" + name + "':" + f.type +
+                                " argument has to be a constant type or a list", t.pos);
                     }
                 }
                 case LIST_OF -> {
@@ -3651,6 +3689,16 @@ public class Interpreter {
                                             f.value.asType() instanceof Type.UnionType ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IS_UNION, t.pos));
                                 }
+                                case "isMutable" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType().isMutable() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MUTABLE, t.pos));
+                                }
+                                case "isMaybeMutable" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType().isMaybeMutable() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MAYBE_MUTABLE, t.pos));
+                                }
                                 default -> hasField = false;
                             }
                         }else if(f.type.isOptional()){
@@ -3940,6 +3988,21 @@ public class Interpreter {
         }
         return c;
     };
+    private static final Comparator<CallMatch> compareByTypeArgs = (m1, m2) -> {
+        //type arguments with lower "depth" are better
+        int maxDepth1 = 0,maxDepth2=0;
+        for (Map.Entry<Type.GenericParameter, Type> e:m1.genericParams.entrySet()) {
+            if(e.getKey().isImplicit){
+                maxDepth1=Math.max(maxDepth1,e.getValue().depth());
+            }
+        }
+        for (Map.Entry<Type.GenericParameter, Type> e:m2.genericParams.entrySet()) {
+            if(e.getKey().isImplicit){
+                maxDepth2=Math.max(maxDepth2,e.getValue().depth());
+            }
+        }
+        return maxDepth1-maxDepth2;
+    };
 
     private CallMatch typeCheckOverloadedCall(String procName, OverloadedProcedure proc, Type[] ptrGenArgs,
                                               RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants,
@@ -4115,7 +4178,7 @@ public class Interpreter {
             throw new SyntaxError("no version of "+ proc.name+" matches the given arguments "+Arrays.toString(inTypes), pos);
         }else if(matchingCalls.size()>1){
             Comparator<CallMatch> matchSort= Comparator.comparingInt((CallMatch m) -> m.nCasts)
-                    .thenComparingInt(m -> m.nImplicit).thenComparing(compareBySignature);
+                    .thenComparingInt(m -> m.nImplicit).thenComparing(compareBySignature).thenComparing(compareByTypeArgs);
             matchingCalls.sort(matchSort);
             int i=1;
             while(i< matchingCalls.size()&&matchSort.compare(matchingCalls.get(0), matchingCalls.get(i))==0){
@@ -4142,7 +4205,7 @@ public class Interpreter {
                     throw new SyntaxError("unresolved overloaded procedure pointer in procedure signature: "+ inTypes[i], pos);
                 }
             }//no else
-            if(!inTypes[i].canAssignTo(match.type.inTypes[i])){
+            if(!inTypes[i].canAssignTo(match.type.inTypes[i],new Type.BoundMaps())){
                 tokens.add(new ArgCastToken(inTypes.length-i+(isPtr ?1:0), match.type.inTypes[i], pos));
             }
         }
@@ -4152,24 +4215,6 @@ public class Interpreter {
         }
     }
 
-
-    static class Variable{
-        final Type type;
-        private Value value;
-
-        Variable(Type type, Value value) throws ConcatRuntimeError {
-            this.type = type;
-            setValue(value);
-        }
-
-        public Value getValue() {
-            return value;
-        }
-
-        public void setValue(Value newValue) throws ConcatRuntimeError {
-            value=newValue.castTo(type);
-        }
-    }
 
     enum ExitType{
         NORMAL,FORCED,ERROR
@@ -4281,6 +4326,14 @@ public class Interpreter {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.GenericParameter?Value.TRUE:Value.FALSE);
             }
+            case IS_MUTABLE -> {
+                Type type = stack.pop().asType();
+                stack.push(type.isMutable()?Value.TRUE:Value.FALSE);
+            }
+            case IS_MAYBE_MUTABLE -> {
+                Type type = stack.pop().asType();
+                stack.push(type.isMaybeMutable()?Value.TRUE:Value.FALSE);
+            }
             case HAS_VALUE -> {
                 Value value= stack.pop();
                 stack.push(value.hasValue()?Value.TRUE:Value.FALSE);
@@ -4288,11 +4341,11 @@ public class Interpreter {
         }
     }
 
-    private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,ArrayList<Variable[]> globalVariables,
-                                  ArrayList<Variable[]> variables,Value[] curried, IOContext context){
+    private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,ArrayList<Value[]> globalVariables,
+                                  ArrayList<Value[]> variables,Value[] curried, IOContext context){
         if(variables==null){
             variables=new ArrayList<>();
-            variables.add(new Variable[program.context().varCount()]);
+            variables.add(new Value[program.context().varCount()]);
         }
         int ip=0;
         ArrayList<Token> tokens=program.tokens();
@@ -4320,7 +4373,7 @@ public class Interpreter {
                             if(id instanceof CurriedVariable){
                                 curried2[i]=curried[id.id];
                             }else{
-                                curried2[i]=variables.get(id.level)[id.id].value;
+                                curried2[i]=variables.get(id.level)[id.id];
                             }
                         }
                         stack.push(proc.withCurried(curried2));
@@ -4340,7 +4393,13 @@ public class Interpreter {
                             return res;
                         }
                         ArrayList<Value> values=new ArrayList<>(listStack.asList());
-                        Type type=values.stream().map(v->v.type).reduce(null, (a,b)->Type.commonSuperType(a,b,false));
+                        Type type;
+                        try {
+                            type = values.stream().map(v -> v.type).reduce(null,
+                                    (a, b) -> Type.commonSuperTypeThrow(a, b, false));
+                        }catch (WrappedConcatError e){
+                            throw e.wrapped;
+                        }
                         for(int i=0;i< values.size();i++){
                             values.set(i,values.get(i).castTo(type));
                         }
@@ -4396,10 +4455,10 @@ public class Interpreter {
                                 switch (asVar.variableType){
                                     case GLOBAL ->
                                             stack.push((globalVariables==null?variables:globalVariables)
-                                                    .get(asVar.id.level)[asVar.id.id].value);
+                                                    .get(asVar.id.level)[asVar.id.id]);
                                     case LOCAL -> {
                                         if (globalVariables != null) {
-                                            stack.push(variables.get(asVar.id.level)[asVar.id.id].value);
+                                            stack.push(variables.get(asVar.id.level)[asVar.id.id]);
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
@@ -4413,10 +4472,10 @@ public class Interpreter {
                                 switch (asVar.variableType){
                                     case GLOBAL ->
                                             (globalVariables==null?variables:globalVariables).get(asVar.id.level)
-                                                    [asVar.id.id].setValue(newValue);
+                                                    [asVar.id.id]=newValue;
                                     case LOCAL ->{
                                         if (globalVariables != null) {
-                                            variables.get(asVar.id.level)[asVar.id.id].setValue(newValue);
+                                            variables.get(asVar.id.level)[asVar.id.id]=newValue;
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
@@ -4427,18 +4486,15 @@ public class Interpreter {
                             }
                             case DECLARE -> {
                                 Type type= asVar.id.type;
-                                if(type == null){
-                                    type = stack.pop().asType();
-                                }
+                                assert type != null;
                                 Value initValue=stack.pop();
                                 switch (asVar.variableType){
                                     case GLOBAL ->
                                             (globalVariables==null?variables:globalVariables).get(asVar.id.level)
-                                                    [asVar.id.id] = new Variable(type, initValue);
+                                                    [asVar.id.id] = initValue;
                                     case LOCAL ->{
                                         if (globalVariables != null) {
-                                            variables.get(asVar.id.level)[asVar.id.id]
-                                                    = new Variable(type, initValue);
+                                            variables.get(asVar.id.level)[asVar.id.id]= initValue;
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
@@ -4463,12 +4519,12 @@ public class Interpreter {
                         context.stdErr.println("unresolved overloaded procedure pointer: "+next.pos);
                         return ExitType.ERROR;
                     }
-                    case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,MARK_MUTABLE ->
+                    case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,MARK_MUTABLE,MARK_MAYBE_MUTABLE ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN -> {
                         assert next instanceof ContextOpen;
-                        variables.add(new Variable[((ContextOpen) next).context.varCount()]);
+                        variables.add(new Value[((ContextOpen) next).context.varCount()]);
                     }
                     case CONTEXT_CLOSE -> {
                         if(variables.size()<=1){

@@ -11,5 +11,6 @@ numbers:
 range:
 stack:
 strings:
+types:
 utf8:
 valueIO:

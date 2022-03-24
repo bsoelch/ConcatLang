@@ -12,6 +12,7 @@ numbers #include
 range #include
 stack #include
 strings #include
+types #include
 utf8 #include
 valueIO #include
 main public proc( => ){ }

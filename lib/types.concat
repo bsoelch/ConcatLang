@@ -1,0 +1,10 @@
+lib/types :
+
+core #namespace
+
+  byte      mut list type mut-string  public =:
+  codepoint mut list type mut-ustring public =:
+  mut?-string  public #define byte      mut? list #end
+  mut?-ustring public #define codepoint mut? list #end
+
+#end

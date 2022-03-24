@@ -7,7 +7,7 @@ core #import
   "unable to open file " eputs 1 exit
 }
 io .FILE file =:
-64 byte list new IO_Buff =::
+64 byte mut list new IO_Buff =::
 file io .size      debugPrint
 file IO_Buff 0 64 io .read int n =:
 n 0 > if{
@@ -26,3 +26,8 @@ n 0 > if{
 
 ##TODO? prepare fixed input to read in this file
 io .stdIn io .pos debugPrint
+
+false if{ ##ignore mutable puts and eputs (they should be merged with the immutable versions)
+  IO_Buff puts
+  IO_Buff eputs
+}

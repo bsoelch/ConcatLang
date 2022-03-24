@@ -4,7 +4,7 @@ import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Test {
+public class Test {//TODO add a new test for array access operations
 
     public static void main(String[] args) throws IOException {
         //TODO add tests for all internal procedures

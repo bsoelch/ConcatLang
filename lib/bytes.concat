@@ -5,14 +5,15 @@ valueIO #include
 
 uintToBytes public proc( uint => byte list ){
   uint mut val =:
-  8 byte list new byte list mut rawData =:
-  0 uint mut i =:
+  8 byte mut list new rawData =::
+  0 i =::
   while{ i 8 < do
     rawData val 0xff & byte cast << rawData =
     val 8 >> val =
     i 1 + i =
   }
-  rawData
+  ##there is cuurently not better way to obtain an immutable copy of a mutable list
+  { rawData 0 [] rawData 1 [] rawData 2 [] rawData 3 [] rawData 4 [] rawData 5 [] rawData 6 [] rawData 7 [] } return
 }
 
 uintFromBytes public proc( byte list => uint ){

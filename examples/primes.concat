@@ -3,6 +3,7 @@ primes :
 range #include
 valueIO #include
 stack #include
+types #include
 codeblocks #include
 core #import
 
@@ -12,13 +13,13 @@ printPrimes proc( int => ){
   nMax 2 < if{
     return
   }
-  "" 2 <<i ", " <<* puts
+  128 mut-string new 2 <<i ", " <<* buff =::
   ##primes > 2
   3 nMax [n:m] lambda( int ){ 2 % 0 != } filter for{ k =::
-    "" k <<i ", " <<* puts
+    buff k <<i ", " <<* buff =
     lambda( int ){ k % 0 != } filter ##filter out all multiples of k
   } drop
-  "\n" puts
+  buff '\n' << puts
 }
 
 100 printPrimes
