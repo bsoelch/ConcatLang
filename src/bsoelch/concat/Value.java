@@ -1468,7 +1468,15 @@ public abstract class Value {
         return new ArrayValue(type,content,(int)initCap);
     }
     //addLater ByteArray,  other primitive arrays?
-    private static class ArrayValue extends Value{
+    private interface ArrayLike{
+        Value[] elements();
+        int length();
+        Value get(long index) throws ConcatRuntimeError ;
+        void set(long index,Value value) throws ConcatRuntimeError ;
+        Value getSlice(long off, long to) throws ConcatRuntimeError;
+        void copyFrom(Value[] values,long offset) throws ConcatRuntimeError;
+    }
+    private static class ArrayValue extends Value implements ArrayLike{
         Value[] data;
         int offset;
         int length;
@@ -1490,7 +1498,12 @@ public abstract class Value {
         }
 
         @Override
-        public int length() throws TypeError {
+        public Value[] elements(){
+            return Arrays.copyOfRange(data,offset,offset+length);
+        }
+
+        @Override
+        public int length(){
             return length;
         }
 
@@ -1518,24 +1531,50 @@ public abstract class Value {
         }
 
         @Override
+        public void copyFrom(Value[] src, long offset) throws ConcatRuntimeError {
+            if(offset<-this.offset||offset+src.length>data.length){
+                throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+(-this.offset)
+                        +" and "+(data.length-src.length)+" to fit the array into the allocated region");
+            }//no else
+            if(length>0){//ensure there are no gaps in initialized memory
+                if(offset+src.length<0||offset>length){
+                    throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+(-src.length)
+                            +" and "+length+" to ensure a continuous section of initialized memory");
+                }
+            }
+            System.arraycopy(src,0,data,this.offset+(int)offset,src.length);
+            if(length==0){//set initial section of memory
+                this.offset=(int)offset;
+                this.length=src.length;
+            }else{
+                int prevOffset = this.offset;
+                this.offset=Math.min(prevOffset,this.offset+(int)offset);
+                this.length=Math.max(prevOffset+this.length,this.offset+(int)offset+src.length)-this.offset;
+            }
+        }
+
+        @Override
         public String stringValue() {
-            return Arrays.toString(Arrays.copyOfRange(data,offset,length));
+            return Arrays.toString(elements());
         }
     }
-    private static class ArraySlice extends Value{
+    private static class ArraySlice extends Value implements ArrayLike{
         final ArrayValue src;
         final int offset;
         final int length;
 
         protected ArraySlice(ArrayValue src, int offset, int length) {
-            super(src.type);//TODO slice of memory -> array
+            super(src.type.asArray());
             this.src=src;
             this.offset = offset;
             this.length = length;
         }
-
         @Override
-        public int length() throws TypeError {
+        public Value[] elements(){
+            return Arrays.copyOfRange(src.elements(),offset,offset+length);
+        }
+        @Override
+        public int length(){
             return length;
         }
 
@@ -1561,9 +1600,16 @@ public abstract class Value {
             return new ArraySlice(src,offset+(int)off,(int)(to-off));
         }
 
+        /**always throws an exception
+         * (only memory supports copy from)*/
+        @Override
+        public void copyFrom(Value[] values, long offset){
+            throw new UnsupportedOperationException("slices should not have the type memory");
+        }
+
         @Override
         public String stringValue() {
-            return Arrays.toString(Arrays.copyOfRange(src.data,src.offset+offset,length));
+            return Arrays.toString(elements());
         }
     }
 
@@ -2545,6 +2591,22 @@ public abstract class Value {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{values[0].hasValue()?FALSE:TRUE};
+                }
+            });
+        }
+
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
+                    Type.memoryOf(a).mutable(), Type.INT}, new Type[]{},"copy") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //src target off
+                    ArrayLike src=(ArrayLike)values[0];
+                    ArrayLike target=(ArrayLike)values[1];
+                    long off=values[2].asLong();
+                    target.copyFrom(src.elements(),off);
+                    return new Value[0];
                 }
             });
         }

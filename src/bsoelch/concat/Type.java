@@ -199,6 +199,9 @@ public class Type {
     public boolean isArray() {
         return false;
     }
+    public WrapperType asArray(){
+        throw new UnsupportedOperationException();
+    }
     public boolean isMemory() {
         return false;
     }
@@ -311,6 +314,10 @@ public class Type {
             return super.maybeMutable();
         }
 
+        @Override
+        public WrapperType asArray() {
+            return wrapperName.equals(ARRAY)?this:wrapperName.equals(MEMORY)?create(ARRAY,contentType,mutability):super.asArray();
+        }
 
         @Override
         public boolean isRawString() {
