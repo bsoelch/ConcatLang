@@ -3784,6 +3784,10 @@ public class Interpreter {
                 if(f.type instanceof Type.Struct struct){
                     Integer index= struct.indexByName.get(identifier.name);
                     if(index!=null){
+                        if(!struct.isMutable()){
+                            throw new SyntaxError("cannot write to field "+identifier.name+" of immutable struct "+
+                                    struct.baseName,t.pos);
+                        }
                         Type.StructField field = struct.fields[index];
                         if(field.mutable()){
                             typeCheckCast(val.type,2,struct.elements[index], ret,ioContext, t.pos);
@@ -3805,7 +3809,7 @@ public class Interpreter {
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
-                                throw new SyntaxError("field "+identifier.name+" of tuple "+ tuple.name+
+                                throw new SyntaxError("element at "+index+" in tuple "+ tuple.name+
                                         " (declared at "+tuple.declaredAt+") is not mutable",t.pos);
                             }
                         }

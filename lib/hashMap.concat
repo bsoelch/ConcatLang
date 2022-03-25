@@ -41,31 +41,31 @@ MapEntry public struct{ K <> V <>
 }
 
 HashMapEntry struct{ K <> V <> K V MapEntry extend
-  K V MapEntry optional :next mut ## use MapEntry instead of HashMapEntry because self-containing structs are not supported
+  K V MapEntry mut optional :next mut ## use MapEntry instead of HashMapEntry because self-containing structs are not supported
 }
 
 HashMap public struct{ K <> V <>
-  K V HashMapEntry optional list mut :data  ## addLater? (automatically) adjust capacity if size gets to large
+  K V HashMapEntry mut optional list mut :data  ## addLater? (automatically) adjust capacity if size gets to large
   int :size mut
 }
-HashMap.incSize proc( K <?> V <?> K V HashMap => ){ dup .size 1 + swap .size = }
-HashMap.decSize proc( K <?> V <?> K V HashMap => ){ dup .size 1 - swap .size = }
+HashMap.incSize proc( K <?> V <?> K V HashMap mut => ){ dup .size 1 + swap .size = }
+HashMap.decSize proc( K <?> V <?> K V HashMap mut => ){ dup .size 1 - swap .size = }
 
-newHashMap public proc( #+keyType+# K <> #+valType+# V <> #+cap+# int => K V HashMap ){
+newHashMap public proc( #+keyType+# K <> #+valType+# V <> #+cap+# int => K V HashMap mut ){
   int cap =:
-  cap K V HashMapEntry optional list mut new data =::
-  data 0 cap K V HashMapEntry empty fill
-  data 0 K V HashMap new
+  cap K V HashMapEntry mut optional list mut new data =::
+  data 0 cap K V HashMapEntry mut empty fill
+  data 0 K V HashMap mut new
 }
 
-HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap #+key+# K => #+prevVal+# V optional ){
+HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap mut #+key+# K => #+prevVal+# V optional ){
   K key =:
-  K V HashMap map =:
+  K V HashMap mut map =:
   V value =:
   key hashCode uint hash =:
   hash map .data .length % uint i =:
   map .data i [] if{
-    K V HashMapEntry entry mut =:
+    K V HashMapEntry mut entry mut =:
     while{ entry .next do
       entry .key key == if{ drop ##drop next
         ##replace does not change size
@@ -81,29 +81,29 @@ HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap #+key+# K =
       value entry .value =
       wrap return
     else
-      key value K V HashMapEntry empty K V HashMapEntry new wrap  entry .next =
+      key value K V HashMapEntry mut empty K V HashMapEntry mut new wrap  entry .next =
       map HashMap.incSize
       V empty return
     }
   else
-    key value K V HashMapEntry empty K V HashMapEntry new wrap   map .data i []=
+    key value K V HashMapEntry mut empty K V HashMapEntry mut new wrap   map .data i []=
     map HashMap.incSize
     V empty return
   }
 }
 
-[]= public proc( K <?> V <?> #+value+# V #+map+# K V HashMap #+key+# K => #+prevVal+# V optional ){
+[]= public proc( K <?> V <?> #+value+# V #+map+# K V HashMap mut #+key+# K => #+prevVal+# V optional ){
   HashMap.put return
 }
 
-HashMap.contains public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => bool ){
+HashMap.contains public proc( K <?> V <?> #+map+# K V HashMap mut? #+key+# K => bool ){
   K key =:
-  K V HashMap map =:
+  K V HashMap mut? map =:
   key hashCode uint hash =:
   hash map .data .length % uint i =:
-  map .data i [] K V HashMapEntry optional entry mut =:
+  map .data i [] K V HashMapEntry mut optional entry mut =:
   while{ entry do
-    K V HashMapEntry unwrapped =:
+    K V HashMapEntry mut unwrapped =:
     unwrapped .key key == if{
       true return
     }
@@ -112,14 +112,14 @@ HashMap.contains public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => bool 
   false return
 }
 
-HashMap.get public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# V optional ){
+HashMap.get public proc( K <?> V <?> #+map+# K V HashMap mut? #+key+# K => #+value+# V optional ){
   K key =:
-  K V HashMap map =:
+  K V HashMap mut? map =:
   key hashCode uint hash =:
   hash map .data .length % uint i =:
-  map .data i [] K V HashMapEntry optional entry mut =:
+  map .data i [] K V HashMapEntry mut optional entry mut =:
   while{ entry do
-    K V HashMapEntry unwrapped =:
+    K V HashMapEntry mut unwrapped =:
     unwrapped .key key == if{
       unwrapped .value wrap return
     }
@@ -127,25 +127,25 @@ HashMap.get public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# 
   }
   V empty return
 }
-[] public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+value+# V optional ){
+[] public proc( K <?> V <?> #+map+# K V HashMap mut? #+key+# K => #+value+# V optional ){
   HashMap.get return
 }
 
-HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevVal+# V optional ){
+HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap mut #+key+# K => #+prevVal+# V optional ){
   K key =:
-  K V HashMap map =:
+  K V HashMap mut map =:
   key hashCode uint hash =:
   hash map .data .length % uint i =:
   map .data i [] if{
-    K V HashMapEntry entry mut =:
+    K V HashMapEntry mut entry mut =:
     entry .key key == if{
       map HashMap.decSize
       entry .value ## get previous value
-      entry .next K V HashMapEntry optional cast  map .data i []= ## remove entry
+      entry .next K V HashMapEntry mut optional cast  map .data i []= ## remove entry
       wrap return
     else
       while{ entry .next do
-        K V HashMapEntry next =:
+        K V HashMapEntry mut next =:
         next .key key == if{
           map HashMap.decSize
           next .value ## get previous value
@@ -162,17 +162,17 @@ HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap #+key+# K => #+prevV
 }
 
 HashMapItr public struct{ K <> V <>
-  K V HashMap               :map
-  int                       :index mut
-  K V HashMapEntry optional :next  mut
+  K V HashMap mut?              :map
+  int                           :index mut
+  K V HashMapEntry mut optional :next  mut
 }
-HashMapItr.incI  proc( K <?> V <?> K V HashMapItr => ){ dup .index 1 + swap .index = }
+HashMapItr.incI  proc( K <?> V <?> K V HashMapItr mut => ){ dup .index 1 + swap .index = }
 
-^_ public proc( K <?> V <?> K V HashMap => K V HashMapItr ){
-  #+map+# -1 K V HashMapEntry empty K V HashMapItr new return
+^_ public proc( K <?> V <?> K V HashMap mut? => K V HashMapItr mut ){
+  #+map+# -1 K V HashMapEntry mut empty K V HashMapItr mut new return
 }
-^> public proc( K <?> V <?> K V HashMapItr => K V HashMapItr K V MapEntry optional ){
-  K V HashMapItr itr =:
+^> public proc( K <?> V <?> K V HashMapItr mut => K V HashMapItr mut K V MapEntry mut? optional ){
+  K V HashMapItr mut itr =:
   while{ itr .next ! do
     itr HashMapItr.incI
     itr .index itr .map .data .length >= if{
@@ -180,7 +180,7 @@ HashMapItr.incI  proc( K <?> V <?> K V HashMapItr => ){ dup .index 1 + swap .ind
     }
     itr .map .data itr .index []  itr .next =
   }
-  itr .next K V MapEntry optional res =:
+  itr .next K V MapEntry mut optional res =:
   itr .next if{
     .next itr .next =
   else unreachable }

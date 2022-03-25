@@ -7,18 +7,18 @@ Iterator public struct{ A <>
   int    :index mut
 }
 
-^_ public proc( A <?> A list => A Iterator ){
+^_ public proc( A <?> A list mut? => A Iterator mut ){
   A list elements =:
-  elements 0 A Iterator new
+  elements 0 A Iterator mut new
 }
 
-_^ public proc( A <?> A list => A Iterator ){
+_^ public proc( A <?> A list mut? => A Iterator mut ){
   A list elements =:
-  elements elements .length A Iterator new
+  elements elements .length A Iterator mut new
 }
 
-^> public proc( A <?> A Iterator => A Iterator A optional ){
-  A Iterator mItr =:
+^> public proc( A <?> A Iterator mut => A Iterator mut A optional ){
+  A Iterator mut mItr =:
   mItr
   mItr .index mItr .list .length < if{
     mItr .list mItr .index [] wrap ## push element
@@ -28,8 +28,8 @@ _^ public proc( A <?> A list => A Iterator ){
   }
 }
 
-<^ public proc( A <?> A Iterator => A Iterator A optional ){
-  A Iterator mItr =:
+<^ public proc( A <?> A Iterator mut => A Iterator mut A optional ){
+  A Iterator mut mItr =:
   mItr
   mItr .index 0 > if{
     mItr .index 1 - mItr .index = ## decrement iterator

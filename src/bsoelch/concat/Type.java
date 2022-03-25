@@ -383,8 +383,17 @@ public class Type {
         }
         public static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
                                           Type[] elements, FilePosition declaredAt) {
+            return create(name, isPublic, genericParams, genericArgs, elements,Mutability.IMMUTABLE,declaredAt);
+        }
+        private static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
+                                   Type[] elements,Mutability mutability,FilePosition declaredAt) {
             String fullName = processGenericArguments(name,genericParams, genericArgs, elements);
-            return new Tuple(fullName,name,isPublic,genericParams, genericArgs,elements, Mutability.IMMUTABLE, declaredAt);
+            if(mutability==Mutability.MUTABLE){
+                fullName+=" mut";
+            }else if(mutability==Mutability.UNDECIDED){
+                fullName+=" mut?";
+            }
+            return new Tuple(fullName,name,isPublic,genericParams, genericArgs,elements,mutability, declaredAt);
         }
 
         private static String processGenericArguments(String baseName,GenericParameter[] genericParams,
@@ -475,20 +484,20 @@ public class Type {
 
         @Override
         public Tuple mutable() {
-            return new Tuple(name,baseName,isPublic,genericParams,genericArgs,elements,Mutability.MUTABLE,declaredAt);
+            return create(baseName,isPublic,genericParams,genericArgs,elements,Mutability.MUTABLE,declaredAt);
         }
         public boolean isMutable() {//addLater make isMutable to function of Type
             return mutability==Mutability.MUTABLE;
         }
         @Override
         public Tuple maybeMutable() {
-            return new Tuple(name,baseName,isPublic,genericParams,genericArgs,elements,Mutability.UNDECIDED,declaredAt);
+            return create(baseName,isPublic,genericParams,genericArgs,elements,Mutability.UNDECIDED,declaredAt);
         }
 
         @Override
         Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             return replaceGenerics(generics,(newArgs,newElements)->
-                    create(baseName, isPublic,genericParams,newArgs,newElements,declaredAt));
+                    create(baseName, isPublic,genericParams,newArgs,newElements,mutability,declaredAt));
         }
 
         /**checks if t is a valid type for type comparison with this tuple,
@@ -499,6 +508,9 @@ public class Type {
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(canAssignBaseTuple(t)&&((Tuple) t).elementCount()<=elementCount()){
+                if(((Tuple) t).mutability!=mutability&&((Tuple) t).mutability!=Mutability.UNDECIDED){
+                    return false;//incompatible mutability
+                }
                 for(int i=0;i<((Tuple) t).elements.length;i++){
                     if(!elements[i].canAssignTo(((Tuple) t).elements[i],bounds)){
                         return false;
@@ -509,9 +521,15 @@ public class Type {
                 return super.canAssignTo(t,bounds);
             }
         }
+        boolean canCastBaseTuple(Type t){
+            return t instanceof Tuple;
+        }
         @Override
         protected boolean canCastTo(Type t,  BoundMaps bounds) {
-            if(t instanceof Tuple){
+            if(canCastBaseTuple(t)){
+                if(((Tuple) t).mutability!=mutability&&((Tuple) t).mutability!=Mutability.UNDECIDED){
+                    return false;//incompatible mutability
+                }
                 int n=Math.min(elements.length,((Tuple) t).elements.length);
                 for(int i=0;i<n;i++){
                     if(!elements[i].canCastTo(((Tuple) t).elements[i],bounds)){
@@ -602,12 +620,21 @@ public class Type {
         }
         static Struct create(String name,boolean isPublic,Struct extended,GenericParameter[] genericParams,Type[] genericArgs,
                                    StructField[] fields,Type[] types, FilePosition declaredAt) {
+            return create(name, isPublic, extended, genericParams, genericArgs, fields, types,Mutability.IMMUTABLE, declaredAt);
+        }
+        private static Struct create(String name,boolean isPublic,Struct extended,GenericParameter[] genericParams,Type[] genericArgs,
+                             StructField[] fields,Type[] types,Mutability mutability, FilePosition declaredAt) {
             if(fields.length!=types.length){
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
             String fullName = Tuple.processGenericArguments(name,genericParams, genericArgs, types);
+            if(mutability==Mutability.MUTABLE){
+                fullName+=" mut";
+            }else if(mutability==Mutability.UNDECIDED){
+                fullName+=" mut?";
+            }
             return new Struct(fullName, name, isPublic, extended, genericParams, genericArgs, types, fields,
-                    Mutability.IMMUTABLE, declaredAt);
+                    mutability, declaredAt);
         }
 
         private Struct(String name, String baseName, boolean isPublic, Struct extended,
@@ -633,14 +660,14 @@ public class Type {
 
         @Override
         public Struct mutable() {
-            return new Struct(name,baseName,isPublic,extended==null?null:extended.mutable(),
-                    genericParams,genericArgs,elements,fields,Mutability.MUTABLE,declaredAt);
+            return create(baseName,isPublic,extended==null?null:extended.mutable(),
+                    genericParams,genericArgs,fields,elements,Mutability.MUTABLE,declaredAt);
         }
 
         @Override
         public Struct maybeMutable() {
-            return new Struct(name,baseName,isPublic,extended==null?null:extended.maybeMutable(),
-                    genericParams,genericArgs,elements,fields,Mutability.UNDECIDED,declaredAt);
+            return create(baseName,isPublic,extended==null?null:extended.maybeMutable(),
+                    genericParams,genericArgs,fields,elements,Mutability.UNDECIDED,declaredAt);
         }
 
         @Override
@@ -662,7 +689,7 @@ public class Type {
         Struct replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             return (Struct)replaceGenerics(generics,(newArgs,newElements)->
                     create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                   genericParams,newArgs,fields,newElements,declaredAt));
+                   genericParams,newArgs,fields,newElements,mutability,declaredAt));
         }
 
         @Override
@@ -674,7 +701,8 @@ public class Type {
 
         @Override
         boolean canAssignBaseTuple(Type t) {
-            return super.canAssignBaseTuple(t)||(t instanceof Struct&&((Struct) t).declaredAt.equals(declaredAt));
+            return super.canAssignBaseTuple(t)||(t instanceof Struct&&((Struct) t).declaredAt.equals(declaredAt))||
+                    (extended!=null&&extended.canAssignBaseTuple(t));
         }
 
         @Override
@@ -683,8 +711,8 @@ public class Type {
                     (t instanceof Struct&&extended!=null&&extended.canAssignTo(t,bounds));
         }
         @Override
-        protected boolean canCastTo(Type t, BoundMaps bounds) {
-            return canAssignTo(t, bounds)||t.canAssignTo(this,bounds.swapped());
+        boolean canCastBaseTuple(Type t) {
+            return canAssignBaseTuple(t)||(t instanceof Tuple&&((Tuple)t).canAssignBaseTuple(this));
         }
     }
 
