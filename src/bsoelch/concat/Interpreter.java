@@ -3374,14 +3374,18 @@ public class Interpreter {
                         return;
                     }
                 }
-            }else if(type.isList()){
+            }else if(type.isList()||type.isMemory()||type.isArray()){
                 TypeFrame f= typeStack.pop();
                 if(f.type!=Type.UINT&&f.type!=Type.INT){
                     throw new SyntaxError("invalid argument for '"+type+" new': "+f.type+
                             " expected an integer", pos);
+                }//no else
+                if(type.isArray()){
+                    f=typeStack.pop();
+                    typeCheckCast(f.type,2,type.content(),ret,ioContext,pos);
                 }
                 typeStack.push(new TypeFrame(type,null, pos));
-                //addLater? support new-list in pre-evaluation
+                //addLater? support new list/memory/array in pre-evaluation
             }else{
                 throw new SyntaxError("cannot apply 'new' to type "+type, pos);
             }
@@ -4439,11 +4443,22 @@ public class Interpreter {
                                 values[count-i]= stack.pop();//values should already have the correct types
                             }
                             stack.push(Value.createTuple((Type.Tuple)type,values));
-                        }else if(type.isList()){
+                        }else if(type.isList()) {
+                            long initCap = stack.pop().asLong();
+                            stack.push(Value.createList(type, initCap));
+                        }else if(type.isMemory()){
                             long initCap= stack.pop().asLong();
-                            stack.push(Value.createList(type,initCap));
+                            //TODO create memory
+                            System.err.println("new memory["+initCap+"]");
+                            throw new UnsupportedOperationException("creating memories is currently not supported");
+                        }else if(type.isArray()){
+                            long initCap = stack.pop().asLong();
+                            Value fill = stack.pop();
+                            //TODO create array
+                            System.err.println("new array["+initCap+"]{"+fill+"}");
+                            throw new UnsupportedOperationException("creating arrays is currently not supported");
                         }else{
-                            throw new ConcatRuntimeError("new only supports tuples and lists");
+                            throw new ConcatRuntimeError("new only supports arrays, memories, lists and tuples");
                         }
                     }
                     case DEBUG_PRINT -> context.stdOut.println(stack.pop().stringValue());
