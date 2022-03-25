@@ -2,6 +2,7 @@ package bsoelch.concat;
 
 import java.io.*;
 import java.util.*;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -2687,385 +2688,17 @@ public class Interpreter {
             switch(t.tokenType){
                 case BLOCK_TOKEN -> {
                     BlockToken block=(BlockToken)t;
-                    switch (block.blockType){
-                        case IF ->{
-                            IfBlock ifBlock = new IfBlock(ret.size(), t.pos, context);
-                            TypeFrame f = typeStack.pop();
-                            ifBlock.elseTypes = typeStack;
-                            typeStack = typeStack.clone();
-                            if(f.type!=Type.BOOL){
-                                if(f.type.isOptional()){
-                                    typeStack.push(new TypeFrame(f.type.content(),null,t.pos));
-                                }else {
-                                    throw new SyntaxError("argument of 'if' has to be an optional or 'bool' got " + f.type, t.pos);
-                                }
-                            }
-                            openBlocks.add(ifBlock);
-                            ret.add(t);
-                            context=ifBlock.context();
-                            ret.add(new ContextOpen(context,t.pos));
-                        }
-                        case ELSE -> {
-                            CodeBlock open=openBlocks.peekLast();
-                            if(!(open instanceof IfBlock ifBlock)){
-                                throw new SyntaxError("'else' can only be used in if-blocks",t.pos);
-                            }
-                            if(finishedBranch) {
-                                finishedBranch=false;
-                            }else{
-                                ifBlock.branchTypes.add(new BranchWithEnd(typeStack,t.pos));
-                            }
-                            typeStack = ifBlock.elseTypes;
-
-                            ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                            if(ifBlock.elsePositions.size()>0){//end else-context
-                                ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                            }
-                            Token tmp=ret.get(ifBlock.forkPos);
-                            ((BlockToken)tmp).delta=ret.size()-ifBlock.forkPos+1;
-
-                            context=ifBlock.elseBranch(ret.size(),t.pos);
-
-                            ret.add(t);
-                            if(ifBlock.elsePositions.size()<2){//start else-context after first else
-                                ret.add(new ContextOpen(context,t.pos));
-                            }
-                        }
-                        case _IF -> {
-                            CodeBlock open=openBlocks.peekLast();
-                            if(!(open instanceof IfBlock ifBlock)){
-                                throw new SyntaxError("'_if' can only be used in if-blocks",t.pos);
-                            }
-                            TypeFrame f = typeStack.pop();
-                            ifBlock.elseTypes = typeStack;
-                            typeStack = typeStack.clone();
-                            if(f.type!=Type.BOOL){
-                                if(f.type.isOptional()){
-                                    typeStack.push(new TypeFrame(f.type.content(),null,t.pos));
-                                }else {
-                                    throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, t.pos);
-                                }
-                            }
-                            context=ifBlock.newBranch(ret.size(),t.pos);
-                            ret.add(t);
-                            ret.add(new ContextOpen(context,t.pos));
-                        }
-                        case END_IF,END_WHILE ->
-                                throw new RuntimeException("block tokens of type "+block.blockType+
-                                        " should not exist at this stage of compilation");
-                        case WHILE -> {
-                            WhileBlock whileBlock = new WhileBlock(ret.size(), t.pos, context);
-                            whileBlock.loopTypes=typeStack.clone();
-
-                            openBlocks.add(whileBlock);
-                            context= whileBlock.context();
-                            ret.add(t);
-                            ret.add(new ContextOpen(context,t.pos));
-                        }
-                        case DO -> {
-                            CodeBlock open=openBlocks.peekLast();
-                            if(!(open instanceof WhileBlock whileBlock)){
-                                throw new SyntaxError("do can only be used in while- blocks",t.pos);
-                            }
-                            TypeFrame f = typeStack.pop();
-                            whileBlock.forkTypes=typeStack;
-                            typeStack=typeStack.clone();
-                            if(f.type!=Type.BOOL){
-                                if(f.type.isOptional()){
-                                    typeStack.push(new TypeFrame(f.type.content(),null,t.pos));
-                                }else {
-                                    throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, t.pos);
-                                }
-                            }
-
-                            ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                            int forkPos=ret.size();
-                            //context variable will be reset on fork
-                            ret.add(t);
-                            context= whileBlock.fork(forkPos, t.pos);
-                            ret.add(new ContextOpen(context,t.pos));
-                        }
-                        case DO_WHILE -> {
-                            CodeBlock open=openBlocks.pollLast();
-                            if(!(open instanceof WhileBlock whileBlock)){
-                                throw new SyntaxError("do can only be used in while- blocks",t.pos);
-                            }
-                            TypeFrame f = typeStack.pop();
-                            if(f.type!=Type.BOOL){
-                                throw new SyntaxError("argument of 'do end' has to be 'bool' got "+f.type,t.pos);
-                            }//no else
-                            if(notAssignable(typeStack, ((WhileBlock) open).loopTypes)){
-                                throw new SyntaxError("do-while body modifies the stack",t.pos);
-                            }
-
-                            whileBlock.fork(ret.size(), t.pos);//whileBlock.end() only checks if fork was called
-                            ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                            context=((BlockContext)context).parent;
-                            ret.add(new BlockToken(BlockTokenType.DO_WHILE,t.pos,open.start - (ret.size()-1)));
-                        }
-                        case SWITCH -> {
-                            TypeFrame f=typeStack.pop();
-                            SwitchCaseBlock switchBlock=new SwitchCaseBlock(f.type,ret.size(), t.pos,context);
-                            switchBlock.defaultTypes=typeStack;
-
-                            openBlocks.addLast(switchBlock);
-                            ret.add(new SwitchToken(switchBlock,t.pos));
-                            switchBlock.newSection(ret.size(),t.pos);
-                            //find case statement
-                            int j=i+1;
-                            while(j<tokens.size()&&(!(tokens.get(j) instanceof BlockToken))){
-                                j++;
-                            }
-                            if(j>= tokens.size()){
-                                throw new SyntaxError("found no case-statement for switch at "+t.pos,
-                                        tokens.get(tokens.size()-1).pos);
-                            }else if(((BlockToken)tokens.get(j)).blockType!=BlockTokenType.CASE){
-                                throw new SyntaxError("unexpected statement in switch at "+t.pos+" "+
-                                        tokens.get(j)+" expected 'case' statement",
-                                        tokens.get(j).pos);
-                            }
-                            List<Token> caseValues=tokens.subList(i+1,j);
-                            findEnumFields(switchBlock, caseValues);
-                            context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
-                                            new RandomAccessStack<>(8),null,t.pos,ioContext).tokens,
-                                    tokens.get(j).pos);
-                            ret.add(new ContextOpen(context,t.pos));
-                            i=j;
-                            if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
-                                typeStack=typeStack.clone();
-                            }
-                        }
-                        case END_CASE -> {
-                            CodeBlock open=openBlocks.peekLast();
-                            if(!(open instanceof SwitchCaseBlock switchBlock)){
-                                throw new SyntaxError("end-case can only be used in switch-case-blocks",t.pos);
-                            }
-                            if(finishedBranch) {
-                                finishedBranch=false;
-                            }else{
-                                switchBlock.caseTypes.add(new BranchWithEnd(typeStack,t.pos));
-                            }
-                            typeStack=switchBlock.defaultTypes;
-
-                            ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                            context=((BlockContext)context).parent;
-                            ret.add(new BlockToken(BlockTokenType.END_CASE, t.pos, -1));
-                            switchBlock.newSection(ret.size(),t.pos);
-                            //find case statement
-                            int j=i+1;
-                            while(j<tokens.size()&&(!(tokens.get(j) instanceof BlockToken))){
-                                j++;
-                            }
-                            if(j>= tokens.size()){
-                                throw new SyntaxError("found no case-statement for switch at "+t.pos,
-                                        tokens.get(tokens.size()-1).pos);
-                            }
-                            t=tokens.get(j);
-                            if(((BlockToken)t).blockType==BlockTokenType.CASE){
-                                List<Token> caseValues=tokens.subList(i+1,j);
-                                findEnumFields(switchBlock, caseValues);
-                                context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
-                                                new RandomAccessStack<>(8),null,t.pos,ioContext).tokens,tokens.get(j).pos);
-                                ret.add(new ContextOpen(context,t.pos));
-
-                                if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
-                                    typeStack=typeStack.clone();
-                                }
-                            }else if(((BlockToken)t).blockType==BlockTokenType.DEFAULT){
-                                context=switchBlock.defaultBlock(ret.size(),t.pos);
-                                ret.add(new ContextOpen(context,t.pos));
-                            }else if(((BlockToken)t).blockType==BlockTokenType.END){
-                                switchBlock.end(ret.size(),t.pos,ioContext);
-                                openBlocks.removeLast();//remove switch-block form blocks
-                                for(Integer p:switchBlock.blockEnds){
-                                    Token tmp=ret.get(p);
-                                    ((BlockToken)tmp).delta=ret.size()-p;
-                                }
-                                for(BranchWithEnd branch:switchBlock.caseTypes){
-                                    merge(typeStack,t.pos,branch.types,branch.end,"switch");
-                                }
-                            }else{
-                                throw new SyntaxError("unexpected statement after end-case at "+tokens.get(i).pos+": "+
-                                        t+" expected 'case', 'default' or 'end' statement",t.pos);
-                            }
-                            i=j;
-                        }
-                        case CASE ->
-                                throw new SyntaxError("unexpected 'case' statement",t.pos);
-                        case DEFAULT ->
-                                throw new SyntaxError("unexpected 'default' statement",t.pos);
-                        case LIST -> {
-                            ListBlock listBlock = new ListBlock(ret.size(), BlockType.CONST_LIST, t.pos, context);
-                            listBlock.prevTypes=typeStack;
-                            typeStack=new RandomAccessStack<>(8);
-                            openBlocks.add(listBlock);
-                        }
-                        case END -> {
-                            CodeBlock open=openBlocks.pollLast();
-                            if(open==null){
-                                throw new SyntaxError("unexpected '}' statement ",t.pos);
-                            }
-                            Token tmp;
-                            switch(open.type) {
-                                case CONST_LIST -> {
-                                    Type type = null;
-                                    for (TypeFrame f : typeStack) {
-                                        Optional<Type> merged = Type.commonSuperType(type, f.type, false);
-                                        if(merged.isEmpty()){
-                                            throw new SyntaxError("cannot merge types "+type+" and "+f.type,t.pos);
-                                        }
-                                        type = merged.get();
-                                    }
-                                    if (type == null) {
-                                        type = Type.ANY;
-                                    }
-                                    typeStack = ((ListBlock) open).prevTypes;
-                                    List<Token> subList = ret.subList(open.start, ret.size());
-                                    ArrayList<Value> values = new ArrayList<>(subList.size());
-                                    boolean constant = true;
-                                    for (Token v : subList) {
-                                        if (v instanceof ValueToken) {
-                                            values.add(((ValueToken) v).value);
-                                        } else {
-                                            values.clear();
-                                            constant = false;
-                                            break;
-                                        }
-                                    }
-                                    if (constant) {
-                                        subList.clear();
-                                        try {
-                                            for (int p = 0; p < values.size(); p++) {
-                                                values.set(p, values.get(p).castTo(type));
-                                            }
-                                            Value list = Value.createList(Type.listOf(type), values);
-                                            typeStack.push(new TypeFrame(list.type, list, t.pos));
-
-                                            ret.add(new ValueToken(list, open.startPos, true));
-                                        } catch (ConcatRuntimeError e) {
-                                            throw new SyntaxError(e, t.pos);
-                                        }
-                                    } else {
-                                        typeStack.push(new TypeFrame(Type.listOf(type), null, t.pos));
-
-                                        ArrayList<Token> listTokens = new ArrayList<>(subList);
-                                        subList.clear();
-                                        ret.add(new ListCreatorToken(listTokens, t.pos));
-                                    }
-                                }
-                                case IF -> {
-                                    if(((IfBlock) open).forkPos!=-1){
-                                        if(finishedBranch){
-                                            finishedBranch=false;
-                                        }else {
-                                            ((IfBlock) open).branchTypes.add(new BranchWithEnd(typeStack,t.pos));
-                                        }
-                                        typeStack = ((IfBlock) open).elseTypes;
-
-                                        tmp=ret.get(((IfBlock) open).forkPos);
-                                        ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                                        context=((BlockContext)context).parent;
-                                        //when there is no else then the last branch has to jump onto the close operation
-                                        ((BlockToken)tmp).delta=ret.size()-((IfBlock) open).forkPos;
-                                        if(((IfBlock) open).elsePositions.size()>0){//close-else context
-                                            ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                                            context=((BlockContext)context).parent;
-                                        }
-                                    }else{//close else context
-                                        ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                                        context=((BlockContext)context).parent;
-                                    }
-                                    for(Integer branch:((IfBlock) open).elsePositions){
-                                        tmp=ret.get(branch);
-                                        ((BlockToken)tmp).delta=ret.size()-branch;
-                                    }
-                                    ret.add(new BlockToken(BlockTokenType.END_IF,t.pos,-1));
-                                    FilePosition mainEnd=t.pos;
-                                    if(finishedBranch){
-                                        if(((IfBlock) open).branchTypes.size()>0){
-                                            finishedBranch=false;
-                                            BranchWithEnd bWe=((IfBlock) open).branchTypes.removeLast();
-                                            typeStack=bWe.types;
-                                            mainEnd=bWe.end;
-                                        }else{
-                                            break;//exit on all branches of if statement
-                                        }
-                                    }
-                                    //merge Types
-                                    for(BranchWithEnd branch:((IfBlock) open).branchTypes){
-                                        merge(typeStack,mainEnd,branch.types,branch.end,"if");
-                                    }
-                                }
-                                case WHILE -> {
-                                    if(finishedBranch){//exit if loop is traversed at least once
-                                        finishedBranch=false;
-                                    }else if(notAssignable(typeStack, ((WhileBlock) open).loopTypes)){
-                                        throw new SyntaxError("while body modifies the stack",t.pos);
-                                    }
-                                    typeStack=((WhileBlock) open).forkTypes;
-
-                                    ((WhileBlock)open).end(t.pos);
-                                    ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                                    context=((BlockContext)context).parent;
-                                    tmp=ret.get(((WhileBlock) open).forkPos);
-                                    ret.add(new BlockToken(BlockTokenType.END_WHILE,t.pos, open.start - ret.size()));
-                                    ((BlockToken)tmp).delta=ret.size()-((WhileBlock)open).forkPos;
-                                }
-                                case SWITCH_CASE -> {//end switch with default
-                                    if(((SwitchCaseBlock)open).defaultJump==-1){
-                                        throw new SyntaxError("missing end-case statement",t.pos);
-                                    }
-                                    ret.add(new Token(TokenType.CONTEXT_CLOSE,t.pos));
-                                    context=((BlockContext)context).parent;
-                                    ((SwitchCaseBlock)open).end(ret.size(),t.pos,ioContext);
-                                    for(Integer p:((SwitchCaseBlock) open).blockEnds){
-                                        tmp=ret.get(p);
-                                        ((BlockToken)tmp).delta=ret.size()-p;
-                                    }
-                                    FilePosition mainEnd=t.pos;
-                                    if(finishedBranch){
-                                        if(((SwitchCaseBlock)open).caseTypes.size()>0){
-                                            finishedBranch=false;
-                                            BranchWithEnd bWe=((SwitchCaseBlock)open).caseTypes.removeLast();
-                                            typeStack=bWe.types;
-                                            mainEnd=bWe.end;
-                                        }else{
-                                            break;//exit on all branches of if statement
-                                        }
-                                    }
-                                    for(BranchWithEnd branch:((SwitchCaseBlock)open).caseTypes){
-                                        merge(typeStack,mainEnd,branch.types,branch.end,"switch");
-                                    }
-                                }
-                                case PROCEDURE,PROC_TYPE,ANONYMOUS_TUPLE,TUPLE,ENUM,UNION,STRUCT ->
-                                        throw new SyntaxError("blocks of type "+open.type+
-                                                " should not exist at this stage of compilation",t.pos);
-                            }
-                        }
-                    }
+                    BlockCheckReturn tmp=typeCheckBlock(block,openBlocks,typeStack,finishedBranch,globalConstants,ret,i,
+                            tokens,context,ioContext,t.pos);
+                    finishedBranch=tmp.finishedBranch;
+                    typeStack=tmp.typeStack;
+                    context=tmp.context;
+                    i=tmp.i;
                 }
                 case IDENTIFIER ->
                     typeCheckIdentifier(t, ret, context, globalConstants, typeStack, ioContext);
-                case ASSERT -> {
-                    assert t instanceof AssertToken;
-                    TypeFrame f=typeStack.pop();
-                    if(f.type!=Type.BOOL){
-                        throw new SyntaxError("parameter of assertion has to be a bool got "+f.type,t.pos);
-                    }else if(f.value!=null&&!f.value.asBool()){//addLater? replace assert with drop if condition is always true
-                        throw new SyntaxError("assertion failed: "+ ((AssertToken)t).message,t.pos);
-                    }
-                    if((prev=ret.get(ret.size()-1)) instanceof ValueToken){
-                        try {
-                            if(!((ValueToken) prev).value.asBool()){
-                                throw new SyntaxError("assertion failed: "+ ((AssertToken)t).message,t.pos);
-                            }
-                        } catch (TypeError e) {
-                            throw new SyntaxError(e,t.pos);
-                        }
-                    }else{
-                        ret.add(t);
-                    }
-                }
+                case ASSERT ->
+                    typeCheckAssert(typeStack, ret, t);
                 case UNREACHABLE -> {
                     ret.add(t);
                     finishedBranch=true;
@@ -3162,136 +2795,16 @@ public class Interpreter {
                 }
                 case CALL_PTR ->
                     typeCheckCallPtr(typeStack, ret, globalConstants, ioContext, t.pos);
-                case MARK_MUTABLE -> {//TODO? merge code for type modifiers
-                    TypeFrame f = typeStack.pop();
-                    String name="mut";
-                    if(f.type==Type.TYPE) {
-                        if (f.value == null) {
-                            throw new SyntaxError("type argument of '"+name+"' has to be a constant",t.pos);
-                        }
-                        f = new TypeFrame(Type.TYPE, Value.ofType(f.value.asType().mutable()), t.pos);
-                        typeStack.push(f);
-
-                        if (ret.size() > 0 && (prev = ret.get(ret.size() - 1)) instanceof ValueToken) {
-                            try {
-                                ret.set(ret.size() - 1,
-                                        new ValueToken(Value.ofType(
-                                                ((ValueToken) prev).value.asType().mutable()),
-                                                t.pos, false));
-                            } catch (ConcatRuntimeError e) {
-                                throw new SyntaxError(e, t.pos);
-                            }
-                        } else {
-                            throw new SyntaxError("token before of '" + name + "' has to be a constant type", t.pos);
-                        }
-                    }else{
-                        throw new SyntaxError("invalid argument-type for '" + name + "':" + f.type +
-                                " argument has to be a constant type", t.pos);
-                    }
-                }
-                case MARK_MAYBE_MUTABLE -> {
-                    TypeFrame f = typeStack.pop();
-                    String name="mut?";
-                    if(f.type==Type.TYPE) {
-                        if (f.value == null) {
-                            throw new SyntaxError("type argument of '"+name+"' has to be a constant",t.pos);
-                        }
-                        f = new TypeFrame(Type.TYPE, Value.ofType(f.value.asType().maybeMutable()), t.pos);
-                        typeStack.push(f);
-
-                        if (ret.size() > 0 && (prev = ret.get(ret.size() - 1)) instanceof ValueToken) {
-                            try {
-                                ret.set(ret.size() - 1,
-                                        new ValueToken(Value.ofType(
-                                                ((ValueToken) prev).value.asType().maybeMutable()),
-                                                t.pos, false));
-                            } catch (ConcatRuntimeError e) {
-                                throw new SyntaxError(e, t.pos);
-                            }
-                        } else {
-                            throw new SyntaxError("token before of '" + name + "' has to be a constant type", t.pos);
-                        }
-                    }else{
-                        throw new SyntaxError("invalid argument-type for '" + name + "':" + f.type +
-                                " argument has to be a constant type or a list", t.pos);
-                    }
-                }
-                case LIST_OF -> {
-                    TypeFrame f = typeStack.pop();
-                    String name="list";
-                    if(f.type!=Type.TYPE){
-                        throw new SyntaxError("invalid argument-type for '"+name+"':" +f.type+
-                                " argument has to be a constant type",t.pos);
-                    }else if(f.value!=null){
-                        f=new TypeFrame(Type.TYPE,Value.ofType(Type.listOf(f.value.asType())),t.pos);
-                    }else{
-                        throw new SyntaxError("argument of '"+name+"' has to be a constant type",t.pos);
-                    }
-                    typeStack.push(f);
-
-                    if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
-                        try {
-                            ret.set(ret.size()-1,
-                                    new ValueToken(Value.ofType(
-                                            Type.listOf(((ValueToken)prev).value.asType())),
-                                            t.pos, false));
-                        } catch (ConcatRuntimeError e) {
-                            throw new SyntaxError(e, t.pos);
-                        }
-                    }else{
-                        throw new SyntaxError("token before of '"+name+"' has to be a constant type",t.pos);
-                    }
-                }
-                case OPTIONAL_OF -> {
-                    TypeFrame f = typeStack.pop();
-                    String name="optional";
-                    if(f.type!=Type.TYPE){
-                        throw new SyntaxError("invalid argument-type for '"+name+"':" +f.type+
-                                " argument has to be a constant type",t.pos);
-                    }else if(f.value!=null){
-                        f=new TypeFrame(Type.TYPE,Value.ofType(Type.optionalOf(f.value.asType())),t.pos);
-                    }else{
-                        throw new SyntaxError("argument of '"+name+"' has to be a constant type",t.pos);
-                    }
-                    typeStack.push(f);
-
-                    if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
-                        try {
-                            ret.set(ret.size()-1,
-                                    new ValueToken(Value.ofType(
-                                            Type.optionalOf(((ValueToken)prev).value.asType())),
-                                            t.pos, false));
-                        } catch (ConcatRuntimeError e) {
-                            throw new SyntaxError(e, t.pos);
-                        }
-                    }else{
-                        throw new SyntaxError("token before of '"+name+"' has to be a constant type",t.pos);
-                    }
-                }
-                case EMPTY_OPTIONAL ->{
-                    TypeFrame f = typeStack.pop();
-                    String name="empty";
-                    if(f.type!=Type.TYPE){
-                        throw new SyntaxError("invalid argument-type for '"+name+"':" +f.type+
-                                " argument has to be a constant type",t.pos);
-                    }else if(f.value!=null) {
-                        typeStack.push(new TypeFrame(Type.optionalOf(f.value.asType()), Value.emptyOptional(f.value.asType()),t.pos));
-                    }else{
-                        throw new SyntaxError("argument of '"+name+"' has to be a constant type",t.pos);
-                    }
-
-                    if(ret.size()>0&&(prev= ret.get(ret.size()-1)) instanceof ValueToken){
-                        try {
-                            ret.set(ret.size()-1,
-                                    new ValueToken(Value.emptyOptional(((ValueToken)prev).value.asType()),
-                                            t.pos, false));
-                        } catch (ConcatRuntimeError e) {
-                            throw new SyntaxError(e, t.pos);
-                        }
-                    }else{
-                        throw new SyntaxError("token before of '"+name+"' has to be a constant type",t.pos);
-                    }
-                }
+                case MARK_MUTABLE ->
+                    typeCheckTypeModifier("mut",(t1)->Value.ofType(t1.mutable()),ret,typeStack,t.pos);
+                case MARK_MAYBE_MUTABLE ->
+                    typeCheckTypeModifier("mut?",(t1)->Value.ofType(t1.maybeMutable()),ret,typeStack,t.pos);
+                case LIST_OF ->
+                    typeCheckTypeModifier("list",(t1)->Value.ofType(Type.listOf(t1)),ret,typeStack,t.pos);
+                case OPTIONAL_OF ->
+                    typeCheckTypeModifier("optional",(t1)->Value.ofType(Type.optionalOf(t1)),ret,typeStack,t.pos);
+                case EMPTY_OPTIONAL ->
+                    typeCheckTypeModifier("empty", Value::emptyOptional,ret,typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
                         CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
@@ -3325,6 +2838,420 @@ public class Interpreter {
         }
         return new TypeCheckResult(ret,typeStack);
     }
+
+    record BlockCheckReturn(boolean finishedBranch,RandomAccessStack<TypeFrame> typeStack,VariableContext context,int i){}
+    private BlockCheckReturn typeCheckBlock(BlockToken block, ArrayDeque<CodeBlock> openBlocks, RandomAccessStack<TypeFrame> typeStack,
+                                            boolean finishedBranch, HashMap<VariableId,Value> globalConstants,
+                                            ArrayList<Token> ret, int i, List<Token> tokens, VariableContext context,
+                                            IOContext ioContext, FilePosition pos) throws RandomAccessStack.StackUnderflow, SyntaxError {
+        switch (block.blockType){
+            case IF ->{
+                IfBlock ifBlock = new IfBlock(ret.size(), pos, context);
+                TypeFrame f = typeStack.pop();
+                ifBlock.elseTypes = typeStack;
+                typeStack = typeStack.clone();
+                if(f.type!=Type.BOOL){
+                    if(f.type.isOptional()){
+                        typeStack.push(new TypeFrame(f.type.content(),null,pos));
+                    }else {
+                        throw new SyntaxError("argument of 'if' has to be an optional or 'bool' got " + f.type, pos);
+                    }
+                }
+                openBlocks.add(ifBlock);
+                ret.add(block);
+                context=ifBlock.context();
+                ret.add(new ContextOpen(context,pos));
+            }
+            case ELSE -> {
+                CodeBlock open=openBlocks.peekLast();
+                if(!(open instanceof IfBlock ifBlock)){
+                    throw new SyntaxError("'else' can only be used in if-blocks",pos);
+                }
+                if(finishedBranch) {
+                    finishedBranch=false;
+                }else{
+                    ifBlock.branchTypes.add(new BranchWithEnd(typeStack,pos));
+                }
+                typeStack = ifBlock.elseTypes;
+
+                ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                if(ifBlock.elsePositions.size()>0){//end else-context
+                    ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                }
+                Token tmp=ret.get(ifBlock.forkPos);
+                ((BlockToken)tmp).delta=ret.size()-ifBlock.forkPos+1;
+
+                context=ifBlock.elseBranch(ret.size(),pos);
+
+                ret.add(block);
+                if(ifBlock.elsePositions.size()<2){//start else-context after first else
+                    ret.add(new ContextOpen(context,pos));
+                }
+            }
+            case _IF -> {
+                CodeBlock open=openBlocks.peekLast();
+                if(!(open instanceof IfBlock ifBlock)){
+                    throw new SyntaxError("'_if' can only be used in if-blocks",pos);
+                }
+                TypeFrame f = typeStack.pop();
+                ifBlock.elseTypes = typeStack;
+                typeStack = typeStack.clone();
+                if(f.type!=Type.BOOL){
+                    if(f.type.isOptional()){
+                        typeStack.push(new TypeFrame(f.type.content(),null,pos));
+                    }else {
+                        throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, pos);
+                    }
+                }
+                context=ifBlock.newBranch(ret.size(),pos);
+                ret.add(block);
+                ret.add(new ContextOpen(context,pos));
+            }
+            case END_IF,END_WHILE ->
+                    throw new RuntimeException("block tokens of type "+block.blockType+
+                            " should not exist at this stage of compilation");
+            case WHILE -> {
+                WhileBlock whileBlock = new WhileBlock(ret.size(), pos, context);
+                whileBlock.loopTypes=typeStack.clone();
+
+                openBlocks.add(whileBlock);
+                context= whileBlock.context();
+                ret.add(block);
+                ret.add(new ContextOpen(context,pos));
+            }
+            case DO -> {
+                CodeBlock open=openBlocks.peekLast();
+                if(!(open instanceof WhileBlock whileBlock)){
+                    throw new SyntaxError("do can only be used in while- blocks",pos);
+                }
+                TypeFrame f = typeStack.pop();
+                whileBlock.forkTypes=typeStack;
+                typeStack=typeStack.clone();
+                if(f.type!=Type.BOOL){
+                    if(f.type.isOptional()){
+                        typeStack.push(new TypeFrame(f.type.content(),null,pos));
+                    }else {
+                        throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, pos);
+                    }
+                }
+
+                ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                int forkPos=ret.size();
+                //context variable will be reset on fork
+                ret.add(block);
+                context= whileBlock.fork(forkPos, pos);
+                ret.add(new ContextOpen(context,pos));
+            }
+            case DO_WHILE -> {
+                CodeBlock open=openBlocks.pollLast();
+                if(!(open instanceof WhileBlock whileBlock)){
+                    throw new SyntaxError("do can only be used in while- blocks",pos);
+                }
+                TypeFrame f = typeStack.pop();
+                if(f.type!=Type.BOOL){
+                    throw new SyntaxError("argument of 'do end' has to be 'bool' got "+f.type,pos);
+                }//no else
+                if(notAssignable(typeStack, ((WhileBlock) open).loopTypes)){
+                    throw new SyntaxError("do-while body modifies the stack",pos);
+                }
+
+                whileBlock.fork(ret.size(), pos);//whileBlock.end() only checks if fork was called
+                ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                context=((BlockContext)context).parent;
+                ret.add(new BlockToken(BlockTokenType.DO_WHILE,pos,open.start - (ret.size()-1)));
+            }
+            case SWITCH -> {
+                TypeFrame f=typeStack.pop();
+                SwitchCaseBlock switchBlock=new SwitchCaseBlock(f.type,ret.size(), pos,context);
+                switchBlock.defaultTypes=typeStack;
+
+                openBlocks.addLast(switchBlock);
+                ret.add(new SwitchToken(switchBlock,pos));
+                switchBlock.newSection(ret.size(),pos);
+                //find case statement
+                int j=i+1;
+                while(j<tokens.size()&&(!(tokens.get(j) instanceof BlockToken))){
+                    j++;
+                }
+                if(j>= tokens.size()){
+                    throw new SyntaxError("found no case-statement for switch at "+pos,
+                            tokens.get(tokens.size()-1).pos);
+                }else if(((BlockToken)tokens.get(j)).blockType!=BlockTokenType.CASE){
+                    throw new SyntaxError("unexpected statement in switch at "+pos+" "+
+                            tokens.get(j)+" expected 'case' statement",
+                            tokens.get(j).pos);
+                }
+                List<Token> caseValues=tokens.subList(i+1,j);
+                findEnumFields(switchBlock, caseValues);
+                context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
+                                new RandomAccessStack<>(8),null,pos,ioContext).tokens,
+                        tokens.get(j).pos);
+                ret.add(new ContextOpen(context,pos));
+                i=j;
+                if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
+                    typeStack=typeStack.clone();
+                }
+            }
+            case END_CASE -> {
+                CodeBlock open=openBlocks.peekLast();
+                if(!(open instanceof SwitchCaseBlock switchBlock)){
+                    throw new SyntaxError("end-case can only be used in switch-case-blocks",pos);
+                }
+                if(finishedBranch) {
+                    finishedBranch=false;
+                }else{
+                    switchBlock.caseTypes.add(new BranchWithEnd(typeStack,pos));
+                }
+                typeStack=switchBlock.defaultTypes;
+
+                ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                context=((BlockContext)context).parent;
+                ret.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
+                switchBlock.newSection(ret.size(),pos);
+                //find case statement
+                int j=i+1;
+                while(j<tokens.size()&&(!(tokens.get(j) instanceof BlockToken))){
+                    j++;
+                }
+                if(j>= tokens.size()){
+                    throw new SyntaxError("found no case-statement for switch at "+pos,
+                            tokens.get(tokens.size()-1).pos);
+                }
+                Token t=tokens.get(j);
+                if(((BlockToken)t).blockType==BlockTokenType.CASE){
+                    List<Token> caseValues=tokens.subList(i+1,j);
+                    findEnumFields(switchBlock, caseValues);
+                    context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
+                            new RandomAccessStack<>(8),null,pos,ioContext).tokens,tokens.get(j).pos);
+                    ret.add(new ContextOpen(context,pos));
+
+                    if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
+                        typeStack=typeStack.clone();
+                    }
+                }else if(((BlockToken)t).blockType==BlockTokenType.DEFAULT){
+                    context=switchBlock.defaultBlock(ret.size(),pos);
+                    ret.add(new ContextOpen(context,pos));
+                }else if(((BlockToken)t).blockType==BlockTokenType.END){
+                    switchBlock.end(ret.size(),pos,ioContext);
+                    openBlocks.removeLast();//remove switch-block form blocks
+                    for(Integer p:switchBlock.blockEnds){
+                        Token tmp=ret.get(p);
+                        ((BlockToken)tmp).delta=ret.size()-p;
+                    }
+                    for(BranchWithEnd branch:switchBlock.caseTypes){
+                        merge(typeStack,pos,branch.types,branch.end,"switch");
+                    }
+                }else{
+                    throw new SyntaxError("unexpected statement after end-case at "+tokens.get(i).pos+": "+
+                            block+" expected 'case', 'default' or 'end' statement",pos);
+                }
+                i=j;
+            }
+            case CASE ->
+                    throw new SyntaxError("unexpected 'case' statement",pos);
+            case DEFAULT ->
+                    throw new SyntaxError("unexpected 'default' statement",pos);
+            case LIST -> {
+                ListBlock listBlock = new ListBlock(ret.size(), BlockType.CONST_LIST, pos, context);
+                listBlock.prevTypes=typeStack;
+                typeStack=new RandomAccessStack<>(8);
+                openBlocks.add(listBlock);
+            }
+            case END -> {
+                CodeBlock open=openBlocks.pollLast();
+                if(open==null){
+                    throw new SyntaxError("unexpected '}' statement ",pos);
+                }
+                Token tmp;
+                switch(open.type) {
+                    case CONST_LIST -> {
+                        Type type = null;
+                        for (TypeFrame f : typeStack) {
+                            Optional<Type> merged = Type.commonSuperType(type, f.type, false);
+                            if(merged.isEmpty()){
+                                throw new SyntaxError("cannot merge types "+type+" and "+f.type,pos);
+                            }
+                            type = merged.get();
+                        }
+                        if (type == null) {
+                            type = Type.ANY;
+                        }
+                        typeStack = ((ListBlock) open).prevTypes;
+                        List<Token> subList = ret.subList(open.start, ret.size());
+                        ArrayList<Value> values = new ArrayList<>(subList.size());
+                        boolean constant = true;
+                        for (Token v : subList) {
+                            if (v instanceof ValueToken) {
+                                values.add(((ValueToken) v).value);
+                            } else {
+                                values.clear();
+                                constant = false;
+                                break;
+                            }
+                        }
+                        if (constant) {
+                            subList.clear();
+                            try {
+                                for (int p = 0; p < values.size(); p++) {
+                                    values.set(p, values.get(p).castTo(type));
+                                }
+                                Value list = Value.createList(Type.listOf(type), values);
+                                typeStack.push(new TypeFrame(list.type, list, pos));
+
+                                ret.add(new ValueToken(list, open.startPos, true));
+                            } catch (ConcatRuntimeError e) {
+                                throw new SyntaxError(e, pos);
+                            }
+                        } else {
+                            typeStack.push(new TypeFrame(Type.listOf(type), null, pos));
+
+                            ArrayList<Token> listTokens = new ArrayList<>(subList);
+                            subList.clear();
+                            ret.add(new ListCreatorToken(listTokens, pos));
+                        }
+                    }
+                    case IF -> {
+                        if(((IfBlock) open).forkPos!=-1){
+                            if(finishedBranch){
+                                finishedBranch=false;
+                            }else {
+                                ((IfBlock) open).branchTypes.add(new BranchWithEnd(typeStack,pos));
+                            }
+                            typeStack = ((IfBlock) open).elseTypes;
+
+                            tmp=ret.get(((IfBlock) open).forkPos);
+                            ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                            context=((BlockContext)context).parent;
+                            //when there is no else then the last branch has to jump onto the close operation
+                            ((BlockToken)tmp).delta=ret.size()-((IfBlock) open).forkPos;
+                            if(((IfBlock) open).elsePositions.size()>0){//close-else context
+                                ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                                context=((BlockContext)context).parent;
+                            }
+                        }else{//close else context
+                            ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                            context=((BlockContext)context).parent;
+                        }
+                        for(Integer branch:((IfBlock) open).elsePositions){
+                            tmp=ret.get(branch);
+                            ((BlockToken)tmp).delta=ret.size()-branch;
+                        }
+                        ret.add(new BlockToken(BlockTokenType.END_IF,pos,-1));
+                        FilePosition mainEnd=pos;
+                        if(finishedBranch){
+                            if(((IfBlock) open).branchTypes.size()>0){
+                                finishedBranch=false;
+                                BranchWithEnd bWe=((IfBlock) open).branchTypes.removeLast();
+                                typeStack=bWe.types;
+                                mainEnd=bWe.end;
+                            }else{
+                                break;//exit on all branches of if statement
+                            }
+                        }
+                        //merge Types
+                        for(BranchWithEnd branch:((IfBlock) open).branchTypes){
+                            merge(typeStack,mainEnd,branch.types,branch.end,"if");
+                        }
+                    }
+                    case WHILE -> {
+                        if(finishedBranch){//exit if loop is traversed at least once
+                            finishedBranch=false;
+                        }else if(notAssignable(typeStack, ((WhileBlock) open).loopTypes)){
+                            throw new SyntaxError("while body modifies the stack",pos);
+                        }
+                        typeStack=((WhileBlock) open).forkTypes;
+
+                        ((WhileBlock)open).end(pos);
+                        ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                        context=((BlockContext)context).parent;
+                        tmp=ret.get(((WhileBlock) open).forkPos);
+                        ret.add(new BlockToken(BlockTokenType.END_WHILE,pos, open.start - ret.size()));
+                        ((BlockToken)tmp).delta=ret.size()-((WhileBlock)open).forkPos;
+                    }
+                    case SWITCH_CASE -> {//end switch with default
+                        if(((SwitchCaseBlock)open).defaultJump==-1){
+                            throw new SyntaxError("missing end-case statement",pos);
+                        }
+                        ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                        context=((BlockContext)context).parent;
+                        ((SwitchCaseBlock)open).end(ret.size(),pos,ioContext);
+                        for(Integer p:((SwitchCaseBlock) open).blockEnds){
+                            tmp=ret.get(p);
+                            ((BlockToken)tmp).delta=ret.size()-p;
+                        }
+                        FilePosition mainEnd=pos;
+                        if(finishedBranch){
+                            if(((SwitchCaseBlock)open).caseTypes.size()>0){
+                                finishedBranch=false;
+                                BranchWithEnd bWe=((SwitchCaseBlock)open).caseTypes.removeLast();
+                                typeStack=bWe.types;
+                                mainEnd=bWe.end;
+                            }else{
+                                break;//exit on all branches of if statement
+                            }
+                        }
+                        for(BranchWithEnd branch:((SwitchCaseBlock)open).caseTypes){
+                            merge(typeStack,mainEnd,branch.types,branch.end,"switch");
+                        }
+                    }
+                    case PROCEDURE,PROC_TYPE,ANONYMOUS_TUPLE,TUPLE,ENUM,UNION,STRUCT ->
+                            throw new SyntaxError("blocks of type "+open.type+
+                                    " should not exist at this stage of compilation",pos);
+                }
+            }
+        }
+        return new BlockCheckReturn(finishedBranch,typeStack,context,i);
+    }
+
+    private void typeCheckAssert(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, Token t) throws RandomAccessStack.StackUnderflow, SyntaxError, TypeError {
+        Token prev;
+        assert t instanceof AssertToken;
+        TypeFrame f= typeStack.pop();
+        if(f.type!=Type.BOOL){
+            throw new SyntaxError("parameter of assertion has to be a bool got "+f.type, t.pos);
+        }else if(f.value!=null&&!f.value.asBool()){//addLater? replace assert with drop if condition is always true
+            throw new SyntaxError("assertion failed: "+ ((AssertToken) t).message, t.pos);
+        }
+        if((prev= ret.get(ret.size()-1)) instanceof ValueToken){
+            try {
+                if(!((ValueToken) prev).value.asBool()){
+                    throw new SyntaxError("assertion failed: "+ ((AssertToken) t).message, t.pos);
+                }
+            } catch (TypeError e) {
+                throw new SyntaxError(e, t.pos);
+            }
+        }else{
+            ret.add(t);
+        }
+    }
+    private void typeCheckTypeModifier(String name, Function<Type,Value> modifier,ArrayList<Token> ret,
+                                       RandomAccessStack<TypeFrame> typeStack, FilePosition pos) throws SyntaxError,
+            RandomAccessStack.StackUnderflow, TypeError {
+        TypeFrame f = typeStack.pop();
+        if(f.type==Type.TYPE) {
+            if (f.value == null) {
+                throw new SyntaxError("type argument of '"+name+"' has to be a constant",pos);
+            }
+            Value modified = modifier.apply(f.value.asType());
+            f = new TypeFrame(modified.type, modified, pos);
+            typeStack.push(f);
+            Token prev;
+            if (ret.size() > 0 && (prev = ret.get(ret.size() - 1)) instanceof ValueToken) {
+                try {
+                    ret.set(ret.size() - 1,
+                            new ValueToken(modifier.apply(((ValueToken) prev).value.asType()),pos, false));
+                } catch (ConcatRuntimeError e) {
+                    throw new SyntaxError(e, pos);
+                }
+            } else {
+                throw new SyntaxError("token before of '" + name + "' has to be a constant type", pos);
+            }
+        }else{
+            throw new SyntaxError("invalid argument-type for '" + name + "':" + f.type +
+                    " argument has to be a constant type", pos);
+        }
+    }
+
 
     private void typeCheckCallPtr(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret,
                                   HashMap<VariableId, Value> globalConstants, IOContext ioContext, FilePosition pos)
