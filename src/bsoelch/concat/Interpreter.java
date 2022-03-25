@@ -4443,14 +4443,16 @@ public class Interpreter {
                                 values[count-i]= stack.pop();//values should already have the correct types
                             }
                             stack.push(Value.createTuple((Type.Tuple)type,values));
-                        }else if(type.isList()||type.isMemory()){
+                        }else if(type.isList()){
                             long initCap= stack.pop().asLong();
                             stack.push(Value.createList(type, initCap));
+                        }else if(type.isMemory()){
+                            long initCap= stack.pop().asLong();
+                            stack.push(Value.createMemory(type,initCap));
                         }else if(type.isArray()){
                             long initCap = stack.pop().asLong();
                             Value fill = stack.pop();
-                            Value array=Value.createList(type, initCap);
-                            array.fill(fill,0,initCap);
+                            Value array=Value.createArray(type,fill,initCap);
                             stack.push(array);
                         }else{
                             throw new ConcatRuntimeError("new only supports arrays, memories, lists and tuples");

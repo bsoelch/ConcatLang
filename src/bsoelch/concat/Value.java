@@ -618,7 +618,6 @@ public abstract class Value {
             return new ListValue(type,new ArrayList<>((int) initCap));
         }
     }
-
     private static class ListValue extends Value{
         final ArrayList<Value> elements;
         /**true when this value is currently used in toString (used to handle self containing lists)*/
@@ -1448,6 +1447,123 @@ public abstract class Value {
             }else{
                 return super.castTo(type);
             }
+        }
+    }
+
+
+    public static Value createMemory(Type type,long initCap) throws ConcatRuntimeError {
+        if(initCap<0){
+            throw new ConcatRuntimeError("initial capacity has to be at least 0");
+        }else if(initCap>Integer.MAX_VALUE){
+            throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+        }
+        return new ArrayValue(type,(int)initCap);
+    }
+    public static Value createArray(Type type,Value content,long initCap) throws ConcatRuntimeError {
+        if(initCap<0){
+            throw new ConcatRuntimeError("initial capacity has to be at least 0");
+        }else if(initCap>Integer.MAX_VALUE){
+            throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
+        }
+        return new ArrayValue(type,content,(int)initCap);
+    }
+    //addLater ByteArray,  other primitive arrays?
+    private static class ArrayValue extends Value{
+        Value[] data;
+        int offset;
+        int length;
+
+        /**create and empty array with the given capacity*/
+        protected ArrayValue(Type type,int capacity) {
+            super(type);
+            data=new Value[capacity];
+            offset=0;
+            length=0;
+        }
+        /**creates an array with the given lengths and fills it with the given initial value*/
+        protected ArrayValue(Type type,Value content,int capacity) {
+            super(type);
+            data=new Value[capacity];
+            Arrays.fill(data,content);
+            offset=0;
+            length=capacity;
+        }
+
+        @Override
+        public int length() throws TypeError {
+            return length;
+        }
+
+        @Override
+        public Value get(long index) throws ConcatRuntimeError {
+            if(index<0||index>= length){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length);
+            }
+            return data[offset+(int)index];
+        }
+        @Override
+        public void set(long index,Value val) throws ConcatRuntimeError {
+            if(index<0||index>= length){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length);
+            }
+            data[offset+(int)index]=val;
+        }
+
+        @Override
+        public Value getSlice(long off, long to) throws ConcatRuntimeError {
+            if(off<0||to>length||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length);
+            }
+            return new ArraySlice(this,(int)off,(int)(to-off));
+        }
+
+        @Override
+        public String stringValue() {
+            return Arrays.toString(Arrays.copyOfRange(data,offset,length));
+        }
+    }
+    private static class ArraySlice extends Value{
+        final ArrayValue src;
+        final int offset;
+        final int length;
+
+        protected ArraySlice(ArrayValue src, int offset, int length) {
+            super(src.type);//TODO slice of memory -> array
+            this.src=src;
+            this.offset = offset;
+            this.length = length;
+        }
+
+        @Override
+        public int length() throws TypeError {
+            return length;
+        }
+
+        @Override
+        public Value get(long index) throws ConcatRuntimeError {
+            if(index<0||index>= length){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length);
+            }
+            return src.get(index+offset);
+        }
+        @Override
+        public void set(long index,Value val) throws ConcatRuntimeError {
+            if(index<0||index>= length){
+                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length);
+            }
+            src.set(index+offset,val);
+        }
+        @Override
+        public Value getSlice(long off, long to) throws ConcatRuntimeError {
+            if(off<0||to>length||off>to){
+                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length);
+            }
+            return new ArraySlice(src,offset+(int)off,(int)(to-off));
+        }
+
+        @Override
+        public String stringValue() {
+            return Arrays.toString(Arrays.copyOfRange(src.data,src.offset+offset,length));
         }
     }
 
