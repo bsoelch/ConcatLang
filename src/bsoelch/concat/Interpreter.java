@@ -3603,7 +3603,7 @@ public class Interpreter {
                                 ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
                                 hasField = true;
                             }
-                        }else if (identifier.name.equals("length") && (f.type.isList()|| f.type instanceof Type.Tuple)) {
+                        }else if (identifier.name.equals("length") && (f.type.isList()||f.type.isArray()||f.type instanceof Type.Tuple)) {
                             typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
                             ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
                             hasField = true;
@@ -4443,20 +4443,15 @@ public class Interpreter {
                                 values[count-i]= stack.pop();//values should already have the correct types
                             }
                             stack.push(Value.createTuple((Type.Tuple)type,values));
-                        }else if(type.isList()) {
-                            long initCap = stack.pop().asLong();
-                            stack.push(Value.createList(type, initCap));
-                        }else if(type.isMemory()){
+                        }else if(type.isList()||type.isMemory()){
                             long initCap= stack.pop().asLong();
-                            //TODO create memory
-                            System.err.println("new memory["+initCap+"]");
-                            throw new UnsupportedOperationException("creating memories is currently not supported");
+                            stack.push(Value.createList(type, initCap));
                         }else if(type.isArray()){
                             long initCap = stack.pop().asLong();
                             Value fill = stack.pop();
-                            //TODO create array
-                            System.err.println("new array["+initCap+"]{"+fill+"}");
-                            throw new UnsupportedOperationException("creating arrays is currently not supported");
+                            Value array=Value.createList(type, initCap);
+                            array.fill(fill,0,initCap);
+                            stack.push(array);
                         }else{
                             throw new ConcatRuntimeError("new only supports arrays, memories, lists and tuples");
                         }

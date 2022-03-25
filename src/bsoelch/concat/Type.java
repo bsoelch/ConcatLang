@@ -339,7 +339,8 @@ public class Type {
 
         @Override
         public boolean canAssignTo(Type t, BoundMaps bounds) {
-            if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
+            if(t instanceof WrapperType&&(((WrapperType)t).wrapperName.equals(wrapperName)||
+                    wrapperName.equals(MEMORY)&&((WrapperType)t).wrapperName.equals(ARRAY))){
                 if(t.mutability!=mutability&&t.mutability!=Mutability.UNDECIDED){
                     return false;//incompatible mutability
                 }//no else

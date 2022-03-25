@@ -593,7 +593,7 @@ public abstract class Value {
         }
     }
     public static Value createList(Type listType, ArrayList<Value> elements) throws ConcatRuntimeError {
-        if(!listType.isList()){
+        if(!(listType.isList()||listType.isArray()||listType.isMemory())){
             throw new IllegalArgumentException(listType+" is no valid list-type");
         }
         if(listType.isRawString()){
@@ -2235,7 +2235,7 @@ public abstract class Value {
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{list,a},new Type[]{list},"<<") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list off count val
+                    //list val
                     values[0].push(values[1],false);
                     return new Value[]{values[0]};
                 }
@@ -2247,7 +2247,7 @@ public abstract class Value {
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,list},new Type[]{list},">>") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list off count val
+                    //val list
                     values[1].push(values[0],true);
                     return new Value[]{values[1]};
                 }
@@ -2260,7 +2260,7 @@ public abstract class Value {
                     new Type[]{mutList},"<<*") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list off count val
+                    //list val
                     values[0].pushAll(values[1],false);
                     return new Value[]{values[0]};
                 }
@@ -2273,7 +2273,7 @@ public abstract class Value {
                     new Type[]{mutList},"*>>") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list off count val
+                    //val list
                     values[1].pushAll(values[0],true);
                     return new Value[]{values[1]};
                 }
@@ -2282,6 +2282,17 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.maybeMutableListOf(a),Type.UINT},
+                    new Type[]{a},"[]") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list index
+                    return new Value[]{values[0].get(values[1].asLong())};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),Type.UINT},
                     new Type[]{a},"[]") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
@@ -2302,6 +2313,18 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.mutableListOf(a),Type.UINT},
+                    new Type[]{},"[]=") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //val list index
+                    values[1].set(values[2].asLong(),values[0]);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.arrayOf(a).mutable(),Type.UINT},
                     new Type[]{},"[]=") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
@@ -2337,6 +2360,39 @@ public abstract class Value {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.maybeMutableListOf(a),Type.UINT,Type.UINT},
                     new Type[]{Type.maybeMutableListOf(a)},"[:]") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list off to
+                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a),Type.UINT,Type.UINT},
+                    new Type[]{Type.arrayOf(a)},"[:]") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list off to
+                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).mutable(),Type.UINT,Type.UINT},
+                    new Type[]{Type.arrayOf(a).mutable()},"[:]") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list off to
+                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),Type.UINT,Type.UINT},
+                    new Type[]{Type.arrayOf(a).maybeMutable()},"[:]") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off to
