@@ -64,8 +64,8 @@ public class Type {
                 return Optional.of(FLOAT);
             }else if((!strict)&&a.canAssignTo(ANY)&&b.canAssignTo(ANY)){
                 return Optional.of(ANY);
-            }else if((a.isList()&&(b.isMutableList()||b.isMaybeMutableList()))
-                    ||(b.isList()&&(a.isMutableList()||a.isMaybeMutableList()))){
+            }else if(((a.isList()&&b.isList())&&
+                    ((a.isMutable()||a.isMaybeMutable())||(b.isMutable()||b.isMaybeMutable())))){
                 Type a1=a.content(),b1=b.content();
                 if(a1.canAssignTo(b1)){
                     return Optional.of(Type.maybeMutableListOf(b1));
@@ -106,13 +106,22 @@ public class Type {
         }
     }
 
-    private Type(String name, boolean switchable) {
-        this.name = name;
-        this.switchable = switchable;
-    }
-
     final String name;
     final boolean switchable;
+    final Mutability mutability;
+    static String mutabilityPostfix(Mutability mutability) {
+        return mutability==Mutability.MUTABLE?" mut":mutability==Mutability.UNDECIDED?" mut?":"";
+    }
+    private Type(String name, boolean switchable) {
+        this(name,switchable,Mutability.IMMUTABLE);
+    }
+    private Type(String name, boolean switchable,Mutability mutability) {
+        this.name = name;
+        this.switchable = switchable;
+        this.mutability=mutability;
+    }
+
+
 
     @Override
     public final boolean equals(Object o) {
@@ -178,13 +187,13 @@ public class Type {
     public int depth() {
         return 0;
     }
+    public boolean isMutable() {
+        return mutability==Mutability.MUTABLE;
+    }
+    public boolean isMaybeMutable() {
+        return mutability==Mutability.UNDECIDED;
+    }
     public boolean isList() {
-        return false;
-    }
-    public boolean isMutableList() {
-        return false;
-    }
-    public boolean isMaybeMutableList() {
         return false;
     }
     public boolean isOptional() {
@@ -221,33 +230,31 @@ public class Type {
     }
 
     public static Type mutableListOf(Type contentType){
-        return WrapperType.create(WrapperType.MUTABLE_LIST,contentType);
+        return WrapperType.create(WrapperType.LIST,contentType,Mutability.MUTABLE);
     }
     public static Type maybeMutableListOf(Type contentType){
-        return WrapperType.create(WrapperType.MAYBE_MUTABLE_LIST,contentType);
+        return WrapperType.create(WrapperType.LIST,contentType,Mutability.UNDECIDED);
     }
     public static Type listOf(Type contentType){
-        return WrapperType.create(WrapperType.LIST,contentType);
+        return WrapperType.create(WrapperType.LIST,contentType,Mutability.IMMUTABLE);
     }
 
     public static Type optionalOf(Type contentType){
-        return WrapperType.create(WrapperType.OPTIONAL,contentType);
+        return WrapperType.create(WrapperType.OPTIONAL,contentType,Mutability.IMMUTABLE);
     }
 
     private static class WrapperType extends Type {
         static final String LIST = "list";
         static final String OPTIONAL = "optional";
-        static final String MUTABLE_LIST = "list mut";
-        static final String MAYBE_MUTABLE_LIST = "list mut?";
 
-        static final WrapperType BYTES= new WrapperType(LIST,Type.BYTE);
-        static final WrapperType UNICODE_STRING= new WrapperType(LIST,Type.CODEPOINT);
+        static final WrapperType BYTES= new WrapperType(LIST,Type.BYTE,Mutability.IMMUTABLE);
+        static final WrapperType UNICODE_STRING= new WrapperType(LIST,Type.CODEPOINT,Mutability.IMMUTABLE);
 
         final Type contentType;
         final String wrapperName;
 
-        private static WrapperType create(String wrapperName, Type contentType) {
-            if(LIST.equals(wrapperName)) {
+        private static WrapperType create(String wrapperName, Type contentType,Mutability mutability) {
+            if(mutability==Mutability.IMMUTABLE&&LIST.equals(wrapperName)) {
                 if (contentType == CODEPOINT) {
                     return UNICODE_STRING;
                 } else if (contentType == BYTE) {
@@ -255,11 +262,11 @@ public class Type {
                 }
             }
             //addLater? caching
-            return new WrapperType(wrapperName,contentType);
+            return new WrapperType(wrapperName,contentType,mutability);
         }
-        private WrapperType(String wrapperName, Type contentType){
-            super(contentType.name+" "+ wrapperName, LIST.equals(wrapperName)&&
-                    (contentType==BYTE||contentType==CODEPOINT));
+        private WrapperType(String wrapperName, Type contentType,Mutability mutability){
+            super(contentType.name+" "+ wrapperName+mutabilityPostfix(mutability), LIST.equals(wrapperName)&&
+                    (contentType==BYTE||contentType==CODEPOINT),mutability);
             this.wrapperName = wrapperName;
             this.contentType = contentType;
         }
@@ -267,25 +274,24 @@ public class Type {
         @Override
         WrapperType replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             Type newContent = contentType.replaceGenerics(generics);
-            return contentType==newContent?this:create(wrapperName, newContent);
+            return contentType==newContent?this:create(wrapperName, newContent,mutability);
         }
 
         @Override
         public int depth() {
             return content().depth()+1;
         }
-
         @Override
         public Type mutable() {
             if(wrapperName.equals(LIST)){
-                return create(MUTABLE_LIST,contentType);
+                return create(LIST,contentType,Mutability.MUTABLE);
             }
             return super.mutable();
         }
         @Override
         public Type maybeMutable() {
             if(wrapperName.equals(LIST)){
-                return create(MAYBE_MUTABLE_LIST,contentType);
+                return create(LIST,contentType,Mutability.UNDECIDED);
             }
             return super.maybeMutable();
         }
@@ -294,12 +300,7 @@ public class Type {
         public boolean isList() {
             return wrapperName.equals(LIST);
         }
-        public boolean isMutableList() {
-            return wrapperName.equals(MUTABLE_LIST);
-        }
-        public boolean isMaybeMutableList() {
-            return wrapperName.equals(MAYBE_MUTABLE_LIST);
-        }
+
         @Override
         public boolean isRawString() {
             return contentType==BYTE;
@@ -316,12 +317,12 @@ public class Type {
         @Override
         public boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                if(wrapperName.equals(MUTABLE_LIST)&&!t.content().canAssignTo(content(),bounds.swapped())){
+                if(t.mutability!=mutability&&t.mutability!=Mutability.UNDECIDED){
+                    return false;//incompatible mutability
+                }//no else
+                if(isMutable()&&!t.content().canAssignTo(content(),bounds.swapped())){
                     return false;//mutable values cannot be assigned to mutable values of a different type
                 }
-                return content().canAssignTo(t.content(),bounds);
-            }else if((wrapperName.equals(LIST)||wrapperName.equals(MUTABLE_LIST))&&
-                    t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(MAYBE_MUTABLE_LIST)){
                 return content().canAssignTo(t.content(),bounds);
             }else{
                 return super.canAssignTo(t,bounds);
@@ -346,7 +347,8 @@ public class Type {
         protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
             if (this == t) return true;
             if (!(t instanceof WrapperType that)) return false;
-            return contentType.equals(that.contentType,generics) && Objects.equals(wrapperName, that.wrapperName);
+            return contentType.equals(that.contentType,generics) &&mutability==that.mutability
+                    && Objects.equals(wrapperName, that.wrapperName);
         }
         @Override
         public int hashCode() {
@@ -360,7 +362,6 @@ public class Type {
         final FilePosition declaredAt;
         final Type[] elements;
         final boolean isPublic;
-        final Mutability mutability;
 
         final String baseName;
 
@@ -388,12 +389,8 @@ public class Type {
         private static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
                                    Type[] elements,Mutability mutability,FilePosition declaredAt) {
             String fullName = processGenericArguments(name,genericParams, genericArgs, elements);
-            if(mutability==Mutability.MUTABLE){
-                fullName+=" mut";
-            }else if(mutability==Mutability.UNDECIDED){
-                fullName+=" mut?";
-            }
-            return new Tuple(fullName,name,isPublic,genericParams, genericArgs,elements,mutability, declaredAt);
+            return new Tuple(fullName+mutabilityPostfix(mutability),name,isPublic,genericParams, genericArgs,
+                    elements,mutability, declaredAt);
         }
 
         private static String processGenericArguments(String baseName,GenericParameter[] genericParams,
@@ -427,14 +424,13 @@ public class Type {
 
         private Tuple(String name, String baseName, boolean isPublic, GenericParameter[] genericParams,
                       Type[] genericArgs, Type[] elements, Mutability mutability, FilePosition declaredAt){
-            super(name, false);
+            super(name, false,mutability);
             this.isPublic = isPublic;
             this.genericParams = genericParams;
             this.genericArgs = genericArgs;
             this.elements=elements;
             this.declaredAt = declaredAt;
             this.baseName=baseName;
-            this.mutability = mutability;
         }
 
         @Override
@@ -486,9 +482,6 @@ public class Type {
         public Tuple mutable() {
             return create(baseName,isPublic,genericParams,genericArgs,elements,Mutability.MUTABLE,declaredAt);
         }
-        public boolean isMutable() {//addLater make isMutable to function of Type
-            return mutability==Mutability.MUTABLE;
-        }
         @Override
         public Tuple maybeMutable() {
             return create(baseName,isPublic,genericParams,genericArgs,elements,Mutability.UNDECIDED,declaredAt);
@@ -508,7 +501,7 @@ public class Type {
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(canAssignBaseTuple(t)&&((Tuple) t).elementCount()<=elementCount()){
-                if(((Tuple) t).mutability!=mutability&&((Tuple) t).mutability!=Mutability.UNDECIDED){
+                if(t.mutability!=mutability&&t.mutability!=Mutability.UNDECIDED){
                     return false;//incompatible mutability
                 }
                 for(int i=0;i<((Tuple) t).elements.length;i++){
@@ -527,7 +520,7 @@ public class Type {
         @Override
         protected boolean canCastTo(Type t,  BoundMaps bounds) {
             if(canCastBaseTuple(t)){
-                if(((Tuple) t).mutability!=mutability&&((Tuple) t).mutability!=Mutability.UNDECIDED){
+                if(t.mutability!=mutability&&t.mutability!=Mutability.UNDECIDED){
                     return false;//incompatible mutability
                 }
                 int n=Math.min(elements.length,((Tuple) t).elements.length);
@@ -555,8 +548,11 @@ public class Type {
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
             if (this == t) return true;
-            if (t.getClass()!=getClass()) return false;
+            if (t.getClass()!=getClass())
+                return false;
             Tuple tuple=(Tuple)t;
+            if(mutability!=t.mutability)
+                return false;
             if(tuple.elements.length!=elements.length)
                 return false;
             for(int i=0;i<elements.length;i++){
@@ -703,12 +699,6 @@ public class Type {
         boolean canAssignBaseTuple(Type t) {
             return super.canAssignBaseTuple(t)||(t instanceof Struct&&((Struct) t).declaredAt.equals(declaredAt))||
                     (extended!=null&&extended.canAssignBaseTuple(t));
-        }
-
-        @Override
-        protected boolean canAssignTo(Type t, BoundMaps bounds) {
-            return super.canAssignTo(t, bounds)||
-                    (t instanceof Struct&&extended!=null&&extended.canAssignTo(t,bounds));
         }
         @Override
         boolean canCastBaseTuple(Type t) {

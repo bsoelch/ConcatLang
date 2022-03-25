@@ -54,16 +54,8 @@ utf8 #include
   else value .type .isEnum if
     value .type .name <<* ' ' << value .type .fieldNames value uint cast [] <<* " ." <<* return
   else value .type type == if
-    value string == if{
-      "string" <<* return
-    else value ustring == if
-      "ustring" <<* return
-    else value string mut == if
-      "string mut" <<* return
-    else value ustring mut == if
-      "ustring mut" <<* return
-    else value type cast .isTuple if
-      value type cast .name <<* return ## return tuple-name
+    value type cast .isTuple if{
+      value type cast .name <<* ## return tuple-name
     else value type cast .isProc if
       "( " <<* res =::
       value type cast .inTypes type list args mut =:
@@ -79,13 +71,20 @@ utf8 #include
         res args i [] <<s " " <<* res =
         i 1 + i =
       }
-      res ")" <<* return
+      res ")" <<*
     else value type cast .isList if
-      value type cast .content <<s " list" <<* return
+      value type cast .content
+        dup byte == if{ drop
+          "string" <<*
+        else dup codepoint == if drop
+          "ustring" <<*
+        else
+          #+content+# <<s " list" <<*
+        }
     else value type cast .isOptional if
-      value type cast .content <<s " optional" <<* return
+      value type cast .content <<s " optional" <<*
     else value type cast .isEnum if
-      value type cast .name <<* return ## return enum-name
+      value type cast .name <<* ## return enum-name
     else value type cast .isUnion if
       "union( " <<* res =::
       value type cast .inTypes type list args =:
@@ -94,28 +93,30 @@ utf8 #include
         res args i [] <<s " " <<* res =
         i 1 + i =
       }
-      res ')' << return
-    else value type cast .isMutableList if
-      value type cast .content <<s " list mut" <<* return
-    else value type cast .isMaybeMutableList if
-      value type cast .content <<s " list mut?" <<* return
+      res ')' <<
     else value type == if
-      "type"  <<* return
+      "type"  <<*
     else value bool == if
-      "bool"  <<* return
+      "bool"  <<*
     else value byte == if
-      "byte"  <<* return
+      "byte"  <<*
     else value  int == if
-      "int"   <<* return
+      "int"   <<*
     else value uint == if
-      "uint"  <<* return
+      "uint"  <<*
     else value float == if
-      "float" <<* return
+      "float" <<*
     else value codepoint == if
-      "codepoint" <<* return
+      "codepoint" <<*
     else value var == if
-      "var" <<* return
+      "var" <<*
     else unreachable }
+    ##append mutability postfix
+    value type cast .isMutable if{
+      " mut" <<* return
+    else value type cast .isMaybeMutable if
+      " mut?" <<* return
+    }
   else value .type bool == if
     value bool cast if{ "true" else "false" } <<* return
   else value .type byte == if

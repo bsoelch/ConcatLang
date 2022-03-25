@@ -3372,7 +3372,7 @@ public class Interpreter {
                         return;
                     }
                 }
-            }else if(type.isList()||type.isMutableList()){
+            }else if(type.isList()){
                 TypeFrame f= typeStack.pop();
                 if(f.type!=Type.UINT&&f.type!=Type.INT){
                     throw new SyntaxError("invalid argument for '"+type+" new': "+f.type+
@@ -3597,8 +3597,7 @@ public class Interpreter {
                                 ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
                                 hasField = true;
                             }
-                        }else if (identifier.name.equals("length") && (f.type.isList() ||f.type.isMutableList()||
-                                f.type.isMaybeMutableList()|| f.type instanceof Type.Tuple)) {
+                        }else if (identifier.name.equals("length") && (f.type.isList()|| f.type instanceof Type.Tuple)) {
                             typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
                             ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
                             hasField = true;
@@ -3663,15 +3662,15 @@ public class Interpreter {
                                             f.value.asType() instanceof Type.UnionType ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IS_UNION, t.pos));
                                 }
-                                case "isMutableList" -> {
+                                case "isMutable" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isMutableList() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MUTABLE_LIST, t.pos));
+                                            f.value.asType().isMutable() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MUTABLE, t.pos));
                                 }
-                                case "isMaybeMutableList" -> {
+                                case "isMaybeMutable" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isMaybeMutableList() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MAYBE_MUTABLE_LIST, t.pos));
+                                            f.value.asType().isMaybeMutable() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MAYBE_MUTABLE, t.pos));
                                 }
                                 default -> hasField = false;
                             }
@@ -4323,13 +4322,13 @@ public class Interpreter {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.GenericParameter?Value.TRUE:Value.FALSE);
             }
-            case IS_MUTABLE_LIST -> {
+            case IS_MUTABLE -> {
                 Type type = stack.pop().asType();
-                stack.push(type.isMutableList()?Value.TRUE:Value.FALSE);
+                stack.push(type.isMutable()?Value.TRUE:Value.FALSE);
             }
-            case IS_MAYBE_MUTABLE_LIST -> {
+            case IS_MAYBE_MUTABLE -> {
                 Type type = stack.pop().asType();
-                stack.push(type.isMaybeMutableList()?Value.TRUE:Value.FALSE);
+                stack.push(type.isMaybeMutable()?Value.TRUE:Value.FALSE);
             }
             case HAS_VALUE -> {
                 Value value= stack.pop();
@@ -4424,7 +4423,7 @@ public class Interpreter {
                                 values[count-i]= stack.pop();//values should already have the correct types
                             }
                             stack.push(Value.createTuple((Type.Tuple)type,values));
-                        }else if(type.isList()||type.isMutableList()){
+                        }else if(type.isList()){
                             long initCap= stack.pop().asLong();
                             stack.push(Value.createList(type,initCap));
                         }else{
