@@ -81,6 +81,10 @@ utf8 #include
         else
           #+content+# <<s " list" <<*
         }
+    else value type cast .isArray if
+      value type cast .content <<s " array" <<*
+    else value type cast .isMemory if
+      value type cast .content <<s " memory" <<*
     else value type cast .isOptional if
       value type cast .content <<s " optional" <<*
     else value type cast .isEnum if

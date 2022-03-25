@@ -196,6 +196,12 @@ public class Type {
     public boolean isList() {
         return false;
     }
+    public boolean isArray() {
+        return false;
+    }
+    public boolean isMemory() {
+        return false;
+    }
     public boolean isOptional() {
         return false;
     }
@@ -222,11 +228,11 @@ public class Type {
     }
     /**returns the mutable version of this type*/
     public Type mutable(){
-        throw new UnsupportedOperationException(this+" cannot be mutable");
+        return this;
     }
     /**returns the semi-mutable version of this type*/
     public Type maybeMutable(){
-        throw new UnsupportedOperationException(this+" cannot be mutable");
+        return this;
     }
 
     public static Type mutableListOf(Type contentType){
@@ -238,13 +244,22 @@ public class Type {
     public static Type listOf(Type contentType){
         return WrapperType.create(WrapperType.LIST,contentType,Mutability.IMMUTABLE);
     }
+    public static Type arrayOf(Type contentType){
+        return WrapperType.create(WrapperType.ARRAY,contentType,Mutability.IMMUTABLE);
+    }
+    public static Type memoryOf(Type contentType){
+        return WrapperType.create(WrapperType.MEMORY,contentType,Mutability.IMMUTABLE);
+    }
 
     public static Type optionalOf(Type contentType){
         return WrapperType.create(WrapperType.OPTIONAL,contentType,Mutability.IMMUTABLE);
     }
 
     private static class WrapperType extends Type {
-        static final String LIST = "list";
+        static final String LIST = "list";//will be removed once it is implemented in concat (using memory)
+
+        static final String ARRAY = "array";
+        static final String MEMORY = "memory";
         static final String OPTIONAL = "optional";
 
         static final WrapperType BYTES= new WrapperType(LIST,Type.BYTE,Mutability.IMMUTABLE);
@@ -283,23 +298,19 @@ public class Type {
         }
         @Override
         public Type mutable() {
-            if(wrapperName.equals(LIST)){
-                return create(LIST,contentType,Mutability.MUTABLE);
+            if(!wrapperName.equals(OPTIONAL)){
+                return create(wrapperName,contentType,Mutability.MUTABLE);
             }
             return super.mutable();
         }
         @Override
         public Type maybeMutable() {
-            if(wrapperName.equals(LIST)){
-                return create(LIST,contentType,Mutability.UNDECIDED);
+            if(!wrapperName.equals(OPTIONAL)){
+                return create(wrapperName,contentType,Mutability.UNDECIDED);
             }
             return super.maybeMutable();
         }
 
-        @Override
-        public boolean isList() {
-            return wrapperName.equals(LIST);
-        }
 
         @Override
         public boolean isRawString() {
@@ -308,6 +319,18 @@ public class Type {
         @Override
         public boolean isUnicodeString() {
             return contentType==CODEPOINT;
+        }
+        @Override
+        public boolean isList() {
+            return wrapperName.equals(LIST);
+        }
+        @Override
+        public boolean isArray() {
+            return wrapperName.equals(ARRAY);
+        }
+        @Override
+        public boolean isMemory() {
+            return wrapperName.equals(MEMORY);
         }
         @Override
         public boolean isOptional() {

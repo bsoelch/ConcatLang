@@ -32,7 +32,7 @@ public class Interpreter {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
-        MARK_MUTABLE,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL, MARK_MAYBE_MUTABLE,//compile time operations
+        MARK_MUTABLE,LIST_OF,ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL, MARK_MAYBE_MUTABLE,//compile time operations
         NOP,OVERLOADED_PROC_PTR
     }
 
@@ -2381,11 +2381,9 @@ public class Interpreter {
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
 
                 case "mut?"       -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
-                case "array"      ->
-                        throw new SyntaxError("fixed size array type is currently not implemented",pos);
-                case "memory"      ->
-                        throw new SyntaxError("memory type is currently not implemented",pos);
                 case "list"     -> tokens.add(new Token(TokenType.LIST_OF,        pos));//list may be changed to a composite type
+                case "array"    -> tokens.add(new Token(TokenType.ARRAY_OF,       pos));
+                case "memory"   -> tokens.add(new Token(TokenType.MEMORY_OF,      pos));
                 case "optional" -> tokens.add(new Token(TokenType.OPTIONAL_OF,    pos));
                 case "empty"    -> tokens.add(new Token(TokenType.EMPTY_OPTIONAL, pos));
 
@@ -2801,6 +2799,10 @@ public class Interpreter {
                     typeCheckTypeModifier("mut?",(t1)->Value.ofType(t1.maybeMutable()),ret,typeStack,t.pos);
                 case LIST_OF ->
                     typeCheckTypeModifier("list",(t1)->Value.ofType(Type.listOf(t1)),ret,typeStack,t.pos);
+                case ARRAY_OF ->
+                    typeCheckTypeModifier("array",(t1)->Value.ofType(Type.arrayOf(t1)),ret,typeStack,t.pos);
+                case MEMORY_OF ->
+                    typeCheckTypeModifier("memory",(t1)->Value.ofType(Type.memoryOf(t1)),ret,typeStack,t.pos);
                 case OPTIONAL_OF ->
                     typeCheckTypeModifier("optional",(t1)->Value.ofType(Type.optionalOf(t1)),ret,typeStack,t.pos);
                 case EMPTY_OPTIONAL ->
@@ -3637,6 +3639,16 @@ public class Interpreter {
                                             f.value.asType().isList() ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IS_LIST, t.pos));
                                 }
+                                case "isArray" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType().isArray() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_ARRAY, t.pos));
+                                }
+                                case "isMemory" -> {
+                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
+                                            f.value.asType().isMemory() ? Value.TRUE : Value.FALSE, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MEMORY, t.pos));
+                                }
                                 case "isProc" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType() instanceof Type.Procedure ? Value.TRUE : Value.FALSE, t.pos));
@@ -4318,10 +4330,6 @@ public class Interpreter {
                 Type type = stack.pop().asType();
                 stack.push(type instanceof Type.UnionType?Value.TRUE:Value.FALSE);
             }
-            case IS_GENEIRC -> {
-                Type type = stack.pop().asType();
-                stack.push(type instanceof Type.GenericParameter?Value.TRUE:Value.FALSE);
-            }
             case IS_MUTABLE -> {
                 Type type = stack.pop().asType();
                 stack.push(type.isMutable()?Value.TRUE:Value.FALSE);
@@ -4329,6 +4337,14 @@ public class Interpreter {
             case IS_MAYBE_MUTABLE -> {
                 Type type = stack.pop().asType();
                 stack.push(type.isMaybeMutable()?Value.TRUE:Value.FALSE);
+            }
+            case IS_ARRAY -> {
+                Type type = stack.pop().asType();
+                stack.push(type.isArray()?Value.TRUE:Value.FALSE);
+            }
+            case IS_MEMORY -> {
+                Type type = stack.pop().asType();
+                stack.push(type.isMemory()?Value.TRUE:Value.FALSE);
             }
             case HAS_VALUE -> {
                 Value value= stack.pop();
@@ -4515,7 +4531,8 @@ public class Interpreter {
                         context.stdErr.println("unresolved overloaded procedure pointer: "+next.pos);
                         return ExitType.ERROR;
                     }
-                    case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,MARK_MUTABLE,MARK_MAYBE_MUTABLE ->
+                    case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
+                            MARK_MUTABLE,MARK_MAYBE_MUTABLE,ARRAY_OF,MEMORY_OF ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN -> {
