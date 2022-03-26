@@ -587,7 +587,7 @@ public class Type {
             return elements.length;
         }
         public Type getElement(long i){
-            return elements[(int) i];
+            return updateChildMutability(elements[(int) i]);
         }
         public Type[] getElements() {
             Type[] mappedElements=new Type[elements.length];
