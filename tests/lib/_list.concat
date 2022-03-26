@@ -1,0 +1,30 @@
+tests/lib/list:
+
+_list #include
+core #import
+
+4 int newList x =::
+
+x 1 << 2 << 3 << 4 << 5 << 6 << 7 << debugPrint
+x .data .offset   debugPrint
+x .data .capacity debugPrint
+8 7 6 5 4 3 2 1 0 x >> >> >> >> >> >> >> >> >> debugPrint
+x .data .offset   debugPrint
+x .data .capacity debugPrint
+42 x 10 []=
+x debugPrint
+x 5 [] debugPrint
+"___________________________________" debugPrint
+4 int newList y =::
+y  1 << 2 << 3 << 4 << debugPrint
+y .data .offset   debugPrint
+y .data .capacity debugPrint
+y y <<* debugPrint
+y .data .offset   debugPrint
+y .data .capacity debugPrint
+4 int newList z =::
+z -3 << -2 << -1 << 0 << debugPrint
+z y *>> debugPrint
+y .data .offset   debugPrint
+y .data .capacity debugPrint
+

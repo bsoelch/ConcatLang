@@ -1,0 +1,22 @@
+(int memory mut:[int:1, int:2, int:3, int:4, int:5, int:6, int:7])
+0
+8
+(int memory mut:[int:8, int:7, int:6, int:5, int:4, int:3, int:2, int:1, int:0, int:1, int:2, int:3, int:4, int:5, int:6, int:7])
+15
+17
+(int memory mut:[int:8, int:7, int:6, int:5, int:4, int:3, int:2, int:1, int:0, int:1, int:42, int:3, int:4, int:5, int:6, int:7])
+3
+___________________________________
+(int memory mut:[int:1, int:2, int:3, int:4])
+0
+4
+(int memory mut:[int:1, int:2, int:3, int:4, int:1, int:2, int:3, int:4])
+0
+8
+(int memory mut:[int:-3, int:-2, int:-1, int:0])
+(int memory mut:[int:-3, int:-2, int:-1, int:0, int:1, int:2, int:3, int:4, int:1, int:2, int:3, int:4])
+0
+12
+
+Stack:
+[]

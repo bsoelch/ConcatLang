@@ -58,3 +58,7 @@ valueIO:
 
 Stack:
 []
+_list:
+
+Stack:
+[]
