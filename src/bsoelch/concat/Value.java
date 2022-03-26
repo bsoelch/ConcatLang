@@ -1476,6 +1476,8 @@ public abstract class Value {
         Value getSlice(long off, long to) throws ConcatRuntimeError;
         void copyFrom(Value[] values,long offset) throws ConcatRuntimeError;
         void fill(Value val,long offset,long count) throws ConcatRuntimeError;
+        void append(Value val) throws ConcatRuntimeError;
+        void prepend(Value val) throws ConcatRuntimeError;
     }
     private static class ArrayValue extends Value implements ArrayLike{
         Value[] data;
@@ -1564,7 +1566,7 @@ public abstract class Value {
         }
 
         @Override
-        public void fill(Value val, long off, long count) throws ConcatRuntimeError {
+        public void fill(Value val, long offset, long count) throws ConcatRuntimeError {
             if(type.isMemory()){
                 if(offset<-this.offset||offset+count>data.length){
                     throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+(-this.offset)
@@ -1582,18 +1584,40 @@ public abstract class Value {
                             +" and "+(length-count));
                 }
             }
-            int fromIndex = offset + (int) off;
+            int fromIndex = this.offset + (int) offset;
             Arrays.fill(data, fromIndex,fromIndex+(int)count,val);
             if(type.isMemory()){
                 if(length==0){//set initial section of memory
-                    this.offset=(int)off;
+                    this.offset=(int)offset;
                     this.length=(int)count;
                 }else{
                     int prevOffset = this.offset;
-                    this.offset=Math.min(prevOffset,this.offset+(int)off);
-                    this.length=Math.max(prevOffset+this.length,this.offset+(int)(off+count))-this.offset;
+                    this.offset=Math.min(prevOffset,this.offset+(int)offset);
+                    this.length=Math.max(prevOffset+this.length,this.offset+(int)(offset+count))-this.offset;
                 }
             }
+        }
+
+        @Override
+        public void append(Value val) throws ConcatRuntimeError {
+            if(!type.isMemory()){
+                throw new RuntimeException("append is only supported for memories");
+            }
+            if(offset+length>=data.length){
+                throw new ConcatRuntimeError("cannot append value, array reached upper boundary of memory");
+            }
+            data[offset+(length++)]=val;
+        }
+
+        @Override
+        public void prepend(Value val) throws ConcatRuntimeError {
+            if(!type.isMemory()){
+                throw new RuntimeException("prepend is only supported for memories");
+            }
+            if(offset==0){
+                throw new ConcatRuntimeError("cannot prepend value, array reached lower boundary of memory");
+            }
+            data[--offset]=val;
         }
 
         @Override
@@ -1659,6 +1683,15 @@ public abstract class Value {
             }
             int fromIndex = src.offset + this.offset + (int) offset;
             Arrays.fill(src.data, fromIndex,fromIndex+(int)count,val);
+        }
+        @Override
+        public void append(Value val){
+            throw new RuntimeException("append is only supported for memories");
+        }
+
+        @Override
+        public void prepend(Value val){
+            throw new RuntimeException("prepend is only supported for memories");
         }
 
         @Override
@@ -2649,6 +2682,30 @@ public abstract class Value {
             });
         }
 
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            Type list = Type.memoryOf(a).mutable();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{list,a},new Type[]{},"append") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //list val
+                    ((ArrayLike)values[0]).append(values[1]);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            Type list = Type.memoryOf(a).mutable();
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,list},new Type[]{},"prepend") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //val list
+                    ((ArrayLike)values[1]).prepend(values[0]);
+                    return new Value[0];
+                }
+            });
+        }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
