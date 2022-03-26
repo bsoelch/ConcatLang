@@ -5,8 +5,8 @@ core #namespace
 ##   try moving offset to avoid reallocating
 ##   set growth rate to factor less than 2 ( 9/8 ? )
 
-List public struct{ A <> ##TODO rename to 'list' once native list is removed
-  A memory mut :data mut
+List public struct{ A <> ##TODO? rename to 'list' once native list is removed
+  A memory mut^ :data mut
 }
 
 newList public proc( A <> uint => A List mut ){
