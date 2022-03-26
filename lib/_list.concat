@@ -8,6 +8,11 @@ core #namespace
 List public struct{ A <> ##TODO? rename to 'list' once native list is removed
   A memory mut^ :data mut
 }
+ListSlice public struct{ A <>
+  A List mut^ :parent
+  uint        :off
+  uint        :length mut
+}
 
 newList public proc( A <> uint => A List mut ){
   A memory mut new A List mut new return
@@ -97,6 +102,13 @@ fill public proc( A <?> A A List mut int uint => ){
   mList return
 }
 
-## addLater [:] [:]=
+[:] public proc( A <?> A List mut uint uint => A ListSlice mut ){
+  ##TODO check bounds
+  #+list+# #+off+# #+count+# A ListSlice mut new return
+}
+## addLater [:] for non-mutable List
+## addLater operations for ListSlices
+
+## addLater [:]=
 
 #end ## core

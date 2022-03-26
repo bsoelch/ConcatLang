@@ -36,4 +36,6 @@ z -3 << -2 << -1 << 0 << debugPrint
 z y *>> debugPrint
 y .data .offset   debugPrint
 y .data .capacity debugPrint
+"___________________________________" debugPrint
+x 0 4 [:] debugPrint
 
