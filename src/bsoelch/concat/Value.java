@@ -1475,6 +1475,7 @@ public abstract class Value {
         void set(long index,Value value) throws ConcatRuntimeError ;
         Value getSlice(long off, long to) throws ConcatRuntimeError;
         void copyFrom(Value[] values,long offset) throws ConcatRuntimeError;
+        void fill(Value val,long offset,long count) throws ConcatRuntimeError;
     }
     private static class ArrayValue extends Value implements ArrayLike{
         Value[] data;
@@ -1532,24 +1533,66 @@ public abstract class Value {
 
         @Override
         public void copyFrom(Value[] src, long offset) throws ConcatRuntimeError {
-            if(offset<-this.offset||offset+src.length>data.length){
-                throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+(-this.offset)
-                        +" and "+(data.length-src.length)+" to fit the array into the allocated region");
-            }//no else
-            if(length>0){//ensure there are no gaps in initialized memory
-                if(offset+src.length<0||offset>length){
-                    throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+(-src.length)
-                            +" and "+length+" to ensure a continuous section of initialized memory");
+            if(type.isMemory()){
+                if(offset<-this.offset||offset+src.length>data.length){
+                    throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+(-this.offset)
+                            +" and "+(data.length-src.length)+" to fit the array into the allocated region");
+                }//no else
+                if(length>0){//ensure there are no gaps in initialized memory
+                    if(offset+src.length<0||offset>length){
+                        throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+(-src.length)
+                                +" and "+length+" to ensure a continuous section of initialized memory");
+                    }
+                }
+            }else{
+                if(offset<0||offset+src.length>length){
+                    throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+0
+                            +" and "+(length-src.length));
                 }
             }
             System.arraycopy(src,0,data,this.offset+(int)offset,src.length);
-            if(length==0){//set initial section of memory
-                this.offset=(int)offset;
-                this.length=src.length;
+            if(type.isMemory()){
+                if(length==0){//set initial section of memory
+                    this.offset=(int)offset;
+                    this.length=src.length;
+                }else{
+                    int prevOffset = this.offset;
+                    this.offset=Math.min(prevOffset,this.offset+(int)offset);
+                    this.length=Math.max(prevOffset+this.length,this.offset+(int)offset+src.length)-this.offset;
+                }
+            }
+        }
+
+        @Override
+        public void fill(Value val, long off, long count) throws ConcatRuntimeError {
+            if(type.isMemory()){
+                if(offset<-this.offset||offset+count>data.length){
+                    throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+(-this.offset)
+                            +" and "+(data.length-count)+" to fit the array into the allocated region");
+                }//no else
+                if(length>0){//ensure there are no gaps in initialized memory
+                    if(offset+count<0||offset>length){
+                        throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+(-count)
+                                +" and "+length+" to ensure a continuous section of initialized memory");
+                    }
+                }
             }else{
-                int prevOffset = this.offset;
-                this.offset=Math.min(prevOffset,this.offset+(int)offset);
-                this.length=Math.max(prevOffset+this.length,this.offset+(int)offset+src.length)-this.offset;
+                if(offset<0||offset+count>length){
+                    throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+0
+                            +" and "+(length-count));
+                }
+            }
+            int fromIndex = offset + (int) off;
+            Arrays.fill(data, fromIndex,fromIndex+(int)count,val);
+            if(type.isMemory()){
+                if(length==0){//set initial section of memory
+                    this.offset=(int)off;
+                    this.length=(int)count;
+                }else{
+                    int prevOffset = this.offset;
+                    this.offset=Math.min(prevOffset,this.offset+(int)off);
+                    this.length=Math.max(prevOffset+this.length,this.offset+(int)(off+count))-this.offset;
+                }
             }
         }
 
@@ -1600,11 +1643,22 @@ public abstract class Value {
             return new ArraySlice(src,offset+(int)off,(int)(to-off));
         }
 
-        /**always throws an exception
-         * (only memory supports copy from)*/
         @Override
-        public void copyFrom(Value[] values, long offset){
-            throw new UnsupportedOperationException("slices should not have the type memory");
+        public void copyFrom(Value[] src, long offset) throws ConcatRuntimeError {
+            if(offset<0||offset+src.length>length){
+                throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+0
+                        +" and "+(length-src.length));
+            }
+            System.arraycopy(src,0,this.src.data,this.src.offset+this.offset+(int)offset,src.length);
+        }
+        @Override
+        public void fill(Value val, long offset,long count) throws ConcatRuntimeError {
+            if(offset<0||offset+src.length>length){
+                throw new ConcatRuntimeError("invalid offset for copy: "+offset+" offset has to be between "+0
+                        +" and "+(length-src.length));
+            }
+            int fromIndex = src.offset + this.offset + (int) offset;
+            Arrays.fill(src.data, fromIndex,fromIndex+(int)count,val);
         }
 
         @Override
@@ -2459,7 +2513,7 @@ public abstract class Value {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list index
-                    return new Value[]{values[0].get(values[1].asLong())};
+                    return new Value[]{((ArrayLike)values[0]).get(values[1].asLong())};
                 }
             });
         }
@@ -2491,7 +2545,7 @@ public abstract class Value {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //val list index
-                    values[1].set(values[2].asLong(),values[0]);
+                    ((ArrayLike)values[1]).set(values[2].asLong(),values[0]);
                     return new Value[0];
                 }
             });
@@ -2536,7 +2590,7 @@ public abstract class Value {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off to
-                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
+                    return new Value[]{((ArrayLike)values[0]).getSlice(values[1].asLong(),values[2].asLong())};
                 }
             });
         }
@@ -2547,7 +2601,7 @@ public abstract class Value {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off to
-                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
+                    return new Value[]{((ArrayLike)values[0]).getSlice(values[1].asLong(),values[2].asLong())};
                 }
             });
         }
@@ -2558,7 +2612,7 @@ public abstract class Value {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list off to
-                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
+                    return new Value[]{((ArrayLike)values[0]).getSlice(values[1].asLong(),values[2].asLong())};
                 }
             });
         }
@@ -2606,6 +2660,53 @@ public abstract class Value {
                     ArrayLike target=(ArrayLike)values[1];
                     long off=values[2].asLong();
                     target.copyFrom(src.elements(),off);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
+                    Type.arrayOf(a).mutable(), Type.INT}, new Type[]{},"copy") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //src target off
+                    ArrayLike src=(ArrayLike)values[0];
+                    ArrayLike target=(ArrayLike)values[1];
+                    long off=values[2].asLong();
+                    target.copyFrom(src.elements(),off);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.memoryOf(a).mutable(),
+                    Type.INT,Type.UINT}, new Type[]{},"fill") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //val target off count
+                    Value val=values[0];
+                    ArrayLike target=(ArrayLike)values[1];
+                    long off=values[2].asLong();
+                    long count=values[3].asLong();
+                    target.fill(val,off,count);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.arrayOf(a).mutable(),
+                    Type.INT,Type.UINT}, new Type[]{},"fill") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //val target off count
+                    Value val=values[0];
+                    ArrayLike target=(ArrayLike)values[1];
+                    long off=values[2].asLong();
+                    long count=values[3].asLong();
+                    target.fill(val,off,count);
                     return new Value[0];
                 }
             });
