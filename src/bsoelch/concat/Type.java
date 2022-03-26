@@ -110,7 +110,13 @@ public class Type {
     final boolean switchable;
     final Mutability mutability;
     static String mutabilityPostfix(Mutability mutability) {
-        return mutability==Mutability.MUTABLE?" mut":mutability==Mutability.UNDECIDED?" mut?":"";
+        switch (mutability){
+            case IMMUTABLE -> {return "";}
+            case MUTABLE -> {return " mut";}
+            case UNDECIDED -> {return " mut?";}
+            case INHERIT -> {return " mut^";}
+        }
+        throw new RuntimeException("unreachable");
     }
     private Type(String name, boolean switchable) {
         this(name,switchable,Mutability.IMMUTABLE);
@@ -234,6 +240,15 @@ public class Type {
     public Type setMutability(Mutability newMutability){
         return this;
     }
+    static Type updateChildMutability(Type t, Mutability mutability){
+        if(t.mutability==Mutability.INHERIT){
+            return t.setMutability(mutability==Mutability.INHERIT?Mutability.IMMUTABLE:mutability);
+        }
+        return t;
+    }
+    Type updateChildMutability(Type t){
+        return updateChildMutability(t,mutability);
+    }
     /**returns the mutable version of this type*/
     public Type mutable(){
         return setMutability(Mutability.MUTABLE);
@@ -292,7 +307,8 @@ public class Type {
             return new WrapperType(wrapperName,contentType,mutability);
         }
         private WrapperType(String wrapperName, Type contentType,Mutability mutability){
-            super(contentType.name+" "+ wrapperName+mutabilityPostfix(mutability), LIST.equals(wrapperName)&&
+            super(updateChildMutability(contentType,mutability).name+" "+
+                    wrapperName+mutabilityPostfix(mutability), LIST.equals(wrapperName)&&
                     (contentType==BYTE||contentType==CODEPOINT),mutability);
             this.wrapperName = wrapperName;
             this.contentType = contentType;
@@ -373,19 +389,19 @@ public class Type {
 
         @Override
         public Type content() {
-            return contentType;
+            return updateChildMutability(contentType);
         }
 
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
             if (this == t) return true;
             if (!(t instanceof WrapperType that)) return false;
-            return contentType.equals(that.contentType,generics) &&mutability==that.mutability
+            return content().equals(that.content(),generics) &&mutability==that.mutability
                     && Objects.equals(wrapperName, that.wrapperName);
         }
         @Override
         public int hashCode() {
-            return Objects.hash(contentType, wrapperName);
+            return Objects.hash(content(), wrapperName);
         }
     }
 
@@ -468,7 +484,7 @@ public class Type {
 
         @Override
         public List<Type> outTypes() {
-            return Arrays.asList(elements);
+            return Arrays.stream(elements).map(this::updateChildMutability).toList();
         }
         @Override
         public String typeName() {
@@ -570,11 +586,15 @@ public class Type {
         public int elementCount(){
             return elements.length;
         }
-        public Type get(long i) throws ConcatRuntimeError {
-            if(i<0||i>=elements.length){
-                throw new ConcatRuntimeError("tuple index out of bounds: "+i+" length:"+elements.length);
-            }
+        public Type getElement(long i){
             return elements[(int) i];
+        }
+        public Type[] getElements() {
+            Type[] mappedElements=new Type[elements.length];
+            for(int i=0;i<elements.length;i++){
+                mappedElements[i]=updateChildMutability(elements[i]);
+            }
+            return mappedElements;
         }
 
         @Override

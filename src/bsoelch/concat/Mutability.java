@@ -1,3 +1,5 @@
 package bsoelch.concat;
 
-enum Mutability {MUTABLE, IMMUTABLE, UNDECIDED}
+enum Mutability {
+    MUTABLE, IMMUTABLE, UNDECIDED, INHERIT
+}

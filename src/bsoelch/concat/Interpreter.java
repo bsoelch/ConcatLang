@@ -32,7 +32,10 @@ public class Interpreter {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
-        MARK_MUTABLE,LIST_OF,ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL, MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,//compile time operations
+        //compile time operations
+        LIST_OF,ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
+        MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifers
+        //overloaded procedure pointer placeholders
         NOP,OVERLOADED_PROC_PTR
     }
 
@@ -2050,9 +2053,9 @@ public class Interpreter {
                             throw new SyntaxError("extended type has to be a struct got: "+extended,pos);
                         }
                         ((StructBlock) block).extended=(Type.Struct) extended;
-                        for(int i=0;i<((Type.Struct) extended).elements.length;i++){
+                        for(int i=0;i<((Type.Struct) extended).elementCount();i++){
                             ((StructBlock) block).context.fields.add(new StructFieldWithType(((Type.Struct) extended).fields[i],
-                                    ((Type.Struct) extended).elements[i]));
+                                    ((Type.Struct) extended).getElement(i)));
                         }
                     } catch (TypeError e) {
                         throw new SyntaxError(e,pos);
@@ -2395,6 +2398,7 @@ public class Interpreter {
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
 
                 case "mut?"     -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
+                case "mut^"     -> tokens.add(new Token(TokenType.MARK_INHERIT_MUTABILITY, pos));
                 case "list"     -> tokens.add(new Token(TokenType.LIST_OF,        pos));//list may be changed to a composite type
                 case "array"    -> tokens.add(new Token(TokenType.ARRAY_OF,       pos));
                 case "memory"   -> tokens.add(new Token(TokenType.MEMORY_OF,      pos));
@@ -2829,6 +2833,8 @@ public class Interpreter {
                     typeCheckTypeModifier("mut?",(t1)->Value.ofType(t1.maybeMutable()),ret,typeStack,t.pos);
                 case MARK_IMMUTABLE ->
                     typeCheckTypeModifier("mut~",(t1)->Value.ofType(t1.immutable()),ret,typeStack,t.pos);
+                case MARK_INHERIT_MUTABILITY ->
+                    typeCheckTypeModifier("mut^",(t1)->Value.ofType(t1.setMutability(Mutability.INHERIT)),ret,typeStack,t.pos);
                 case LIST_OF ->
                     typeCheckTypeModifier("list",(t1)->Value.ofType(Type.listOf(t1)),ret,typeStack,t.pos);
                 case ARRAY_OF ->
@@ -3381,7 +3387,7 @@ public class Interpreter {
         try {
             Type type = ((ValueToken)prev).value.asType();
             if(type instanceof Type.Tuple){
-                Type[] elements = ((Type.Tuple) type).elements;
+                Type[] elements = ((Type.Tuple) type).getElements();
                 typeCheckCall("new", typeStack,
                         Type.Procedure.create(elements,new Type[]{type}), ret,ioContext, pos, false);
 
@@ -3525,7 +3531,7 @@ public class Interpreter {
                     case TUPLE, ENUM, GENERIC,STRUCT -> {
                         Type asType=(Type)d;
                         if(isMutabilityMarked){
-                            asType=asType.mutable();
+                            asType=asType.setMutability(identifier.mutability());
                         }
                         Value e = Value.ofType(asType);
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
@@ -3604,7 +3610,7 @@ public class Interpreter {
                     if(f.type instanceof Type.Struct){
                         Integer index=((Type.Struct) f.type).indexByName.get(identifier.name);
                         if(index!=null){
-                            typeStack.push(new TypeFrame(((Type.Struct) f.type).elements[index],null, t.pos));
+                            typeStack.push(new TypeFrame(((Type.Struct) f.type).getElement(index),null, t.pos));
                             ret.add(new TupleElementAccess(index, false, t.pos));
                             hasField=true;
                         }
@@ -3755,7 +3761,7 @@ public class Interpreter {
                             try {
                                 int index = Integer.parseInt(identifier.name);
                                 if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
-                                    typeStack.push(new TypeFrame(((Type.Tuple) f.type).elements[index],null, t.pos));
+                                    typeStack.push(new TypeFrame(((Type.Tuple) f.type).getElement(index),null, t.pos));
                                     ret.add(new TupleElementAccess(index, false, t.pos));
                                     hasField=true;
                                 }
@@ -3781,7 +3787,7 @@ public class Interpreter {
                         }
                         Type.StructField field = struct.fields[index];
                         if(field.mutable()){
-                            typeCheckCast(val.type,2,struct.elements[index], ret,ioContext, t.pos);
+                            typeCheckCast(val.type,2,struct.getElement(index), ret,ioContext, t.pos);
                             ret.add(new TupleElementAccess(index, true, t.pos));
                             hasField=true;
                         }else{
@@ -3794,7 +3800,7 @@ public class Interpreter {
                     try {
                         int index = Integer.parseInt(identifier.name);
                         if(index>=0&&index< tuple.elementCount()){
-                            Type fieldType = tuple.elements[index];
+                            Type fieldType = tuple.getElement(index);
                             if(tuple.isMutable(index)){
                                 typeCheckCast(val.type,2,fieldType, ret, ioContext,t.pos);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
@@ -4601,7 +4607,7 @@ public class Interpreter {
                         return ExitType.ERROR;
                     }
                     case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
-                            MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,ARRAY_OF,MEMORY_OF ->
+                            MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,ARRAY_OF,MEMORY_OF ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN -> {
