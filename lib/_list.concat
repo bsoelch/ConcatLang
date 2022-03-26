@@ -1,6 +1,9 @@
 lib/list: ##TODO change filename to list.concat once native list is removed
 
 core #namespace
+codeblocks #include
+valueIO #include
+
 ## TODO better way of reallocating:
 ##   try moving offset to avoid reallocating
 ##   set growth rate to factor less than 2 ( 9/8 ? )
@@ -10,7 +13,7 @@ List public struct{ A <> ##TODO? rename to 'list' once native list is removed
 }
 ListSlice public struct{ A <>
   A List mut^ :parent
-  uint        :off
+  uint        :offset
   uint        :length mut
 }
 
@@ -31,8 +34,19 @@ ensureCap public proc( A <?> A List mut uint => ){##addLater better names for ca
 fill public proc( A <?> A A List mut int uint => ){
   count =::
   off =::
-  ##addLater checkCapacity
-  .data off count fill
+  ## cast to array to natively check bounds
+  .data A array mut cast off count fill
+}
+fill public proc( A <?> A A ListSlice mut int uint => ){
+  count =::
+  off =::
+  slice =::
+  off 0 < ||{ off count + slice .length > } if{
+    64 string mut new
+    "invalid slice " <<* off <<i ":" <<* count <<u " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  #+val+# slice .parent slice .offset off + count fill
 }
 
 [] public proc( A <?> A List mut? uint => A ){
@@ -40,11 +54,33 @@ fill public proc( A <?> A A List mut int uint => ){
   mList =::
   mList .data i [] return
 }
+[] public proc( A <?> A ListSlice mut? uint => A ){
+  i =::
+  slice =::
+  i 0 < ||{ i slice .length >= } if{
+    64 string mut new
+    "index out of bounds " <<* i <<i " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  slice .parent i slice .offset + [] return
+}
+
 []= public proc( A <?> A A List mut uint => ){
   i =::
   mList =::
   #+val+# mList .data i []=
 }
+[]= public proc( A <?> A A ListSlice mut uint => ){
+  i =::
+  slice =::
+  i 0 < ||{ i slice .length >= } if{
+    64 string mut new
+    "index out of bounds " <<* i <<i " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  #+val+# slice .parent .data slice .offset i + []=
+}
+
 << public proc( A <?> A List mut A => A List mut ){
   val =::
   mList =::
@@ -103,10 +139,28 @@ fill public proc( A <?> A A List mut int uint => ){
 }
 
 [:] public proc( A <?> A List mut uint uint => A ListSlice mut ){
-  ##TODO check bounds
-  #+list+# #+off+# #+count+# A ListSlice mut new return
+  count =::
+  off =::
+  mList =::
+  off 0 < ||{ off count + mList .data .length > } if{
+    64 string mut new
+    "invalid slice " <<* off <<i ":" <<* count <<u " length:" <<* mList .length <<u '\n' << eputs
+    1 exit
+  }
+  mList off count A ListSlice mut new return
 }
-## addLater [:] for non-mutable List
+[:] public proc( A <?> A ListSlice mut uint uint => A ListSlice mut ){
+  count =::
+  off =::
+  slice =::
+  off 0 < ||{ off count + slice .length > } if{
+    64 string mut new
+    "invalid slice " <<* off <<i ":" <<* count <<u " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  slice .parent slice .offset off + count [:] return
+}
+## addLater [:] for non-mutable List/ListSlice
 ## addLater operations for ListSlices
 
 ## addLater [:]=

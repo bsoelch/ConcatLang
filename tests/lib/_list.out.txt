@@ -25,7 +25,9 @@ ___________________________________
 0
 12
 ___________________________________
-(int List mut:(int memory mut:[int:8, int:7, int:-43, int:-43, int:-43, int:-43, int:2, int:1, int:0, int:1, int:42, int:3, int:4, int:5, int:6, int:7]),uint:0,uint:4)
+1
+(int List mut:(int memory mut:[int:8, int:7, int:-43, int:-43, int:-43, int:-43, int:2, int:1, int:-12, int:-12, int:-12, int:-13, int:4, int:5, int:6, int:7]),uint:7,uint:5)
+(int List mut:(int memory mut:[int:8, int:7, int:-43, int:-43, int:-43, int:-43, int:2, int:1, int:-12, int:-12, int:-12, int:-13, int:4, int:5, int:6, int:7]),uint:9,uint:3)
 
 Stack:
 []

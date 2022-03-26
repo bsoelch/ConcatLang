@@ -37,5 +37,10 @@ z y *>> debugPrint
 y .data .offset   debugPrint
 y .data .capacity debugPrint
 "___________________________________" debugPrint
-x 0 4 [:] debugPrint
+x 7 5 [:] slice =::
+slice 0 [] debugPrint
+-12 slice 1 3 fill
+-13 slice 4 []=
+slice debugPrint
+slice 2 3 [:] debugPrint
 
