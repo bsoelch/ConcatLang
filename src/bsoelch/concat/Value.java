@@ -1473,11 +1473,12 @@ public abstract class Value {
         int length();
         Value get(long index) throws ConcatRuntimeError ;
         void set(long index,Value value) throws ConcatRuntimeError ;
+        void append(Value val) throws ConcatRuntimeError;
+        void prepend(Value val) throws ConcatRuntimeError;
         Value getSlice(long off, long to) throws ConcatRuntimeError;
         void copyFrom(Value[] values,long offset) throws ConcatRuntimeError;
         void fill(Value val,long offset,long count) throws ConcatRuntimeError;
-        void append(Value val) throws ConcatRuntimeError;
-        void prepend(Value val) throws ConcatRuntimeError;
+        void reallocate(long newSize) throws ConcatRuntimeError;
     }
     private static class ArrayValue extends Value implements ArrayLike{
         Value[] data;
@@ -1524,7 +1525,27 @@ public abstract class Value {
             }
             data[offset+(int)index]=val;
         }
+        @Override
+        public void append(Value val) throws ConcatRuntimeError {
+            if(!type.isMemory()){
+                throw new RuntimeException("append is only supported for memories");
+            }
+            if(offset+length>=data.length){
+                throw new ConcatRuntimeError("cannot append value, array reached upper boundary of memory");
+            }
+            data[offset+(length++)]=val;
+        }
 
+        @Override
+        public void prepend(Value val) throws ConcatRuntimeError {
+            if(!type.isMemory()){
+                throw new RuntimeException("prepend is only supported for memories");
+            }
+            if(offset==0){
+                throw new ConcatRuntimeError("cannot prepend value, array reached lower boundary of memory");
+            }
+            data[--offset]=val;
+        }
         @Override
         public Value getSlice(long off, long to) throws ConcatRuntimeError {
             if(off<0||to>length||off>to){
@@ -1599,25 +1620,17 @@ public abstract class Value {
         }
 
         @Override
-        public void append(Value val) throws ConcatRuntimeError {
+        public void reallocate(long newSize) throws ConcatRuntimeError {
             if(!type.isMemory()){
-                throw new RuntimeException("append is only supported for memories");
+                throw new RuntimeException("reallocate is only supported for memories");
             }
-            if(offset+length>=data.length){
-                throw new ConcatRuntimeError("cannot append value, array reached upper boundary of memory");
+            if(newSize<offset+length||newSize>Integer.MAX_VALUE){
+                throw new ConcatRuntimeError("newSize "+newSize+" outside allowed range: "+
+                        (offset+length)+" to "+Integer.MAX_VALUE);
             }
-            data[offset+(length++)]=val;
-        }
-
-        @Override
-        public void prepend(Value val) throws ConcatRuntimeError {
-            if(!type.isMemory()){
-                throw new RuntimeException("prepend is only supported for memories");
-            }
-            if(offset==0){
-                throw new ConcatRuntimeError("cannot prepend value, array reached lower boundary of memory");
-            }
-            data[--offset]=val;
+            Value[] newData=new Value[(int)newSize];
+            System.arraycopy(data,offset,newData,offset,length);
+            data=newData;
         }
 
         @Override
@@ -1660,6 +1673,15 @@ public abstract class Value {
             src.set(index+offset,val);
         }
         @Override
+        public void append(Value val){
+            throw new RuntimeException("append is only supported for memories");
+        }
+
+        @Override
+        public void prepend(Value val){
+            throw new RuntimeException("prepend is only supported for memories");
+        }
+        @Override
         public Value getSlice(long off, long to) throws ConcatRuntimeError {
             if(off<0||to>length||off>to){
                 throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length);
@@ -1685,13 +1707,8 @@ public abstract class Value {
             Arrays.fill(src.data, fromIndex,fromIndex+(int)count,val);
         }
         @Override
-        public void append(Value val){
-            throw new RuntimeException("append is only supported for memories");
-        }
-
-        @Override
-        public void prepend(Value val){
-            throw new RuntimeException("prepend is only supported for memories");
+        public void reallocate(long newSize){
+            throw new RuntimeException("reallocate is only supported for memories");
         }
 
         @Override
@@ -2764,6 +2781,20 @@ public abstract class Value {
                     long off=values[2].asLong();
                     long count=values[3].asLong();
                     target.fill(val,off,count);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.memoryOf(a).mutable(),
+                    Type.UINT}, new Type[]{},"realloc") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //val target off count
+                    ArrayLike mem=(ArrayLike)values[0];
+                    long newSize=values[1].asLong();
+                    mem.reallocate(newSize);
                     return new Value[0];
                 }
             });
