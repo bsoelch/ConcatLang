@@ -180,26 +180,26 @@ insertAll public proc( A <?> A array mut? A List mut uint => ){
 }
 
 [:] public proc( A <?> A List mut uint uint => A ListSlice mut ){
-  count =::
+  to =::
   off =::
   mList =::
-  off 0 < ||{ off count + mList .data .length > } if{
+  off 0 < ||{ to off < ||{ to mList .data .length > } } if{
     64 string mut new
-    "invalid slice " <<* off <<i ":" <<* count <<u " length:" <<* mList .length <<u '\n' << eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* mList .length <<u '\n' << eputs
     1 exit
   }
-  mList off count A ListSlice mut new return
+  mList off to off - A ListSlice mut new return
 }
 [:] public proc( A <?> A ListSlice mut uint uint => A ListSlice mut ){
-  count =::
+  to =::
   off =::
   slice =::
-  off 0 < ||{ off count + slice .length > } if{
+  off 0 < ||{ to off < ||{ to slice .length > } } if{
     64 string mut new
-    "invalid slice " <<* off <<i ":" <<* count <<u " length:" <<* slice .length <<u '\n' << eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << eputs
     1 exit
   }
-  slice .parent slice .offset off + count [:] return
+  slice .parent slice .offset off + slice .offset to + [:] return
 }
 ## addLater [:] for non-mutable List/ListSlice
 ## addLater operations for ListSlices
