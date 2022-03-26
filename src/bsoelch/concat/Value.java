@@ -1481,6 +1481,7 @@ public abstract class Value {
         void copyFrom(Value[] values,long offset) throws ConcatRuntimeError;
         void fill(Value val,long offset,long count) throws ConcatRuntimeError;
         void reallocate(long newSize) throws ConcatRuntimeError;
+        void setOffset(long newOffset) throws ConcatRuntimeError;
     }
     private static class ArrayValue extends Value implements ArrayLike{
         Value[] data;
@@ -1649,6 +1650,17 @@ public abstract class Value {
             System.arraycopy(data,offset,newData,offset,length);
             data=newData;
         }
+        @Override
+        public void setOffset(long newOffset) throws ConcatRuntimeError {
+            if(!type.isMemory()){
+                throw new RuntimeException("move is only supported for memories");
+            }
+            if(newOffset<0||newOffset+length> data.length){
+                throw new ConcatRuntimeError("offset "+newOffset+" outside allowed range: 0 to "+(data.length-length));
+            }
+            System.arraycopy(data,offset,data,(int)newOffset,length);
+            offset=(int)newOffset;
+        }
 
         @Override
         public String stringValue() {
@@ -1734,6 +1746,10 @@ public abstract class Value {
         @Override
         public void reallocate(long newSize){
             throw new RuntimeException("reallocate is only supported for memories");
+        }
+        @Override
+        public void setOffset(long newOffset){
+            throw new RuntimeException("move is only supported for memories");
         }
 
         @Override
@@ -2816,10 +2832,24 @@ public abstract class Value {
                     Type.UINT}, new Type[]{},"realloc") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //val target off count
+                    //memory newSize
                     ArrayLike mem=(ArrayLike)values[0];
                     long newSize=values[1].asLong();
                     mem.reallocate(newSize);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.memoryOf(a).mutable(),
+                    Type.INT}, new Type[]{},"setOffset") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //memory newOffset
+                    ArrayLike mem=(ArrayLike)values[0];
+                    long newOffset=values[1].asLong();
+                    mem.setOffset(newOffset);
                     return new Value[0];
                 }
             });
