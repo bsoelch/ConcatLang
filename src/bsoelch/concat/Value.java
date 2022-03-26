@@ -1563,6 +1563,7 @@ public abstract class Value {
                 throw new ConcatRuntimeError("cannot prepend value, array reached lower boundary of memory");
             }
             data[--offset]=val;
+            length++;
         }
         @Override
         public Value getSlice(long off, long to) throws ConcatRuntimeError {
@@ -1593,14 +1594,9 @@ public abstract class Value {
             }
             System.arraycopy(src,0,data,this.offset+(int)offset,src.length);
             if(type.isMemory()){
-                if(length==0){//set initial section of memory
-                    this.offset=(int)offset;
-                    this.length=src.length;
-                }else{
-                    int prevOffset = this.offset;
-                    this.offset=Math.min(prevOffset,this.offset+(int)offset);
-                    this.length=Math.max(prevOffset+this.length,this.offset+(int)offset+src.length)-this.offset;
-                }
+                int prevOffset = this.offset;
+                this.offset=Math.min(prevOffset,this.offset+(int)offset);
+                this.length=Math.max(prevOffset+this.length,this.offset+(int)offset+src.length)-this.offset;
             }
         }
 
@@ -1626,14 +1622,9 @@ public abstract class Value {
             int fromIndex = this.offset + (int) offset;
             Arrays.fill(data, fromIndex,fromIndex+(int)count,val);
             if(type.isMemory()){
-                if(length==0){//set initial section of memory
-                    this.offset=(int)offset;
-                    this.length=(int)count;
-                }else{
-                    int prevOffset = this.offset;
-                    this.offset=Math.min(prevOffset,this.offset+(int)offset);
-                    this.length=Math.max(prevOffset+this.length,this.offset+(int)(offset+count))-this.offset;
-                }
+                int prevOffset = this.offset;
+                this.offset=Math.min(prevOffset,this.offset+(int)offset);
+                this.length=Math.max(prevOffset+this.length,this.offset+(int)(offset+count))-this.offset;
             }
         }
 
