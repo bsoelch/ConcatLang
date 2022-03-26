@@ -2743,7 +2743,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             Type list = Type.memoryOf(a).mutable();
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{list,a},new Type[]{},"append") {
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{list,a},new Type[]{},"[]^=") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list val
@@ -2755,7 +2755,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             Type list = Type.memoryOf(a).mutable();
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,list},new Type[]{},"prepend") {
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,list},new Type[]{},"^[]=") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //val list
