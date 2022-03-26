@@ -43,4 +43,22 @@ slice 0 [] debugPrint
 -13 slice 4 []=
 slice debugPrint
 slice 2 3 [:] debugPrint
+"___________________________________" debugPrint
+z debugPrint
+z .data .offset   debugPrint
+z .data .capacity debugPrint
+-1 z 3 insert
+z debugPrint
+z .data .offset   debugPrint
+z .data .capacity debugPrint
+
+42 4 int array new z 2 insertAll
+z debugPrint
+z .data .offset   debugPrint
+z .data .capacity debugPrint
+
+-11 4 int array new z 9 insertAll
+z debugPrint
+z .data .offset   debugPrint
+z .data .capacity debugPrint
 

@@ -1479,6 +1479,7 @@ public abstract class Value {
         void prepend(Value val) throws ConcatRuntimeError;
         Value getSlice(long off, long to) throws ConcatRuntimeError;
         void copyFrom(Value[] values,long offset) throws ConcatRuntimeError;
+        void insertAll(Value[] values,long index) throws ConcatRuntimeError;
         void fill(Value val,long offset,long count) throws ConcatRuntimeError;
         void reallocate(long newSize) throws ConcatRuntimeError;
         void setOffset(long newOffset) throws ConcatRuntimeError;
@@ -1598,6 +1599,26 @@ public abstract class Value {
                 this.offset=Math.min(prevOffset,this.offset+(int)offset);
                 this.length=Math.max(prevOffset+this.length,this.offset+(int)offset+src.length)-this.offset;
             }
+        }
+        /*implement insert natively to allow leaving the memory section that will be overwritten by the inserted values uninitialized*/
+        @Override
+        public void insertAll(Value[] src, long index) throws ConcatRuntimeError {
+            if(!type.isMemory()){
+                throw new RuntimeException("prepend is only supported for memories");
+            }
+            if(index<0||index>length){
+                throw new ConcatRuntimeError("invalid index for insert: "+index+" index has to be between "+0
+                        +" and "+length);
+            }//no else
+            if(offset+length+src.length>data.length){
+                throw new ConcatRuntimeError("invalid array length: "+src.length+
+                        " does not fit into available space: "+(data.length-(offset+length)));
+            }
+            if(index<length){
+                System.arraycopy(data,offset+(int)index,data,offset+(int)index+src.length,length-(int)index);
+            }
+            System.arraycopy(src,0,data,this.offset+(int)index,src.length);
+            this.length+=src.length;
         }
 
         @Override
@@ -1724,6 +1745,10 @@ public abstract class Value {
                         +" and "+(length-src.length));
             }
             System.arraycopy(src,0,this.src.data,this.src.offset+this.offset+(int)offset,src.length);
+        }
+        @Override
+        public void insertAll(Value[] src, long offset){
+            throw new RuntimeException("reallocate is only supported for memories");
         }
         @Override
         public void fill(Value val, long offset,long count) throws ConcatRuntimeError {
@@ -2766,6 +2791,21 @@ public abstract class Value {
                     ArrayLike target=(ArrayLike)values[1];
                     long off=values[2].asLong();
                     target.copyFrom(src.elements(),off);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
+                    Type.memoryOf(a).mutable(), Type.INT}, new Type[]{},"insert") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //src target off
+                    ArrayLike src=(ArrayLike)values[0];
+                    ArrayLike target=(ArrayLike)values[1];
+                    long off=values[2].asLong();
+                    target.insertAll(src.elements(),off);
                     return new Value[0];
                 }
             });

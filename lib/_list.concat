@@ -81,6 +81,42 @@ fill public proc( A <?> A A ListSlice mut int uint => ){
   #+val+# slice .parent .data slice .offset i + []=
 }
 
+##inserts element after the given index
+insert public proc( A <?> A A List mut uint => ){
+  index =::
+  mList =::
+  mList .data listData =::
+  index 0 < ||{ index listData .length > } if{
+    64 string mut new
+    "index out of bounds " <<* index <<i " length:" <<* listData .length <<u '\n' << eputs
+    1 exit
+  }
+  listData .length listData .capacity >= if{
+    listData .offset listData .capacity + delta =::
+    listData listData .offset listData .capacity + delta + realloc
+  }
+  index 0 > if{
+    listData index listData .length [:] listData index 1 + copy
+  }
+  #+val+# listData index []=
+}
+insertAll public proc( A <?> A array mut? A List mut uint => ){
+  index =::
+  mList =::
+  mList .data listData =::
+  toInsert =::
+  index 0 < ||{ index listData .length > } if{
+    64 string mut new
+    "index out of bounds " <<* index <<i " length:" <<* listData .length <<u '\n' << eputs
+    1 exit
+  }
+  listData .length toInsert .length + listData .capacity > if{
+    toInsert .length delta =::
+    listData listData .offset listData .capacity + delta + realloc
+  }
+  toInsert listData index insert
+}
+
 << public proc( A <?> A List mut A => A List mut ){
   val =::
   mList =::
