@@ -72,7 +72,10 @@ public class Interpreter {
     static class IdentifierToken extends Token {
         static final int FLAG_NATIVE=1;
         static final int FLAG_PUBLIC=2;
-        static final int FLAG_MUTABLE=4;
+        static final int MUTABILITY_MASK=12;
+        static final int MUTABILITY_DEFAULT=0;
+        static final int MUTABILITY_MUTABLE=4;
+        static final int MUTABILITY_IMMUTABLE=8;
 
         final IdentifierType type;
         final int flags;
@@ -86,7 +89,7 @@ public class Interpreter {
                 throw new SyntaxError("Identifiers have to be nonempty",pos);
             }//no else
             if(flags!=0&&(type!=IdentifierType.WORD&&type!=IdentifierType.DECLARE &&type!=IdentifierType.IMPLICIT_DECLARE)){
-                if(flags!=FLAG_MUTABLE||type!=IdentifierType.DECLARE_FIELD){
+                if((flags|MUTABILITY_MASK)!=MUTABILITY_MASK||type!=IdentifierType.DECLARE_FIELD){
                     throw new SyntaxError("modifiers can only be used in declarations",pos);
                 }
             }
@@ -104,8 +107,19 @@ public class Interpreter {
         boolean isNative(){
             return (flags&FLAG_NATIVE)!=0;
         }
-        boolean isMutable(){
-            return (flags&FLAG_MUTABLE)!=0;
+        Mutability mutability(){
+            switch (flags&MUTABILITY_MASK){
+                case MUTABILITY_DEFAULT ->{
+                    return type==IdentifierType.IMPLICIT_DECLARE?Mutability.UNDECIDED:Mutability.IMMUTABLE;
+                }
+                case MUTABILITY_MUTABLE ->{
+                    return Mutability.MUTABLE;
+                }
+                case MUTABILITY_IMMUTABLE ->{
+                    return Mutability.IMMUTABLE;
+                }
+            }
+            return Mutability.UNDECIDED;
         }
     }
     static class InternalFieldToken extends Token {
@@ -2381,7 +2395,6 @@ public class Interpreter {
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
 
                 case "mut?"     -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
-                case "mut~"     -> tokens.add(new Token(TokenType.MARK_IMMUTABLE, pos));
                 case "list"     -> tokens.add(new Token(TokenType.LIST_OF,        pos));//list may be changed to a composite type
                 case "array"    -> tokens.add(new Token(TokenType.ARRAY_OF,       pos));
                 case "memory"   -> tokens.add(new Token(TokenType.MEMORY_OF,      pos));
@@ -2485,14 +2498,30 @@ public class Interpreter {
                     }
                     if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
                             ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){//mut as name modifier
-                        if(((IdentifierToken) prev).isMutable()){
-                            throw new SyntaxError("duplicate modifier for identifier "+prevId+" : '"+str+"'",pos);
+                        if((((IdentifierToken) prev).flags&IdentifierToken.MUTABILITY_MASK)!=IdentifierToken.MUTABILITY_DEFAULT){
+                            throw new SyntaxError("multiple mutability modifiers for identifier "+prevId+" : '"+str+"'",pos);
                         }
                         prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
-                                ((IdentifierToken) prev).flags|IdentifierToken.FLAG_MUTABLE, prev.pos);
+                                ((IdentifierToken) prev).flags|IdentifierToken.MUTABILITY_MUTABLE, prev.pos);
                         tokens.set(tokens.size()-1,prev);
                     }else {
                         tokens.add(new Token(TokenType.MARK_MUTABLE, pos));
+                    }
+                }
+                case "mut~"  -> {
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
+                    }
+                    if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
+                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){//mut as name modifier
+                        if((((IdentifierToken) prev).flags&IdentifierToken.MUTABILITY_MASK)!=IdentifierToken.MUTABILITY_DEFAULT){
+                            throw new SyntaxError("multiple mutability modifiers for identifier "+prevId+" : '"+str+"'",pos);
+                        }
+                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
+                                ((IdentifierToken) prev).flags|IdentifierToken.MUTABILITY_IMMUTABLE, prev.pos);
+                        tokens.set(tokens.size()-1,prev);
+                    }else {
+                        tokens.add(new Token(TokenType.MARK_IMMUTABLE, pos));
                     }
                 }
                 case "<>", "<?>" ->{
@@ -3419,8 +3448,7 @@ public class Interpreter {
                     }else {
                         throw new SyntaxError("Token before declaration has to be a type", identifier.pos);
                     }
-                    Mutability mutability=identifier.isMutable()?Mutability.MUTABLE:
-                            identifier.type==IdentifierType.IMPLICIT_DECLARE?Mutability.UNDECIDED:Mutability.IMMUTABLE;
+                    Mutability mutability=identifier.mutability();
                     VariableId id = context.declareVariable( identifier.name, type, mutability,
                             identifier.isPublic(), identifier.pos, ioContext);
                     //only remember root-level constants
@@ -3450,8 +3478,8 @@ public class Interpreter {
                 }
             }
             case WORD -> {
-                boolean isMutable=identifier.isMutable();
-                if((identifier.flags|IdentifierToken.FLAG_MUTABLE)!=IdentifierToken.FLAG_MUTABLE){
+                boolean isMutabilityMarked=(identifier.flags&IdentifierToken.MUTABILITY_MASK)!=0;
+                if((identifier.flags|IdentifierToken.MUTABILITY_MASK)!=IdentifierToken.MUTABILITY_MASK){
                     throw new SyntaxError("modifiers can only be used in declarations",t.pos);
                 }
                 Declareable d = context.getDeclareable(identifier.name);
@@ -3462,7 +3490,7 @@ public class Interpreter {
                 DeclareableType type = d.declarableType();
                 switch (type) {
                     case PROCEDURE,NATIVE_PROC,GENERIC_PROCEDURE,OVERLOADED_PROCEDURE -> {
-                        if(isMutable){
+                        if(isMutabilityMarked){
                             throw new SyntaxError("values of type "+declarableName(type,false)+
                                     " cannot be marked as mutable",t.pos);
                         }
@@ -3476,7 +3504,7 @@ public class Interpreter {
                         ret.add(token);
                     }
                     case VARIABLE, CURRIED_VARIABLE -> {
-                        if(isMutable){//addLater better error message
+                        if(isMutabilityMarked){//addLater better error message
                             throw new SyntaxError("values of type "+declarableName(type,false)+
                                     " cannot be marked as mutable",t.pos);
                         }
@@ -3496,7 +3524,7 @@ public class Interpreter {
                             throw new RuntimeException("macros should already be resolved at this state of compilation");
                     case TUPLE, ENUM, GENERIC,STRUCT -> {
                         Type asType=(Type)d;
-                        if(isMutable){
+                        if(isMutabilityMarked){
                             asType=asType.mutable();
                         }
                         Value e = Value.ofType(asType);
@@ -3505,10 +3533,10 @@ public class Interpreter {
                     }
                     case CONSTANT -> {
                         Value e = ((Constant) d).value;
-                        if(isMutable){
+                        if(isMutabilityMarked){
                             if(e.type==Type.TYPE){
                                 try {
-                                    e=Value.ofType(e.asType().mutable());
+                                    e=Value.ofType(e.asType().setMutability(identifier.mutability()));
                                 } catch (TypeError ex) {
                                     throw new SyntaxError(ex,t.pos);
                                 }
@@ -3526,8 +3554,8 @@ public class Interpreter {
                         Type[] genArgs=getArguments(tupleName,DeclareableType.GENERIC_TUPLE,g.params.length, typeStack, ret, t.pos);
                         Type typeValue = Type.Tuple.create(g.name, g.isPublic, g.params.clone(), genArgs,
                                 g.types.clone(), g.declaredAt);
-                        if(isMutable){
-                            typeValue=typeValue.mutable();
+                        if(isMutabilityMarked){
+                            typeValue=typeValue.setMutability(identifier.mutability());
                         }
                         Value tupleType = Value.ofType(typeValue);
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
@@ -3539,8 +3567,8 @@ public class Interpreter {
                         Type[] genArgs=getArguments(structName,DeclareableType.GENERIC_STRUCT, g.params.length, typeStack, ret, t.pos);
                         Type typeValue = Type.Struct.create(g.name, g.isPublic, g.extended, g.params.clone(), genArgs,
                                 g.fields,g.types.clone(), g.declaredAt);
-                        if(isMutable){
-                            typeValue=typeValue.mutable();
+                        if(isMutabilityMarked){
+                            typeValue=typeValue.setMutability(identifier.mutability());
                         }
                         Value structValue = Value.ofType(typeValue);
                         typeStack.push(new TypeFrame(Type.TYPE,structValue,identifier.pos));
@@ -3798,7 +3826,7 @@ public class Interpreter {
                     throw new RuntimeException("type stack out of sync with token list");
                 }
                 ((StructContext)context).fields.add(new StructFieldWithType(
-                        new Type.StructField(identifier.name,identifier.isMutable(),t.pos),type));
+                        new Type.StructField(identifier.name,identifier.mutability()==Mutability.MUTABLE,t.pos),type));
             }
         }
     }
