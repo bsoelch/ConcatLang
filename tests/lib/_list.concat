@@ -52,12 +52,12 @@ z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint
 
-42 4 int array new z 2 insertAll
+z z 2 insertAll
 z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint
 
--11 4 int array new z 9 insertAll
+-11 4 int array new z 10 insertAll
 z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint

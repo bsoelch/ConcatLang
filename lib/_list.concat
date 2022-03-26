@@ -100,6 +100,11 @@ insert public proc( A <?> A A List mut uint => ){
   }
   #+val+# listData index []=
 }
+insertAll public proc( A <?> A List mut? A List mut uint => ){
+  index =::
+  mList =::
+  #+toInsert+# .data mList index insertAll
+}
 insertAll public proc( A <?> A array mut? A List mut uint => ){
   index =::
   mList =::
