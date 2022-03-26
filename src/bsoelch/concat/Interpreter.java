@@ -3603,11 +3603,29 @@ public class Interpreter {
                                 ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
                                 hasField = true;
                             }
+                        }else if(f.type.isMemory()){
+                            switch (identifier.name){
+                                case "length" ->{
+                                    typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
+                                    hasField = true;
+                                }
+                                case "capacity" ->{
+                                    typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.CAPACITY, t.pos));
+                                    hasField = true;
+                                }
+                                case "offset" ->{
+                                    typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
+                                    ret.add(new InternalFieldToken(InternalFieldName.OFFSET, t.pos));
+                                    hasField = true;
+                                }
+                            }
                         }else if (identifier.name.equals("length") && (f.type.isList()||f.type.isArray()||f.type instanceof Type.Tuple)) {
                             typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
                             ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
                             hasField = true;
-                        } else if (f.type == Type.TYPE) {
+                        }else if (f.type == Type.TYPE) {
                             hasField = true;
                             switch (identifier.name) {//TODO don't allow type fields as enum entry names
                                 case "content" -> {
@@ -4305,6 +4323,14 @@ public class Interpreter {
             case LENGTH -> {
                 Value val = stack.pop();
                 stack.push(Value.ofInt(val.length(),true));
+            }
+            case OFFSET -> {
+                Value val = stack.pop();
+                stack.push(Value.ofInt(((Value.ArrayLike)val).offset(),true));
+            }
+            case CAPACITY -> {
+                Value val = stack.pop();
+                stack.push(Value.ofInt(((Value.ArrayLike)val).capacity(),true));
             }
             case IS_LIST -> {
                 Type type = stack.pop().asType();

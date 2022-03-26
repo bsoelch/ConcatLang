@@ -1468,9 +1468,11 @@ public abstract class Value {
         return new ArrayValue(type,content,(int)initCap);
     }
     //addLater ByteArray,  other primitive arrays?
-    private interface ArrayLike{
+    interface ArrayLike{
         Value[] elements();
         int length();
+        int capacity();
+        int offset();
         Value get(long index) throws ConcatRuntimeError ;
         void set(long index,Value value) throws ConcatRuntimeError ;
         void append(Value val) throws ConcatRuntimeError;
@@ -1509,6 +1511,21 @@ public abstract class Value {
         @Override
         public int length(){
             return length;
+        }
+
+        @Override
+        public int capacity() {
+            if(!type.isMemory()){
+                throw new RuntimeException("capacity is only supported for memories");
+            }
+            return data.length-offset;
+        }
+        @Override
+        public int offset() {
+            if(!type.isMemory()){
+                throw new RuntimeException("offset is only supported for memories");
+            }
+            return offset;
         }
 
         @Override
@@ -1656,6 +1673,14 @@ public abstract class Value {
         @Override
         public int length(){
             return length;
+        }
+        @Override
+        public int capacity() {
+            throw new RuntimeException("capacity is only supported for memories");
+        }
+        @Override
+        public int offset() {
+           throw new RuntimeException("offset is only supported for memories");
         }
 
         @Override
