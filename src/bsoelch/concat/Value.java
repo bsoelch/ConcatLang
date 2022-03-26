@@ -1471,7 +1471,7 @@ public abstract class Value {
     interface ArrayLike{
         Value[] elements();
         int length();
-        int capacity();
+        int capacity();//addLater rename capacity (capacity does not really return the capacity)
         int offset();
         Value get(long index) throws ConcatRuntimeError ;
         void set(long index,Value value) throws ConcatRuntimeError ;

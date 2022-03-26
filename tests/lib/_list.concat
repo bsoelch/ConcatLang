@@ -15,6 +15,15 @@ x .data .capacity debugPrint
 x debugPrint
 x 5 [] debugPrint
 "___________________________________" debugPrint
+-43 x 2 4 fill
+x debugPrint
+x .data .offset   debugPrint
+x .data .capacity debugPrint
+x 64 ensureCap
+x debugPrint
+x .data .offset   debugPrint
+x .data .capacity debugPrint
+"___________________________________" debugPrint
 4 int newList y =::
 y  1 << 2 << 3 << 4 << debugPrint
 y .data .offset   debugPrint
