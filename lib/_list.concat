@@ -114,7 +114,7 @@ insertAll public proc( A <?> A array mut? A List mut uint => ){
     toInsert .length delta =::
     listData listData .offset listData .capacity + delta + realloc
   }
-  toInsert listData index insert
+  toInsert listData index insertAll
 }
 
 << public proc( A <?> A List mut A => A List mut ){
