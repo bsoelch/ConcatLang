@@ -229,13 +229,22 @@ public class Type {
     public List<String> fields(){
         throw new UnsupportedOperationException();
     }
+
+    /**returns the semi-mutable version of this type*/
+    public Type setMutability(Mutability newMutability){
+        return this;
+    }
     /**returns the mutable version of this type*/
     public Type mutable(){
-        return this;
+        return setMutability(Mutability.MUTABLE);
     }
     /**returns the semi-mutable version of this type*/
     public Type maybeMutable(){
-        return this;
+        return setMutability(Mutability.UNDECIDED);
+    }
+    /**returns the immutable version of this type*/
+    public Type immutable(){
+        return setMutability(Mutability.IMMUTABLE);
     }
 
     public static Type mutableListOf(Type contentType){
@@ -300,18 +309,11 @@ public class Type {
             return content().depth()+1;
         }
         @Override
-        public Type mutable() {
-            if(!wrapperName.equals(OPTIONAL)){
-                return create(wrapperName,contentType,Mutability.MUTABLE);
+        public Type setMutability(Mutability newMutability) {
+            if(newMutability!=mutability&&!wrapperName.equals(OPTIONAL)){
+                return create(wrapperName,contentType,newMutability);
             }
-            return super.mutable();
-        }
-        @Override
-        public Type maybeMutable() {
-            if(!wrapperName.equals(OPTIONAL)){
-                return create(wrapperName,contentType,Mutability.UNDECIDED);
-            }
-            return super.maybeMutable();
+            return this;
         }
 
         @Override
@@ -510,12 +512,11 @@ public class Type {
         }
 
         @Override
-        public Tuple mutable() {
-            return create(baseName,isPublic,genericParams,genericArgs,elements,Mutability.MUTABLE,declaredAt);
-        }
-        @Override
-        public Tuple maybeMutable() {
-            return create(baseName,isPublic,genericParams,genericArgs,elements,Mutability.UNDECIDED,declaredAt);
+        public Tuple setMutability(Mutability newMutability) {
+            if(newMutability!=mutability){
+                return create(baseName,isPublic,genericParams,genericArgs,elements,newMutability,declaredAt);
+            }
+            return this;
         }
 
         @Override
@@ -655,11 +656,7 @@ public class Type {
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
             String fullName = Tuple.processGenericArguments(name,genericParams, genericArgs, types);
-            if(mutability==Mutability.MUTABLE){
-                fullName+=" mut";
-            }else if(mutability==Mutability.UNDECIDED){
-                fullName+=" mut?";
-            }
+            fullName+=mutabilityPostfix(mutability);
             return new Struct(fullName, name, isPublic, extended, genericParams, genericArgs, types, fields,
                     mutability, declaredAt);
         }
@@ -686,15 +683,12 @@ public class Type {
         }
 
         @Override
-        public Struct mutable() {
-            return create(baseName,isPublic,extended==null?null:extended.mutable(),
-                    genericParams,genericArgs,fields,elements,Mutability.MUTABLE,declaredAt);
-        }
-
-        @Override
-        public Struct maybeMutable() {
-            return create(baseName,isPublic,extended==null?null:extended.maybeMutable(),
-                    genericParams,genericArgs,fields,elements,Mutability.UNDECIDED,declaredAt);
+        public Struct setMutability(Mutability newMutability) {
+            if(newMutability!=mutability){
+                return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
+                        genericParams,genericArgs,fields,elements,newMutability,declaredAt);
+            }
+            return this;
         }
 
         @Override

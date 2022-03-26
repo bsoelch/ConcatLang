@@ -511,7 +511,7 @@ Context.getDeclareable proc( #+context+# Context mut? #+name+# string => Declare
       context RootContext.currentPaths paths =::
       paths .length 1 - int i mut =:
       while{ i 0 >= do ##go through all namespaces
-        context .elements paths i [] clone name <<* mut~ HashMap.get dup .hasValue if{
+        context .elements paths i [] clone name <<* clone-mut~ HashMap.get dup .hasValue if{
           #+element+# Declareable mut? optional cast return
         else drop }
         i 1 - i =
@@ -560,7 +560,7 @@ RootContext.startModule proc( RootContext mut? #+name+# string #+declaredAt+# Fi
   FilePosition mut? fPos =:
   string name =:
   RootContext mut? context =:
-  context .elements context name RootContext.inCurrentModule mut~ HashMap.get if{
+  context .elements context name RootContext.inCurrentModule clone-mut~ HashMap.get if{
     Declareable mut? d =:
     64 string mut new
     "cannot declare namespace " <<* name <<* ", the identifier is already used by " <<*
@@ -576,23 +576,23 @@ RootContext.startModule proc( RootContext mut? #+name+# string #+declaredAt+# Fi
   while{ i name .length < do
     fullPath name i [] << fullPath =
     name i [] MODULE_SEPARATOR == if{
-      true context .namespaces fullPath mut~ HashMap.put drop
-      path tmp mut~ << path =
+      true context .namespaces fullPath clone-mut~ HashMap.put drop
+      path tmp clone-mut~ << path =
       tmp clear
     else
       tmp name i [] << tmp =
     }
     i 1 + i =
   }
-  path tmp mut~ << path =
+  path tmp clone-mut~ << path =
   fullPath MODULE_SEPARATOR << fullPath =
-  true context .namespaces fullPath mut~ HashMap.put drop
-  context RootContext.file .openModules path mut~ fPos newOpenModule << drop
+  true context .namespaces fullPath clone-mut~ HashMap.put drop
+  context RootContext.file .openModules path clone-mut~ fPos newOpenModule << drop
 }
 RootContext.addImport proc( RootContext mut? #+name+# string #+declaredAt+# FilePosition mut? => ){
   FilePosition mut? fPos =:
   string name0 =:
-  name0 clone '\'' << mut~ string name =:
+  name0 clone '\'' << clone-mut~ string name =:
   RootContext mut? context =:
   context .namespaces name HashMap.contains if{
      context RootContext.file OpenFile file =:
@@ -679,7 +679,7 @@ RootContext.currentPaths proc( RootContext mut? => string list mut ){
     while{ j mPath .length < do
       path mPath j [] <<* MODULE_SEPARATOR << path =
       j 1 + j =
-      paths path mut~ << paths =
+      paths path clone-mut~ << paths =
     }
     namespaces i [] .imports  paths paths .length 1 - paths .length 1 - [:]=
     i 1 + i =
@@ -717,7 +717,7 @@ RootContext.removeMacro proc( #+context+# RootContext mut? #+name+# string #+pos
   FilePosition mut? fPos =:
   string name =:
   RootContext mut? context =:
-  context .elements context name RootContext.inCurrentModule mut~ HashMap.remove if{
+  context .elements context name RootContext.inCurrentModule clone-mut~ HashMap.remove if{
     Declareable mut? removed =:
     removed .dType DeclareableType .MACRO != if{
       128 string mut new
@@ -737,14 +737,14 @@ RootContext.declareEnum proc( #+context+# RootContext mut? #+source+# EnumBlock 
   EnumBlock mut? source =:
   source .name string name mut =:
   RootContext mut? context =:
-  source .startPos name source .elements mut~ newEnum Enum anEnum =:
+  source .startPos name source .elements clone-mut~ newEnum Enum anEnum =:
   context name DeclareableType .ENUM anEnum .pos Context.ensureDeclareable name =
   anEnum context .elements name HashMap.put drop
   ##declare enum entries
   0 int i mut =:
   anEnum .enumType .fields NameWithPos list fields =:
   while{ i fields .length < do
-    source .name clone MODULE_SEPARATOR << fields i [] .name <<* mut~ fieldName =::
+    source .name clone MODULE_SEPARATOR << fields i [] .name <<* clone-mut~ fieldName =::
     context fieldName DeclareableType .ENUM_ENTRY fields i [] .pos Context.ensureDeclareable fieldName =
     anEnum .enumType i newEnumEntry context .elements fieldName HashMap.put drop
     i 1 + i =
@@ -943,7 +943,7 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         "invalid token for '.' modifier: " <<* prePrev << ' ' << prePrev .pos << '\n' << eputs
         1 exit
       }
-      TokenType .WORD fPos prePrev WordToken mut? cast .value clone '\'' << prev WordToken mut? cast .value <<* mut~ WordToken mut new
+      TokenType .WORD fPos prePrev WordToken mut? cast .value clone '\'' << prev WordToken mut? cast .value <<* clone-mut~ WordToken mut new
        tokens tokens .length 2 - []=
       tokens tokens .length 1 - tokens .length [:] clear
       end-case
@@ -1794,9 +1794,9 @@ parseFile proc( #+fileName+# string #+program+# Program mut =>  ){
           tokens
             TokenType .VALUE reader .wordPos clone
             state ParseState .STATE_USTRING == if{
-              reader .word codepoints mut~ Value.ofUString
+              reader .word codepoints clone-mut~ Value.ofUString
             else
-              reader .word mut~ Value.ofString
+              reader .word clone-mut~ Value.ofString
             }
           ValueToken mut new << tokens =
           reader ParserReader.nextWord

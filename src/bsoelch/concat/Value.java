@@ -2214,7 +2214,7 @@ public abstract class Value {
         {//cloning an immutable copy of a mutable list
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.mutableListOf(a)},
-                    new Type[]{Type.listOf(a)},"mut~") {
+                    new Type[]{Type.listOf(a)},"clone-mut~") {//addLater better name
                 @Override
                 Value[] callWith(Value[] values){
                     return new Value[]{values[0].clone(false)};
