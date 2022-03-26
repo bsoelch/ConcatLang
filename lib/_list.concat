@@ -100,6 +100,17 @@ insert public proc( A <?> A A List mut uint => ){
   }
   #+val+# listData index []=
 }
+insert public proc( A <?> A A ListSlice mut uint => ){
+  index =::
+  slice =::
+  index 0 < ||{ index slice .length > } if{
+    64 string mut new
+    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  #+val+# slice .parent slice .offset index + insert
+  slice .length 1 + slice .length =
+}
 insertAll public proc( A <?> A List mut? A List mut uint => ){
   index =::
   mList =::
@@ -120,6 +131,23 @@ insertAll public proc( A <?> A array mut? A List mut uint => ){
     listData listData .offset listData .capacity + delta + realloc
   }
   toInsert listData index insertAll
+}
+insertAll public proc( A <?> A List mut? A ListSlice mut uint => ){
+  index =::
+  slice =::
+  #+toInsert+# .data slice index insertAll
+}
+insertAll public proc( A <?> A array mut? A ListSlice mut uint => ){
+  index =::
+  slice =::
+  toInsert =::
+  index 0 < ||{ index slice .length > } if{
+    64 string mut new
+    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  slice .length toInsert .length + slice .length =
+  toInsert slice .parent slice .offset index + insertAll
 }
 
 << public proc( A <?> A List mut A => A List mut ){

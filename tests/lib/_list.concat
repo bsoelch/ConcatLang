@@ -61,4 +61,15 @@ z .data .capacity debugPrint
 z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint
+"___________________________________" debugPrint
+slice debugPrint
+3 slice 2 insert
+slice debugPrint
+5 int newList 1 << 2 << 3 << 4 << 5 << x1 =::
+x1 1 4 [:] slice2 =::
+slice2 debugPrint
+x1 slice2 2 insertAll
+slice2 debugPrint
+
+
 
