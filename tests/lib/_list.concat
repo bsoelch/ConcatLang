@@ -184,6 +184,34 @@ x8 2 4 [:] 1 remove debugPrint
 x8 debugPrint
 x8 x8 .data .length 1 - remove debugPrint
 x8 debugPrint
+"___________________________________" debugPrint
+2 x8 1 insert
+3 x8 2 insert
+0 x8 >> 5 << 6 << 7 << debugPrint
+x8 3 7 [:] slice11 =::
+slice11 debugPrint
+slice11 removeFirst debugPrint
+slice11 debugPrint
+slice11 removeLast debugPrint
+slice11 debugPrint
+slice11 popFirst debugPrint
+slice11 debugPrint
+slice11 popLast debugPrint
+slice11 debugPrint
+slice11 popFirst debugPrint
+slice11 popLast debugPrint
+x8 debugPrint
+x8 removeFirst debugPrint
+x8 debugPrint
+x8 removeLast debugPrint
+x8 debugPrint
+x8 popFirst debugPrint
+x8 debugPrint
+x8 popLast debugPrint
+x8 debugPrint
+x8 popFirst debugPrint
+x8 popLast debugPrint
+
 
 
 

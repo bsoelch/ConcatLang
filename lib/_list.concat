@@ -230,6 +230,52 @@ remove public proc( A <?> A ListSlice mut uint => A ){
   #+prev+# return
 }
 
+removeFirst public proc( A <?> A List mut => A ){
+   mList =::
+   mList 0 remove return
+}
+removeFirst public proc( A <?> A ListSlice mut => A ){
+   slice =::
+   slice 0 remove return
+}
+removeLast public proc( A <?> A List mut => A ){
+   mList =::
+   mList mList .data .length 1 - remove return
+}
+removeLast public proc( A <?> A ListSlice mut => A ){
+   slice =::
+   slice slice .length 1 - remove return
+}
+
+popFirst public proc( A <?> A List mut => A optional ){
+   mList =::
+   mList .data .length 0 == if{
+     A empty return
+   }
+   mList 0 remove wrap return
+}
+popFirst public proc( A <?> A ListSlice mut => A optional ){
+   slice =::
+   slice .length 0 == if{
+     A empty return
+   }
+   slice 0 remove wrap return
+}
+popLast public proc( A <?> A List mut => A optional ){
+   mList =::
+   mList .data .length 0 == if{
+     A empty return
+   }
+   mList mList .data .length 1 - remove wrap return
+}
+popLast public proc( A <?> A ListSlice mut => A optional ){
+   slice =::
+   slice .length 0 == if{
+     A empty return
+   }
+   slice slice .length 1 - remove wrap return
+}
+
 << public proc( A <?> A List mut A => A List mut ){
   val =::
   mList =::
