@@ -97,7 +97,7 @@ insert public proc( A <?> A A List mut uint => ){
     listData listData .offset listData .capacity + delta + realloc
   }
   index listData .length < if{
-    listData index listData .length [:] listData index 1 + copy
+    listData index listData index 1 + listData .length index - copy
     #+val+# listData index []=
   else
     #+val+# listData swap []^=
@@ -203,7 +203,7 @@ insertAll public proc( A <?> A array mut? A ListSlice mut uint => ){
     toAppend .length delta =::
     listData listData .offset listData .capacity + delta + realloc
   }
-  toAppend listData listData .length copy
+  toAppend 0 listData listData .length toAppend .length copy
   mList return
 }
 <<* public proc( A <?> A ListSlice mut A List mut? => A ListSlice mut ){
@@ -234,7 +234,7 @@ insertAll public proc( A <?> A array mut? A ListSlice mut uint => ){
     listData listData .offset listData .capacity + delta + realloc
     listData listData .offset delta + setOffset
   }
-  toAppend listData toAppend .length int cast -_ copy
+  toAppend 0 listData toAppend .length int cast -_ toAppend .length copy
   mList return
 }
 *>> public proc( A <?> A List mut? A ListSlice mut => A ListSlice mut ){
