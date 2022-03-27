@@ -1466,6 +1466,9 @@ public abstract class Value {
         }
         return new ArrayValue(type,content,(int)initCap);
     }
+    public static ArrayValue createArray(Type type,Value[] data) throws ConcatRuntimeError {
+        return new ArrayValue(type,data);
+    }
     //addLater ByteArray,  other primitive arrays?
     interface ArrayLike{
         Value[] elements();
@@ -1494,6 +1497,14 @@ public abstract class Value {
             data=new Value[capacity];
             offset=0;
             length=0;
+        }
+        /**create an array with a specific data as values,
+         * it is assumed, that all elements of data are non-null*/
+        protected ArrayValue(Type type,Value[] data) {
+            super(type);
+            this.data=data;
+            offset=0;
+            length=data.length;
         }
         /**creates an array with the given lengths and fills it with the given initial value*/
         protected ArrayValue(Type type,Value content,int capacity) {
