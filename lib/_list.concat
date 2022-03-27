@@ -351,6 +351,29 @@ insertAll public proc( A <?> A ListSlice mut? A ListSlice mut uint => ){
 }
 ## addLater [:] for non-mutable List/ListSlice
 
-## addLater [:]=
+[:]= public proc( A <?> A array mut? A List mut uint uint => ){
+  to =::
+  off =::
+  mList =::
+  mList .data listData =::
+  toInsert =::
+  off 0 < ||{ to off < ||{ to listData .length > } } if{
+    64 string mut new
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* listData .length <<u '\n' << eputs
+    1 exit
+  }
+  listData .length toInsert .length to off - - + listData .capacity > if{
+    toInsert .length to off - - delta =::
+    listData listData .offset listData .capacity + delta + realloc
+  }
+  toInsert 0 listData off to toInsert .length copyToSlice return
+}
+[:]= public proc( A <?> A List mut? A List mut uint uint => ){
+  to =::
+  off =::
+  mList =::
+  #+toInsert+# .data mList off to [:]=
+}
+##TODO [:]= for slices
 
 #end ## core
