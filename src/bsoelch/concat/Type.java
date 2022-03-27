@@ -366,11 +366,13 @@ public class Type {
         public boolean canAssignTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&(((WrapperType)t).wrapperName.equals(wrapperName)||
                     wrapperName.equals(MEMORY)&&((WrapperType)t).wrapperName.equals(ARRAY))){
-                if(t.mutability!=mutability&&t.mutability!=Mutability.UNDECIDED){
-                    return false;//incompatible mutability
-                }//no else
-                if(isMutable()&&!t.content().canAssignTo(content(),bounds.swapped())){
-                    return false;//mutable values cannot be assigned to mutable values of a different type
+                if(t.mutability!=Mutability.UNDECIDED){
+                    if(t.mutability!=mutability){
+                        return false;//incompatible mutability
+                    }//no else
+                    if(isMutable()&&!t.content().canAssignTo(content(),bounds.swapped())){
+                        return false;//mutable values cannot be assigned to mutable values of a different type
+                    }
                 }
                 return content().canAssignTo(t.content(),bounds);
             }else{
