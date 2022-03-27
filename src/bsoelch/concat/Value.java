@@ -2203,6 +2203,26 @@ public abstract class Value {
                 }
             });
         }
+        {//cloning an immutable array creates a mutable copy
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a)},
+                    new Type[]{Type.arrayOf(a).mutable()},"clone") {
+                @Override
+                Value[] callWith(Value[] values){
+                    return new Value[]{values[0].clone(false)};
+                }
+            });
+        }
+        {//cloning an immutable array creates a mutable copy
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable()},
+                    new Type[]{Type.arrayOf(a).mutable()},"clone") {
+                @Override
+                Value[] callWith(Value[] values){
+                    return new Value[]{values[0].clone(false)};
+                }
+            });
+        }
         {//cloning an immutable lists creates a mutable copy
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a)},
@@ -2213,9 +2233,29 @@ public abstract class Value {
                 }
             });
         }
+        {//cloning an immutable lists creates a mutable copy
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a).maybeMutable()},
+                    new Type[]{Type.mutableListOf(a)},"clone") {
+                @Override
+                Value[] callWith(Value[] values){
+                    return new Value[]{values[0].clone(false)};
+                }
+            });
+        }
+        {//cloning an immutable copy of a mutable array
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable()},
+                    new Type[]{Type.arrayOf(a)},"clone-mut~") {//addLater better name
+                @Override
+                Value[] callWith(Value[] values){
+                    return new Value[]{values[0].clone(false)};
+                }
+            });
+        }
         {//cloning an immutable copy of a mutable list
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.mutableListOf(a)},
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.maybeMutableListOf(a)},
                     new Type[]{Type.listOf(a)},"clone-mut~") {//addLater better name
                 @Override
                 Value[] callWith(Value[] values){
