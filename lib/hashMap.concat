@@ -6,8 +6,18 @@ stack #include
 codeblocks #include
 core #import
 
-listHash public proc( A <?> A list => uint ){
-  A list value =:
+listHash public proc( A <?> A list mut? => uint ){
+  A list mut? value =:
+  0 uint hash mut =:
+  0 uint i mut =:
+  while{ i value .length < do
+    hash 31 * value i [] hashCode + hash =
+    i 1 + i =
+  }
+  hash return
+}
+arrayHash public proc( A <?> A array mut? => uint ){
+  A array mut? value =:
   0 uint hash mut =:
   0 uint i mut =:
   while{ i value .length < do
@@ -19,9 +29,11 @@ listHash public proc( A <?> A list => uint ){
 hashCode public proc( var => uint ){
   var value =:
   value .type type valType =:
-  ## addLater? use list-hash for tuple/enum-types
+  ## addLater? use array-hash for tuple/enum-types
   valType .isList if{
     value listHash return
+  else valType .isArray if
+    value arrayHash return
   else valType ( ) <= if
     0 uint hash mut =:
     0 uint i mut =:
@@ -45,7 +57,7 @@ HashMapEntry struct{ K <> V <> K V MapEntry extend
 }
 
 HashMap public struct{ K <> V <>
-  K V HashMapEntry mut optional list mut :data  ## addLater? (automatically) adjust capacity if size gets to large
+  K V HashMapEntry mut optional array mut :data  ## addLater? (automatically) adjust capacity if size gets to large
   int :size mut
 }
 HashMap.incSize proc( K <?> V <?> K V HashMap mut => ){ dup .size 1 + swap .size = }
@@ -53,8 +65,7 @@ HashMap.decSize proc( K <?> V <?> K V HashMap mut => ){ dup .size 1 - swap .size
 
 newHashMap public proc( #+keyType+# K <> #+valType+# V <> #+cap+# int => K V HashMap mut ){
   int cap =:
-  cap K V HashMapEntry mut optional list mut new data =::
-  data 0 cap K V HashMapEntry mut empty fill
+  K V HashMapEntry mut empty  cap  K V HashMapEntry mut optional array mut new data =::
   data 0 K V HashMap mut new
 }
 

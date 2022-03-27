@@ -4,6 +4,12 @@ hashMap #include
 core #import
 hashMap #import
 
+1 4 int array mut new l =::
+2 l 1 []=
+3 l 2 []=
+4 l 3 []=
+l debugPrint
+l hashCode debugPrint
 { 1 2 3 4 } hashCode debugPrint
 
 16 int string newHashMap map =::
