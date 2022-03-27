@@ -1479,6 +1479,7 @@ public abstract class Value {
         void copyFrom(long offset,Value[] src,long srcOff,long length) throws ConcatRuntimeError;
         void copyToSlice(long sliceStart,long sliceEnd,Value[] src, long srcOff, long length) throws ConcatRuntimeError;
         void fill(Value val,long offset,long count) throws ConcatRuntimeError;
+        void clearSlice(long sliceStart,long sliceEnd) throws ConcatRuntimeError;
         void reallocate(long newSize) throws ConcatRuntimeError;
         void setOffset(long newOffset) throws ConcatRuntimeError;
     }
@@ -1663,6 +1664,25 @@ public abstract class Value {
                 this.length=Math.max(prevOffset+this.length,this.offset+(int)(offset+count))-this.offset;
             }
         }
+        @Override
+        public void clearSlice(long sliceStart, long sliceEnd) throws ConcatRuntimeError {
+            if(!type.isMemory()){
+                throw new RuntimeException("clear is only supported for memories");
+            }
+            if(sliceStart <0||sliceEnd< sliceStart ||sliceEnd>length){
+                throw new ConcatRuntimeError("invalid target slice for clear: "+ sliceStart +":"+sliceEnd+" length:"+length);
+            }//no else
+            long sliceLength=sliceEnd- sliceStart;
+            if(sliceStart<length/2){
+                System.arraycopy(data,offset,data,offset+(int)sliceLength,(int) sliceStart);
+                offset+=sliceLength;
+            }else{
+                System.arraycopy(data,offset+(int) sliceEnd,data,offset+(int)sliceStart,
+                        length-(int)sliceEnd);
+            }
+            this.length-=sliceLength;
+        }
+
 
         @Override
         public void reallocate(long newSize) throws ConcatRuntimeError {
@@ -2749,6 +2769,21 @@ public abstract class Value {
                     long off=values[2].asLong();
                     long count=values[3].asLong();
                     target.fill(val,off,count);
+                    return new Value[0];
+                }
+            });
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},
+                    new Type[]{Type.memoryOf(a).mutable(),Type.UINT,Type.UINT}, new Type[]{},"clearSlice") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    //memory off to
+                    ArrayLike mem=(ArrayLike)values[0];
+                    long off=values[1].asLong();
+                    long to=values[2].asLong();
+                    mem.clearSlice(off,to);
                     return new Value[0];
                 }
             });
