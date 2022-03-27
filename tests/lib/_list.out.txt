@@ -62,6 +62,24 @@ ___________________________________
 (int List mut:(int memory mut:[int:1, int:-3, int:-3, int:-2, int:2, int:3, int:1, int:2, int:3, int:4, int:5, int:4, int:-1, int:-3, int:-3, int:5]),uint:1,uint:14)
 (int List mut:(int memory mut:[int:1, int:2, int:3, int:4, int:5]),uint:1,uint:3)
 (int List mut:(int memory mut:[int:1, int:2, int:2, int:3, int:4, int:3, int:4, int:5]),uint:1,uint:6)
+___________________________________
+(int List mut:(int memory mut:[int:1, int:2, int:3, int:4]),uint:1,uint:2)
+(int List mut:(int memory mut:[int:1, int:2, int:3, int:2, int:3, int:4]),uint:1,uint:4)
+___________________________________
+(int List mut:(int memory mut:[int:1, int:2, int:3, int:4]),uint:1,uint:2)
+(int List mut:(int memory mut:[int:1, int:2, int:3, int:2, int:3, int:4]),uint:1,uint:4)
+___________________________________
+(int List mut:(int memory mut:[int:1, int:2, int:3, int:4]),uint:1,uint:2)
+(int List mut:(int memory mut:[int:1, int:2, int:3, int:1, int:2, int:3, int:4, int:4]),uint:1,uint:6)
+___________________________________
+(int List mut:(int memory mut:[int:1, int:2, int:3, int:4]),uint:1,uint:2)
+(int List mut:(int memory mut:[int:1, int:1, int:2, int:3, int:4, int:2, int:3, int:4]),uint:1,uint:6)
+___________________________________
+(int memory mut:[int:1, int:2, int:3, int:4])
+(int memory mut:[int:2, int:3, int:1, int:2, int:3, int:4])
+___________________________________
+(int memory mut:[int:1, int:2, int:3, int:4])
+(int memory mut:[int:1, int:2, int:3, int:4, int:2, int:3])
 
 Stack:
 []

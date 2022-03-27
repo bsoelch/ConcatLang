@@ -236,18 +236,39 @@ insertAll public proc( A <?> A ListSlice mut? A ListSlice mut uint => ){
   toAppend 0 listData listData .length toAppend .length copy
   mList return
 }
+<<* public proc( A <?> A List mut A ListSlice mut? => A List mut ){
+  toAppend =::
+  mList =::
+  mList .data listData =::
+  listData .length toAppend .length + listData .capacity > if{
+    toAppend .length delta =::
+    listData listData .offset listData .capacity + delta + realloc
+  }
+  toAppend .parent .data toAppend .offset listData listData .length toAppend .length copy
+  mList return
+}
 <<* public proc( A <?> A ListSlice mut A List mut? => A ListSlice mut ){
   toAppend =::
   slice =::
+  slice .length toAppend .data .length + ## newLength
   toAppend .data slice .parent slice .offset insertAll
-  slice .length toAppend .data .length + slice .length =
+  #+newLength+# slice .length =
   slice return
 }
 <<* public proc( A <?> A ListSlice mut A array mut? => A ListSlice mut ){
   toAppend =::
   slice =::
+  slice .length toAppend .length + ## newLength
   toAppend slice .parent slice .offset insertAll
-  slice .length toAppend .length + slice .length =
+  #+newLength+# slice .length =
+  slice return
+}
+<<* public proc( A <?> A ListSlice mut A ListSlice mut? => A ListSlice mut ){
+  toAppend =::
+  slice =::
+  slice .length toAppend .length + ## newLength
+  toAppend slice .parent slice .offset insertAll
+  #+newLength+# slice .length =
   slice return
 }
 *>> public proc( A <?> A List mut? A List mut => A List mut ){
@@ -267,18 +288,40 @@ insertAll public proc( A <?> A ListSlice mut? A ListSlice mut uint => ){
   toAppend 0 listData toAppend .length int cast -_ toAppend .length copy
   mList return
 }
+*>> public proc( A <?> A ListSlice mut? A List mut => A List mut ){
+  mList =::
+  mList .data listData =::
+  toAppend =::
+  listData .offset toAppend .length < if{
+    toAppend .length delta =::
+    listData listData .offset listData .capacity + delta + realloc
+    listData listData .offset delta + setOffset
+  }
+  toAppend .parent .data toAppend .offset listData toAppend .length int cast -_ toAppend .length copy
+  mList return
+}
 *>> public proc( A <?> A List mut? A ListSlice mut => A ListSlice mut ){
   slice =::
   toAppend =::
+  slice .length toAppend .data .length + ## newLength
   toAppend .data slice .parent slice .offset slice .length + insertAll
-  slice .length toAppend .data .length + slice .length =
+  #+newLength+# slice .length =
   slice return
 }
 *>> public proc( A <?> A array mut? A ListSlice mut => A ListSlice mut ){
   slice =::
   toAppend =::
+  slice .length toAppend .length + ## newLength
   toAppend slice .parent slice .offset slice .length + insertAll
-  slice .length toAppend .length + slice .length =
+  #+newLength+# slice .length =
+  slice return
+}
+*>> public proc( A <?> A ListSlice mut? A ListSlice mut => A ListSlice mut ){
+  slice =::
+  toAppend =::
+  slice .length toAppend .length + ## newLength
+  toAppend slice .parent slice .offset slice .length + insertAll
+  #+newLength+# slice .length =
   slice return
 }
 
