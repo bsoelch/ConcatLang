@@ -1601,14 +1601,14 @@ public abstract class Value {
         @Override
         public void copyToSlice(long sliceStart, long sliceEnd, Value[] src, long srcOff, long count) throws ConcatRuntimeError {
             if(!type.isMemory()){
-                throw new RuntimeException("prepend is only supported for memories");
+                throw new RuntimeException("copyToSlice is only supported for memories");
             }
             if(sliceStart <0||sliceEnd< sliceStart ||sliceEnd>length){
-                throw new ConcatRuntimeError("invalid target slice for insert: "+ sliceStart +":"+sliceEnd+" length:"+length);
+                throw new ConcatRuntimeError("invalid target slice for copyToSlice: "+ sliceStart +":"+sliceEnd+" length:"+length);
             }//no else
             long sliceLength=sliceEnd- sliceStart;
             if(srcOff<0||srcOff+count-sliceLength>src.length){
-                throw new ConcatRuntimeError("invalid source offset for insert: "+srcOff+" offset has to be between "+0
+                throw new ConcatRuntimeError("invalid source offset for copyToSlice: "+srcOff+" offset has to be between "+0
                         +" and "+(src.length-count+sliceLength));
             }//no else
             if(offset+length+count-sliceLength>data.length&&count-sliceLength>offset){
@@ -1618,24 +1618,21 @@ public abstract class Value {
             if(sliceStart <length/2){
                 if(offset>=count){
                     System.arraycopy(data,offset,data,offset-(int)count+(int)sliceLength,(int) sliceStart);
-                    offset-=count;
-                    System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
+                    offset+=count-sliceLength;
                 }else{
-                    System.arraycopy(data,offset+(int) sliceStart +(int)sliceLength,data,
-                            offset+(int)(sliceStart +count),length-(int)(sliceStart+sliceLength));
-                    System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
+                    System.arraycopy(data,offset+(int) sliceEnd,data,
+                            offset+(int)(sliceStart +count),length-(int)sliceEnd);
                 }
             }else{
                 if(offset+length+count-sliceLength<=data.length){
-                    System.arraycopy(data,offset+(int) sliceStart +(int)sliceLength,data,
-                            offset+(int)(sliceStart +count),length-(int)(sliceStart+sliceLength));
-                    System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
+                    System.arraycopy(data,offset+(int) sliceEnd,data,
+                            offset+(int)(sliceStart +count),length-(int)sliceEnd);
                 }else{
                     System.arraycopy(data,offset,data,offset-(int)count+(int)sliceLength,(int) sliceStart);
-                    offset-=count;
-                    System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
+                    offset+=count-sliceLength;
                 }
             }
+            System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
             this.length+=count-sliceLength;
         }
 
