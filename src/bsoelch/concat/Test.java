@@ -59,7 +59,28 @@ public class Test {//TODO add a new test for array access operations
                         Interpreter.RootContext testC=
                                 testP.rootContext();
                         for(Map.Entry<String, Interpreter.Declareable> d:libFile.getValue().rootContext().declareables()){
-                            if(d.getValue().declaredAt().path.endsWith(libFile.getKey())){
+                            if(d.getValue() instanceof OverloadedProcedure){
+                                for(Interpreter.Callable c:((OverloadedProcedure) d.getValue()).procedures){
+                                    if(c.declaredAt().path.endsWith(libFile.getKey())){
+                                        Interpreter.Declareable dTest=testC.getElement(d.getKey(),false);
+                                        if(dTest==null){
+                                            System.err.println("declareable \""+d.getKey()+"\" at "+d.getValue().declaredAt()+
+                                                    " is not used in test for library file: \""+libFile.getKey()+"\"");
+                                        }else if(dTest instanceof OverloadedProcedure){
+                                            for(Interpreter.Callable cTest:((OverloadedProcedure) dTest).procedures){
+                                                if(cTest.type().equals(c.type())&&cTest.unused()){
+                                                    System.err.println("procedure \""+d.getKey()+"\" at "+cTest.declaredAt()+
+                                                            " is not used in test for library file: \""+libFile.getKey()+"\"");
+                                                }
+                                            }
+                                        }else if(dTest.unused()){
+                                            System.err.println(Interpreter.declarableName(dTest.declarableType(),false)+" \""+d.getKey()+
+                                                    "\" at "+d.getValue().declaredAt()+
+                                                    " is not used in test for library file: \""+libFile.getKey()+"\"");
+                                        }
+                                    }
+                                }
+                            }else if(d.getValue().declaredAt().path.endsWith(libFile.getKey())){
                                 Interpreter.Declareable dTest=testC.getElement(d.getKey(),false);
                                 if(dTest==null){
                                     System.err.println("declareable \""+d.getKey()+"\" at "+d.getValue().declaredAt()+
