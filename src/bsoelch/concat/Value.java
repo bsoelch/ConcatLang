@@ -1622,13 +1622,13 @@ public abstract class Value {
                     System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
                 }else{
                     System.arraycopy(data,offset+(int) sliceStart +(int)sliceLength,data,
-                            offset+(int)(sliceStart +count),length-(int) sliceStart);
+                            offset+(int)(sliceStart +count),length-(int)(sliceStart+sliceLength));
                     System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
                 }
             }else{
                 if(offset+length+count<=data.length){
                     System.arraycopy(data,offset+(int) sliceStart +(int)sliceLength,data,
-                            offset+(int)(sliceStart +count),length-(int) sliceStart);
+                            offset+(int)(sliceStart +count),length-(int)(sliceStart+sliceLength));
                     System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
                 }else{
                     System.arraycopy(data,offset,data,offset-(int)count+(int)sliceLength,(int) sliceStart);
