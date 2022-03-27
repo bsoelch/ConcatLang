@@ -2613,11 +2613,11 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.mutableListOf(a),
-                    Type.maybeMutableListOf(a), Type.UINT,Type.UINT}, new Type[]{},"[:]=") {
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.maybeMutableListOf(a),
+                    Type.mutableListOf(a), Type.UINT,Type.UINT}, new Type[]{},"[:]=") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list val off to
+                    //val  list off to
                     values[1].setSlice(values[2].asLong(),values[3].asLong(),values[0]);
                     return new Value[0];
                 }
