@@ -95,6 +95,17 @@ ___________________________________
 ___________________________________
 (int List mut:(int memory mut:[int:1, int:-2, int:-1, int:-2, int:-3, int:4, int:5]),uint:1,uint:5)
 (int List mut:(int memory mut:[int:1, int:-2, int:-1, int:-2, int:-1, int:-2, int:-3, int:4, int:4, int:5]),uint:1,uint:8)
+___________________________________
+(int memory mut:[int:1, int:-2, int:-1, int:-2, int:-1, int:-2, int:-3, int:4, int:4, int:5])
+0
+10
+(int List mut:(int memory mut:[int:1, int:-2, int:-1, int:-2, int:-1, int:-2, int:-3, int:4, int:4, int:5]),uint:1,uint:8)
+(int memory mut:[int:1, int:5])
+0
+10
+(int memory mut:[])
+0
+10
 
 Stack:
 []

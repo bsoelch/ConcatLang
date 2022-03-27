@@ -22,14 +22,21 @@ newList public proc( A <> uint => A List mut ){
   A memory mut new A List mut new return
 }
 
-## addLater clear
-
 ensureCap public proc( A <?> A List mut uint => ){##addLater better names for capacity procedure, add procedure for offset
   newCap =::
   mList =::
   mList .data .capacity newCap < if{
     mList .data newCap realloc
   }
+}
+
+clear public proc( A <?> A List mut => ){
+  mList =::
+  mList .data 0 mList .data .length clearSlice
+}
+clear public proc( A <?> A ListSlice mut => ){
+  slice =::
+  slice .parent .data slice .offset slice .offset slice .length + clearSlice
 }
 
 fill public proc( A <?> A A List mut int uint => ){

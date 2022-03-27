@@ -148,6 +148,22 @@ slice10 debugPrint
 slice10 debugPrint
 slice10 slice10 2 4 [:]=
 slice10 debugPrint
+"___________________________________" debugPrint
+x8 debugPrint
+x8 .data .offset   debugPrint
+x8 .data .capacity debugPrint
+
+slice10 debugPrint
+slice10 clear
+x8 debugPrint
+x8 .data .offset   debugPrint
+x8 .data .capacity debugPrint
+
+x8 clear
+x8 debugPrint
+x8 .data .offset   debugPrint
+x8 .data .capacity debugPrint
+
 
 
 
