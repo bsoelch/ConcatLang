@@ -47,7 +47,15 @@ slice 2 5 [:] debugPrint
 z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint
--1 z 3 insert
+1 z 3 insert
+z debugPrint
+z .data .offset   debugPrint
+z .data .capacity debugPrint
+2 z 0 insert
+z debugPrint
+z .data .offset   debugPrint
+z .data .capacity debugPrint
+3 z z .data .length insert
 z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint
@@ -57,7 +65,7 @@ z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint
 
--11 4 int array new z 10 insertAll
+-11 4 int array new z z .length insertAll
 z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint
@@ -79,6 +87,10 @@ x1 1 4 [:] slice2 =::
 slice2 debugPrint
 x1 slice2 2 insertAll
 slice2 debugPrint
+
+-1 slice2 >> -2 << debugPrint
+-3 2 int array new a =::
+a slice2 *>> a <<* debugPrint
 
 
 
