@@ -339,11 +339,11 @@ public class Type {
 
         @Override
         public boolean isRawString() {
-            return contentType==BYTE;
+            return wrapperName.equals(LIST)&&contentType==BYTE;
         }
         @Override
         public boolean isUnicodeString() {
-            return contentType==CODEPOINT;
+            return wrapperName.equals(LIST)&&contentType==CODEPOINT;
         }
         @Override
         public boolean isList() {
@@ -383,6 +383,9 @@ public class Type {
         @Override
         public boolean canCastTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
+                if(t.mutability!=mutability&&t.mutability!=Mutability.UNDECIDED){
+                   return false;//incompatible mutability
+                }
                 return content().canCastTo(t.content(),bounds);
             }else{
                 return super.canCastTo(t,bounds);
