@@ -1701,9 +1701,9 @@ public class Interpreter {
         }else if(pState.files.contains(fileId)){
             //TODO detect if file was already included through different path
             return new Program(pState.globalCode,pState.files,pState.rootContext);
-        }else{//ensure that each file is included only once
-            pState.files.add(fileId);
         }
+        //ensure that each file is included only once
+        pState.files.add(fileId);
 
         pState.startFile();
 
