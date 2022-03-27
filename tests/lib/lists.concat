@@ -4,7 +4,7 @@ core #namespace
 lists #include
 stack #include
 
-4 int list mut new { 1 2 3 4 } <<* l =::
+{ 1 2 3 4 } clone l =:: ##addLater add possibility to create mutable arrays
 l reverse
 l debugPrint
 
@@ -28,7 +28,7 @@ lenCmp proc( string string => int ){
   string b =:
   a .length b .length - int cast return
 }
-6 string list mut new { "sorting" "with" "comparator" "is" "now" "supported" } <<* dup @lenCmp mergesort2 debugPrint
+{ "sorting" "with" "comparator" "is" "now" "supported" } clone dup @lenCmp mergesort2 debugPrint
 
 "_________________________" debugPrint
 "map:\n" debugPrint

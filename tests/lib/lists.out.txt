@@ -14,7 +14,7 @@ _________________________
 map:
 
 [int:1, int:4, int:9, int:16, int:25]
-[int list:[int:1], int list:[int:2], int list:[int:3], int list:[int:4], int list:[int:5]]
+[int array:[int:1], int array:[int:2], int array:[int:3], int array:[int:4], int array:[int:5]]
 _________________________
 filter:
 

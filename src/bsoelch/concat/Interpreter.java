@@ -18,7 +18,7 @@ public class Interpreter {
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
     enum TokenType {
-        VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,NEW,NEW_LIST,
+        VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,NEW, NEW_ARRAY,
         STACK_DROP,STACK_DUP,STACK_SET,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
@@ -175,7 +175,7 @@ public class Interpreter {
         }
     }
     enum BlockTokenType{
-        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT,LIST, END
+        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT, ARRAY, END
     }
     static class BlockToken extends Token{
         final BlockTokenType blockType;
@@ -241,10 +241,10 @@ public class Interpreter {
             return new TypedToken(tokenType,target==null?null:target.replaceGenerics(genericParams),pos);
         }
     }
-    static class ListCreatorToken extends Token implements CodeSection {
+    static class ArrayCreatorToken extends Token implements CodeSection {
         final ArrayList<Token> tokens;
-        ListCreatorToken(ArrayList<Token> tokens, FilePosition pos) {
-            super(TokenType.NEW_LIST, pos);
+        ArrayCreatorToken(ArrayList<Token> tokens, FilePosition pos) {
+            super(TokenType.NEW_ARRAY, pos);
             this.tokens=tokens;
         }
         @Override
@@ -272,7 +272,7 @@ public class Interpreter {
                 newTokens.add(newT);
                 changed|=newT!=t;
             }
-            return changed?new ListCreatorToken(newTokens,pos):this;
+            return changed?new ArrayCreatorToken(newTokens,pos):this;
         }
     }
     static class ArgCastToken extends Token{
@@ -384,7 +384,7 @@ public class Interpreter {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,ANONYMOUS_TUPLE,PROC_TYPE,CONST_LIST,UNION,STRUCT
+        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,ANONYMOUS_TUPLE,PROC_TYPE, CONST_ARRAY,UNION,STRUCT
     }
     static abstract class CodeBlock{
         final int start;
@@ -696,10 +696,10 @@ public class Interpreter {
             return context;
         }
     }
-    private static class ListBlock extends CodeBlock{
+    private static class ArrayBlock extends CodeBlock{
         RandomAccessStack<TypeFrame> prevTypes;
         final VariableContext context;
-        ListBlock(int start, BlockType type, FilePosition startPos, VariableContext parentContext) {
+        ArrayBlock(int start, BlockType type, FilePosition startPos, VariableContext parentContext) {
             super(start, type, startPos, parentContext);
             this.context=new BlockContext(parentContext);
         }
@@ -711,7 +711,7 @@ public class Interpreter {
     private static class ProcTypeBlock extends CodeBlock{
         final int separatorPos;
         final BlockContext context;
-        ProcTypeBlock(ListBlock start,int separatorPos) {
+        ProcTypeBlock(ArrayBlock start, int separatorPos) {
             super(start.start,BlockType.PROC_TYPE,start.startPos, start.parentContext);
             this.separatorPos=separatorPos;
             assert start.type==BlockType.ANONYMOUS_TUPLE;
@@ -2100,7 +2100,7 @@ public class Interpreter {
                         proc.context().lock();
                     }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
                         pState.openBlocks.removeLast();
-                        pState.openBlocks.addLast(new ProcTypeBlock((ListBlock)block,tokens.size()));
+                        pState.openBlocks.addLast(new ProcTypeBlock((ArrayBlock)block,tokens.size()));
                     }else{
                         throw new SyntaxError("'"+str+"' can only be used in proc- or proc-type blocks ",pos);
                     }
@@ -2124,8 +2124,8 @@ public class Interpreter {
                     }
                 }
                 case "{" -> {
-                    tokens.add(new BlockToken(BlockTokenType.LIST,        pos,-1));
-                    pState.openBlocks.add(new ListBlock(tokens.size(),BlockType.CONST_LIST,pos, pState.getContext()));
+                    tokens.add(new BlockToken(BlockTokenType.ARRAY,        pos,-1));
+                    pState.openBlocks.add(new ArrayBlock(tokens.size(),BlockType.CONST_ARRAY,pos, pState.getContext()));
                 }
                 case "while{" -> {
                     tokens.add(new BlockToken(BlockTokenType.WHILE, pos, -1));
@@ -2300,7 +2300,7 @@ public class Interpreter {
                                 pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
                             }
                         }
-                        case IF,WHILE,SWITCH_CASE,CONST_LIST ->{
+                        case IF,WHILE,SWITCH_CASE, CONST_ARRAY ->{
                             if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
                                     b.blockType==BlockTokenType.DO){//merge do-end
                                 tokens.set(tokens.size()-1,new BlockToken(BlockTokenType.DO_WHILE, pos, -1));
@@ -2315,12 +2315,12 @@ public class Interpreter {
                 case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
                 case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
                 case "union(" ->{
-                    ListBlock block = new ListBlock(tokens.size(), BlockType.UNION, pos, pState.getContext());
+                    ArrayBlock block = new ArrayBlock(tokens.size(), BlockType.UNION, pos, pState.getContext());
                     pState.openBlocks.add(block);
                     pState.openedContexts.add(block.context());
                 }
                 case "(" ->{
-                    ListBlock block = new ListBlock(tokens.size(), BlockType.ANONYMOUS_TUPLE, pos, pState.getContext());
+                    ArrayBlock block = new ArrayBlock(tokens.size(), BlockType.ANONYMOUS_TUPLE, pos, pState.getContext());
                     pState.openBlocks.add(block);
                     pState.openedContexts.add(block.context());
                 }
@@ -2846,7 +2846,7 @@ public class Interpreter {
                 case EMPTY_OPTIONAL ->
                     typeCheckTypeModifier("empty", Value::emptyOptional,ret,typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
-                        CALL_PROC,CALL_NATIVE_PROC,NEW_LIST,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
+                        CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -3091,11 +3091,11 @@ public class Interpreter {
                     throw new SyntaxError("unexpected 'case' statement",pos);
             case DEFAULT ->
                     throw new SyntaxError("unexpected 'default' statement",pos);
-            case LIST -> {
-                ListBlock listBlock = new ListBlock(ret.size(), BlockType.CONST_LIST, pos, context);
-                listBlock.prevTypes=typeStack;
+            case ARRAY -> {
+                ArrayBlock arrayBlock = new ArrayBlock(ret.size(), BlockType.CONST_ARRAY, pos, context);
+                arrayBlock.prevTypes=typeStack;
                 typeStack=new RandomAccessStack<>(8);
-                openBlocks.add(listBlock);
+                openBlocks.add(arrayBlock);
             }
             case END -> {
                 CodeBlock open=openBlocks.pollLast();
@@ -3104,7 +3104,7 @@ public class Interpreter {
                 }
                 Token tmp;
                 switch(open.type) {
-                    case CONST_LIST -> {
+                    case CONST_ARRAY -> {
                         Type type = null;
                         for (TypeFrame f : typeStack) {
                             Optional<Type> merged = Type.commonSuperType(type, f.type, false);
@@ -3116,7 +3116,7 @@ public class Interpreter {
                         if (type == null) {
                             type = Type.ANY;
                         }
-                        typeStack = ((ListBlock) open).prevTypes;
+                        typeStack = ((ArrayBlock) open).prevTypes;
                         List<Token> subList = ret.subList(open.start, ret.size());
                         ArrayList<Value> values = new ArrayList<>(subList.size());
                         boolean constant = true;
@@ -3135,7 +3135,7 @@ public class Interpreter {
                                 for (int p = 0; p < values.size(); p++) {
                                     values.set(p, values.get(p).castTo(type));
                                 }
-                                Value list = Value.createList(Type.listOf(type), values);
+                                Value list = Value.createArray(Type.arrayOf(type), values.toArray(Value[]::new));
                                 typeStack.push(new TypeFrame(list.type, list, pos));
 
                                 ret.add(new ValueToken(list, open.startPos, true));
@@ -3143,11 +3143,11 @@ public class Interpreter {
                                 throw new SyntaxError(e, pos);
                             }
                         } else {
-                            typeStack.push(new TypeFrame(Type.listOf(type), null, pos));
+                            typeStack.push(new TypeFrame(Type.arrayOf(type), null, pos));
 
                             ArrayList<Token> listTokens = new ArrayList<>(subList);
                             subList.clear();
-                            ret.add(new ListCreatorToken(listTokens, pos));
+                            ret.add(new ArrayCreatorToken(listTokens, pos));
                         }
                     }
                     case IF -> {
@@ -4461,10 +4461,10 @@ public class Interpreter {
                         assert next instanceof InternalFieldToken;
                         getInternalField((InternalFieldToken) next, stack);
                     }
-                    case NEW_LIST -> {//{ e1 e2 ... eN }
-                        assert next instanceof ListCreatorToken;
-                        RandomAccessStack<Value> listStack=new RandomAccessStack<>(((ListCreatorToken)next).tokens.size());
-                        ExitType res=recursiveRun(listStack,((ListCreatorToken)next),globalVariables,variables,curried,context);
+                    case NEW_ARRAY -> {//{ e1 e2 ... eN }
+                        assert next instanceof ArrayCreatorToken;
+                        RandomAccessStack<Value> listStack=new RandomAccessStack<>(((ArrayCreatorToken)next).tokens.size());
+                        ExitType res=recursiveRun(listStack,((ArrayCreatorToken)next),globalVariables,variables,curried,context);
                         if(res!=ExitType.NORMAL){
                             if(res==ExitType.ERROR) {
                                 context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
@@ -4482,7 +4482,7 @@ public class Interpreter {
                         for(int i=0;i< values.size();i++){
                             values.set(i,values.get(i).castTo(type));
                         }
-                        stack.push(Value.createList(Type.listOf(type), values));
+                        stack.push(Value.createArray(Type.arrayOf(type),values.toArray(Value[]::new)));
                     }
                     case CAST -> {
                         assert next instanceof TypedToken;
@@ -4690,7 +4690,7 @@ public class Interpreter {
                             case WHILE,END_IF -> {
                                 //do nothing
                             }
-                            case SWITCH,CASE,DEFAULT,LIST, END ->
+                            case SWITCH,CASE,DEFAULT, ARRAY, END ->
                                 throw new RuntimeException("blocks of type "+((BlockToken)next).blockType+
                                         " should be eliminated at compile time");
                         }

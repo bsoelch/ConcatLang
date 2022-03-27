@@ -10,7 +10,7 @@ a enum{
   enumeration
 }
 
-{ "list" "indexed" "by" "enumeration" } string list table =:
+{ "list" "indexed" "by" "enumeration" } string array table =:
 
 table a .this [] println
 table a .enumeration [] println

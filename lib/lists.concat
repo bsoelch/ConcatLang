@@ -6,7 +6,7 @@ codeblocks #include
 
 ## TODO binary search
 
-reverse public proc( A <?> A list mut  => ){
+reverse public proc( A <?> A array mut  => ){
   toReverse =::
   0 i =::
   toReverse .length 1 - int maxId =:
@@ -18,18 +18,18 @@ reverse public proc( A <?> A list mut  => ){
   }
 }
 
-mergesort_helper proc( A <?> A list mut #+off+# int #+to+# int #+buffer+# A list mut => ){
+mergesort_helper proc( A <?> A array mut #+off+# int #+to+# int #+buffer+# A memory mut => ){
   buffer =::
-  int to =:
-  int off mut =:
+  uint to =:
+  uint off mut =:
   input =::
   off to < if{
-    off to + 2 / int c mut =:
+    off to + 2 / uint c mut =:
     input off c buffer mergesort_helper
     c 1 + c =
     input c  to buffer mergesort_helper
     ## 0 ... c-1 and c...to-1 are sorted
-    c int i mut =:
+    c uint i mut =:
     while{ off c < &&{ c to <= } do
       while{ off c < &&{ input off [] input c [] <= } do
         off 1 + off =
@@ -40,17 +40,13 @@ mergesort_helper proc( A <?> A list mut #+off+# int #+to+# int #+buffer+# A list
         }
         i c - int delta =:
         delta c off - <= if{
-          buffer clear
-          buffer input c i [:] <<* drop ## store data in buffer
-          input off c [:]  input off delta + c delta + [:]= ## move remaining part of left half to the right
-          buffer  input off  off delta + [:]= ## get the elements from buffer
-          buffer clear
+          input c buffer 0 delta copy ## store data in buffer
+          input off input off delta + c off - copy ## move remaining part of left half to the right
+          buffer 0 input off delta copy ## get the elements from buffer
         else
-          buffer clear
-          buffer input off c [:] <<* drop ## store data in buffer
-          input c i [:]  input off  off delta + [:]= ## move remaining part of left half to the right
-          buffer  input off delta + i [:]= ## get the elements from buffer
-          buffer clear
+          input off buffer 0 c off - copy ## store data in buffer
+          input c input off i c - copy ## move remaining part of left half to the right
+          buffer 0 input off c off - copy ## get the elements from buffer
         }
         i c =
         off 1 + off =
@@ -61,26 +57,26 @@ mergesort_helper proc( A <?> A list mut #+off+# int #+to+# int #+buffer+# A list
 
 #+ sorts the given list
   elements are compared using 'core .<='
-  the sorted list overwrites the given list
+  the sorted array overwrites the given list
  +#
-mergesort public proc( A <?> A list mut => ){
+mergesort public proc( A <?> A array mut => ){
   input =::
-  #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / A list mut new mergesort_helper
+  #+list+# input #+off+#0 #+to+# input .length 1 - #+buffer+# input .length 2 / A memory mut new mergesort_helper
 }
 
-mergesort2_helper proc( A <?> A list mut #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A list mut => ){
+mergesort2_helper proc( A <?> A array mut #+cmp+# ( A A => int ) #+off+# int #+to+# int #+buffer+# A memory mut => ){
   buffer =::
-  int to =:
-  int off mut =:
+  uint to =:
+  uint off mut =:
   ( A A => int ) cmp =:
   input =::
   off to < if{
-    off to + 2 / int c mut =:
+    off to + 2 / uint c mut =:
     input cmp off c buffer mergesort2_helper
     c 1 + c =
     input cmp c  to buffer mergesort2_helper
     ## 0 ... c-1 and c...to-1 are sorted
-    c int i mut =:
+    c uint i mut =:
     while{ off c < &&{ c to <= } do
       while{ off c < &&{ input off [] input c [] cmp () 0 <= } do
         off 1 + off =
@@ -91,17 +87,13 @@ mergesort2_helper proc( A <?> A list mut #+cmp+# ( A A => int ) #+off+# int #+to
         }
         i c - int delta =:
         delta c off - <= if{
-          buffer clear
-          buffer input c i [:] <<* drop ## store data in buffer
-          input off c [:]  input off delta + c delta + [:]= ## move remaining part of left half to the right
-          buffer  input off  off delta + [:]= ## get the elements from buffer
-          buffer clear
+          input c buffer 0 delta copy ## store data in buffer
+          input off input off delta + c off - copy ## move remaining part of left half to the right
+          buffer 0 input off delta copy ## get the elements from buffer
         else
-          buffer clear
-          buffer input off c [:] <<* drop ## store data in buffer
-          input c i [:]  input off  off delta + [:]= ## move remaining part of left half to the right
-          buffer  input off delta + i [:]= ## get the elements from buffer
-          buffer clear
+          input off buffer 0 c off - copy ## store data in buffer
+          input c input off i c - copy ## move remaining part of left half to the right
+          buffer 0 input off c off - copy ## get the elements from buffer
         }
         i c =
         off 1 + off =
@@ -112,38 +104,38 @@ mergesort2_helper proc( A <?> A list mut #+cmp+# ( A A => int ) #+off+# int #+to
 
 #+ sorts the given list
   elements are compared using the given comparison function
-  the sorted list overwrites the given list
+  the sorted array overwrites the given list
  +#
-mergesort2 public proc( A <?> A list mut ( A A => int ) => ){
+mergesort2 public proc( A <?> A array mut ( A A => int ) => ){
   ( A A => int ) cmp =:
   input =::
-  #+list+# input #+cmp+# cmp #+off+# 0 #+to+# input .length 1 - #+buffer+# input .length 2 / A list mut new
+  #+list+# input #+cmp+# cmp #+off+# 0 #+to+# input .length 1 - #+buffer+# input .length 2 / A memory mut new
   mergesort2_helper
 }
 
-map public proc( A <?> B <?> A list mut? ( A => B ) => B list mut ){
+map public proc( A <?> B <?> A array mut? ( A => B ) => B array mut ){
   f =::
   l =::
-  l .length B list mut new res =::
+  l .length B memory mut new res =::
   0 i =::
-  res while{ i l .length < do
-    l i [] f () <<
+  while{ i l .length < do
+    res l i [] f () []^=
     i 1 + i =
   }
-  #+res+# return
+  res return
 }
-filter public proc( A <?> A list mut? ( A => bool ) => A list mut ){
+filter public proc( A <?> A array mut? ( A => bool ) => A array mut ){
   f =::
   l =::
-  l .length A list mut new res =::
+  l .length A memory mut new res =::
   0 i =::
-  res while{ i l .length < do
+  while{ i l .length < do
     l i [] f () if{
-      l i [] <<
+      res l i [] []^=
     }
     i 1 + i =
   }
-  #+res+# return
+  res return
 }
 
 #end ## core

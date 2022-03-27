@@ -7,7 +7,7 @@ math #import
 42 -1 core .min debugPrint
 
 "_________________________" debugPrint
-3.14159265 floatToBytes int list cast debugPrint
+3.14159265 floatToBytes int array cast debugPrint
 { 0xba 0xad 0xf0 0x0d } bytesToFloat debugPrint
 "_________________________" debugPrint
  1.5  ceil debugPrint

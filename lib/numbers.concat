@@ -281,7 +281,7 @@ StringParseError public enum{
 stringToInt public proc( #+source+# string mut? #+base+# int #+signed+# bool => #+val+# int #+err-code+# StringParseError ){
   bool signed =:
   int  base =:
-  string source =:
+  string mut? source =:
   base 2 < ||{ base 62 > } if{
     0 StringParseError .ERR_BASE return
   }
@@ -312,9 +312,9 @@ stringToInt public proc( #+source+# string mut? #+base+# int #+signed+# bool => 
   res  sgn if{ -_ } StringParseError .ERR_NONE return
 }
 
-checkErrCode proc( #+err-code+# StringParseError #+type-name+# string #+source+# string => ){
-  string source =:
-  string typeName =:
+checkErrCode proc( #+err-code+# StringParseError #+type-name+# string mut? #+source+# string mut? => ){
+  string mut? source =:
+  string mut? typeName =:
   #+err-code+# switch{
   ERR_NONE case end-case
   ERR_BASE case
@@ -340,18 +340,18 @@ checkErrCode proc( #+err-code+# StringParseError #+type-name+# string #+source+#
   }
 }
 parseInt  public proc( string mut? => int ){
-  string source =:
+  string mut? source =:
   source 10 true stringToInt
   "int" source checkErrCode
 }
 parseUInt public proc( string mut? => uint ){
-  string source =:
+  string mut? source =:
   source 10 false stringToInt
   "uint" source checkErrCode
   #+intValue+# uint cast return
 }
 parseHex public proc( string mut? => uint ){
-  string source =:
+  string mut? source =:
   source 16 true stringToInt
   "uint" source checkErrCode
   uint cast return
@@ -376,11 +376,11 @@ isExpChar proc( #+char+# byte #+base+# int => bool ){
 ## maximum powers such that base^-pow > 0
 { 0 0 1074 678 537 462 415 382 358 339 323 310 299 290 282 275 268 262 257 253 248 244
   241 237 234 231 228 226 223 221 219 216 214 213 211 209 207 206 204 203 201 200 199
-  198 196 195 194 193 192 191 190 189 188 187 186 185 185 184 183 182 181 181 180 179 179 } int list maxSafePowers =:
+  198 196 195 194 193 192 191 190 189 188 187 186 185 185 184 183 182 181 181 180 179 179 } int array maxSafePowers =:
 
 stringToFloat public proc( #+str+# string mut? #+base+# int => #+val+# float #+err-code+# StringParseError ){
   int base =:
-  string str =:
+  string mut? str =:
   base 2 < ||{ base 62 > } if{
     float_NaN StringParseError .ERR_BASE return
   }

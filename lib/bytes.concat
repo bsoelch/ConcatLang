@@ -3,21 +3,21 @@ lib/bytes :
 core #namespace
 valueIO #include
 
-uintToBytes public proc( uint => byte list ){
+uintToBytes public proc( uint => byte array ){
   uint val mut =:
-  8 byte list mut new rawData =::
+  0 8 byte array mut new rawData =::
   0 i =::
   while{ i 8 < do
-    rawData val 0xff & byte cast << rawData =
+    val 0xff & byte cast rawData i []=
     val 8 >> val =
     i 1 + i =
   }
-  ##there is cuurently not better way to obtain an immutable copy of a mutable list
-  { rawData 0 [] rawData 1 [] rawData 2 [] rawData 3 [] rawData 4 [] rawData 5 [] rawData 6 [] rawData 7 [] } return
+  ##there is currently not better way to obtain an immutable copy of a mutable array
+  rawData clone-mut~ return
 }
 
-uintFromBytes public proc( byte list => uint ){
-  byte list rawData =:
+uintFromBytes public proc( byte array mut? => uint ){
+  byte array mut? rawData =:
   rawData .length 8 > if{
     "too much bytes from convert to int:" puts rawData .length print " maximum: 8\n" puts
     1 exit

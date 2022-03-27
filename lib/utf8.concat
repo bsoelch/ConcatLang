@@ -84,7 +84,7 @@ codepointToString public proc( codepoint => string mut ){
 }
 
 codepointsToString public proc( ustring mut? => string mut ){
-  ustring source =:
+  ustring mut? source =:
   source .length string mut new source <<* return
 }
 
@@ -94,9 +94,9 @@ returns true/false depending of if there was a next codepoint
 the value of the read codepoint (of 0 if the end of the string was reached)
 followed by the index after the next codepoint and the string
 +#
-nextCodepoint public proc( string mut? #+index+# uint => string #+end+# uint #+next+# codepoint #+has next+# bool ){
+nextCodepoint public proc( string mut? #+index+# uint => string mut? #+end+# uint #+next+# codepoint #+has next+# bool ){
   uint   index mut =:
-  string value =:
+  string mut? value =:
   while{ index value .length < &&{ value index [] int cast 0xc0 & 0x80 == } do
     index 1 + index = ## skip parts of unfinished codepoint
   }
@@ -137,7 +137,7 @@ nextCodepoint public proc( string mut? #+index+# uint => string #+end+# uint #+n
 }
 
 codepoints public proc( string mut? => ustring mut ){
-  string source =:
+  string mut? source =:
   source .length ustring mut new source <<* return
 }
 

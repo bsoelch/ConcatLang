@@ -38,18 +38,18 @@ public class math{
         return Math.pow(x,e);
     }
 
-    public static Object[] nativeImpl_floatToBytes(double x){
+    public static byte[] nativeImpl_floatToBytes(double x){
         long l=Double.doubleToRawLongBits(x);
         byte[] bytes=new byte[8];
         for(int i=0;i<8;i++){
             bytes[i]=(byte)((l>>>8*i)&0xff);
         }
-        return new Object[]{bytes,0,8,8};
+        return bytes;
     }
-    public static double nativeImpl_bytesToFloat(Object[] bytes){
+    public static double nativeImpl_bytesToFloat(byte[] bytes){
         long l=0;
-        for(int i=0;i<(int)bytes[2];i++){
-            l|=(((byte[])bytes[0])[i+(int)bytes[1]]&0xffL)<<8*i;
+        for(int i=0;i<bytes.length&&i<8;i++){
+            l|=(bytes[i]&0xffL)<<8*i;
         }
         return Double.longBitsToDouble(l);
     }

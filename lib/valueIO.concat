@@ -216,8 +216,8 @@ FormatValue struct{ Format extend
 }
 
 ##TODO replace with append version
-IO_printValue proc( FormatValue var list => string mut ){ ## addLater runtime checks for correct types
-  var list values =:
+IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runtime checks for correct types
+  var array mut? values =:
   FormatValue format =:
   format .flags IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft mut =:
   format .w_ptr if{ values format .w [] int cast else format .w } int width mut =:
@@ -378,9 +378,9 @@ isFormatChar proc( #+char+# byte => bool ){
   false
 }
 
-sprintf public proc( #+args+# var list #+format+# string => string mut ){
+sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
   string format =:
-  var list args =:
+  var array mut? args =:
 
   format .length 4 / Format list mut new parts =::
   0 int i0 mut =:
@@ -608,10 +608,10 @@ sprintf public proc( #+args+# var list #+format+# string => string mut ){
   tmp return
 }
 
-printf public proc( var list string => ){
+printf public proc( var array mut?  string => ){
   sprintf puts
 }
-fprintf public proc( var list string FILE => bool ){
+fprintf public proc( var array mut?  string FILE => bool ){
   FILE file =:
   sprintf file fputs return
 }

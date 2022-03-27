@@ -8,7 +8,7 @@ FILE stdIn  public native =:
 FILE stdOut public native =:
 FILE stdErr public native =:
 
-open     public native proc( #+path+# string #+flags+#string => FILE optional ){ }
+open     public native proc( #+path+# string mut? #+flags+#string mut? => FILE optional ){ }
 close    public native proc( FILE => bool ){ }
 read     public native proc( FILE #+buff+# byte list mut  #+off+# int #+count+# int => int  ){ }
 write    public native proc( FILE #+buff+# byte list mut? #+off+# int #+count+# int => bool ){ }
@@ -26,7 +26,7 @@ io #import
 
 fputs public proc( string mut? FILE => bool ){
   FILE file =:
-  string str =:
+  string mut? str =:
   file str 0 str .length io .write
 }
 

@@ -54,5 +54,6 @@ u"Hello" u"World" != debugPrint
 "Hello World" "or" isSublist debugPrint
 "Hello" "World" isSublist debugPrint
 { "List" "of" "Strings" } { "Strings" } isSublist debugPrint
-##addLater remove casts once immutable lists are implemented
-{ "List" "of" "Strings" } var list cast "Strings" var list cast isSublist debugPrint
+##addLater re-add once string has type array
+##{ "List" "of" "Strings" } "Strings" isSublist debugPrint
+false debugPrint ##placeholder

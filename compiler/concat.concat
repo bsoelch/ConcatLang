@@ -24,9 +24,9 @@ io #import
 
 
 FilePosition struct{
-  string :fileName
-  uint   :line      mut
-  uint   :posInLine mut
+  string mut? :fileName
+  uint        :line      mut
+  uint        :posInLine mut
 }
 FilePosition.newLine    proc( FilePosition mut => ){
   dup dup .line 1 + swap .line = 1 swap .posInLine =
@@ -58,7 +58,7 @@ TupleType struct{ Type extend
   string    :name
   Type list :types
 }
-newTupleType proc( #+name+# string #+types+# Type list mut? => TupleType ){
+newTupleType proc( #+name+# string #+types+# Type list => TupleType ){
   Type list elements =:
   string name =:
   TypeType .TUPLE_TYPE name elements TupleType new return
@@ -469,8 +469,8 @@ Context.ensureDeclareable proc( #+context+# Context mut? #+name+#string #+type+#
   DeclareableType dType =:
   string name =:
   Context mut? context =:
-  context .cType ContextType .ROOT_CONTEXT == if{ context name RootContext.inCurrentModule else name }  string localName =:
-  context .elements localName HashMap.get if{
+  context .cType ContextType .ROOT_CONTEXT == if{ context name RootContext.inCurrentModule else name } string mut? localName =:
+  context .elements localName clone-mut~ HashMap.get if{
     Declareable mut? prev =:
     ## procedures can overwrite predeclared procedures
     prev .dType DeclareableType .PREDECLARED_PROCEDURE != ||{ prev .dType DeclareableType .PROCEDURE != } if{
@@ -489,7 +489,7 @@ Context.ensureDeclareable proc( #+context+# Context mut? #+name+#string #+type+#
     false shadowed .dType <<DeclareableType " declared at " <<*
     shadowed .pos << '\n' << eputs
   }
-  localName return
+  localName clone-mut~ return
 }
 Context.declareVariable proc( #+context+# Context mut #+name+# string #+isConst+# bool #+pos+# FilePosition mut? => VariableId ){
     FilePosition mut? fPos =:
@@ -905,8 +905,8 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
   program .tokens tokens =::
   OpenBlocks mut openBlocks =:
   FilePosition mut? fPos =:
-  string       next =:
-  string       word =:
+  string mut? next =:
+  string mut? word =:
   word .length 0 > if{
     openBlocks .currentMacro .name .length 0 > if{
       word switch{
@@ -919,7 +919,7 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         1 exit
         end-case
       default
-        openBlocks .currentMacro .words word fPos NameWithPos new << drop
+        openBlocks .currentMacro .words word clone-mut~ fPos NameWithPos new << drop
       }
       return
     }
@@ -1301,10 +1301,10 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
       ## control-flow key-words
       "lambda" "λ" case
         openBlocks .blocks BlockType .PROC_BLOCK fPos tokens .length CodeBlock mut new << drop
-        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
         end-case
       "return" "exit" case
-        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
         end-case
       "=>" ":" case
         openBlocks .blocks .length 0 == if{
@@ -1318,7 +1318,7 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
           word <<* " can only be used in (lambda-)procedures " <<* fPos << '\n' << eputs
           1 exit
         }
-        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
         end-case
       "while" case
         openBlocks .blocks  fPos tokens .length newWhileBlock  << drop
@@ -1428,7 +1428,7 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         end-case
       "switch" case
         openBlocks .blocks BlockType .SWITCH_BLOCK fPos tokens .length CodeBlock mut new << drop
-        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
         end-case
       "case" "end-case" "default" case
         openBlocks .blocks .length 0 == if{
@@ -1442,7 +1442,7 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
           word <<* " can only be used in switch-blocks " <<*  fPos << '\n' << eputs
           1 exit
         }
-        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
         end-case
       "end" case
         openBlocks .blocks .length 0 == if{
@@ -1552,7 +1552,7 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
           }
           values clear
           context
-          DeclareableType .TUPLE  tBlock .startPos   tBlock .name  types newTupleType   Tuple new
+          DeclareableType .TUPLE  tBlock .startPos   tBlock .name  types clone-mut~ newTupleType   Tuple new
           RootContext.declareTuple
           end-case
         }
@@ -1628,9 +1628,9 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         openBlocks .blocks .length 0 >
           &&{ openBlocks .blocks openBlocks .blocks .length 1 - [] .blockType BlockType .ENUM_BLOCK == } if{
           openBlocks .blocks openBlocks .blocks .length 1 - []
-            EnumBlock mut cast .elements word fPos NameWithPos new << drop
+            EnumBlock mut cast .elements word clone-mut~ fPos NameWithPos new << drop
         else
-          tokens TokenType .WORD fPos word WordToken mut new << tokens =
+          tokens TokenType .WORD fPos word clone-mut~ WordToken mut new << tokens =
         }
       }
     }
@@ -1679,11 +1679,11 @@ readEscapeChar proc( ParserReader => ){
   }
 }
 
-parseFile proc( #+fileName+# string #+program+# Program mut =>  ){
+parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
   Program mut program =:
   program .context context =::
   program .tokens tokens =::
-  string fileName =:
+  string mut? fileName =:
   fileName "r" open if{ #+auto-unwrap+# else
     20 fileName .length + string mut new
     "file \"" <<* fileName <<* "\" not found\n" <<* eputs

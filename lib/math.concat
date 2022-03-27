@@ -19,8 +19,8 @@ round public native proc( float => float );
 
 pow public native proc( float float => float );
 
-floatToBytes public native proc( float => byte list );
-bytesToFloat public native proc( byte list => float );
+floatToBytes public native proc( float => byte array      );
+bytesToFloat public native proc( byte array mut? => float );
 
 #end
 
