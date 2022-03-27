@@ -50,6 +50,8 @@ fill public proc( A <?> A A ListSlice mut int uint => ){
   #+val+# slice .parent slice .offset off + count fill
 }
 
+## addLater add instructions to remove arbitrary elements / slices of Lists
+
 [] public proc( A <?> A List mut? uint => A ){
   i =::
   mList =::

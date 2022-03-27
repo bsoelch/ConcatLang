@@ -112,7 +112,6 @@ public abstract class Value {
     public void fill(Value val, long off, long count) throws ConcatRuntimeError {
         throw new TypeError("fill is not supported for type "+type);
     }
-    //addLater add instructions to insert/remove arbitrary elements of lists
     public void push(Value value,boolean start) throws ConcatRuntimeError {
         throw new TypeError("adding elements is not supported for type "+type);
     }
