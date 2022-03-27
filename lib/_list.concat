@@ -333,7 +333,7 @@ insertAll public proc( A <?> A ListSlice mut? A ListSlice mut uint => ){
   mList =::
   off 0 < ||{ to off < ||{ to mList .data .length > } } if{
     64 string mut new
-    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* mList .length <<u '\n' << eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* mList .data .length <<u '\n' << eputs
     1 exit
   }
   mList off to off - A ListSlice mut new return
@@ -374,6 +374,59 @@ insertAll public proc( A <?> A ListSlice mut? A ListSlice mut uint => ){
   mList =::
   #+toInsert+# .data mList off to [:]=
 }
-##TODO [:]= for slices
+[:]= public proc( A <?> A ListSlice mut? A List mut uint uint => ){
+  to =::
+  off =::
+  mList =::
+  mList .data listData =::
+  toInsert =::
+  off 0 < ||{ to off < ||{ to listData .length > } } if{
+    64 string mut new
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* listData .length <<u '\n' << eputs
+    1 exit
+  }
+  listData .length toInsert .length to off - - + listData .capacity > if{
+    toInsert .length to off - - delta =::
+    listData listData .offset listData .capacity + delta + realloc
+  }
+  toInsert .parent .data toInsert .offset listData off to toInsert .length copyToSlice return
+}
+[:]= public proc( A <?> A array mut? A ListSlice mut uint uint => ){
+  to =::
+  off =::
+  slice =::
+  toInsert =::
+  off 0 < ||{ to off < ||{ to slice .length > } } if{
+    64 string mut new
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  slice .length toInsert .length to off - - + ## newLength
+  toInsert slice .parent slice .offset off + slice .offset to + [:]=
+  #+newLength+# slice .length =
+}
+[:]= public proc( A <?> A List mut? A ListSlice mut uint uint => ){
+  to =::
+  off =::
+  slice =::
+  toInsert =::
+  slice .length toInsert .data .length to off - - + ## newLength
+  toInsert .data slice off to [:]=
+  #+newLength+# slice .length =
+}
+[:]= public proc( A <?> A ListSlice mut? A ListSlice mut uint uint => ){
+  to =::
+  off =::
+  slice =::
+  toInsert =::
+  off 0 < ||{ to off < ||{ to slice .length > } } if{
+    64 string mut new
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  slice .length toInsert .length to off - - + ## newLength
+  toInsert slice .parent slice .offset off + slice .offset to + [:]=
+  #+newLength+# slice .length =
+}
 
 #end ## core
