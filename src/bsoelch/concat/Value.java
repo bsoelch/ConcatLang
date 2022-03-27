@@ -1477,7 +1477,7 @@ public abstract class Value {
         void append(Value val) throws ConcatRuntimeError;
         void prepend(Value val) throws ConcatRuntimeError;
         void copyFrom(long offset,Value[] src,long srcOff,long length) throws ConcatRuntimeError;
-        void insertAll(long offset,Value[] src,long srcOff,long length) throws ConcatRuntimeError;
+        void copyToSlice(long sliceStart,long sliceEnd,Value[] src, long srcOff, long length) throws ConcatRuntimeError;
         void fill(Value val,long offset,long count) throws ConcatRuntimeError;
         void reallocate(long newSize) throws ConcatRuntimeError;
         void setOffset(long newOffset) throws ConcatRuntimeError;
@@ -1596,44 +1596,47 @@ public abstract class Value {
             }
         }
         /*implement insert natively to allow leaving the memory section that will be overwritten by the inserted values uninitialized*/
-        /**inserts all elements in src into data (*/
+        /**inserts all elements in src into data overwriting (only) the elements between
+         * index and index+sliceLength */
         @Override
-        public void insertAll(long index,Value[] src, long srcOff,long count) throws ConcatRuntimeError {
+        public void copyToSlice(long sliceStart, long sliceEnd, Value[] src, long srcOff, long count) throws ConcatRuntimeError {
             if(!type.isMemory()){
                 throw new RuntimeException("prepend is only supported for memories");
             }
-            if(srcOff<0||srcOff+count>src.length){
-                throw new ConcatRuntimeError("invalid source offset for insert: "+srcOff+" offset has to be between "+0
-                        +" and "+(src.length-count));
-            }
-            if(index<0||index>length){
-                throw new ConcatRuntimeError("invalid index for insert: "+index+" index has to be between "+0
-                        +" and "+length);
+            if(sliceStart <0||sliceEnd< sliceStart ||sliceEnd>length){
+                throw new ConcatRuntimeError("invalid target slice for insert: "+ sliceStart +":"+sliceEnd+" length:"+length);
             }//no else
-            if(offset+length+count>data.length&&count>offset){
+            long sliceLength=sliceEnd- sliceStart;
+            if(srcOff<0||srcOff+count-sliceLength>src.length){
+                throw new ConcatRuntimeError("invalid source offset for insert: "+srcOff+" offset has to be between "+0
+                        +" and "+(src.length-count+sliceLength));
+            }//no else
+            if(offset+length+count-sliceLength>data.length&&count-sliceLength>offset){
                 throw new ConcatRuntimeError("invalid array length: "+count+
-                        " does not fit into available space: "+(data.length-(offset+length)));
+                        " does not fit into available space: "+Math.max(data.length+sliceLength-(offset+length),offset+sliceLength));
             }
-            if(index<length/2){
+            if(sliceStart <length/2){
                 if(offset>=count){
-                    System.arraycopy(data,offset,data,offset-(int)count,(int)index);
+                    System.arraycopy(data,offset,data,offset-(int)count+(int)sliceLength,(int) sliceStart);
                     offset-=count;
-                    System.arraycopy(src,(int)srcOff,data,this.offset+(int)index,(int)count);
+                    System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
                 }else{
-                    System.arraycopy(data,offset+(int)index,data,offset+(int)(index+count),length-(int)index);
-                    System.arraycopy(src,(int)srcOff,data,this.offset+(int)index,(int)count);
+                    System.arraycopy(data,offset+(int) sliceStart +(int)sliceLength,data,
+                            offset+(int)(sliceStart +count),length-(int) sliceStart);
+                    System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
                 }
             }else{
                 if(offset+length+count<=data.length){
-                    System.arraycopy(data,offset+(int)index,data,offset+(int)(index+count),length-(int)index);
-                    System.arraycopy(src,(int)srcOff,data,this.offset+(int)index,(int)count);
+                    System.arraycopy(data,offset+(int) sliceStart +(int)sliceLength,data,
+                            offset+(int)(sliceStart +count),length-(int) sliceStart);
+                    System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
                 }else{
-                    System.arraycopy(data,offset,data,offset-(int)count,(int)index);
+                    System.arraycopy(data,offset,data,offset-(int)count+(int)sliceLength,(int) sliceStart);
                     offset-=count;
-                    System.arraycopy(src,(int)srcOff,data,this.offset+(int)index,(int)count);
+                    System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
                 }
             }
-            this.length+=count;
+            this.length+=count-sliceLength;
         }
 
         @Override
@@ -2705,17 +2708,18 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
-                    Type.UINT,Type.memoryOf(a).mutable(), Type.INT,Type.UINT},
-                    new Type[]{},"copy_no-replace") {//addLater better name
+                    Type.UINT,Type.memoryOf(a).mutable(), Type.UINT,Type.UINT,Type.UINT},
+                    new Type[]{},"copyToSlice") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //src srcOff target targetOff count
                     ArrayLike src=(ArrayLike)values[0];
                     long srcOff=values[1].asLong();
                     ArrayLike target=(ArrayLike)values[2];
-                    long off=values[3].asLong();
-                    long count=values[4].asLong();
-                    target.insertAll(off,src.elements(),srcOff,count);
+                    long sliceStart=values[3].asLong();
+                    long sliceEnd=values[4].asLong();
+                    long count=values[5].asLong();
+                    target.copyToSlice(sliceStart,sliceEnd,src.elements(),srcOff,count);
                     return new Value[0];
                 }
             });

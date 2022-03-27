@@ -135,7 +135,7 @@ insertAll public proc( A <?> A array mut? A List mut uint => ){
     toInsert .length delta =::
     listData listData .offset listData .capacity + delta + realloc
   }
-  toInsert 0 listData index toInsert .length copy_no-replace
+  toInsert 0 listData index index toInsert .length copyToSlice
 }
 insertAll public proc( A <?> A ListSlice mut? A List mut uint => ){
   index =::
@@ -151,7 +151,7 @@ insertAll public proc( A <?> A ListSlice mut? A List mut uint => ){
     toInsert .length delta =::
     listData listData .offset listData .capacity + delta + realloc
   }
-  toInsert .parent .data toInsert .offset listData index toInsert .length copy_no-replace
+  toInsert .parent .data toInsert .offset listData index index toInsert .length copyToSlice
 }
 insertAll public proc( A <?> A List mut? A ListSlice mut uint => ){
   index =::
