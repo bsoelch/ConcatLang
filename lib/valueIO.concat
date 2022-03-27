@@ -9,8 +9,21 @@ numbers #include
 utf8 #include
 
 
-<<list public proc( A <?> string mut A list => string mut ){
-  A list value =:
+<<list public proc( A <?> string mut A list mut? => string mut ){
+  A list mut? value =:
+  '[' << res =::
+  0 i =::
+  while{ i value .length < do
+    i 0 > if{
+      res ", " <<* res =
+    }
+    res value i [] <<s res =
+    i 1 + i =
+  }
+  res ']' << return
+}
+<<array public proc( A <?> string mut A array mut? => string mut ){
+  A array mut? value =:
   '[' << res =::
   0 i =::
   while{ i value .length < do
@@ -49,6 +62,8 @@ utf8 #include
     res ')' << return
   else value .type .isList if
     value <<list return
+  else value .type .isArray if
+    value <<array return
   else value .type .isOptional if
     value <<optional return
   else value .type .isEnum if
