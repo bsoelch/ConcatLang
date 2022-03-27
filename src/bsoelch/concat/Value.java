@@ -1478,7 +1478,7 @@ public abstract class Value {
         void append(Value val) throws ConcatRuntimeError;
         void prepend(Value val) throws ConcatRuntimeError;
         void copyFrom(long offset,Value[] src,long srcOff,long length) throws ConcatRuntimeError;
-        void insertAll(Value[] values,long index) throws ConcatRuntimeError;
+        void insertAll(long offset,Value[] src,long srcOff,long length) throws ConcatRuntimeError;
         void fill(Value val,long offset,long count) throws ConcatRuntimeError;
         void reallocate(long newSize) throws ConcatRuntimeError;
         void setOffset(long newOffset) throws ConcatRuntimeError;
@@ -1599,38 +1599,42 @@ public abstract class Value {
         /*implement insert natively to allow leaving the memory section that will be overwritten by the inserted values uninitialized*/
         /**inserts all elements in src into data (*/
         @Override
-        public void insertAll(Value[] src, long index) throws ConcatRuntimeError {
+        public void insertAll(long index,Value[] src, long srcOff,long count) throws ConcatRuntimeError {
             if(!type.isMemory()){
                 throw new RuntimeException("prepend is only supported for memories");
+            }
+            if(srcOff<0||srcOff+count>src.length){
+                throw new ConcatRuntimeError("invalid source offset for insert: "+srcOff+" offset has to be between "+0
+                        +" and "+(src.length-count));
             }
             if(index<0||index>length){
                 throw new ConcatRuntimeError("invalid index for insert: "+index+" index has to be between "+0
                         +" and "+length);
             }//no else
-            if(offset+length+src.length>data.length&&src.length>offset){
-                throw new ConcatRuntimeError("invalid array length: "+src.length+
+            if(offset+length+count>data.length&&count>offset){
+                throw new ConcatRuntimeError("invalid array length: "+count+
                         " does not fit into available space: "+(data.length-(offset+length)));
             }
             if(index<length/2){
-                if(offset>=src.length){
-                    System.arraycopy(data,offset,data,offset-src.length,(int)index);
-                    offset-=src.length;
-                    System.arraycopy(src,0,data,this.offset+(int)index,src.length);
+                if(offset>=count){
+                    System.arraycopy(data,offset,data,offset-(int)count,(int)index);
+                    offset-=count;
+                    System.arraycopy(src,(int)srcOff,data,this.offset+(int)index,(int)count);
                 }else{
-                    System.arraycopy(data,offset+(int)index,data,offset+(int)index+src.length,length-(int)index);
-                    System.arraycopy(src,0,data,this.offset+(int)index,src.length);
+                    System.arraycopy(data,offset+(int)index,data,offset+(int)(index+count),length-(int)index);
+                    System.arraycopy(src,(int)srcOff,data,this.offset+(int)index,(int)count);
                 }
             }else{
-                if(offset+length+src.length<=data.length){
-                    System.arraycopy(data,offset+(int)index,data,offset+(int)index+src.length,length-(int)index);
-                    System.arraycopy(src,0,data,this.offset+(int)index,src.length);
+                if(offset+length+count<=data.length){
+                    System.arraycopy(data,offset+(int)index,data,offset+(int)(index+count),length-(int)index);
+                    System.arraycopy(src,(int)srcOff,data,this.offset+(int)index,(int)count);
                 }else{
-                    System.arraycopy(data,offset,data,offset-src.length,(int)index);
-                    offset-=src.length;
-                    System.arraycopy(src,0,data,this.offset+(int)index,src.length);
+                    System.arraycopy(data,offset,data,offset-(int)count,(int)index);
+                    offset-=count;
+                    System.arraycopy(src,(int)srcOff,data,this.offset+(int)index,(int)count);
                 }
             }
-            this.length+=src.length;
+            this.length+=count;
         }
 
         @Override
@@ -2702,14 +2706,16 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
-                    Type.memoryOf(a).mutable(), Type.INT}, new Type[]{},"insertAll") {
+                    Type.memoryOf(a).mutable(), Type.INT}, new Type[]{},"copy_no-replace") {//addLater better name
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //src target off
+                    //src srcOff target targetOff count
                     ArrayLike src=(ArrayLike)values[0];
-                    ArrayLike target=(ArrayLike)values[1];
-                    long off=values[2].asLong();
-                    target.insertAll(src.elements(),off);
+                    long srcOff=values[1].asLong();
+                    ArrayLike target=(ArrayLike)values[2];
+                    long off=values[3].asLong();
+                    long count=values[4].asLong();
+                    target.insertAll(off,src.elements(),srcOff,count);
                     return new Value[0];
                 }
             });

@@ -133,7 +133,7 @@ insertAll public proc( A <?> A array mut? A List mut uint => ){
     toInsert .length delta =::
     listData listData .offset listData .capacity + delta + realloc
   }
-  toInsert listData index insertAll
+  toInsert 0 listData index toInsert .length copy_no-replace
 }
 insertAll public proc( A <?> A List mut? A ListSlice mut uint => ){
   index =::
@@ -275,7 +275,6 @@ insertAll public proc( A <?> A array mut? A ListSlice mut uint => ){
   slice .parent slice .offset off + slice .offset to + [:] return
 }
 ## addLater [:] for non-mutable List/ListSlice
-## addLater operations for ListSlices
 
 ## addLater [:]=
 
