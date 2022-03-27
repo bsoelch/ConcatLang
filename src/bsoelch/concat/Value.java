@@ -1505,6 +1505,42 @@ public abstract class Value {
         }
 
         @Override
+        public Value castTo(Type type) throws ConcatRuntimeError {
+            if (this.type.canAssignTo(type)) {
+                return this;
+            }else if((type.isArray()||type.isMemory())&&this.type.canCastTo(type)){
+                Type newContent=type.content();//addLater keep current capacity?
+                Value[] newValues=new Value[length];
+                for(int i=0;i<length;i++){
+                    newValues[i]=data[offset+i].castTo(newContent);
+                }
+                return new ArrayValue(type,newValues);
+            }
+            return super.castTo(type);
+        }
+        /*raw data of this Value as a standard java Object*/
+        Object rawData() throws TypeError {
+            if(type.isArray()&&type.content()==Type.BYTE){
+                byte[] unpacked=new byte[length];
+                for(int i=0;i<length;i++){
+                    unpacked[i]=data[offset+i].asByte();
+                }
+                return unpacked;
+            }
+            return super.rawData();
+        }
+        @Override
+        void updateFrom(Object nativeArg) throws ConcatRuntimeError {
+            if(type.isArray()&&type.content()==Type.BYTE){
+                byte[] unpacked=(byte[])nativeArg;
+                for(int i=0;i<length;i++){
+                    data[offset+i]=ofByte(unpacked[i]);
+                }
+            }
+            super.updateFrom(nativeArg);
+        }
+
+        @Override
         public Value[] elements(){
             return Arrays.copyOfRange(data,offset,offset+length);
         }
@@ -2851,6 +2887,12 @@ public abstract class Value {
                 return ofInt((Long) jValue,type==Type.UINT);
             }else if(type==Type.FLOAT){
                 return ofFloat((Double)jValue);
+            }else if(type.isArray()&&type.content()==Type.BYTE){
+                byte[] bytes=(byte[])jValue;
+                Value[] wrappedBytes=new Value[bytes.length];
+                for(int i=0;i<bytes.length;i++)
+                    wrappedBytes[i]=ofByte(bytes[i]);
+                return new ArrayValue(type,wrappedBytes);
             }else if(type.isRawString()){
                 Object[] parts=(Object[])jValue;
                 byte[] bytes=(byte[])parts[0];
@@ -2888,6 +2930,8 @@ public abstract class Value {
             return double.class;
         }else if(t == Type.ANY){
             return Object.class;
+        }else if(t.isArray()&&t.content()==Type.BYTE){
+            return byte[].class;
         }else if(t.isRawString()){
             return Object[].class;//bytes,off,len,init
         }else if(t.isOptional()){
