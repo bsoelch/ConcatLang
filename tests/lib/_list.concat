@@ -61,6 +61,15 @@ z .data .capacity debugPrint
 z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint
+
+0 0 0 z >> >> >> debugPrint
+z .data .offset   debugPrint
+z .data .capacity debugPrint
+-15 5 int array new z 2 insertAll
+z debugPrint
+z .data .offset   debugPrint
+z .data .capacity debugPrint
+
 "___________________________________" debugPrint
 slice debugPrint
 3 slice 2 insert

@@ -1601,6 +1601,7 @@ public abstract class Value {
             }
         }
         /*implement insert natively to allow leaving the memory section that will be overwritten by the inserted values uninitialized*/
+        /**inserts all elements in src into data (*/
         @Override
         public void insertAll(Value[] src, long index) throws ConcatRuntimeError {
             if(!type.isMemory()){
@@ -1610,14 +1611,29 @@ public abstract class Value {
                 throw new ConcatRuntimeError("invalid index for insert: "+index+" index has to be between "+0
                         +" and "+length);
             }//no else
-            if(offset+length+src.length>data.length){
+            if(offset+length+src.length>data.length&&src.length>offset){
                 throw new ConcatRuntimeError("invalid array length: "+src.length+
                         " does not fit into available space: "+(data.length-(offset+length)));
             }
-            if(index<length){
-                System.arraycopy(data,offset+(int)index,data,offset+(int)index+src.length,length-(int)index);
+            if(index<length/2){
+                if(offset>=src.length){
+                    System.arraycopy(data,offset,data,offset-src.length,(int)index);
+                    offset-=src.length;
+                    System.arraycopy(src,0,data,this.offset+(int)index,src.length);
+                }else{
+                    System.arraycopy(data,offset+(int)index,data,offset+(int)index+src.length,length-(int)index);
+                    System.arraycopy(src,0,data,this.offset+(int)index,src.length);
+                }
+            }else{
+                if(offset+length+src.length<=data.length){
+                    System.arraycopy(data,offset+(int)index,data,offset+(int)index+src.length,length-(int)index);
+                    System.arraycopy(src,0,data,this.offset+(int)index,src.length);
+                }else{
+                    System.arraycopy(data,offset,data,offset-src.length,(int)index);
+                    offset-=src.length;
+                    System.arraycopy(src,0,data,this.offset+(int)index,src.length);
+                }
             }
-            System.arraycopy(src,0,data,this.offset+(int)index,src.length);
             this.length+=src.length;
         }
 
