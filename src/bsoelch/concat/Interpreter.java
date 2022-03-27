@@ -4308,13 +4308,13 @@ public class Interpreter {
                     if(type.inTypes.length>1){
                         context.stdErr.println("illegal signature for main "+type+
                                 ", main procedure can accept at most one argument"+main.declaredAt());
-                    }else if(type.inTypes[0].isList()&&type.inTypes[0].content().equals(Type.RAW_STRING())){//string list
+                    }else if(type.inTypes[0].isArray()&&type.inTypes[0].content().equals(Type.RAW_STRING())){//string list
                         ArrayList<Value> args=new ArrayList<>(arguments.length);
                         for(String s:arguments){
                             args.add(Value.ofString(s,false));
                         }
                         try {
-                            stack.push(Value.createList(Type.listOf(Type.RAW_STRING()),args));
+                            stack.push(Value.createArray(Type.arrayOf(Type.RAW_STRING()),args.toArray(Value[]::new)));
                         } catch (ConcatRuntimeError e) {
                             throw new RuntimeException(e);
                         }
