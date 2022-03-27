@@ -135,6 +135,22 @@ insertAll public proc( A <?> A array mut? A List mut uint => ){
   }
   toInsert 0 listData index toInsert .length copy_no-replace
 }
+insertAll public proc( A <?> A ListSlice mut? A List mut uint => ){
+  index =::
+  mList =::
+  mList .data listData =::
+  toInsert =::
+  index 0 < ||{ index listData .length > } if{
+    64 string mut new
+    "index out of bounds " <<* index <<i " length:" <<* listData .length <<u '\n' << eputs
+    1 exit
+  }
+  listData .length toInsert .length + listData .capacity > if{
+    toInsert .length delta =::
+    listData listData .offset listData .capacity + delta + realloc
+  }
+  toInsert .parent .data toInsert .offset listData index toInsert .length copy_no-replace
+}
 insertAll public proc( A <?> A List mut? A ListSlice mut uint => ){
   index =::
   slice =::
@@ -149,8 +165,22 @@ insertAll public proc( A <?> A array mut? A ListSlice mut uint => ){
     "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << eputs
     1 exit
   }
-  slice .length toInsert .length + slice .length =
+  slice .length toInsert .length + ##newLength
   toInsert slice .parent slice .offset index + insertAll
+  #+newLength+# slice .length =
+}
+insertAll public proc( A <?> A ListSlice mut? A ListSlice mut uint => ){
+  index =::
+  slice =::
+  toInsert =::
+  index 0 < ||{ index slice .length > } if{
+    64 string mut new
+    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  slice .length toInsert .length + ##newLength
+  toInsert slice .parent slice .offset index + insertAll
+  #+newLength+# slice .length =
 }
 
 << public proc( A <?> A List mut A => A List mut ){

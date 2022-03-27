@@ -92,5 +92,11 @@ slice2 debugPrint
 -3 2 int array new a =::
 a slice2 *>> a <<* debugPrint
 
+8 int newList 1 << 2 << 3 << 4 << 5 << x2 =::
+x2 1 4 [:] slice3 =::
+slice3 debugPrint
+slice3 slice3 1 insertAll
+slice3 debugPrint
+
 
 
