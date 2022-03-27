@@ -1616,7 +1616,7 @@ public abstract class Value {
                 throw new ConcatRuntimeError("invalid array length: "+count+
                         " does not fit into available space: "+Math.max(data.length+sliceLength-(offset+length),offset+sliceLength));
             }
-            if(sliceStart <length/2){
+            if(sliceStart < length-(int)sliceEnd){
                 if(offset>=count){
                     System.arraycopy(data,offset,data,offset-(int)count+(int)sliceLength,(int) sliceStart);
                     offset+=sliceLength-count;
@@ -1673,7 +1673,7 @@ public abstract class Value {
                 throw new ConcatRuntimeError("invalid target slice for clear: "+ sliceStart +":"+sliceEnd+" length:"+length);
             }//no else
             long sliceLength=sliceEnd- sliceStart;
-            if(sliceStart<length/2){
+            if(sliceStart < length-(int)sliceEnd){
                 System.arraycopy(data,offset,data,offset+(int)sliceLength,(int) sliceStart);
                 offset+=sliceLength;
             }else{
