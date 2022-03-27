@@ -4,7 +4,6 @@ import java.io.*;
 import java.util.*;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class Interpreter {
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
@@ -3673,11 +3672,11 @@ public class Interpreter {
                                     ret.add(new InternalFieldToken(InternalFieldName.CONTENT, t.pos));
                                 }
                                 case "inTypes" -> {
-                                    typeStack.push(new TypeFrame(Type.listOf(Type.TYPE), null, t.pos));
+                                    typeStack.push(new TypeFrame(Type.arrayOf(Type.TYPE), null, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IN_TYPES, t.pos));
                                 }
                                 case "outTypes" -> {
-                                    typeStack.push(new TypeFrame(Type.listOf(Type.TYPE), null, t.pos));
+                                    typeStack.push(new TypeFrame(Type.arrayOf(Type.TYPE), null, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.OUT_TYPES, t.pos));
                                 }
                                 case "name" -> {
@@ -3685,7 +3684,7 @@ public class Interpreter {
                                     ret.add(new InternalFieldToken(InternalFieldName.TYPE_NAME, t.pos));
                                 }
                                 case "fieldNames" -> {
-                                    typeStack.push(new TypeFrame(Type.listOf(Type.RAW_STRING()), null, t.pos));
+                                    typeStack.push(new TypeFrame(Type.arrayOf(Type.RAW_STRING()), null, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.TYPE_FIELDS, t.pos));
                                 }
                                 case "isEnum" -> {
@@ -4336,13 +4335,13 @@ public class Interpreter {
             }
             case IN_TYPES -> {
                 Type wrappedType = stack.pop().asType();
-                stack.push(Value.createList(Type.listOf(Type.TYPE),wrappedType.inTypes().stream().map(Value::ofType)
-                        .collect(Collectors.toCollection(ArrayList::new))));
+                stack.push(Value.createArray(Type.arrayOf(Type.TYPE),wrappedType.inTypes().stream().map(Value::ofType)
+                        .toArray(Value[]::new)));
             }
             case OUT_TYPES -> {
                 Type wrappedType = stack.pop().asType();
-                stack.push(Value.createList(Type.listOf(Type.TYPE),wrappedType.outTypes().stream().map(Value::ofType)
-                        .collect(Collectors.toCollection(ArrayList::new))));
+                stack.push(Value.createArray(Type.arrayOf(Type.TYPE),wrappedType.outTypes().stream().map(Value::ofType)
+                        .toArray(Value[]::new)));
             }
             case TYPE_NAME -> {
                 Type wrappedType = stack.pop().asType();
@@ -4350,8 +4349,8 @@ public class Interpreter {
             }
             case TYPE_FIELDS -> {
                 Type wrappedType = stack.pop().asType();
-                stack.push(Value.createList(Type.listOf(Type.RAW_STRING()),wrappedType.fields().stream()
-                        .map(s->Value.ofString(s,false)).collect(Collectors.toCollection(ArrayList::new))));
+                stack.push(Value.createArray(Type.arrayOf(Type.RAW_STRING()),wrappedType.fields().stream()
+                        .map(s->Value.ofString(s,false)).toArray(Value[]::new)));
             }
             case TYPE_OF -> {
                 Value val = stack.pop();

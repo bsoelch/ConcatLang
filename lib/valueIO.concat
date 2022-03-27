@@ -73,7 +73,7 @@ utf8 #include
       value type cast .name <<* ## return tuple-name
     else value type cast .isProc if
       "( " <<* res =::
-      value type cast .inTypes type list args mut =:
+      value type cast .inTypes type array args mut =:
       0 i =::
       while{ i args .length < do
         res args i [] <<s " " <<* res =
@@ -106,7 +106,7 @@ utf8 #include
       value type cast .name <<* ## return enum-name
     else value type cast .isUnion if
       "union( " <<* res =::
-      value type cast .inTypes type list args =:
+      value type cast .inTypes type array args =:
       0 i =::
       while{ i args .length < do
         res args i [] <<s " " <<* res =
