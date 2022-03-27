@@ -230,13 +230,55 @@ remove public proc( A <?> A ListSlice mut uint => A ){
   #+prev+# return
 }
 
-removeFirst public proc( A <?> A List mut => A ){
+getFirst public proc( A <?> A List mut? => A ){
+   #+mList+# 0 [] return
+}
+getFirst public proc( A <?> A ListSlice mut? => A ){
+   #+slice+# 0 [] return
+}
+getLast public proc( A <?> A List mut? => A ){
    mList =::
-   mList 0 remove return
+   mList mList .data .length 1 - [] return
+}
+getLast public proc( A <?> A ListSlice mut? => A ){
+   slice =::
+   slice slice .length 1 - [] return
+}
+
+peekFirst public proc( A <?> A List mut? => A optional ){
+   mList =::
+   mList .data .length 0 == if{
+     A empty return
+   }
+   mList 0 [] wrap return
+}
+peekFirst public proc( A <?> A ListSlice mut? => A optional ){
+   slice =::
+   slice .length 0 == if{
+     A empty return
+   }
+   slice 0 [] wrap return
+}
+peekLast public proc( A <?> A List mut? => A optional ){
+   mList =::
+   mList .data .length 0 == if{
+     A empty return
+   }
+   mList mList .data .length 1 - [] wrap return
+}
+peekLast public proc( A <?> A ListSlice mut? => A optional ){
+   slice =::
+   slice .length 0 == if{
+     A empty return
+   }
+   slice slice .length 1 - [] wrap return
+}
+
+removeFirst public proc( A <?> A List mut => A ){
+   #+mList+# 0 remove return
 }
 removeFirst public proc( A <?> A ListSlice mut => A ){
-   slice =::
-   slice 0 remove return
+   #+slice+# 0 remove return
 }
 removeLast public proc( A <?> A List mut => A ){
    mList =::

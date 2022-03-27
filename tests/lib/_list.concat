@@ -211,6 +211,27 @@ x8 popLast debugPrint
 x8 debugPrint
 x8 popFirst debugPrint
 x8 popLast debugPrint
+"___________________________________" debugPrint
+2 string newList "first" << "second" << "third" << "last" << x9 =::
+x9 debugPrint
+x9 getFirst  debugPrint
+x9 peekFirst debugPrint
+x9 getLast   debugPrint
+x9 peekLast  debugPrint
+x9 1 3 [:] slice12 =::
+slice12 debugPrint
+slice12 getFirst  debugPrint
+slice12 peekFirst debugPrint
+slice12 getLast   debugPrint
+slice12 peekLast  debugPrint
+slice12 clear
+slice12 debugPrint
+slice12 peekFirst debugPrint
+slice12 peekLast  debugPrint
+x9 clear
+x9 debugPrint
+x9 peekFirst debugPrint
+x9 peekLast  debugPrint
 
 
 

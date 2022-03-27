@@ -147,6 +147,23 @@ int:2 wrap
 (int memory mut:[])
 int empty
 int empty
+___________________________________
+(byte list memory mut:[byte list:first, byte list:second, byte list:third, byte list:last])
+first
+byte list:first wrap
+last
+byte list:last wrap
+(byte list List mut:(byte list memory mut:[byte list:first, byte list:second, byte list:third, byte list:last]),uint:1,uint:2)
+second
+byte list:second wrap
+third
+byte list:third wrap
+(byte list List mut:(byte list memory mut:[byte list:first, byte list:last]),uint:1,uint:0)
+byte list empty
+byte list empty
+(byte list memory mut:[])
+byte list empty
+byte list empty
 
 Stack:
 []
