@@ -2706,7 +2706,8 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
-                    Type.memoryOf(a).mutable(), Type.INT}, new Type[]{},"copy_no-replace") {//addLater better name
+                    Type.UINT,Type.memoryOf(a).mutable(), Type.INT,Type.UINT},
+                    new Type[]{},"copy_no-replace") {//addLater better name
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //src srcOff target targetOff count
