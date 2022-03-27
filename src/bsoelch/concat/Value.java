@@ -1619,7 +1619,7 @@ public abstract class Value {
             if(sliceStart <length/2){
                 if(offset>=count){
                     System.arraycopy(data,offset,data,offset-(int)count+(int)sliceLength,(int) sliceStart);
-                    offset+=count-sliceLength;
+                    offset+=sliceLength-count;
                 }else{
                     System.arraycopy(data,offset+(int) sliceEnd,data,
                             offset+(int)(sliceStart +count),length-(int)sliceEnd);
@@ -1630,7 +1630,7 @@ public abstract class Value {
                             offset+(int)(sliceStart +count),length-(int)sliceEnd);
                 }else{
                     System.arraycopy(data,offset,data,offset-(int)count+(int)sliceLength,(int) sliceStart);
-                    offset+=count-sliceLength;
+                    offset+=sliceLength-count;
                 }
             }
             System.arraycopy(src,(int)srcOff,data,this.offset+(int) sliceStart,(int)count);
