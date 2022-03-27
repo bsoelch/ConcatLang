@@ -106,6 +106,23 @@ ___________________________________
 (int memory mut:[])
 0
 10
+___________________________________
+(int memory mut:[int:0, int:1, int:2, int:3, int:4, int:5, int:6, int:7, int:8])
+0
+10
+(int memory mut:[int:0, int:1, int:4, int:5, int:6, int:7, int:8])
+2
+8
+(int memory mut:[int:0, int:1, int:4, int:7, int:8])
+2
+8
+___________________________________
+0
+(int memory mut:[int:1, int:4, int:7, int:8])
+8
+(int memory mut:[int:1, int:4, int:7])
+7
+(int memory mut:[int:1, int:4])
 
 Stack:
 []

@@ -37,6 +37,24 @@ clear public proc( A <?> A List mut => ){
 clear public proc( A <?> A ListSlice mut => ){
   slice =::
   slice .parent .data slice .offset slice .offset slice .length + clearSlice
+  0 slice .length =
+}
+clearSlice public proc( A <?> A List mut uint uint => ){
+  to =::
+  off =::
+  #+list+# .data off to clearSlice
+}
+clearSlice public proc( A <?> A ListSlice mut uint uint => ){
+  to =::
+  off =::
+  slice =::
+  off 0 < ||{ to off < ||{ to slice .length > } } if{
+    64 string mut new
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  slice .parent .data slice .offset off + slice .offset to + clearSlice
+  slice .length to off - - slice .length =
 }
 
 fill public proc( A <?> A A List mut int uint => ){
@@ -56,8 +74,6 @@ fill public proc( A <?> A A ListSlice mut int uint => ){
   }
   #+val+# slice .parent slice .offset off + count fill
 }
-
-## addLater add instructions to remove arbitrary elements / slices of Lists
 
 [] public proc( A <?> A List mut? uint => A ){
   i =::
@@ -190,6 +206,28 @@ insertAll public proc( A <?> A ListSlice mut? A ListSlice mut uint => ){
   slice .length toInsert .length + ##newLength
   toInsert slice .parent slice .offset index + insertAll
   #+newLength+# slice .length =
+}
+
+remove public proc( A <?> A List mut uint => A ){
+  index =::
+  #+mList+# .data listData =::
+  listData index [] ## prev
+  listData index index 1 + clearSlice
+  #+prev+# return
+}
+remove public proc( A <?> A ListSlice mut uint => A ){
+  index =::
+  slice =::
+  index 0 < ||{ index slice .length >= } if{
+    64 string mut new
+    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << eputs
+    1 exit
+  }
+  index slice .offset + index =
+  slice .parent .data index [] ## prev
+  slice .parent .data index index 1 + clearSlice
+  slice .length 1 - slice .length =
+  #+prev+# return
 }
 
 << public proc( A <?> A List mut A => A List mut ){

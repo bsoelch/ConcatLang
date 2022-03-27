@@ -163,6 +163,27 @@ x8 clear
 x8 debugPrint
 x8 .data .offset   debugPrint
 x8 .data .capacity debugPrint
+"___________________________________" debugPrint
+x8 0 << 1 << 2 << 3 << 4 << 5 << 6 << 7 << 8 << debugPrint
+x8 .data .offset   debugPrint
+x8 .data .capacity debugPrint
+
+x8 2 4 clearSlice
+x8 debugPrint
+x8 .data .offset   debugPrint
+x8 .data .capacity debugPrint
+
+x8 2 6 [:] 1 3 clearSlice
+x8 debugPrint
+x8 .data .offset   debugPrint
+x8 .data .capacity debugPrint
+"___________________________________" debugPrint
+x8 0 remove debugPrint
+x8 debugPrint
+x8 2 4 [:] 1 remove debugPrint
+x8 debugPrint
+x8 x8 .data .length 1 - remove debugPrint
+x8 debugPrint
 
 
 
