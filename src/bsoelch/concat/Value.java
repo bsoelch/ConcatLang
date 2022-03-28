@@ -601,19 +601,11 @@ public abstract class Value {
         return wrapped;
     }
 
-    public static Value createList(Type listType, ArrayList<Value> elements) throws ConcatRuntimeError {
+    public static Value createList(Type listType, ArrayList<Value> elements){
         if(!(listType.isList()||listType.isArray()||listType.isMemory())){
             throw new IllegalArgumentException(listType+" is no valid list-type");
         }
-        if(listType.isRawString()){
-            byte[] bytes=new byte[elements.size()];
-            for(int i=0;i<elements.size();i++){
-                bytes[i]=elements.get(i).asByte();
-            }
-            return new ByteListImpl(bytes.length,bytes);
-        }else{
-            return new ListValue(listType,elements);
-        }
+        return new ListValue(listType,elements);
     }
     public static Value createList(Type type, long initCap) throws ConcatRuntimeError {
         if(initCap<0){
@@ -621,11 +613,7 @@ public abstract class Value {
         }else if(initCap>Integer.MAX_VALUE){
             throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
         }
-        if(type.isRawString()){
-            return new ByteListImpl((int)initCap);
-        }else{
-            return new ListValue(type,new ArrayList<>((int) initCap));
-        }
+        return new ListValue(type,new ArrayList<>((int) initCap));
     }
     private static class ListValue extends Value{
         final ArrayList<Value> elements;
@@ -1129,10 +1117,6 @@ public abstract class Value {
     private static class ByteListImpl extends ByteList {
         private byte[] elements;
         private int size;
-        private ByteListImpl(int initCap) {
-            this.elements = new byte[Math.max(initCap,16)];
-            size=0;
-        }
         private ByteListImpl(int size, byte[] initValue) {
             this.size=size;
             this.elements = initValue;
@@ -2997,13 +2981,6 @@ public abstract class Value {
                 val.offset=(int)parts[1];
                 val.length=(int)parts[2];
                 return val;
-            }else if(type.isRawString()){
-                Object[] parts=(Object[])jValue;
-                byte[] bytes=(byte[])parts[0];
-                int off  = (int)parts[1];
-                int len  = (int)parts[2];
-                int init = (int)parts[3];
-                return new ByteListImpl(init,bytes).getSlice(off,off+len);
             }else if(type.isOptional()){
                 Optional<?> o=(Optional<?>)jValue;
                 if(o.isEmpty()){
@@ -3036,7 +3013,7 @@ public abstract class Value {
             return Object.class;
         }else if(t.isArray()&&t.content()==Type.BYTE){
             return byte[].class;
-        }else if(t.isRawString()||t.isMemory()&&t.content()==Type.BYTE){
+        }else if(t.isMemory()&&t.content()==Type.BYTE){
             return Object[].class;//bytes,off,length
         }else if(t.isOptional()){
             jClass(t.content());//check content Type
