@@ -4244,7 +4244,7 @@ public class Interpreter {
             throw new SyntaxError("no version of "+ proc.name+" matches the given arguments "+Arrays.toString(inTypes), pos);
         }else if(matchingCalls.size()>1){
             Comparator<CallMatch> matchSort= Comparator.comparingInt((CallMatch m) -> m.nCasts)
-                    .thenComparingInt(m -> m.nImplicit).thenComparing(compareBySignature).thenComparing(compareByTypeArgs);
+                    .thenComparing(compareBySignature).thenComparingInt(m -> m.nImplicit).thenComparing(compareByTypeArgs);
             matchingCalls.sort(matchSort);
             int i=1;
             while(i< matchingCalls.size()&&matchSort.compare(matchingCalls.get(0), matchingCalls.get(i))==0){
