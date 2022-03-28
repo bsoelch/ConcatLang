@@ -10,19 +10,6 @@ utf8 #include
 arraySlice #include
 _list #include
 
-<<list public proc( A <?> stringBuilder A list mut? => stringBuilder ){
-  A list mut? value =:
-  '[' << res =::
-  0 i =::
-  while{ i value .length < do
-    i 0 > if{
-      res ", " <<* res =
-    }
-    res value i [] <<s res =
-    i 1 + i =
-  }
-  res ']' << return
-}
 <<array public proc( A <?> stringBuilder A array mut? => stringBuilder ){
   A array mut? value =:
   '[' << res =::
@@ -61,8 +48,6 @@ _list #include
       i 1 + i =
     }
     res ')' << return
-  else value .type .isList if
-    value <<list return
   else value .type .isArray ||{ value .type .isMemory } if
     value <<array return
   else value .type .isOptional if
@@ -385,7 +370,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
   string format =:
   var array mut? args =:
 
-  format .length 4 / Format list mut new parts =::
+  format .length 4 / Format newList parts =::
   0 int i0 mut =:
   0 int i mut =:
   format .length int n  =:
@@ -598,7 +583,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
     1 exit
   }
   0 i =
-  while{ i parts .length < do
+  while{ i parts .data .length < do
     tmp
     parts i [] .isValue if{   ## Value format
       parts i [] args IO_printValue <<*

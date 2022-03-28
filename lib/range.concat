@@ -47,18 +47,21 @@ intRange struct{
 }
 
 filteredRange struct{
-  intRange                 :base
-  ( int => bool ) list mut :filters
+  intRange              :base
+  ( int => bool ) array :filters
 }
 
 filter public proc( intRange ( int => bool ) => filteredRange ){
   f =::
-  #+range+# 16 ( int => bool ) list mut new f << filteredRange new return
+  #+range+# { f } filteredRange new return
 }
 filter public proc( filteredRange ( int => bool ) => filteredRange ){
   f =::
   range =::
-  range .base  range .filters clone f << filteredRange new return
+  range .filters .length 1 + ( int => bool ) memory mut new newFilters =::
+  range .filters 0 newFilters 0 range .filters .length copy
+  newFilters f []^=
+  range .base newFilters clone-mut~ filteredRange new return
 }
 
 ^> public proc( filteredRange => filteredRange int optional ){

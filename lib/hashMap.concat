@@ -6,16 +6,6 @@ stack #include
 codeblocks #include
 core #import
 
-listHash public proc( A <?> A list mut? => uint ){
-  A list mut? value =:
-  0 uint hash mut =:
-  0 uint i mut =:
-  while{ i value .length < do
-    hash 31 * value i [] hashCode + hash =
-    i 1 + i =
-  }
-  hash return
-}
 arrayHash public proc( A <?> A array mut? => uint ){
   A array mut? value =:
   0 uint hash mut =:
@@ -30,9 +20,7 @@ hashCode public proc( var => uint ){
   var value =:
   value .type type valType =:
   ## addLater? use array-hash for tuple/enum-types
-  valType .isList if{
-    value listHash return
-  else valType .isArray ||{ valType .isMemory } if
+  valType .isArray ||{ valType .isMemory } if{
     value arrayHash return
   else valType ( ) <= if
     0 uint hash mut =:
