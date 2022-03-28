@@ -389,6 +389,17 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   toAppend .parent .data toAppend .offset listData listData .length toAppend .length copy
   mList return
 }
+<<* public proc( A <?> A List mut A arraySlice mut? => A List mut ){
+  toAppend =::
+  mList =::
+  mList .data listData =::
+  listData .length toAppend .length + listData .capacity > if{
+    toAppend .length delta =::
+    listData listData .offset listData .capacity + delta + realloc
+  }
+  toAppend .parent toAppend .offset listData listData .length toAppend .length copy
+  mList return
+}
 <<* public proc( A <?> A ListSlice mut A List mut? => A ListSlice mut ){
   toAppend =::
   slice =::
