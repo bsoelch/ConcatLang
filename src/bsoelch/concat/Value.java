@@ -2675,7 +2675,7 @@ public abstract class Value {
             });
         }
         {//untyped tuple element access
-            procs.add(new InternalProcedure(new Type[]{Type.Tuple.EMPTY_TUPLE,Type.UINT},new Type[]{Type.ANY},"[]") {
+            procs.add(new InternalProcedure(new Type[]{Type.Tuple.EMPTY_TUPLE.maybeMutable(),Type.UINT},new Type[]{Type.ANY},"[]") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list index
