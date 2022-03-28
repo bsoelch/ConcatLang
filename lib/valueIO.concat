@@ -73,15 +73,6 @@ _list #include
         i 1 + i =
       }
       res ")" <<*
-    else value type cast .isList if
-      value type cast .content
-        dup byte == if{ drop
-          "string" <<*
-        else dup codepoint == if drop
-          "ustring" <<*
-        else
-          #+content+# <<s " list" <<*
-        }
     else value type cast .isArray if
       value type cast .content <<s " array" <<*
     else value type cast .isMemory if

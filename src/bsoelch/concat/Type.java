@@ -64,14 +64,6 @@ public class Type {
                 return Optional.of(FLOAT);
             }else if((!strict)&&a.canAssignTo(ANY)&&b.canAssignTo(ANY)){
                 return Optional.of(ANY);
-            }else if(((a.isList()&&b.isList())&&
-                    ((a.isMutable()||a.isMaybeMutable())||(b.isMutable()||b.isMaybeMutable())))){
-                Type a1=a.content(),b1=b.content();
-                if(a1.canAssignTo(b1)){
-                    return Optional.of(Type.maybeMutableListOf(b1));
-                }else if(b1.canAssignTo(a1)){
-                    return Optional.of(Type.maybeMutableListOf(a1));
-                }
             }
             //TODO allow merging to a common non-var supertype
             return Optional.empty();
@@ -199,9 +191,6 @@ public class Type {
     public boolean isMaybeMutable() {
         return mutability==Mutability.UNDECIDED;
     }
-    public boolean isList() {
-        return false;
-    }
     public boolean isArray() {
         return false;
     }
@@ -262,15 +251,6 @@ public class Type {
         return setMutability(Mutability.IMMUTABLE);
     }
 
-    public static Type mutableListOf(Type contentType){
-        return WrapperType.create(WrapperType.LIST,contentType,Mutability.MUTABLE);
-    }
-    public static Type maybeMutableListOf(Type contentType){
-        return WrapperType.create(WrapperType.LIST,contentType,Mutability.UNDECIDED);
-    }
-    public static Type listOf(Type contentType){
-        return WrapperType.create(WrapperType.LIST,contentType,Mutability.IMMUTABLE);
-    }
     public static Type arrayOf(Type contentType){
         return WrapperType.create(WrapperType.ARRAY,contentType,Mutability.IMMUTABLE);
     }
@@ -283,8 +263,6 @@ public class Type {
     }
 
     private static class WrapperType extends Type {
-        static final String LIST = "list";//will be removed once it is implemented in concat (using memory)
-
         static final String ARRAY = "array";
         static final String MEMORY = "memory";
         static final String OPTIONAL = "optional";
@@ -344,10 +322,6 @@ public class Type {
         @Override
         public boolean isUnicodeString() {
             return wrapperName.equals(ARRAY)&&contentType==CODEPOINT;
-        }
-        @Override
-        public boolean isList() {
-            return wrapperName.equals(LIST);
         }
         @Override
         public boolean isArray() {

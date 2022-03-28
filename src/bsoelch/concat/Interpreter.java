@@ -33,7 +33,7 @@ public class Interpreter {
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
         //compile time operations
         ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
-        MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifers
+        MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifiers
         //overloaded procedure pointer placeholders
         NOP,OVERLOADED_PROC_PTR
     }
@@ -3408,7 +3408,7 @@ public class Interpreter {
                         return;
                     }
                 }
-            }else if(type.isList()||type.isMemory()||type.isArray()){
+            }else if(type.isMemory()||type.isArray()){
                 TypeFrame f= typeStack.pop();
                 if(f.type!=Type.UINT&&f.type!=Type.INT){
                     throw new SyntaxError("invalid argument for '"+type+" new': "+f.type+
@@ -3654,7 +3654,7 @@ public class Interpreter {
                                     hasField = true;
                                 }
                             }
-                        }else if (identifier.name.equals("length") && (f.type.isList()||f.type.isArray()||f.type instanceof Type.Tuple)) {
+                        }else if (identifier.name.equals("length") && (f.type.isArray()||f.type instanceof Type.Tuple)) {
                             typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
                             ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
                             hasField = true;
@@ -3688,11 +3688,6 @@ public class Interpreter {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
                                             f.value.asType() instanceof Type.Enum ? Value.TRUE : Value.FALSE, t.pos));
                                     ret.add(new InternalFieldToken(InternalFieldName.IS_ENUM, t.pos));
-                                }
-                                case "isList" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isList() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_LIST, t.pos));
                                 }
                                 case "isArray" -> {
                                     typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
@@ -4361,10 +4356,6 @@ public class Interpreter {
                 Value val = stack.pop();
                 stack.push(Value.ofInt(((Value.ArrayLike)val).capacity(),true));
             }
-            case IS_LIST -> {
-                Type type = stack.pop().asType();
-                stack.push(type.isList()?Value.TRUE:Value.FALSE);
-            }
             case IS_OPTIONAL -> {
                 Type type = stack.pop().asType();
                 stack.push(type.isOptional()?Value.TRUE:Value.FALSE);
@@ -4498,9 +4489,6 @@ public class Interpreter {
                                 values[count-i]= stack.pop();//values should already have the correct types
                             }
                             stack.push(Value.createTuple((Type.Tuple)type,values));
-                        }else if(type.isList()){
-                            long initCap= stack.pop().asLong();
-                            stack.push(Value.createList(type, initCap));
                         }else if(type.isMemory()){
                             long initCap= stack.pop().asLong();
                             stack.push(Value.createMemory(type,initCap));

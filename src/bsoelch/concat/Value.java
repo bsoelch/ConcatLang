@@ -8,7 +8,6 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public abstract class Value {
     public static final Value FALSE = new Value(Type.BOOL) {
@@ -81,13 +80,6 @@ public abstract class Value {
     public int length() throws TypeError {
         throw new TypeError(type+" does not have a length");
     }
-    public void clear() throws ConcatRuntimeError {
-        throw new TypeError(type+" does not support clear");
-    }
-    /**returns true if this Value is NOT a list (elements() throws a Type error)*/
-    boolean notList(){
-        return true;
-    }
     public List<Value> getElements() throws TypeError {
         throw new TypeError("Cannot convert "+type+" to list");
     }
@@ -96,24 +88,6 @@ public abstract class Value {
     }
     public void set(long index,Value value) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
-    }
-    public Value getSlice(long off, long to) throws ConcatRuntimeError {
-        throw new TypeError("Element access not supported for type "+type);
-    }
-    public void setSlice(long off, long to,Value value) throws ConcatRuntimeError {
-        throw new TypeError("Element access not supported for type "+type);
-    }
-    public void ensureCap(long newCap) throws ConcatRuntimeError {
-        throw new TypeError("changing capacity is not supported for type "+type);
-    }
-    public void fill(Value val, long off, long count) throws ConcatRuntimeError {
-        throw new TypeError("fill is not supported for type "+type);
-    }
-    public void push(Value value,boolean start) throws ConcatRuntimeError {
-        throw new TypeError("adding elements is not supported for type "+type);
-    }
-    public void pushAll(Value value,boolean start) throws ConcatRuntimeError {
-        throw new TypeError("adding elements is not supported for type "+type);
     }
     public Value unwrap() throws ConcatRuntimeError {
         throw new TypeError("Cannot unwrap values of type "+type);
@@ -130,14 +104,6 @@ public abstract class Value {
             return this;
         }else{
             throw new TypeError("cannot cast from "+this.type+" to "+type);
-        }
-    }
-
-    private Value unsafeCastTo(Type type) throws WrappedConcatError {
-        try {
-            return castTo(type);
-        } catch (ConcatRuntimeError e) {
-            throw new WrappedConcatError(e);
         }
     }
 
@@ -591,408 +557,6 @@ public abstract class Value {
         return wrapped;
     }
 
-    public static Value createList(Type listType, ArrayList<Value> elements){
-        if(!(listType.isList()||listType.isArray()||listType.isMemory())){
-            throw new IllegalArgumentException(listType+" is no valid list-type");
-        }
-        return new ListValue(listType,elements);
-    }
-    public static Value createList(Type type, long initCap) throws ConcatRuntimeError {
-        if(initCap<0){
-            throw new ConcatRuntimeError("initial capacity has to be at least 0");
-        }else if(initCap>Integer.MAX_VALUE){
-            throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-        }
-        return new ListValue(type,new ArrayList<>((int) initCap));
-    }
-    private static class ListValue extends Value{
-        final ArrayList<Value> elements;
-        /**true when this value is currently used in toString (used to handle self containing lists)*/
-        private boolean inToString;
-        private ListValue(Type type,ArrayList<Value> elements) {
-            super(type);
-            this.elements = elements;
-        }
-
-        @Override
-        public long id() {
-            return System.identityHashCode(elements);
-        }
-
-        @Override
-        boolean isEqualTo(Value v) {
-            return v instanceof ListValue &&
-                    ((ListValue) v).elements==elements;//check reference equality
-        }
-
-        @Override
-        public ListValue clone(boolean deep) {
-            ArrayList<Value> newElements;
-            if(deep){
-                newElements=elements.stream().map(v->v.clone(true)).collect(Collectors.toCollection(ArrayList::new));
-            }else{
-                newElements=new ArrayList<>(elements);
-            }
-            return new ListValue(type,newElements);
-        }
-
-        @Override
-        public int length() {
-            return elements.size();
-        }
-
-        @Override
-        public void clear() {
-            elements.clear();
-        }
-
-        @Override
-        boolean notList() {
-            return false;
-        }
-        @Override
-        public List<Value> getElements() {
-            return elements;
-        }
-
-        @Override
-        public Value get(long index) throws ConcatRuntimeError {
-            if(index<0||index>=elements.size()){
-                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.size());
-            }
-            return elements.get((int)index);
-        }
-        /**value is assumed to have the correct type*/
-        @Override
-        public void set(long index,Value value) throws ConcatRuntimeError {
-            if(index<0||index>=elements.size()){
-                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.size());
-            }
-            elements.set((int)index,value);
-        }
-        @Override
-        public Value getSlice(long off, long to) throws ConcatRuntimeError {
-            if(off<0||to>elements.size()||off>to){
-                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+elements.size());
-            }
-            return new ListSlice(this,(int)off,(int)to);
-        }
-
-        /**value is assumed to have the correct type*/
-        @Override
-        public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
-            if(off<0||to>elements.size()||off>to){
-                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+elements.size());
-            }
-            List<Value> sublist=elements.subList((int)off,(int)to);
-            List<Value> add=value.getElements().stream().toList();
-            sublist.clear();
-            sublist.addAll(add);
-        }
-
-        /**val is assumed to have the correct type*/
-        @Override
-        public void fill(Value val, long off, long count) throws ConcatRuntimeError {
-            if(off<0){
-                throw new ConcatRuntimeError("Index out of bounds:"+off+" length:"+elements.size());
-            }
-            if(count<0){
-                throw new ConcatRuntimeError("Count has to be at least 0");
-            }
-            if(off+count>Integer.MAX_VALUE){
-                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-            }
-            elements.ensureCapacity((int)(off+count));
-            int set=(int)Math.min(elements.size()-off,count);
-            int add=(int)(count-set);
-            for(int i=0;i<set;i++){
-                elements.set(i+(int)off,val);
-            }
-            for(int i=0;i<add;i++){
-                elements.add(val);
-            }
-        }
-
-        @Override
-        public void ensureCap(long newCap) throws ConcatRuntimeError {
-            if(newCap> Integer.MAX_VALUE){
-                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-            }
-            elements.ensureCapacity((int)newCap);
-        }
-
-        /**value is assumed to have the correct type*/
-        @Override
-        public void push(Value value, boolean start){
-            if(start){
-                elements.add(0,value);
-            }else{
-                elements.add(value);
-            }
-        }
-        /**value is assumed to have the correct type*/
-        @Override
-        public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
-            try{
-                List<Value> push=value.getElements().stream().toList();
-                if(start){
-                    elements.addAll(0,push);
-                }else{
-                    elements.addAll(push);
-                }
-            }catch (WrappedConcatError e){
-                throw e.wrapped;
-            }
-        }
-
-        @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type.canAssignTo(type)){
-                return this;
-            }else if(type.isList()){
-                Type c=type.content();
-                try {
-                    return createList(type, elements.stream().map(v -> v.unsafeCastTo(c))
-                            .collect(Collectors.toCollection(ArrayList::new)));
-                }catch (WrappedConcatError e){
-                    throw e.wrapped;
-                }
-            }else{
-                return super.castTo(type);
-            }
-        }
-
-        @Override
-        public String stringValue() {
-            if(isString()){
-                StringBuilder str=new StringBuilder();
-                for(Value v:elements){
-                    str.append(Character.toChars(((CodepointValue)v).getChar()));
-                }
-                return str.toString();
-            }else{
-                if(inToString){
-                    return "[...]";
-                }else{
-                    inToString=true;
-                    String ret=elements.toString();
-                    inToString=false;
-                    return ret;
-                }
-            }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
-            try {
-                return Objects.equals(elements, asValue.getElements());
-            } catch (TypeError e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(elements);
-        }
-    }
-    private static class ListSlice extends Value{
-        final ListValue list;
-        final   int off;
-        private int to;
-        /**true when this value is currently used in toString (used to handle self containing lists)*/
-        private boolean inToString;
-        private ListSlice(ListValue list, int off, int to) {
-            super(list.type);
-            this.list = list;
-            this.off = off;
-            this.to = to;
-        }
-
-        @Override
-        boolean isEqualTo(Value v) {
-            return v instanceof ListSlice && ((ListSlice) v).list.isEqualTo(list)
-                    && ((ListSlice) v).off == off&&((ListSlice) v).to == to;
-        }
-
-        @Override
-        public Value clone(boolean deep) {
-            ArrayList<Value> newElements;
-            if(deep){
-                newElements= getElements().stream().map(v->v.clone(true)).collect(Collectors.toCollection(ArrayList::new));
-            }else{
-                newElements=new ArrayList<>(getElements());
-            }
-            return new ListValue(type,newElements);
-        }
-
-        @Override
-        public int length() {
-            return to-off;
-        }
-
-        @Override
-        public void clear() throws ConcatRuntimeError {
-            if(to > list.elements.size()){
-                throw new ConcatRuntimeError("Index out of bounds:"+to+" length:"+length());
-            }
-            list.elements.subList(off,to).clear();
-        }
-
-        @Override
-        boolean notList() {
-            return false;
-        }
-        @Override
-        public List<Value> getElements() {
-            return list.elements.subList(off,to);
-        }
-
-        @Override
-        public Value get(long index) throws ConcatRuntimeError {
-            if(index<0||index>=length()){
-                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length());
-            }
-            return list.get(index+off);
-        }
-        @Override
-        public void set(long index,Value value) throws ConcatRuntimeError {
-            if(index<0||index>=length()){
-                throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+length());
-            }
-            list.set(index+off,value.castTo(type.content()));
-        }
-        @Override
-        public Value getSlice(long off, long to) throws ConcatRuntimeError {
-            if(off<0||to>length()||off>to){
-                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length());
-            }
-            return new ListSlice(list,(int)(this.off+off),(int)(this.off+to));
-        }
-
-        @Override
-        public void setSlice(long off, long to, Value value) throws ConcatRuntimeError {
-            if(off<0||to>length()||off>to){
-                throw new ConcatRuntimeError("invalid slice: "+off+":"+to+" length:"+length());
-            }
-            list.setSlice(this.off+off,this.off+to,value);
-            this.to+=value.length()-(to-off);
-        }
-
-        @Override
-        public void fill(Value val, long off, long count) throws ConcatRuntimeError {
-            if(off<0){
-                throw new ConcatRuntimeError("Index out of bounds:"+off+" length:"+length());
-            }
-            if(count<0){
-                throw new ConcatRuntimeError("Count has to be at least 0");
-            }
-            if(off+count>Integer.MAX_VALUE){
-                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-            }
-            val=val.castTo(type.content());
-            ensureCap(off+count);
-            int set=(int)Math.min(length()-off,count);
-            int add=(int)(count-set);
-            for(int i=0;i<set;i++){
-                list.elements.set(this.off+i+(int)off,val);
-            }
-            for(int i=0;i<add;i++){
-                list.elements.add(to++,val);
-            }
-        }
-
-        @Override
-        public void ensureCap(long newCap) throws ConcatRuntimeError {
-            if(newCap> Integer.MAX_VALUE){
-                throw new ConcatRuntimeError("the maximum allowed capacity for arrays is "+Integer.MAX_VALUE);
-            }
-            list.ensureCap(newCap+Math.max(list.length()-length(),0));
-        }
-
-        @Override
-        public void push(Value value, boolean start) {
-            if(start){
-                list.elements.add(off,value);
-            }else{
-                list.elements.add(to,value);
-            }
-            to++;
-        }
-        @Override
-        public void pushAll(Value value, boolean start) throws ConcatRuntimeError {
-            if(value.type.isList()){
-                try{
-                    List<Value> push=value.getElements().stream().toList();
-                    if(start){
-                        list.elements.addAll(off,push);
-                    }else{
-                        list.elements.addAll(to,push);
-                    }
-                }catch (WrappedConcatError e){
-                    throw e.wrapped;
-                }
-            }else{
-                throw new TypeError("Cannot concat "+type+" and "+value.type);
-            }
-            to+=value.length();
-        }
-
-        @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type.canAssignTo(type)){
-                return this;
-            }else if(type.isList()){
-                Type c=type.content();
-                try {
-                    return createList(type, getElements().stream().map(v -> v.unsafeCastTo(c))
-                            .collect(Collectors.toCollection(ArrayList::new)));
-                }catch (WrappedConcatError e){
-                    throw e.wrapped;
-                }
-            }else{
-                return super.castTo(type);
-            }
-        }
-
-        @Override
-        public String stringValue() {
-            if(Type.CODEPOINT.equals(type.content())){
-                StringBuilder str=new StringBuilder();
-                for(Value v: getElements()){
-                    str.append(Character.toChars(((CodepointValue)v).getChar()));
-                }
-                return str.toString();
-            }else{
-                if(inToString){
-                    return "[...]";
-                }else{
-                    inToString=true;
-                    String ret=getElements().toString();
-                    inToString=false;
-                    return ret;
-                }
-            }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof Value asValue)|| asValue.notList()) return false;
-            try {
-                return Objects.equals(getElements(), asValue.getElements());
-            } catch (TypeError e) {
-                throw new RuntimeException(e);
-            }
-        }
-        @Override
-        public int hashCode() {
-            return Objects.hash(getElements());
-        }
-    }
-
     public static Value createMemory(Type type,long initCap) throws ConcatRuntimeError {
         if(initCap<0){
             throw new ConcatRuntimeError("initial capacity has to be at least 0");
@@ -1403,7 +967,6 @@ public abstract class Value {
         public int length() throws TypeError {
             return elements.length;
         }
-
         @Override
         public Value get(long index) throws ConcatRuntimeError {
             if(index<0||index>=elements.length){
@@ -1832,40 +1395,10 @@ public abstract class Value {
                 }
             });
         }
-        {//cloning an immutable lists creates a mutable copy
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a)},
-                    new Type[]{Type.mutableListOf(a)},"clone") {
-                @Override
-                Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false)};
-                }
-            });
-        }
-        {//cloning an immutable lists creates a mutable copy
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a).maybeMutable()},
-                    new Type[]{Type.mutableListOf(a)},"clone") {
-                @Override
-                Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false)};
-                }
-            });
-        }
         {//cloning an immutable copy of a mutable array
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable()},
                     new Type[]{Type.arrayOf(a)},"clone-mut~") {//addLater better name
-                @Override
-                Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false)};
-                }
-            });
-        }
-        {//cloning an immutable copy of a mutable list
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.maybeMutableListOf(a)},
-                    new Type[]{Type.listOf(a)},"clone-mut~") {//addLater better name
                 @Override
                 Value[] callWith(Value[] values){
                     return new Value[]{values[0].clone(false)};
@@ -2146,101 +1679,6 @@ public abstract class Value {
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.mutableListOf(a),Type.UINT},
-                    new Type[]{},"ensureCap") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    values[0].ensureCap(values[1].asLong());
-                    return new Value[0];
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},
-                    new Type[]{Type.mutableListOf(a),Type.UINT,Type.UINT,a},new Type[]{},"fill") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list off count val
-                    values[0].fill(values[3],values[1].asLong(),values[2].asLong());
-                    return new Value[0];
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},
-                    new Type[]{Type.mutableListOf(a)},new Type[]{},"clear") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    values[0].clear();
-                    return new Value[0];
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            Type list = Type.mutableListOf(a);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{list,a},new Type[]{list},"<<") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list val
-                    values[0].push(values[1],false);
-                    return new Value[]{values[0]};
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            Type list = Type.mutableListOf(a);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,list},new Type[]{list},">>") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //val list
-                    values[1].push(values[0],true);
-                    return new Value[]{values[1]};
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            Type mutList = Type.mutableListOf(a);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{mutList,Type.maybeMutableListOf(a)},
-                    new Type[]{mutList},"<<*") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list val
-                    values[0].pushAll(values[1],false);
-                    return new Value[]{values[0]};
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            Type mutList = Type.mutableListOf(a);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.maybeMutableListOf(a),mutList},
-                    new Type[]{mutList},"*>>") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //val list
-                    values[1].pushAll(values[0],true);
-                    return new Value[]{values[1]};
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.maybeMutableListOf(a),Type.UINT},
-                    new Type[]{a},"[]") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list index
-                    return new Value[]{values[0].get(values[1].asLong())};
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),Type.UINT},
                     new Type[]{a},"[]") {
                 @Override
@@ -2261,69 +1699,12 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.mutableListOf(a),Type.UINT},
-                    new Type[]{},"[]=") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //val list index
-                    values[1].set(values[2].asLong(),values[0]);
-                    return new Value[0];
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.arrayOf(a).mutable(),Type.UINT},
                     new Type[]{},"[]=") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //val list index
                     ((ArrayLike)values[1]).set(values[2].asLong(),values[0]);
-                    return new Value[0];
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.listOf(a),Type.UINT,Type.UINT},
-                    new Type[]{Type.listOf(a)},"[:]") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list off to
-                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.mutableListOf(a),Type.UINT,Type.UINT},
-                    new Type[]{Type.mutableListOf(a)},"[:]") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list off to
-                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.maybeMutableListOf(a),Type.UINT,Type.UINT},
-                    new Type[]{Type.maybeMutableListOf(a)},"[:]") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list off to
-                    return new Value[]{values[0].getSlice(values[1].asLong(),values[2].asLong())};
-                }
-            });
-        }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.maybeMutableListOf(a),
-                    Type.mutableListOf(a), Type.UINT,Type.UINT}, new Type[]{},"[:]=") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //val  list off to
-                    values[1].setSlice(values[2].asLong(),values[3].asLong(),values[0]);
                     return new Value[0];
                 }
             });
