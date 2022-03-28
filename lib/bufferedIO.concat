@@ -6,9 +6,9 @@ io #include
 io #namespace
 
 BufferedInput public struct{
-  FILE          :file
+  FILE            :file
   byte memory mut :buffer
-  int           :cap
+  int             :cap
 }
 
 newBufferedInput public proc( FILE #+ cap +# int => BufferedInput ){
