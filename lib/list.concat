@@ -1,4 +1,4 @@
-lib/list: ##TODO change filename to list.concat once native list is removed
+lib/list:
 
 core #namespace
 stack #include
@@ -9,7 +9,7 @@ arraySlice #include
 ##   try moving offset to avoid reallocating
 ##   set growth rate to factor less than 2 ( 9/8 ? )
 
-List public struct{ A <> ##TODO? rename to 'list' once native list is removed
+List public struct{ A <>
   A memory mut^ :data mut
 }
 ListSlice public struct{ A <>
@@ -42,6 +42,10 @@ build public proc( ustringBuilder => ustring ){
 }
 
 valueIO #include ## include valueIO after stringBuilder is declared
+
+length public proc( A <?> A List mut? => uint ){
+  #+list+# .data .length return
+}
 
 ensureCap public proc( A <?> A List mut uint => ){##addLater better names for capacity procedure, add procedure for offset
   newCap =::

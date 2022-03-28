@@ -40,7 +40,7 @@ list #include
   else value .type ( ) <= if
     '(' << res =::
     0 i =::
-    while{ i value length < do
+    while{ i value ( ) cast length < do
       i 0 > if{
         res ", " <<* res =
       }
