@@ -142,7 +142,7 @@ insert public proc( A <?> A A List mut uint => ){
     1 exit
   }
   listData .length listData .capacity >= if{
-    listData .offset listData .capacity + delta =::
+    listData .offset listData .capacity + 8 + delta =::
     listData listData .offset listData .capacity + delta + realloc
   }
   index listData .length < if{
@@ -347,7 +347,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   mList =::
   mList .data listData =::
   listData .length listData .capacity >= if{
-    listData .offset listData .capacity + delta =::
+    listData .offset listData .capacity + 8 + delta =::
     listData listData .offset listData .capacity + delta + realloc
   }
   listData val []^=
@@ -365,7 +365,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   mList .data listData =::
   val =::
   listData .offset 0 == if{
-    listData .offset listData .capacity + delta =::
+    listData .offset listData .capacity + 8 + delta =::
     listData listData .offset listData .capacity + delta + realloc
     listData delta setOffset
   }
