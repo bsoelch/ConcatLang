@@ -1466,7 +1466,7 @@ public abstract class Value {
         }
         return new ArrayValue(type,content,(int)initCap);
     }
-    public static ArrayValue createArray(Type type,Value[] data) throws ConcatRuntimeError {
+    public static ArrayValue createArray(Type type,Value[] data){
         return new ArrayValue(type,data);
     }
     //addLater ByteArray,  other primitive arrays?

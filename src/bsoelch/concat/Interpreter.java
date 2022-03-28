@@ -4313,11 +4313,7 @@ public class Interpreter {
                         for(String s:arguments){
                             args.add(Value.ofString(s,false));
                         }
-                        try {
-                            stack.push(Value.createArray(Type.arrayOf(Type.RAW_STRING()),args.toArray(Value[]::new)));
-                        } catch (ConcatRuntimeError e) {
-                            throw new RuntimeException(e);
-                        }
+                        stack.push(Value.createArray(Type.arrayOf(Type.RAW_STRING()),args.toArray(Value[]::new)));
                     }
                 }
                 recursiveRun(stack,(Value.Procedure)main,new ArrayList<>(),null,null,context);
