@@ -27,6 +27,10 @@ codepoint List mut  type ustringBuilder public mut~ =:
 buildString public proc( uint => stringBuilder ){
   byte newList return
 }
+buildString public proc( string mut? => stringBuilder ){
+  str =::
+  str .length byte newList str <<* return
+}
 buildUString public proc( uint => ustringBuilder ){
   codepoint newList return
 }
