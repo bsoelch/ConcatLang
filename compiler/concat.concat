@@ -24,9 +24,9 @@ io #import
 
 
 FilePosition struct{
-  string mut? :fileName
-  uint        :line      mut
-  uint        :posInLine mut
+  string :fileName
+  uint   :line      mut
+  uint   :posInLine mut
 }
 FilePosition.newLine    proc( FilePosition mut => ){
   dup dup .line 1 + swap .line = 1 swap .posInLine =
@@ -34,7 +34,7 @@ FilePosition.newLine    proc( FilePosition mut => ){
 FilePosition.nextChar   proc( FilePosition mut => ){
   dup .posInLine 1 + swap .posInLine =
 }
-<< proc( string mut FilePosition mut? => string mut ){
+<< proc( stringBuilder FilePosition mut? => stringBuilder ){
   FilePosition mut? position =:
   #+str+# position .fileName <<*
   ':' << position .line      <<i
@@ -80,7 +80,7 @@ WrapperType struct{ Type extend
   Type            :wrapped
 }
 
-<< proc( string mut Type => string mut ){
+<< proc( stringBuilder Type => stringBuilder ){
   Type t =:
   t .typeType switch{
   PRIMITIVE_TYPE case
@@ -137,7 +137,7 @@ Value struct{
   var  :data
 }
 
-<< proc( string mut Value => string mut ){
+<< proc( stringBuilder Value => stringBuilder ){
   Value v =:
   v .valType << ": " <<*
   v .valType .typeType switch{
@@ -240,7 +240,7 @@ DeclareableType enum{
   PREDECLARED_PROCEDURE
   PROCEDURE
 }
-<<DeclareableType proc( #+str+# string mut #+a+# bool #+type+# DeclareableType => string mut ){
+<<DeclareableType proc( #+str+# stringBuilder #+a+# bool #+type+# DeclareableType => stringBuilder ){
    #+type+# switch{
    MACRO case
      #+a+# if{ "a macro" else "macro" } <<* return
@@ -328,14 +328,14 @@ Tuple struct{ Declareable extend
   TupleType :tupleType
 }
 
-<< proc( string mut VariableId mut? => string mut ){
+<< proc( stringBuilder VariableId mut? => stringBuilder ){
   VariableId mut? v =:
   v .global if{ "global:" else "local:" } <<*
   v .level <<u ':' <<
   v .varId <<u
   return
 }
-<< proc( string mut Declareable mut? => string mut ){
+<< proc( stringBuilder Declareable mut? => stringBuilder ){
   Declareable mut? d =:
   false d .dType <<DeclareableType ": " <<*
   d .dType switch{
@@ -376,9 +376,9 @@ OpenModule struct{
 newOpenModule proc( #+path+# string list #+declaredAt+# FilePosition mut? => OpenModule ){
   16 string list mut new 16 string PredeclaredProc newHashMap OpenModule new return
 }
-<< proc( string mut OpenModule => string mut ){
+<< proc( stringBuilder OpenModule => stringBuilder ){
   OpenModule m =:
-  string mut str =:
+  stringBuilder str =:
   0 int i =:
   str while{ i m .path .length < do
      m .path i [] <<* "'" <<*
@@ -469,25 +469,25 @@ Context.ensureDeclareable proc( #+context+# Context mut? #+name+#string #+type+#
   DeclareableType dType =:
   string name =:
   Context mut? context =:
-  context .cType ContextType .ROOT_CONTEXT == if{ context name RootContext.inCurrentModule else name } string mut? localName =:
+  context .cType ContextType .ROOT_CONTEXT == if{ context name RootContext.inCurrentModule else name } string localName =:
   context .elements localName clone-mut~ HashMap.get if{
     Declareable mut? prev =:
     ## procedures can overwrite predeclared procedures
     prev .dType DeclareableType .PREDECLARED_PROCEDURE != ||{ prev .dType DeclareableType .PROCEDURE != } if{
-      128 string mut new
+      128 buildString
       "cannot declare " <<* false dType <<DeclareableType ' ' << name <<*
       ", the identifier is already used by " <<* true prev .dType <<DeclareableType
-      " (declared at " <<* prev .pos << ") at " <<* fPos << '\n' << eputs
+      " (declared at " <<* prev .pos << ") at " <<* fPos << '\n' << build eputs
       1 exit
     }
   }
   context name Context.getDeclareable if{
     Declareable mut? shadowed =:
-    128 string mut new
+    128 buildString
     "Warning: " <<* false dType <<DeclareableType " " <<* name <<*
     " declared at " <<* fPos << "\n     shadows existing " <<*
     false shadowed .dType <<DeclareableType " declared at " <<*
-    shadowed .pos << '\n' << eputs
+    shadowed .pos << '\n' << build eputs
   }
   localName clone-mut~ return
 }
@@ -511,7 +511,7 @@ Context.getDeclareable proc( #+context+# Context mut? #+name+# string => Declare
       context RootContext.currentPaths paths =::
       paths .length 1 - int i mut =:
       while{ i 0 >= do ##go through all namespaces
-        context .elements paths i [] clone name <<* clone-mut~ HashMap.get dup .hasValue if{
+        context .elements paths i [] buildString name <<* build HashMap.get dup .hasValue if{
           #+element+# Declareable mut? optional cast return
         else drop }
         i 1 - i =
@@ -538,10 +538,10 @@ RootContext.file proc( RootContext mut? => OpenFile ){
   context .openFiles context .openFiles .length 1 - [] return
 }
 
-RootContext.inCurrentModule proc( RootContext mut? #+name+# string => string mut ){
+RootContext.inCurrentModule proc( RootContext mut? #+name+# string => string ){
    string name =:
    #+context+# RootContext.file .openModules namespaces =::
-   name .length string mut new path =::
+   name .length buildString path =::
    namespaces .length 0 > if{
      0 int i mut =:
      while{ i namespaces .length < do
@@ -554,45 +554,45 @@ RootContext.inCurrentModule proc( RootContext mut? #+name+# string => string mut
         i 1 + i =
      }
    }
-   path name <<* return
+   path name <<* build return
 }
 RootContext.startModule proc( RootContext mut? #+name+# string #+declaredAt+# FilePosition mut? => ){
   FilePosition mut? fPos =:
   string name =:
   RootContext mut? context =:
-  context .elements context name RootContext.inCurrentModule clone-mut~ HashMap.get if{
+  context .elements context name RootContext.inCurrentModule HashMap.get if{
     Declareable mut? d =:
-    64 string mut new
+    64 buildString
     "cannot declare namespace " <<* name <<* ", the identifier is already used by " <<*
     true d .dType <<DeclareableType
     " (declared at " <<* d .pos << ")\n at " <<*
-    fPos  << '\n' << eputs
+    fPos  << '\n' << build eputs
     1 exit
   }
-  context "" RootContext.inCurrentModule fullPath =::
+  context "" RootContext.inCurrentModule buildString fullPath =::
   16 string list mut new path =::
-  16 string mut new tmp =::
+  16 buildString tmp =::
   0 int i mut =:
   while{ i name .length < do
     fullPath name i [] << fullPath =
     name i [] MODULE_SEPARATOR == if{
-      true context .namespaces fullPath clone-mut~ HashMap.put drop
-      path tmp clone-mut~ << path =
+      true context .namespaces fullPath build HashMap.put drop
+      path tmp build << path =
       tmp clear
     else
       tmp name i [] << tmp =
     }
     i 1 + i =
   }
-  path tmp clone-mut~ << path =
+  path tmp build << path =
   fullPath MODULE_SEPARATOR << fullPath =
-  true context .namespaces fullPath clone-mut~ HashMap.put drop
+  true context .namespaces fullPath build HashMap.put drop
   context RootContext.file .openModules path clone-mut~ fPos newOpenModule << drop
 }
 RootContext.addImport proc( RootContext mut? #+name+# string #+declaredAt+# FilePosition mut? => ){
   FilePosition mut? fPos =:
   string name0 =:
-  name0 clone '\'' << clone-mut~ string name =:
+  name0 buildString '\'' << build string name =:
   RootContext mut? context =:
   context .namespaces name HashMap.contains if{
      context RootContext.file OpenFile file =:
@@ -606,8 +606,8 @@ RootContext.addImport proc( RootContext mut? #+name+# string #+declaredAt+# File
     "static imports are currently unimplemented"
     1 exit
   else
-    64 string mut new
-    "namespace " <<* name0 <<* " does not exist " <<* fPos << '\n' << eputs
+    64 buildString
+    "namespace " <<* name0 <<* " does not exist " <<* fPos << '\n' << build eputs
     1 exit
   }
 }
@@ -616,19 +616,19 @@ RootContext.endModule proc( RootContext mut? FilePosition mut? => ){
   RootContext mut? context =:
   context RootContext.file OpenFile file =:
   file .openModules .length 0 == if{
-    64 string mut new
-    "Unexpected End of namespace " <<* fPos << '\n' << eputs
+    64 buildString
+    "Unexpected End of namespace " <<* fPos << '\n' << build eputs
     1 exit
   }
   file .openModules file .openModules .length 1 - [] OpenModule removed =:
   file .openModules file .openModules .length 1 - file .openModules .length [:] clear
   removed .predeclared .size 0 > if{
-    256 string mut new "Syntax Error: missing variables/procedures" <<* string mut message =:
+    256 buildString "Syntax Error: missing variables/procedures" <<* stringBuilder message =:
     removed .predeclared ^_ for{
        string PredeclaredProc MapEntry mut? e =:
        message "\n- " <<* e .key string cast <<* " (at " <<* e .value .pos << ')' << drop
     } drop
-    message fPos << '\n' << eputs
+    message fPos << '\n' << build eputs
     1 exit
   }
 }
@@ -643,26 +643,26 @@ RootContext.endFile proc( RootContext mut? FilePosition mut? => ){
     while{ i 0 >= do
       closed .openModules i [] OpenModule removed =:
       removed .predeclared .size 0 > if{
-        64 string mut new "Syntax Error: missing variables/procedures" <<* message =::
+        64 buildString "Syntax Error: missing variables/procedures" <<* message =::
         removed .predeclared ^_ for{
            string PredeclaredProc MapEntry mut? e =:
            message "\n- " <<* e .key string cast <<* " (at " <<* e .value .pos << ')' << drop
         } drop
-        message fPos << '\n' << eputs
+        message fPos << '\n' << build eputs
         1 exit
       }
-      32 string mut new " - " <<* removed << '\n' << eputs
+      32 buildString " - " <<* removed << '\n' << build eputs
       i 1 - i =
     }
     closed .openModules clear
   }
   closed .globalPredeclared .size 0 > if{
-    256 string mut new "Syntax Error: missing variables/procedures" <<* message =::
+    256 buildString "Syntax Error: missing variables/procedures" <<* message =::
     closed .globalPredeclared ^_ for{
        string PredeclaredProc MapEntry mut? e =:
        message "\n- " <<* e .key string cast <<* " (at " <<* e .value .pos << ')' << drop
     } drop
-    message fPos << '\n' << eputs
+    message fPos << '\n' << build eputs
     1 exit
   }
 }
@@ -670,7 +670,7 @@ RootContext.endFile proc( RootContext mut? FilePosition mut? => ){
 RootContext.currentPaths proc( RootContext mut? => string list mut ){
   #+context+# RootContext.file OpenFile file =:
   file .globalImports clone string list mut paths mut =:
-  16 string mut new path =::
+  16 buildString path =::
   file .openModules namespaces =::
   0 int i mut =:
   while{ i namespaces .length < do
@@ -679,7 +679,7 @@ RootContext.currentPaths proc( RootContext mut? => string list mut ){
     while{ j mPath .length < do
       path mPath j [] <<* MODULE_SEPARATOR << path =
       j 1 + j =
-      paths path clone-mut~ << paths =
+      paths path build << paths =
     }
     namespaces i [] .imports  paths paths .length 1 - paths .length 1 - [:]=
     i 1 + i =
@@ -717,19 +717,19 @@ RootContext.removeMacro proc( #+context+# RootContext mut? #+name+# string #+pos
   FilePosition mut? fPos =:
   string name =:
   RootContext mut? context =:
-  context .elements context name RootContext.inCurrentModule clone-mut~ HashMap.remove if{
+  context .elements context name RootContext.inCurrentModule HashMap.remove if{
     Declareable mut? removed =:
     removed .dType DeclareableType .MACRO != if{
-      128 string mut new
+      128 buildString
       "macro " <<* name <<* " does not exists, or is shadowed by " <<*
       false removed .dType <<DeclareableType
       " (declared at " <<* removed .pos << ") " <<*
-      fPos << '\n' << eputs
+      fPos << '\n' << build eputs
       1 exit
     }
   else
-    64 string mut new
-    "macro " <<* name <<* " does not exists in the current namespace " <<* fPos << '\n' << eputs
+    64 buildString
+    "macro " <<* name <<* " does not exists in the current namespace " <<* fPos << '\n' << build eputs
     1 exit
   }
 }
@@ -744,7 +744,7 @@ RootContext.declareEnum proc( #+context+# RootContext mut? #+source+# EnumBlock 
   0 int i mut =:
   anEnum .enumType .fields NameWithPos list fields =:
   while{ i fields .length < do
-    source .name clone MODULE_SEPARATOR << fields i [] .name <<* clone-mut~ fieldName =::
+    source .name buildString MODULE_SEPARATOR << fields i [] .name <<* build fieldName =::
     context fieldName DeclareableType .ENUM_ENTRY fields i [] .pos Context.ensureDeclareable fieldName =
     anEnum .enumType i newEnumEntry context .elements fieldName HashMap.put drop
     i 1 + i =
@@ -823,7 +823,7 @@ VariableToken struct{ Token extend
   VariableId mut? :id
 }
 
-<< proc( string mut Token mut? => string mut ){
+<< proc( stringBuilder Token mut? => stringBuilder ){
   Token mut? token =:
 
   TokenType .fieldNames token .tokenType [] <<* ": " <<*
@@ -857,7 +857,7 @@ VariableToken struct{ Token extend
 ParserReader struct{
   BufferedInput    :in
   FilePosition mut :pos
-  string mut       :word
+  stringBuilder    :word
   FilePosition mut :wordPos
 }
 ParserReader.nextWord proc( ParserReader => ){
@@ -898,15 +898,15 @@ Program struct{
   Context mut        :context mut
 }
 
-parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition mut? #+open_blocks+# OpenBlocks mut
+parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition mut? #+open_blocks+# OpenBlocks mut
   #+program+# Program mut => ){
   Program mut program =:
   program .context context =::
   program .tokens tokens =::
   OpenBlocks mut openBlocks =:
   FilePosition mut? fPos =:
-  string mut? next =:
-  string mut? word =:
+  string next =:
+  string word =:
   word .length 0 > if{
     openBlocks .currentMacro .name .length 0 > if{
       word switch{
@@ -915,7 +915,7 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         fPos "" newMacro  openBlocks .currentMacro =
         end-case
       "#define" "#undef" "#namespace" "#include" "#import" "proc" "procedure" "enum" "tuple" case
-        word clone " is not allowed in macros " <<* fPos << '\n' << eputs
+        word buildString " is not allowed in macros " <<* fPos << '\n' << build eputs
         1 exit
         end-case
       default
@@ -928,30 +928,30 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
     ## identifier - modifiers
     "."  case
       tokens .length 2 < if{
-        "not enough arguments for . " clone fPos << '\n' << eputs
+        "not enough arguments for . " buildString fPos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 2 - [] Token mut prePrev =:
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for '.' modifier: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for '.' modifier: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       prePrev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for '.' modifier: " <<* prePrev << ' ' << prePrev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for '.' modifier: " <<* prePrev << ' ' << prePrev .pos << '\n' << build eputs
         1 exit
       }
-      TokenType .WORD fPos prePrev WordToken mut? cast .value clone '\'' << prev WordToken mut? cast .value <<* clone-mut~ WordToken mut new
+      TokenType .WORD fPos prePrev WordToken mut? cast .value buildString '\'' << prev WordToken mut? cast .value <<* build WordToken mut new
        tokens tokens .length 2 - []=
       tokens tokens .length 1 - tokens .length [:] clear
       end-case
     "="  case
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for '=' modifier: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for '=' modifier: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       TokenType .IDENTIFIER fPos IdentifierType .WRITE prev WordToken mut cast .value IdentifierToken mut new  tokens tokens .length 1 - []=
@@ -959,8 +959,8 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
     "=:" case
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for '=:' modifier: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for '=:' modifier: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       TokenType .IDENTIFIER fPos IdentifierType .DECLARE prev WordToken mut cast .value IdentifierToken mut new  tokens tokens .length 1 - []=
@@ -968,8 +968,8 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
     "=$" case
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for '=$' modifier: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for '=$' modifier: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       TokenType .IDENTIFIER fPos IdentifierType .CONST_DECLARE prev WordToken mut cast .value IdentifierToken mut new
@@ -978,8 +978,8 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
     "@()" case
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for '@()' modifier: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for '@()' modifier: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       TokenType .IDENTIFIER fPos IdentifierType .ADDRESS_OF prev WordToken mut cast .value IdentifierToken mut new
@@ -988,14 +988,14 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
     ## macro&namespace key-words
     "#define" case
       tokens .length 0 == if{
-        32 string mut new
-        "missing macro name " <<* fPos << '\n' << eputs
+        32 buildString
+        "missing macro name " <<* fPos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for macro name: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for macro name: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - tokens .length [:] clear
@@ -1004,15 +1004,15 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
       end-case
     "#undef" case
       openBlocks .blocks .length 0 > if{
-        64 string mut new
-        "macros can only be undefined at root-level " <<* fPos << '\n' << eputs
+        64 buildString
+        "macros can only be undefined at root-level " <<* fPos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
+        64 buildString
         "invalid token preceding #undef: " <<* prev << ' ' << prev .pos <<
-        " expected macro-name \n" <<* eputs
+        " expected macro-name \n" <<* build eputs
         1 exit
       }
       tokens tokens .length 1 - tokens .length [:] clear
@@ -1020,14 +1020,14 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
       end-case
     "#namespace" case
       openBlocks .blocks .length 0 > if{
-        64 string mut new
-        "namespaces can only be declared at root-level " <<* fPos << '\n' << eputs
+        64 buildString
+        "namespaces can only be declared at root-level " <<* fPos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for namespace name: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for namespace name: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - tokens .length [:] clear
@@ -1035,8 +1035,8 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
       end-case
     "#end" case
       openBlocks .blocks .length 0 > if{
-        64 string mut new
-        "namespaces can only be closed at root-level " <<* fPos << '\n' << eputs
+        64 buildString
+        "namespaces can only be closed at root-level " <<* fPos << '\n' << build eputs
         1 exit
       }
       END_OF_SECTION "" fPos openBlocks program parseWord
@@ -1044,15 +1044,15 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
       end-case
     "#import" case
       openBlocks .blocks .length 0 > if{
-        64 string mut new
-        "imports  are can only allowed at root-level " <<* fPos << '\n' << eputs
+        64 buildString
+        "imports  are can only allowed at root-level " <<* fPos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
+        64 buildString
         "imported namespace name has to be an identifier, got " <<*
-           prev << ' ' << prev .pos << '\n' << eputs
+           prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - tokens .length [:] clear
@@ -1065,14 +1065,14 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
     ## proc/enum key-words
     "proc" "procedure" case
       tokens .length 0 == if{
-        64 string mut new
-        "missing procedure name " <<* fPos << '\n' << eputs
+        64 buildString
+        "missing procedure name " <<* fPos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for procedure name: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for procedure name: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       TokenType .PROCEDURE_START fPos prev WordToken mut cast .value WordToken mut new  tokens tokens .length 1 - []=
@@ -1080,14 +1080,14 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
       end-case
     "enum" case
       tokens .length 0 == if{
-        64 string mut new
-        "missing enum name " <<* fPos << '\n' << eputs
+        64 buildString
+        "missing enum name " <<* fPos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for enum name: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for enum name: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - tokens .length [:] clear
@@ -1095,14 +1095,14 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
       end-case
     "tuple" case
       tokens .length 0 == if{
-        64 string mut new
-        "missing tuple name " <<* fPos << '\n' << eputs
+        64 buildString
+        "missing tuple name " <<* fPos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - [] Token mut prev =:
       prev .tokenType TokenType .WORD != if{
-        64 string mut new
-        "invalid token for tuple name: " <<* prev << ' ' << prev .pos << '\n' << eputs
+        64 buildString
+        "invalid token for tuple name: " <<* prev << ' ' << prev .pos << '\n' << build eputs
         1 exit
       }
       tokens tokens .length 1 - tokens .length [:] clear
@@ -1128,18 +1128,18 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
             context prev IdentifierToken mut cast .value Context.getDeclareable if{
               Declareable mut? d =:
               d .dType DeclareableType .VARIABLE_ID != if{
-                64 string mut new
+                64 buildString
                 false d .dType <<DeclareableType " " <<* prev IdentifierToken mut cast .value <<*
                 " (declared at " <<* d .pos << ") is not a variable" <<*
-                fPos << '\n' << eputs
+                fPos << '\n' << build eputs
                 1 exit
               }
               ##context.wrapCurried(identifier.name,id,identifier.pos);
               TokenType .VARIABLE prev .pos AccessType .WRITE_VAR d VariableToken mut new
                 tokens tokens .length 1 - []=
             else
-              64 string mut new
-              "variable " <<* prev IdentifierToken mut cast .value <<* " does not exist " <<* fPos << '\n' << eputs
+              64 buildString
+              "variable " <<* prev IdentifierToken mut cast .value <<* " does not exist " <<* fPos << '\n' << build eputs
               1 exit
             }
             end-case
@@ -1225,9 +1225,9 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
             return
             end-case
           ERR_OVERFLOW case
-            64 string mut new
+            64 buildString
             "value does not fit in an unsigned int: \"" <<* word <<* "\" " <<*
-                fPos << '\n' << eputs
+                fPos << '\n' << build eputs
             1 exit
             end-case
           ERR_BASE ERR_EMPTY ERR_ILLEGAL_CHAR case
@@ -1242,9 +1242,9 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
               return
             end-case
           ERR_OVERFLOW case
-            64 string mut new
+            64 buildString
             "value does not fit in a signed int: \"" <<* word <<* "\" " <<*
-                fPos << '\n' << eputs
+                fPos << '\n' << build eputs
             1 exit
             end-case
           ERR_BASE ERR_EMPTY ERR_ILLEGAL_CHAR case
@@ -1301,24 +1301,24 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
       ## control-flow key-words
       "lambda" "λ" case
         openBlocks .blocks BlockType .PROC_BLOCK fPos tokens .length CodeBlock mut new << drop
-        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
         end-case
       "return" "exit" case
-        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
         end-case
       "=>" ":" case
         openBlocks .blocks .length 0 == if{
-          64 string mut new
-          word <<* " can only be used in (lambda-)procedures " <<* fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in (lambda-)procedures " <<* fPos << '\n' << build eputs
           1 exit
         }
         openBlocks .blocks openBlocks .blocks .length 1 - [] CodeBlock mut block =:
         block .blockType BlockType .PROC_BLOCK != if{
-          64 string mut new
-          word <<* " can only be used in (lambda-)procedures " <<* fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in (lambda-)procedures " <<* fPos << '\n' << build eputs
           1 exit
         }
-        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
         end-case
       "while" case
         openBlocks .blocks  fPos tokens .length newWhileBlock  << drop
@@ -1326,21 +1326,21 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         end-case
       "do" case
         openBlocks .blocks .length 0 == if{
-          64 string mut new
-          word <<* " can only be used in while-statement " <<* fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in while-statement " <<* fPos << '\n' << build eputs
           1 exit
         }
         openBlocks .blocks openBlocks .blocks .length 1 - [] CodeBlock mut block =:
         block .blockType BlockType .WHILE_BLOCK != if{
-          64 string mut new
-          word <<* " can only be used in while-statement " <<* fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in while-statement " <<* fPos << '\n' << build eputs
           1 exit
         }
         block WhileBlock mut wBlock =:
         wBlock .forkPos -1 != if{
-          128 string mut new
+          128 buildString
           "duplicate 'do' in while-statement " <<* fPos <<
-          "\n previous appearance at " <<* tokens wBlock .forkPos [] .pos << '\n' << eputs
+          "\n previous appearance at " <<* tokens wBlock .forkPos [] .pos << '\n' << build eputs
           1 exit
         }
         tokens .length wBlock .forkPos =
@@ -1360,21 +1360,21 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         end-case
       "else" case
         openBlocks .blocks .length 0 == if{
-          64 string mut new
-          word <<* " can only be used in if-blocks " <<* fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in if-blocks " <<* fPos << '\n' << build eputs
           1 exit
         }
         openBlocks .blocks openBlocks .blocks .length 1 - [] CodeBlock mut block =:
         block .blockType BlockType .IF_BLOCK != if{
-          64 string mut new
-          word <<* " can only be used in if-blocks " <<* fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in if-blocks " <<* fPos << '\n' << build eputs
           1 exit
         }
         block IfBlock mut iBlock =:
         iBlock .prevIf -1 == if{
-          128 string mut new
+          128 buildString
           "unexpected 'else'-statement, 'else' can only appear after 'if' or '_if' " <<*
-          fPos << '\n' << eputs
+          fPos << '\n' << build eputs
           1 exit
         }
         ##close if-context
@@ -1402,21 +1402,21 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         end-case
       "_if" case
         openBlocks .blocks .length 0 == if{
-          64 string mut new
-          word <<* " can only be used in if-blocks " <<* fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in if-blocks " <<* fPos << '\n' << build eputs
           1 exit
         }
         openBlocks .blocks openBlocks .blocks .length 1 - [] CodeBlock mut block =:
         block .blockType BlockType .IF_BLOCK != if{
-          64 string mut new
-          word <<* " can only be used in if-blocks " <<* fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in if-blocks " <<* fPos << '\n' << build eputs
           1 exit
         }
         block IfBlock mut iBlock =:
         iBlock .prevIf -1 != if{
-          64 string mut new
+          64 buildString
           "unexpected '_if'-statement, '_if' can only appear after 'else' " <<*
-            fPos << '\n' << eputs
+            fPos << '\n' << build eputs
           1 exit
         }
         tokens .length iBlock .prevIf =
@@ -1428,26 +1428,26 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         end-case
       "switch" case
         openBlocks .blocks BlockType .SWITCH_BLOCK fPos tokens .length CodeBlock mut new << drop
-        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
         end-case
       "case" "end-case" "default" case
         openBlocks .blocks .length 0 == if{
-          64 string mut new
-          word <<* " can only be used in switch-blocks " <<* fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in switch-blocks " <<* fPos << '\n' << build eputs
           1 exit
         }
         openBlocks .blocks openBlocks .blocks .length 1 - [] CodeBlock mut block =:
         block .blockType BlockType .SWITCH_BLOCK != if{
-          64 string mut new
-          word <<* " can only be used in switch-blocks " <<*  fPos << '\n' << eputs
+          64 buildString
+          word <<* " can only be used in switch-blocks " <<*  fPos << '\n' << build eputs
           1 exit
         }
-        tokens TokenType .KEY_WORD fPos word clone-mut~ WordToken mut new << tokens =
+        tokens TokenType .KEY_WORD fPos word WordToken mut new << tokens =
         end-case
       "end" case
         openBlocks .blocks .length 0 == if{
-          64 string mut new
-          "unexpected end-statement " <<* fPos << '\n' << eputs
+          64 buildString
+          "unexpected end-statement " <<* fPos << '\n' << build eputs
           1 exit
         }
         openBlocks .blocks openBlocks .blocks .length 1 - [] CodeBlock mut block =:
@@ -1491,9 +1491,9 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         WHILE_BLOCK case
           block WhileBlock mut wBlock =:
           wBlock .forkPos -1 == if{
-            64 string mut new
+            64 buildString
             "while block at " <<* wBlock .startPos << " does not contain a 'do' statement " <<*
-            fPos << eputs
+            fPos << build eputs
             1 exit
           }
           ##close context
@@ -1521,9 +1521,9 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
           end-case
         ENUM_BLOCK case
           tokens .length block .start > if{
-            64 string mut new
+            64 buildString
             "Invalid token in enum: " <<* tokens block .start [] << ' '
-              << tokens block .start [] .pos << '\n' << eputs
+              << tokens block .start [] .pos << '\n' << build eputs
             1 exit
           }
           context block RootContext.declareEnum
@@ -1537,14 +1537,14 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
           0 int i mut =:
           while{ i values .length < do
             values i [] .tokenType TokenType .VALUE != if{
-              128 string mut new
+              128 buildString
               "tokens of type:" <<* TokenType .fieldNames values i [] .tokenType [] <<* " are not allowed in tuple signatures " <<*
-              values i [] .pos << '\n' << eputs
+              values i [] .pos << '\n' << build eputs
               1 exit
             else values i [] ValueToken mut cast .value .valType Type.TYPE != if
-              128 string mut new
+              128 buildString
               "values of type:" <<* values i [] ValueToken mut cast .value .valType << " are not allowed in tuple signatures " <<*
-              values i [] .pos << '\n' << eputs
+              values i [] .pos << '\n' << build eputs
               1 exit
             }
              types values i [] ValueToken mut cast .value .data Type cast << types =
@@ -1628,9 +1628,9 @@ parseWord proc( #+word+# string mut? #+next+# string mut? #+pos+# FilePosition m
         openBlocks .blocks .length 0 >
           &&{ openBlocks .blocks openBlocks .blocks .length 1 - [] .blockType BlockType .ENUM_BLOCK == } if{
           openBlocks .blocks openBlocks .blocks .length 1 - []
-            EnumBlock mut cast .elements word clone-mut~ fPos NameWithPos new << drop
+            EnumBlock mut cast .elements word fPos NameWithPos new << drop
         else
-          tokens TokenType .WORD fPos word clone-mut~ WordToken mut new << tokens =
+          tokens TokenType .WORD fPos word WordToken mut new << tokens =
         }
       }
     }
@@ -1668,37 +1668,37 @@ readEscapeChar proc( ParserReader => ){
      1 exit
      end-case
     default
-     64 string mut new
-     "The escape sequence: '\\" <<* next << "' is not supported " <<* reader .pos << '\n' << eputs
+     64 buildString
+     "The escape sequence: '\\" <<* next << "' is not supported " <<* reader .pos << '\n' << build eputs
      1 exit
     }
   else
-    64 string mut new
-    "unexpected end of file " <<* reader .pos << '\n' << eputs
+    64 buildString
+    "unexpected end of file " <<* reader .pos << '\n' << build eputs
     1 exit
   }
 }
 
-parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
+parseFile proc( #+fileName+# string #+program+# Program mut =>  ){
   Program mut program =:
   program .context context =::
   program .tokens tokens =::
-  string mut? fileName =:
+  string fileName =:
   fileName "r" open if{ #+auto-unwrap+# else
-    20 fileName .length + string mut new
-    "file \"" <<* fileName <<* "\" not found\n" <<* eputs
+    20 fileName .length + buildString
+    "file \"" <<* fileName <<* "\" not found\n" <<* build eputs
     1 exit
   }
   16 newBufferedInput #+input+#
   fileName 1 1 FilePosition mut new   #+pos+#
-  16 string mut new                   #+word+#
+  16 buildString                   #+word+#
   fileName 1 1 FilePosition mut new   #+wordPos+#
   ParserReader new ParserReader reader =:
   context RootContext.startFile
   ParseState .STATE_WORD ParseState state mut =:
   reader .pos "" newMacro 16 CodeBlock mut list mut new OpenBlocks mut new openBlocks =::
 
-  16 string mut new prevWord =::
+  "" string prevWord mut =:
   fileName 1 1 FilePosition mut new FilePosition mut prevPos mut =:
 
   while{ reader ParserReader.nextByte do
@@ -1708,7 +1708,7 @@ parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
         byte next mut =:
         next ?WhiteSpace if{
           reader .word .length 0 > if{
-            reader .word clone nextWord =::
+            reader .word build nextWord =::
             nextWord .length 0 > if{
               prevWord .length 0 > if{
                 prevWord nextWord prevPos openBlocks program parseWord
@@ -1721,28 +1721,30 @@ parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
         else
           next switch{
           '"' case
-              reader .word "u" == if{
+              reader .word build prefix =::
+              prefix "u" == if{
                 ParseState .STATE_USTRING state =
                 reader .word clear
-              else reader .word .length 0 == if
+              else prefix .length 0 == if
                 ParseState .STATE_STRING state =
               else
-                64 string mut new
-                "illegal string-prefix: \"" <<* reader .word <<* "\" " <<*
-                   reader .pos << '\n' << eputs
+                64 buildString
+                "illegal string-prefix: \"" <<* prefix <<* "\" " <<*
+                   reader .pos << '\n' << build eputs
                 1 exit
               }
             end-case
           '\'' case
-              reader .word "u" == if{
+              reader .word build prefix =::
+              prefix "u" == if{
                 ParseState .STATE_UCHAR state =
                 reader .word clear
-              else reader .word .length 0 == if
+              else prefix .length 0 == if
                 ParseState .STATE_CHAR state =
               else
-                64 string mut new
-                "illegal char-prefix: \"" <<* reader .word <<* "\" " <<*
-                   reader .pos << '\n' << eputs
+                64 buildString
+                "illegal char-prefix: \"" <<* prefix <<* "\" " <<*
+                   reader .pos << '\n' << build eputs
                 1 exit
               }
             end-case
@@ -1750,7 +1752,7 @@ parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
               reader ParserReader.nextByte if{
                 next =
                 next '#' == if{
-                  reader .word clone nextWord =::
+                  reader .word build nextWord =::
                   nextWord .length 0 > if{
                     prevWord .length 0 > if{
                       prevWord nextWord prevPos openBlocks program parseWord
@@ -1761,7 +1763,7 @@ parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
                   reader ParserReader.nextWord
                   ParseState .STATE_LINE_COMMENT state =
                 else next '+' == if
-                  reader .word clone nextWord =::
+                  reader .word build nextWord =::
                   nextWord .length 0 > if{
                     prevWord .length 0 > if{
                       prevWord nextWord prevPos openBlocks program parseWord
@@ -1789,14 +1791,14 @@ parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
           prevWord .length 0 > if{
             prevWord "" prevPos openBlocks program parseWord
             END_OF_SECTION "" prevPos openBlocks program parseWord
-            prevWord clear
+            "" prevWord =
           }
           tokens
             TokenType .VALUE reader .wordPos clone
             state ParseState .STATE_USTRING == if{
-              reader .word codepoints clone-mut~ Value.ofUString
+              reader .word build codepoints Value.ofUString
             else
-              reader .word clone-mut~ Value.ofString
+              reader .word build Value.ofString
             }
           ValueToken mut new << tokens =
           reader ParserReader.nextWord
@@ -1813,16 +1815,16 @@ parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
           prevWord .length 0 > if{
             prevWord "" prevPos openBlocks program parseWord
             END_OF_SECTION "" prevPos openBlocks program parseWord
-            prevWord clear
+            "" prevWord =
           }
           tokens
             TokenType .VALUE reader .wordPos clone
             state ParseState .STATE_UCHAR == if{
-              reader .word codepoints
+              reader .word build codepoints
               dup .length 1 != if{
                 reader .word " is not a valid unicode character " <<*
                 reader .pos << '\n' <<
-                eputs
+                build eputs
                 1 exit
               }
               #+chars+# 0 [] Value.ofCodepoint
@@ -1831,7 +1833,7 @@ parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
               dup .length 1 != if{
                 #+str+# " is not a valid unicode character " <<*
                 reader .pos << '\n' <<
-                eputs
+                build eputs
                 1 exit
               }
               #+chars+# 0 [] Value.ofByte
@@ -1864,31 +1866,31 @@ parseFile proc( #+fileName+# string mut? #+program+# Program mut =>  ){
 
   state switch{
     STATE_WORD case
-      reader .word clone nextWord =::
+      reader .word build nextWord =::
       prevWord .length 0 > if{
         prevWord nextWord prevPos openBlocks program parseWord
-        prevWord clear
+        "" prevWord =
       }
       nextWord "" reader .wordPos clone openBlocks program parseWord
       END_OF_SECTION "" reader .wordPos clone openBlocks program parseWord
       reader ParserReader.nextWord
       end-case
     STATE_CHAR STATE_UCHAR case
-      64 string mut new
+      64 buildString
      "unfinished char-literal " <<* reader .wordPos << '\n' <<
-      eputs
+      build eputs
       1 exit
       end-case
     STATE_STRING STATE_USTRING case
-      64 string mut new
+      64 buildString
      "unfinished string-literal " <<* reader .wordPos << '\n' <<
-      eputs
+      build eputs
       1 exit
       end-case
     STATE_COMMENT case
-      64 string mut new
+      64 buildString
      "unfinished comment " <<* reader .wordPos << '\n' <<
-      eputs
+      build eputs
       1 exit
       end-case
     STATE_LINE_COMMENT case
@@ -1934,10 +1936,10 @@ constEvaluate proc( Token mut list mut? => Token mut list mut ){
           NE
           GE
           GT case
-            128 string mut new
+            128 buildString
             "operators of type:" <<* OperatorType .fieldNames tokens i [] OperatorToken mut cast .opType [] <<*
             " are currently not supported in constant evaluation " <<*
-            tokens i [] .pos << '\n' << eputs
+            tokens i [] .pos << '\n' << build eputs
             1 exit
             end-case
         }
@@ -1951,10 +1953,10 @@ constEvaluate proc( Token mut list mut? => Token mut list mut ){
       BLOCK_TOKEN
       CONTEXT_OPEN
       CONTEXT_CLOSE case
-        128 string mut new
+        128 buildString
         "tokens of type:" <<* TokenType .fieldNames tokens i [] .tokenType [] <<*
         " are currently not supported in constant evaluation " <<*
-        tokens i [] .pos << '\n' << eputs
+        tokens i [] .pos << '\n' << build eputs
         1 exit
       end-case
     }
@@ -1963,16 +1965,16 @@ constEvaluate proc( Token mut list mut? => Token mut list mut ){
   res return
 }
 
-main public proc( string list => ){
-  string list args =:
+main public proc( string array => ){
+  string array args =:
   args .length 2 < if{
     "usage: <pathToFile> \n" puts ## "usage: <pathToFile> (-lib <libPath>)"
     0 exit
   }
-  args 1 [] string mut? path mut =:
+  args 1 [] string path mut =:
   path .length 0 > &&{ path 0 [] '.' == } if{ ##local path
-    args 0 [] .length path .length + string mut new
-    args 0 [] <<* path 1 path .length [:] <<* path =
+    args 0 [] .length path .length + buildString
+    args 0 [] <<* path 1 path .length [:] <<* build path =
   }
 
   16 Token mut list mut new tokens =::
@@ -1981,13 +1983,13 @@ main public proc( string list => ){
   0 int i mut =:
   while{ i tokens .length < do
     tokens i [] Token mut token =:
-    64 string mut new token << " " <<* token .pos << '\n' << puts
+    64 buildString token << " " <<* token .pos << '\n' << build puts
     i 1 + i =
   }
   "\n" puts
   "declared values:\n" puts
   context .elements ^_ for{
       string Declareable mut? MapEntry mut? e =:
-      64 string mut new e .key <<s ": " <<* e .value << println
+      64 buildString e .key <<s ": " <<* e .value << build println
    } drop
 }
