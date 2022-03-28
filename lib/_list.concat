@@ -29,6 +29,13 @@ ensureCap public proc( A <?> A List mut uint => ){##addLater better names for ca
     mList .data newCap realloc
   }
 }
+ensureCap public proc( A <?> A ListSlice mut uint => ){
+  newCap =::
+  slice =::
+  slice .parent .data .capacity slice .parent .data .length slice .length - - newCap < if{
+    slice .parent .data  slice .parent .data .length slice .length - newCap + realloc
+  }
+}
 
 clear public proc( A <?> A List mut => ){
   mList =::
