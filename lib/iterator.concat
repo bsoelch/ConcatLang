@@ -2,44 +2,6 @@ lib/iterator :
 
 core #namespace
 
-ListIterator public struct{ A <>
-  A list mut? :list
-  int         :index mut
-}
-
-^_ public proc( A <?> A list mut? => A ListIterator mut ){
-  A list mut? elements =:
-  elements 0 A ListIterator mut new
-}
-
-_^ public proc( A <?> A list mut? => A ListIterator mut ){
-  A list mut? elements =:
-  elements elements .length A ListIterator mut new
-}
-
-^> public proc( A <?> A ListIterator mut => A ListIterator mut A optional ){
-  A ListIterator mut mItr =:
-  mItr
-  mItr .index mItr .list .length < if{
-    mItr .list mItr .index [] wrap ## push element
-    mItr .index 1 + mItr .index = ## increment iterator
-  else
-    A empty return
-  }
-}
-
-<^ public proc( A <?> A ListIterator mut => A ListIterator mut A optional ){
-  A ListIterator mut mItr =:
-  mItr
-  mItr .index 0 > if{
-    mItr .index 1 - mItr .index = ## decrement iterator
-    mItr .list mItr .index [] wrap ## push element
-  else
-    A empty return
-  }
-}
-
-
 Iterator public struct{ A <>
   A array mut? :array
   int          :index mut

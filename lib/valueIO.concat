@@ -186,20 +186,6 @@ byteArrayToString public proc( byte array mut? => string ){
   }
   res "]" <<* build return
 }
-byteListToString public proc( byte list => string ){
-  byte list bytes =:
-  bytes .length 6 * buildString res =::
-  res "[" <<* res =
-  0 int i mut =:
-  while{ i bytes .length < do
-    i 0 > if{
-      res ", " <<* res =
-    }
-    res bytes i [] <<byte res =
-    i 1 + i =
-  }
-  res "]" <<* build return
-}
 
 print   public proc( var      =>      ){      stringValue           puts        }
 println public proc( var      =>      ){
