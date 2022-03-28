@@ -65,7 +65,7 @@ z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint
 
--11 4 int array new z z .length insertAll
+-11 4 int array new z z .data .length insertAll
 z debugPrint
 z .data .offset   debugPrint
 z .data .capacity debugPrint

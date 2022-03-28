@@ -78,7 +78,7 @@ _list #include
 *>> public proc( ustring mut? stringBuilder => stringBuilder ){
   value =::
   append =::
-  value value .length append .length + ensureCap
+  value value .data .length append .length + ensureCap
   append .length 1 - int i mut =:
   while{ i 0 >= do
     append i [] value >> value =
