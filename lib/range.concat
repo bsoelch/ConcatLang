@@ -4,7 +4,7 @@ core #namespace
 stack #include
 codeblocks #include
 
-intRange struct{
+intRange public struct{
   int :off
   int :step
   int :to
@@ -46,7 +46,7 @@ intRange struct{
   prev int empty return
 }
 
-filteredRange struct{
+filteredRange public struct{
   intRange              :base
   ( int => bool ) array :filters
 }
