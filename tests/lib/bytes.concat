@@ -6,8 +6,8 @@ bytes #include
 { 0x12 0x34 } uintFromBytes debugPrint
 { 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff } uintFromBytes debugPrint
 
-{ 'H' 'e' 'l' 'l' 'o' ' ' } uintFromBytes debugPrint ##addLater use string literals (once they are arrays)
-{ 'W' 'o' 'r' 'l' 'd' '!' } uintFromBytes debugPrint
+"Hello " uintFromBytes debugPrint
+"World!" uintFromBytes debugPrint
 
 0x1234 uintToBytes int array mut? cast debugPrint
 -1     uintToBytes int array mut? cast debugPrint

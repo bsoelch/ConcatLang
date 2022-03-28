@@ -4,7 +4,7 @@ core #namespace
 lists #include
 stack #include
 
-{ 1 2 3 4 } clone l =:: ##addLater add possibility to create mutable arrays
+{ 1 2 3 4 } clone l =:: ##addLater add possibility to directly create mutable arrays
 l reverse
 l debugPrint
 

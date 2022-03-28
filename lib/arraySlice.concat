@@ -1,6 +1,7 @@
 lib/arraySlice:
 
 core #namespace
+codeblocks #include
 
 arraySlice public struct{ A <>
   A array mut^ :parent
@@ -30,13 +31,13 @@ arraySlice public struct{ A <>
 [] public proc( A <?> A arraySlice mut? uint => A ){
       index =::
       slice =::
-      ##TODO index check
+      index 0 >= &&{ index slice .length < } "index in range" assert
       slice .parent slice .offset index + [] return
 }
 []= public proc( A <?> A A arraySlice mut uint => ){
       index =::
       slice =::
-      ##TODO index check
+      index 0 >= &&{ index slice .length < } "index in range" assert
       #+val+# slice .parent slice .offset index + []= return
 }
 
