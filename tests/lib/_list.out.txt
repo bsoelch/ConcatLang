@@ -58,8 +58,8 @@ ___________________________________
 (int List mut:(int memory mut:[int:8, int:7, int:-43, int:-43, int:-43, int:-43, int:2, int:1, int:-12, int:3, int:-12, int:-12, int:-13, int:4, int:5, int:6, int:7]),uint:7,uint:6)
 (int List mut:(int memory mut:[int:1, int:2, int:3, int:4, int:5]),uint:1,uint:3)
 (int List mut:(int memory mut:[int:1, int:2, int:3, int:1, int:2, int:3, int:4, int:5, int:4, int:5]),uint:1,uint:8)
-(int List mut:(int memory mut:[int:1, int:-2, int:2, int:3, int:1, int:2, int:3, int:4, int:5, int:4, int:-1, int:5]),uint:1,uint:10)
-(int List mut:(int memory mut:[int:1, int:-3, int:-3, int:-2, int:2, int:3, int:1, int:2, int:3, int:4, int:5, int:4, int:-1, int:-3, int:-3, int:5]),uint:1,uint:14)
+(int List mut:(int memory mut:[int:1, int:-1, int:2, int:3, int:1, int:2, int:3, int:4, int:5, int:4, int:-2, int:5]),uint:1,uint:10)
+(int List mut:(int memory mut:[int:1, int:-3, int:-3, int:-1, int:2, int:3, int:1, int:2, int:3, int:4, int:5, int:4, int:-2, int:-3, int:-3, int:5]),uint:1,uint:14)
 (int List mut:(int memory mut:[int:1, int:2, int:3, int:4, int:5]),uint:1,uint:3)
 (int List mut:(int memory mut:[int:1, int:2, int:2, int:3, int:4, int:3, int:4, int:5]),uint:1,uint:6)
 ___________________________________
@@ -148,22 +148,22 @@ int:2 wrap
 int empty
 int empty
 ___________________________________
-(byte list memory mut:[byte list:first, byte list:second, byte list:third, byte list:last])
+(byte array memory mut:[byte array:first, byte array:second, byte array:third, byte array:last])
 first
-byte list:first wrap
+byte array:first wrap
 last
-byte list:last wrap
-(byte list List mut:(byte list memory mut:[byte list:first, byte list:second, byte list:third, byte list:last]),uint:1,uint:2)
+byte array:last wrap
+(byte array List mut:(byte array memory mut:[byte array:first, byte array:second, byte array:third, byte array:last]),uint:1,uint:2)
 second
-byte list:second wrap
+byte array:second wrap
 third
-byte list:third wrap
-(byte list List mut:(byte list memory mut:[byte list:first, byte list:last]),uint:1,uint:0)
-byte list empty
-byte list empty
-(byte list memory mut:[])
-byte list empty
-byte list empty
+byte array:third wrap
+(byte array List mut:(byte array memory mut:[byte array:first, byte array:last]),uint:1,uint:0)
+byte array empty
+byte array empty
+(byte array memory mut:[])
+byte array empty
+byte array empty
 
 Stack:
 []

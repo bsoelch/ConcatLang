@@ -332,7 +332,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
 << public proc( A <?> A ListSlice mut A => A ListSlice mut ){
   val =::
   slice =::
-  val slice .parent slice .offset insert
+  val slice .parent slice .offset slice .length + insert
   slice .length 1 + slice .length =
   slice return
 }
@@ -351,7 +351,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
 >> public proc( A <?> A A ListSlice mut => A ListSlice mut ){
   slice =::
   val =::
-  val slice .parent slice .offset slice .length + insert
+  val slice .parent slice .offset insert
   slice .length 1 + slice .length =
   slice return
 }
