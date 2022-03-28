@@ -1523,6 +1523,20 @@ public abstract class Value {
             }
             return super.castTo(type);
         }
+        @Override
+        public Value clone(boolean deep) {
+            Value[] newData=data.clone();
+            if(deep){
+                for(int i=offset;i<offset+length;i++){
+                    newData[i]=data[i].clone(true);
+                }
+            }
+            ArrayValue clone=new ArrayValue(type,newData);
+            clone.offset=offset;
+            clone.length=length;
+            return clone;
+        }
+
         /*raw data of this Value as a standard java Object*/
         Object rawData(Type argType) throws TypeError {
             if(argType.isArray()&&argType.content()==Type.BYTE){
