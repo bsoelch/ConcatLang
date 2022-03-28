@@ -32,7 +32,7 @@ hashCode public proc( var => uint ){
   ## addLater? use array-hash for tuple/enum-types
   valType .isList if{
     value listHash return
-  else valType .isArray if
+  else valType .isArray ||{ valType .isMemory } if
     value arrayHash return
   else valType ( ) <= if
     0 uint hash mut =:
