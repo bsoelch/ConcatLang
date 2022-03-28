@@ -2394,7 +2394,7 @@ public class Interpreter {
                 //debug helpers
                 case "debugPrint"    -> tokens.add(new Token(TokenType.DEBUG_PRINT, pos));
                 case "assert"    -> {
-                    if(tokens.size()<2){
+                    if(tokens.size()<1){
                         throw new SyntaxError("not enough tokens for 'assert'",pos);
                     }
                     prev=tokens.remove(tokens.size()-1);
