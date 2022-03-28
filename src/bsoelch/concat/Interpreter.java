@@ -61,7 +61,7 @@ public class Interpreter {
         }
         @Override
         public String toString() {
-            return tokenType.toString();
+            return tokenType.toString()+" at "+pos;
         }
 
         public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
@@ -398,7 +398,7 @@ public class Interpreter {
         }
     }
 
-    enum CompilerTokenType{TOKENS,BLOCKS,TYPES}
+    enum CompilerTokenType{TOKENS,BLOCKS, GLOBAL_CONSTANTS,TYPES,CONTEXT}
     static class CompilerToken extends Token{
         final CompilerTokenType type;
         final int count;
@@ -424,6 +424,11 @@ public class Interpreter {
             this.parentContext = parentContext;
         }
         abstract VariableContext context();
+
+        @Override
+        public String toString() {
+            return type+"-Block at "+startPos;//addLater overwrite in subclasses
+        }
     }
     static class ProcedureBlock extends CodeBlock{
         static final int STATE_IN=0,STATE_OUT=1,STATE_BODY=2;
@@ -1034,7 +1039,8 @@ public class Interpreter {
         }
         @Override
         public String toString() {
-            return "@"+context+"."+level+"-"+id;
+            return "VariableId{id="+id+", type="+type+", accessibility="+accessibility+", mutability="+
+                    mutability+", declaredAt="+declaredAt+", context="+context+"}";
         }
 
         @Override
@@ -1409,12 +1415,19 @@ public class Interpreter {
         String namespace() {
             return "";
         }
+
+        @Override
+        public String toString() {
+            return "root ";
+        }
     }
     private static class FileContext extends TopLevelContext{
         final RootContext root;
+        final String fileName;
         final HashMap<String,Declareable> localDeclareables =new HashMap<>();
-        FileContext(RootContext root) {
+        FileContext(RootContext root,String fileName) {
             this.root = root;
+            this.fileName = fileName;
         }
         @Override
         RootContext root() {
@@ -1446,6 +1459,10 @@ public class Interpreter {
         @Override
         String namespace() {
             return "";
+        }
+        @Override
+        public String toString() {
+            return root+"("+fileName+") ";
         }
     }
     private static class NamespaceContext extends TopLevelContext{
@@ -1480,6 +1497,11 @@ public class Interpreter {
         @Override
         String namespace() {
             return parent.namespace()+prefix;
+        }
+
+        @Override
+        public String toString() {
+            return parent.toString()+prefix;
         }
     }
     private static class BlockContext extends VariableContext {
@@ -1534,6 +1556,11 @@ public class Interpreter {
         @Override
         int level() {
             return parent.level()+1;
+        }
+
+        @Override
+        public String toString() {
+            return parent+" - ";
         }
     }
     static class GenericContext extends BlockContext{
@@ -1670,11 +1697,11 @@ public class Interpreter {
         final RootContext rootContext;
         final ArrayDeque<TopLevelContext> openedFiles=new ArrayDeque<>();
         private TopLevelContext topLevelContext;
-        void startFile(){
+        void startFile(String name){
             if(topLevelContext!=null){
                 openedFiles.add(topLevelContext);
             }
-            topLevelContext=new FileContext(rootContext);
+            topLevelContext=new FileContext(rootContext,name);
         }
         void startNamespace(String name){
             if(topLevelContext==null){
@@ -1740,7 +1767,7 @@ public class Interpreter {
         //ensure that each file is included only once
         pState.files.add(fileId);
 
-        pState.startFile();
+        pState.startFile(fileId);
 
         reader.nextToken();
         WordState state=WordState.ROOT;
@@ -1869,8 +1896,21 @@ public class Interpreter {
                             System.out.println("n > #tokens ("+tokens.size()+")");
                             n=tokens.size();
                         }
+                        System.out.println("tokens:");
                         for(int k=1;k<=n;k++){
-                            System.out.println(tokens.get(tokens.size()-k));
+                            System.out.println("  "+tokens.get(tokens.size()-k));
+                        }
+                    }
+                    case "globalCode"->{
+                        int n=Integer.parseInt(commands[1]);
+                        ArrayList<Token> tokens = pState.globalCode;
+                        if(n>tokens.size()){
+                            System.out.println("n > #tokens ("+tokens.size()+")");
+                            n=tokens.size();
+                        }
+                        System.out.println("tokens:");
+                        for(int k=1;k<=n;k++){
+                            System.out.println("  "+tokens.get(tokens.size()-k));
                         }
                     }
                     case "globalBlocks"->{
@@ -1880,9 +1920,10 @@ public class Interpreter {
                             System.out.println("n > #blocks ("+blocks.size()+")");
                             n=blocks.size();
                         }
+                        System.out.println("globalBlocks:");
                         CodeBlock[] blockArray = blocks.toArray(CodeBlock[]::new);
                         for(int k=1;k<=n;k++){
-                            System.out.println(blockArray[blocks.size()-k]);
+                            System.out.println("  "+blockArray[blocks.size()-k]);
                         }
                     }
                     case "code"->{
@@ -1897,6 +1938,10 @@ public class Interpreter {
                         int n=Integer.parseInt(commands[1]);
                         pState.tokens.add(new CompilerToken(CompilerTokenType.TYPES,n,pos));
                     }
+                    case "globalConstants"->
+                            pState.tokens.add(new CompilerToken(CompilerTokenType.GLOBAL_CONSTANTS,0,pos));
+                    case "context"->
+                            pState.tokens.add(new CompilerToken(CompilerTokenType.CONTEXT,0,pos));
                     default ->
                         System.out.println("unknown compiler command: "+commands[0]);
                 }
@@ -2821,39 +2866,7 @@ public class Interpreter {
         for(int i=0;i<tokens.size();i++){
             Token t=tokens.get(i);
             if(t instanceof CompilerToken){
-                switch(((CompilerToken) t).type){
-                    case TOKENS -> {
-                        int n=((CompilerToken) t).count;
-                        if(n > ret.size()){
-                            System.out.println("n > #tokens ("+ret.size()+")");
-                            n=ret.size();
-                        }
-                        for(int k=1;k<=n;k++){
-                            System.out.println(ret.get(ret.size()-k));
-                        }
-                    }
-                    case BLOCKS -> {
-                        int n=((CompilerToken) t).count;
-                        if(n > openBlocks.size()){
-                            System.out.println("n > #blocks ("+openBlocks.size()+")");
-                            n=openBlocks.size();
-                        }
-                        CodeBlock[] blocks=openBlocks.toArray(CodeBlock[]::new);
-                        for(int k=1;k<=n;k++){
-                            System.out.println(blocks[openBlocks.size()-k]);
-                        }
-                    }
-                    case TYPES -> {
-                        int n=((CompilerToken) t).count;
-                        if(n > typeStack.size()){
-                            System.out.println("n > #types ("+typeStack.size()+")");
-                            n=typeStack.size();
-                        }
-                        for(int k=1;k<=n;k++){
-                            System.out.println(typeStack.get(k));
-                        }
-                    }
-                }
+                processCompilerToken((CompilerToken) t, typeStack, openBlocks, ret,globalConstants,context);
                 continue;//don't check t as a normal token
             }
             if(finishedBranch){
@@ -3026,6 +3039,56 @@ public class Interpreter {
             merge(typeStack,blockEnd,branch.types,branch.end,"return");
         }
         return new TypeCheckResult(ret,typeStack);
+    }
+
+    private void processCompilerToken(CompilerToken t, RandomAccessStack<TypeFrame> typeStack, ArrayDeque<CodeBlock> openBlocks,
+                                      ArrayList<Token> ret, HashMap<VariableId, Value> globalConstants, VariableContext context) {
+        switch(t.type){
+            case TOKENS -> {
+                int n= t.count;
+                if(n > ret.size()){
+                    System.out.println("n > #tokens ("+ ret.size()+")");
+                    n= ret.size();
+                }
+                System.out.println("tokens:");
+                for(int k=1;k<=n;k++){
+                    System.out.println("  "+ret.get(ret.size()-k));
+                }
+            }
+            case BLOCKS -> {
+                int n= t.count;
+                if(n > openBlocks.size()){
+                    System.out.println("n > #blocks ("+ openBlocks.size()+")");
+                    n= openBlocks.size();
+                }
+                System.out.println("openBlocks:");
+                CodeBlock[] blocks= openBlocks.toArray(CodeBlock[]::new);
+                for(int k=1;k<=n;k++){
+                    System.out.println("  "+blocks[openBlocks.size()-k]);
+                }
+            }
+            case GLOBAL_CONSTANTS -> {
+                System.out.println("globalConstants:");
+                for(Map.Entry<VariableId, Value> e:globalConstants.entrySet()){
+                    System.out.println("  "+e.getValue()+"\n  @"+e.getKey());
+                }
+            }
+            case TYPES -> {
+                int n= t.count;
+                if(n > typeStack.size()){
+                    System.out.println("n > #types ("+ typeStack.size()+")");
+                    n= typeStack.size();
+                }
+                System.out.println("types:");
+                for(int k=1;k<=n;k++){
+                    System.out.println("  "+typeStack.get(k));
+                }
+            }
+            case CONTEXT -> {
+                System.out.println("context:");
+                System.out.println("  "+context);
+            }
+        }
     }
 
     record BlockCheckReturn(boolean finishedBranch,RandomAccessStack<TypeFrame> typeStack,VariableContext context,int i){}
