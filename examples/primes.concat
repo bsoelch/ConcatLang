@@ -12,13 +12,13 @@ printPrimes proc( int => ){
   nMax 2 < if{
     return
   }
-  128 string mut new 2 <<i ", " <<* buff =::
+  128 buildString 2 <<i ", " <<* buff =::
   ##primes > 2
   3 nMax [n:m] lambda( int ){ 2 % 0 != } filter for{ k =::
     buff k <<i ", " <<* buff =
     lambda( int ){ k % 0 != } filter ##filter out all multiples of k
   } drop
-  buff '\n' << puts
+  buff '\n' << build puts
 }
 
 100 printPrimes
