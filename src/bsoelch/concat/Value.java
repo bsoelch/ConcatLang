@@ -21,7 +21,7 @@ public abstract class Value {
             return "false";
         }
         @Override
-        Object rawData() {
+        Object rawData(Type argType) {
             return false;
         }
     };
@@ -35,7 +35,7 @@ public abstract class Value {
             return "true";
         }
         @Override
-        Object rawData() {
+        Object rawData(Type argType) {
             return true;
         }
     };
@@ -51,7 +51,7 @@ public abstract class Value {
     }
 
     /*raw data of this Value as a standard java Object*/
-    Object rawData() throws TypeError {
+    Object rawData(Type argType) throws TypeError {
         throw new TypeError("Cannot convert "+type+" to native value");
     }
     /*updates mutable values form their raw data representation*/
@@ -219,7 +219,7 @@ public abstract class Value {
             return intValue;
         }
         @Override
-        Object rawData() {
+        Object rawData(Type argType) {
             return intValue;
         }
 
@@ -351,7 +351,7 @@ public abstract class Value {
             return floatValue;
         }
         @Override
-        Object rawData() {
+        Object rawData(Type argType) {
             return floatValue;
         }
 
@@ -478,7 +478,7 @@ public abstract class Value {
         }
 
         @Override
-        Object rawData() {
+        Object rawData(Type argType) {
             return codePoint;
         }
 
@@ -540,7 +540,7 @@ public abstract class Value {
         }
 
         @Override
-        Object rawData() {
+        Object rawData(Type argType) {
             return byteValue;
         }
 
@@ -591,6 +591,15 @@ public abstract class Value {
             return new ByteListImpl(bytes.length,bytes);
         }
     }
+
+    private static Value[] wrapBytes(byte[] bytes) {
+        Value[] wrapped=new Value[bytes.length];
+        for(int i = 0; i< bytes.length; i++){
+            wrapped[i]=ofByte(bytes[i]);
+        }
+        return wrapped;
+    }
+
     public static Value createList(Type listType, ArrayList<Value> elements) throws ConcatRuntimeError {
         if(!(listType.isList()||listType.isArray()||listType.isMemory())){
             throw new IllegalArgumentException(listType+" is no valid list-type");
@@ -1145,7 +1154,7 @@ public abstract class Value {
         }
         //rawData: bytes,off,len,size
         @Override
-        Object rawData() {
+        Object rawData(Type argType) {
             return new Object[]{elements,0,size,size};
         }
         @Override
@@ -1314,7 +1323,7 @@ public abstract class Value {
         }
         //rawData: bytes,off,len,size
         @Override
-        Object rawData() {
+        Object rawData(Type argType) {
             return new Object[]{list.elements,off,to-off,list.size};
         }
         @Override
@@ -1530,25 +1539,38 @@ public abstract class Value {
             return super.castTo(type);
         }
         /*raw data of this Value as a standard java Object*/
-        Object rawData() throws TypeError {
-            if(type.isArray()&&type.content()==Type.BYTE){
+        Object rawData(Type argType) throws TypeError {
+            if(argType.isArray()&&argType.content()==Type.BYTE){
                 byte[] unpacked=new byte[length];
                 for(int i=0;i<length;i++){
                     unpacked[i]=data[offset+i].asByte();
                 }
                 return unpacked;
+            }else if(argType.isMemory()&&argType.content()==Type.BYTE){
+                byte[] unpacked=new byte[data.length];
+                for(int i=0;i<length;i++){
+                    unpacked[offset+i]=data[offset+i].asByte();
+                }
+                return new Object[]{unpacked,offset,length};
             }
-            return super.rawData();
+            return super.rawData(argType);
         }
         @Override
         void updateFrom(Object nativeArg) throws ConcatRuntimeError {
-            if(type.isArray()&&type.content()==Type.BYTE){
-                byte[] unpacked=(byte[])nativeArg;
+            if(nativeArg instanceof byte[] unpacked && (type.isArray()||type.isMemory())&&type.content()==Type.BYTE){
                 for(int i=0;i<length;i++){
                     data[offset+i]=ofByte(unpacked[i]);
                 }
+            }else if(nativeArg instanceof Object[] nativeArgs && type.isMemory()&&type.content()==Type.BYTE){
+                byte[] unpacked=(byte[])nativeArgs[0];
+                offset=(int)nativeArgs[1];
+                length=(int)nativeArgs[2];
+                for(int i=0;i<length;i++){
+                    data[offset+i]=ofByte(unpacked[i]);
+                }
+            }else{
+                super.updateFrom(nativeArg);
             }
-            super.updateFrom(nativeArg);
         }
 
         @Override
@@ -1984,9 +2006,9 @@ public abstract class Value {
             this.wrapped = null;
         }
         @Override
-        Object rawData() throws TypeError {
+        Object rawData(Type argType) throws TypeError {
             Value.jClass(type.content());//check type
-            return wrapped==null?Optional.empty():Optional.of(wrapped.rawData());
+            return wrapped==null?Optional.empty():Optional.of(wrapped.rawData(argType.content()));
         }
 
         @Override
@@ -2939,11 +2961,13 @@ public abstract class Value {
             }else if(type==Type.FLOAT){
                 return ofFloat((Double)jValue);
             }else if(type.isArray()&&type.content()==Type.BYTE){
-                byte[] bytes=(byte[])jValue;
-                Value[] wrappedBytes=new Value[bytes.length];
-                for(int i=0;i<bytes.length;i++)
-                    wrappedBytes[i]=ofByte(bytes[i]);
-                return new ArrayValue(type,wrappedBytes);
+                return new ArrayValue(type,wrapBytes((byte[])jValue));
+            }else if(type.isMemory()&&type.content()==Type.BYTE){
+                Object[] parts=(Object[])jValue;
+                ArrayValue val=new ArrayValue(type,wrapBytes((byte[])parts[0]));
+                val.offset=(int)parts[1];
+                val.length=(int)parts[2];
+                return val;
             }else if(type.isRawString()){
                 Object[] parts=(Object[])jValue;
                 byte[] bytes=(byte[])parts[0];
@@ -2983,8 +3007,8 @@ public abstract class Value {
             return Object.class;
         }else if(t.isArray()&&t.content()==Type.BYTE){
             return byte[].class;
-        }else if(t.isRawString()){
-            return Object[].class;//bytes,off,len,init
+        }else if(t.isRawString()||t.isMemory()&&t.content()==Type.BYTE){
+            return Object[].class;//bytes,off,length
         }else if(t.isOptional()){
             jClass(t.content());//check content Type
             return Optional.class;
@@ -3039,7 +3063,7 @@ public abstract class Value {
         }
 
         @Override
-        Object rawData(){
+        Object rawData(Type argType){
             return nativeValue;
         }
 
@@ -3060,7 +3084,7 @@ public abstract class Value {
         Value[] callWith(Value[] values) throws ConcatRuntimeError {
             Object[] nativeArgs=new Object[values.length];
             for(int i=0;i<values.length;i++){
-                nativeArgs[i]=values[i].rawData();
+                nativeArgs[i]=values[i].rawData(type.inTypes().get(i));
             }
             try {
                 Object res=nativeMethod.invoke(null,nativeArgs);
