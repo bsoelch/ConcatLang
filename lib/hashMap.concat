@@ -25,7 +25,7 @@ hashCode public proc( var => uint ){
   else valType ( ) <= if
     0 uint hash mut =:
     0 uint i mut =:
-    while{ i value ( ) cast .length < do
+    while{ i value length < do
       hash 31 * value ( ) cast i [] hashCode + hash =
       i 1 + i =
     }

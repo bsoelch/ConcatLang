@@ -1353,6 +1353,12 @@ public abstract class Value {
                 return new Value[]{values[0].isEqualTo(values[1])?FALSE:TRUE};
             }
         });
+        procs.add(new InternalProcedure(new Type[]{Type.Tuple.EMPTY_TUPLE},new Type[]{Type.UINT},"length") {
+            @Override
+            Value[] callWith(Value[] values) throws TypeError {
+                return new Value[]{Value.ofInt(values[0].length(),true)};
+            }
+        });
         //addLater? implement equals in standard library
         procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"==") {
             @Override

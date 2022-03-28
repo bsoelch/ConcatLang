@@ -3654,7 +3654,7 @@ public class Interpreter {
                                     hasField = true;
                                 }
                             }
-                        }else if (identifier.name.equals("length") && (f.type.isArray()||f.type instanceof Type.Tuple)) {
+                        }else if (identifier.name.equals("length") && f.type.isArray()) {
                             typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
                             ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
                             hasField = true;
