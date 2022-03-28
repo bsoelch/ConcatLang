@@ -1,4 +1,5 @@
 test/includeAll :
+arraySlice #include
 bufferedIO #include
 bytes #include
 chars #include

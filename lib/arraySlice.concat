@@ -1,0 +1,37 @@
+lib/arraySlice:
+
+core #namespace
+
+arraySlice public struct{ A <>
+  A array mut^ :parent
+  uint         :offset
+  uint         :length
+}
+
+[:] public proc( A <?> A array mut uint uint => A arraySlice mut ){
+   to =::
+   off =::
+   to off >= "to>=off" assert
+   #+array+# off to off - A arraySlice new return
+}
+[:] public proc( A <?> A array uint uint => A arraySlice ){
+   to =::
+   off =::
+   to off >= "to>=off" assert
+   #+array+# off to off - A arraySlice new return
+}
+
+[] public proc( A <?> A arraySlice mut? uint => A ){
+      index =::
+      slice =::
+      ##TODO index check
+      slice .parent slice .offset index + [] return
+}
+[]= public proc( A <?> A A arraySlice mut uint => ){
+      index =::
+      slice =::
+      ##TODO index check
+      #+val+# slice .parent slice .offset index + []= return
+}
+
+#end ## core
