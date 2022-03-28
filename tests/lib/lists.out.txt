@@ -9,7 +9,7 @@ sort2:
 
 [int:4, int:3, int:2, int:1]
 [int:4, int:3, int:2, int:1]
-[byte array:comparator, byte array:supported, byte array:sorting, byte array:with, byte array:now, byte array:is]
+[byte array mut~:comparator, byte array mut~:supported, byte array mut~:sorting, byte array mut~:with, byte array mut~:now, byte array mut~:is]
 _________________________
 map:
 

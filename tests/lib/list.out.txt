@@ -148,22 +148,22 @@ int:2 wrap
 int empty
 int empty
 ___________________________________
-(byte array memory mut:[byte array:first, byte array:second, byte array:third, byte array:last])
+(byte array mut~ memory mut:[byte array mut~:first, byte array mut~:second, byte array mut~:third, byte array mut~:last])
 first
-byte array:first wrap
+byte array mut~:first wrap
 last
-byte array:last wrap
-(byte array List mut:(byte array memory mut:[byte array:first, byte array:second, byte array:third, byte array:last]),uint:1,uint:2)
+byte array mut~:last wrap
+(byte array mut~ List mut:(byte array mut~ memory mut:[byte array mut~:first, byte array mut~:second, byte array mut~:third, byte array mut~:last]),uint:1,uint:2)
 second
-byte array:second wrap
+byte array mut~:second wrap
 third
-byte array:third wrap
-(byte array List mut:(byte array memory mut:[byte array:first, byte array:last]),uint:1,uint:0)
-byte array empty
-byte array empty
-(byte array memory mut:[])
-byte array empty
-byte array empty
+byte array mut~:third wrap
+(byte array mut~ List mut:(byte array mut~ memory mut:[byte array mut~:first, byte array mut~:last]),uint:1,uint:0)
+byte array mut~ empty
+byte array mut~ empty
+(byte array mut~ memory mut:[])
+byte array mut~ empty
+byte array mut~ empty
 
 Stack:
 []

@@ -4,13 +4,13 @@
 __________________________
 put:
 
-byte array empty
-byte array empty
-byte array empty
-byte array:tree wrap
-byte array empty
-byte array empty
-byte array empty
+byte array mut~ empty
+byte array mut~ empty
+byte array mut~ empty
+byte array mut~:tree wrap
+byte array mut~ empty
+byte array mut~ empty
+byte array mut~ empty
 __________________________
 contains:
 
@@ -20,15 +20,15 @@ true
 __________________________
 get:
 
-byte array:three wrap
-byte array:six wrap
-byte array empty
+byte array mut~:three wrap
+byte array mut~:six wrap
+byte array mut~ empty
 __________________________
 remove:
 
-byte array:one wrap
-byte array:five wrap
-byte array empty
+byte array mut~:one wrap
+byte array mut~:five wrap
+byte array mut~ empty
 __________________________
 iterator:
 

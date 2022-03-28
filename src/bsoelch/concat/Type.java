@@ -103,23 +103,22 @@ public class Type {
     final Mutability mutability;
     static String mutabilityPostfix(Mutability mutability) {
         switch (mutability){
-            case IMMUTABLE -> {return "";}
+            case DEFAULT -> {return "";}
             case MUTABLE -> {return " mut";}
             case UNDECIDED -> {return " mut?";}
+            case IMMUTABLE -> {return " mut~";}
             case INHERIT -> {return " mut^";}
         }
         throw new RuntimeException("unreachable");
     }
     private Type(String name, boolean switchable) {
-        this(name,switchable,Mutability.IMMUTABLE);
+        this(name,switchable,Mutability.DEFAULT);
     }
     private Type(String name, boolean switchable,Mutability mutability) {
         this.name = name;
         this.switchable = switchable;
         this.mutability=mutability;
     }
-
-
 
     @Override
     public final boolean equals(Object o) {
@@ -185,6 +184,10 @@ public class Type {
     public int depth() {
         return 0;
     }
+
+    boolean canAssignMutability(Type t) {
+        return Mutability.isDifferent(t.mutability,mutability) && t.mutability != Mutability.UNDECIDED;
+    }
     public boolean isMutable() {
         return mutability==Mutability.MUTABLE;
     }
@@ -231,7 +234,7 @@ public class Type {
     }
     static Type updateChildMutability(Type t, Mutability mutability){
         if(t.mutability==Mutability.INHERIT){
-            return t.setMutability(mutability==Mutability.INHERIT?Mutability.IMMUTABLE:mutability);
+            return t.setMutability(mutability==Mutability.INHERIT?Mutability.DEFAULT:mutability);
         }
         return t;
     }
@@ -252,14 +255,14 @@ public class Type {
     }
 
     public static Type arrayOf(Type contentType){
-        return WrapperType.create(WrapperType.ARRAY,contentType,Mutability.IMMUTABLE);
+        return WrapperType.create(WrapperType.ARRAY,contentType,Mutability.DEFAULT);
     }
     public static Type memoryOf(Type contentType){
-        return WrapperType.create(WrapperType.MEMORY,contentType,Mutability.IMMUTABLE);
+        return WrapperType.create(WrapperType.MEMORY,contentType,Mutability.DEFAULT);
     }
 
     public static Type optionalOf(Type contentType){
-        return WrapperType.create(WrapperType.OPTIONAL,contentType,Mutability.IMMUTABLE);
+        return WrapperType.create(WrapperType.OPTIONAL,contentType,Mutability.DEFAULT);
     }
 
     private static class WrapperType extends Type {
@@ -341,7 +344,7 @@ public class Type {
             if(t instanceof WrapperType&&(((WrapperType)t).wrapperName.equals(wrapperName)||
                     wrapperName.equals(MEMORY)&&((WrapperType)t).wrapperName.equals(ARRAY))){
                 if(t.mutability!=Mutability.UNDECIDED){
-                    if(t.mutability!=mutability){
+                    if(Mutability.isDifferent(t.mutability,mutability)){
                         return false;//incompatible mutability
                     }//no else
                     if(isMutable()&&!t.content().canAssignTo(content(),bounds.swapped())){
@@ -357,9 +360,7 @@ public class Type {
         @Override
         public boolean canCastTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                if(t.mutability!=mutability&&t.mutability!=Mutability.UNDECIDED){
-                   return false;//incompatible mutability
-                }
+                if (canAssignMutability(t)) return false;//incompatible mutability
                 return content().canCastTo(t.content(),bounds);
             }else{
                 return super.canCastTo(t,bounds);
@@ -375,7 +376,7 @@ public class Type {
         protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
             if (this == t) return true;
             if (!(t instanceof WrapperType that)) return false;
-            return content().equals(that.content(),generics) &&mutability==that.mutability
+            return content().equals(that.content(),generics) &&Mutability.isEqual(t.mutability,mutability)
                     && Objects.equals(wrapperName, that.wrapperName);
         }
         @Override
@@ -408,11 +409,11 @@ public class Type {
                 typeName=name;
             }
             return new Tuple(typeName,name,isPublic, new GenericParameter[0], new Type[0], elements,
-                    Mutability.IMMUTABLE, declaredAt);
+                    Mutability.DEFAULT, declaredAt);
         }
         public static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
                                           Type[] elements, FilePosition declaredAt) {
-            return create(name, isPublic, genericParams, genericArgs, elements,Mutability.IMMUTABLE,declaredAt);
+            return create(name, isPublic, genericParams, genericArgs, elements,Mutability.DEFAULT,declaredAt);
         }
         private static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
                                    Type[] elements,Mutability mutability,FilePosition declaredAt) {
@@ -528,7 +529,7 @@ public class Type {
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(canAssignBaseTuple(t)&&((Tuple) t).elementCount()<=elementCount()){
-                if(t.mutability!=mutability&&t.mutability!=Mutability.UNDECIDED){
+                if(canAssignMutability(t)){//TODO check reverse comparison for mutable tuples
                     return false;//incompatible mutability
                 }
                 for(int i=0;i<((Tuple) t).elements.length;i++){
@@ -547,7 +548,7 @@ public class Type {
         @Override
         protected boolean canCastTo(Type t,  BoundMaps bounds) {
             if(canCastBaseTuple(t)){
-                if(t.mutability!=mutability&&t.mutability!=Mutability.UNDECIDED){
+                if(canAssignMutability(t)){
                     return false;//incompatible mutability
                 }
                 int n=Math.min(elements.length,((Tuple) t).elements.length);
@@ -582,7 +583,7 @@ public class Type {
             if (t.getClass()!=getClass())
                 return false;
             Tuple tuple=(Tuple)t;
-            if(mutability!=t.mutability)
+            if(Mutability.isDifferent(t.mutability,mutability))
                 return false;
             if(tuple.elements.length!=elements.length)
                 return false;
@@ -643,11 +644,11 @@ public class Type {
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
             return new Struct(name, name, isPublic, extended, new GenericParameter[0], new Type[0],
-                    types, fields,Mutability.IMMUTABLE,declaredAt);
+                    types, fields,Mutability.DEFAULT,declaredAt);
         }
         static Struct create(String name,boolean isPublic,Struct extended,GenericParameter[] genericParams,Type[] genericArgs,
                                    StructField[] fields,Type[] types, FilePosition declaredAt) {
-            return create(name, isPublic, extended, genericParams, genericArgs, fields, types,Mutability.IMMUTABLE, declaredAt);
+            return create(name, isPublic, extended, genericParams, genericArgs, fields, types,Mutability.DEFAULT, declaredAt);
         }
         private static Struct create(String name,boolean isPublic,Struct extended,GenericParameter[] genericParams,Type[] genericArgs,
                              StructField[] fields,Type[] types,Mutability mutability, FilePosition declaredAt) {

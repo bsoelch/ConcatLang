@@ -7,10 +7,10 @@
 [byte List mut:(byte memory mut:prepend ustring)]
 [codepoint List mut:(codepoint memory mut:pprepend codepoint)]
 [byte memory mut:💻]
-[byte array:A°💻, uint:1, codepoint:A, bool:true]
-[byte array:A°💻, uint:2, codepoint:°, bool:true]
-[byte array:A°💻, uint:6, codepoint:💻, bool:true]
-[byte array:A°💻, uint:6, codepoint:💻, bool:true]
+[byte array mut~:A°💻, uint:1, codepoint:A, bool:true]
+[byte array mut~:A°💻, uint:2, codepoint:°, bool:true]
+[byte array mut~:A°💻, uint:6, codepoint:💻, bool:true]
+[byte array mut~:A°💻, uint:6, codepoint:💻, bool:true]
 
 Stack:
 []
