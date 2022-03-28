@@ -1782,6 +1782,21 @@ public abstract class Value {
         public String stringValue() {
             return Arrays.toString(elements());
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ArrayValue that = (ArrayValue) o;
+            return length == that.length && Arrays.equals(elements(), that.elements());
+        }
+
+        @Override
+        public int hashCode() {
+            int result = length;
+            result = 31 * result + Arrays.hashCode(elements());
+            return result;
+        }
     }
 
     public static Value createTuple(Type.Tuple type, Value[] elements) throws ConcatRuntimeError {
