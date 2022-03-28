@@ -279,6 +279,15 @@ StringParseError public enum{
   ERR_ILLEGAL_CHAR
 }
 
+##addLater create variant of stringToInt that accepts offset and length
+stringToInt public proc( #+source+# byte arraySlice mut? #+base+# int #+signed+# bool => #+val+# int #+err-code+# StringParseError ){
+  bool signed =:
+  int  base =:
+  byte arraySlice mut? source =:
+  source .length byte memory mut new tmp =::
+  source .parent source .offset tmp 0 source .length copy
+  tmp base signed stringToInt return
+}
 stringToInt public proc( #+source+# string mut? #+base+# int #+signed+# bool => #+val+# int #+err-code+# StringParseError ){
   bool signed =:
   int  base =:
@@ -374,6 +383,15 @@ isExpChar proc( #+char+# byte #+base+# int => bool ){
   }
 }
 
+##addLater create variant of stringToFloat that accepts offset and length
+stringToFloat public proc( #+source+# byte arraySlice mut? #+base+# int =>  #+val+# float #+err-code+# StringParseError ){
+  int  base =:
+  byte arraySlice mut? source =:
+  source .length byte memory mut new tmp =::
+  source .parent source .offset tmp 0 source .length copy
+  tmp base stringToFloat return
+}
+
 ## maximum powers such that base^-pow > 0
 { 0 0 1074 678 537 462 415 382 358 339 323 310 299 290 282 275 268 262 257 253 248 244
   241 237 234 231 228 226 223 221 219 216 214 213 211 209 207 206 204 203 201 200 199
@@ -425,9 +443,7 @@ stringToFloat public proc( #+str+# string mut? #+base+# int => #+val+# float #+e
     i 1 + i =
   }
   e 0 > if{
-    str .length e - byte memory mut new tmp =:: ##addLater create variant of stringToInt that accepts offset and length
-    str e tmp 0 str .length e - copy
-    tmp base true stringToInt
+    str e str .length [:] base true stringToInt
     StringParseError err_code =:
     int exponent =:
     err_code StringParseError .ERR_NONE != if{
