@@ -644,7 +644,7 @@ public abstract class Value {
                     newData[i]=data[i].clone(true);
                 }
             }
-            ArrayValue clone=new ArrayValue(type,newData);
+            ArrayValue clone=new ArrayValue(type.mutable(),newData);
             clone.offset=offset;
             clone.length=length;
             return clone;

@@ -157,16 +157,13 @@ public class Interpreter {
     }
     static class ValueToken extends Token {
         final Value value;
-        final boolean cloneOnCreate;
-        ValueToken(Value value, FilePosition pos, boolean cloneOnCreate) {
+        ValueToken(Value value, FilePosition pos) {
             super(TokenType.VALUE, pos);
             this.value=value;
-            this.cloneOnCreate = cloneOnCreate;
         }
-        ValueToken(TokenType type, Value value, FilePosition pos, boolean cloneOnCreate) {
+        ValueToken(TokenType type, Value value, FilePosition pos) {
             super(type, pos);
             this.value=value;
-            this.cloneOnCreate = cloneOnCreate;
         }
         @Override
         public String toString() {
@@ -177,7 +174,7 @@ public class Interpreter {
         public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
             if(value.type==Type.TYPE){
                 try {
-                    return new ValueToken(Value.ofType(value.asType().replaceGenerics(genericParams)),pos,cloneOnCreate);
+                    return new ValueToken(Value.ofType(value.asType().replaceGenerics(genericParams)),pos);
                 } catch (TypeError e) {
                     throw new RuntimeException(e);
                 }
@@ -1633,15 +1630,15 @@ public class Interpreter {
                 unsigned=true;
             }
             if(intDec.matcher(str).matches()){//dez-Int
-                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,10,unsigned), unsigned), pos, false));
+                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,10,unsigned), unsigned), pos));
                 return true;
             }else if(intBin.matcher(str).matches()){//bin-Int
                 str=str.replaceAll(BIN_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,2,unsigned), unsigned), pos, false));
+                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,2,unsigned), unsigned), pos));
                 return true;
             }else if(intHex.matcher(str).matches()){ //hex-Int
                 str=str.replaceAll(HEX_PREFIX,"");//remove header
-                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,16,unsigned), unsigned), pos, false));
+                tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,16,unsigned), unsigned), pos));
                 return true;
             }
         } catch (ConcatRuntimeError nfeL) {
@@ -1870,7 +1867,7 @@ public class Interpreter {
                 if(str.codePoints().count()==1){
                     int codePoint = str.codePointAt(0);
                     if(codePoint<0x7f){
-                        tokens.add(new ValueToken(Value.ofByte((byte)codePoint), pos, false));
+                        tokens.add(new ValueToken(Value.ofByte((byte)codePoint), pos));
                     }else{
                         throw new SyntaxError("codePoint "+codePoint+
                                 "does not fit in one byte " +
@@ -1884,18 +1881,18 @@ public class Interpreter {
                 str=str.substring(2);
                 if(str.codePoints().count()==1){
                     int codePoint = str.codePointAt(0);
-                    tokens.add(new ValueToken(Value.ofChar(codePoint), pos, false));
+                    tokens.add(new ValueToken(Value.ofChar(codePoint), pos));
                 }else{
                     throw new SyntaxError("A char-literal must contain exactly one codepoint", pos);
                 }
                 return;
             }else if(str.charAt(0)=='"'){
                 str=str.substring(1);
-                tokens.add(new ValueToken(Value.ofString(str,false),  pos, true));
+                tokens.add(new ValueToken(Value.ofString(str,false),  pos));
                 return;
             }else if(str.startsWith("u\"")){
                 str=str.substring(2);
-                tokens.add(new ValueToken(Value.ofString(str,true),  pos, true));
+                tokens.add(new ValueToken(Value.ofString(str,true),  pos));
                 return;
             }
             try{
@@ -1904,17 +1901,17 @@ public class Interpreter {
                 }else if(floatDec.matcher(str).matches()){
                     //dez-Float
                     double d = Double.parseDouble(str);
-                    tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
+                    tokens.add(new ValueToken(Value.ofFloat(d), pos));
                     return;
                 }else if(floatBin.matcher(str).matches()){
                     //bin-Float
                     double d= Value.parseFloat(str.substring(BIN_PREFIX.length()),2);
-                    tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
+                    tokens.add(new ValueToken(Value.ofFloat(d), pos));
                     return;
                 }else if(floatHex.matcher(str).matches()){
                     //hex-Float
                     double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
-                    tokens.add(new ValueToken(Value.ofFloat(d), pos, false));
+                    tokens.add(new ValueToken(Value.ofFloat(d), pos));
                     return;
                 }
             }catch(ConcatRuntimeError|NumberFormatException e){
@@ -2371,7 +2368,7 @@ public class Interpreter {
                         subList=tokens.subList(open.start,tokens.size());
                         subList.clear();
                         Type.Procedure procType=Type.Procedure.create(inTypes,outTypes);
-                        tokens.add(new ValueToken(Value.ofType(procType),pos,false));
+                        tokens.add(new ValueToken(Value.ofType(procType),pos));
                     }else if(open.type==BlockType.ANONYMOUS_TUPLE){
                         List<Token> subList=tokens.subList(open.start, tokens.size());
                         Type[] tupleTypes=ProcedureBlock.getSignature(
@@ -2379,7 +2376,7 @@ public class Interpreter {
                                         new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
                         subList.clear();
                         tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(null, false, tupleTypes,pos)),
-                                pos,false));
+                                pos));
                     }else /*if(open.type==BlockType.UNION)*/{
                         List<Token> subList=tokens.subList(open.start, tokens.size());
                         Type[] elements=ProcedureBlock.getSignature(
@@ -2390,7 +2387,7 @@ public class Interpreter {
                         }
                         subList.clear();
                         tokens.add(new ValueToken(Value.ofType(Type.UnionType.create(elements)),
-                                pos,false));
+                                pos));
                     }
                 }
 
@@ -2410,19 +2407,19 @@ public class Interpreter {
                 case "unreachable" ->
                     tokens.add(new Token(TokenType.UNREACHABLE,pos));
                 //constants
-                case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos, false));
-                case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos, false));
+                case "true"  -> tokens.add(new ValueToken(Value.TRUE,    pos));
+                case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
                 //types
-                case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),              pos, false));
-                case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),              pos, false));
-                case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos, false));
-                case "uint"       -> tokens.add(new ValueToken(Value.ofType(Type.UINT),              pos, false));
-                case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos, false));
-                case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos, false));
-                case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos, false));
-                case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos, false));
-                case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos, false));
-                case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos, false));
+                case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),              pos));
+                case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),              pos));
+                case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos));
+                case "uint"       -> tokens.add(new ValueToken(Value.ofType(Type.UINT),              pos));
+                case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos));
+                case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos));
+                case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos));
+                case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos));
+                case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos));
+                case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos));
 
                 case "mut?"     -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
                 case "mut^"     -> tokens.add(new Token(TokenType.MARK_INHERIT_MUTABILITY, pos));
@@ -3198,7 +3195,7 @@ public class Interpreter {
                                 Value list = Value.createArray(Type.arrayOf(type), values.toArray(Value[]::new));
                                 typeStack.push(new TypeFrame(list.type, list, pos));
 
-                                ret.add(new ValueToken(list, open.startPos, true));
+                                ret.add(new ValueToken(list, open.startPos));
                             } catch (ConcatRuntimeError e) {
                                 throw new SyntaxError(e, pos);
                             }
@@ -3339,7 +3336,7 @@ public class Interpreter {
             if (ret.size() > 0 && (prev = ret.get(ret.size() - 1)) instanceof ValueToken) {
                 try {
                     ret.set(ret.size() - 1,
-                            new ValueToken(modifier.apply(((ValueToken) prev).value.asType()),pos, false));
+                            new ValueToken(modifier.apply(((ValueToken) prev).value.asType()),pos));
                 } catch (ConcatRuntimeError e) {
                     throw new SyntaxError(e, pos);
                 }
@@ -3375,7 +3372,7 @@ public class Interpreter {
     }
 
     private void setOverloadedProcPtr(ArrayList<Token> ret, Type.OverloadedProcedurePointer opp, Value proc) throws SyntaxError {
-        Token prev=ret.set(opp.tokenPos,new ValueToken(proc, opp.pushedAt,false));
+        Token prev=ret.set(opp.tokenPos,new ValueToken(proc, opp.pushedAt));
         if(prev.tokenType!=TokenType.OVERLOADED_PROC_PTR&&prev.tokenType!=TokenType.NOP){
             throw new SyntaxError("overloaded procedure pointer is resolved more than once ",opp.pushedAt);
         }
@@ -3389,7 +3386,7 @@ public class Interpreter {
                 if(prev instanceof IdentifierToken id&&id.type==IdentifierType.WORD){
                     for(int p2 = 0;p2 < names.length; p2++){
                         if(id.name.equals(names[p2])){
-                            caseValues.set(p,new ValueToken(sType.entries[p2],id.pos,false));
+                            caseValues.set(p,new ValueToken(sType.entries[p2],id.pos));
                             break;
                         }
                     }
@@ -3429,9 +3426,9 @@ public class Interpreter {
         //push type information
         typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
         if(newContext.curried.isEmpty()){
-            ret.add(new ValueToken(TokenType.LAMBDA,lambda, t.pos,false));
+            ret.add(new ValueToken(TokenType.LAMBDA,lambda, t.pos));
         }else{
-            ret.add(new ValueToken(TokenType.CURRIED_LAMBDA,lambda, t.pos,false));
+            ret.add(new ValueToken(TokenType.CURRIED_LAMBDA,lambda, t.pos));
         }
     }
 
@@ -3468,7 +3465,7 @@ public class Interpreter {
                     }
                     if(c==0||values[0]!=null){//all types resolved successfully
                         ret.subList(iMin, ret.size()).clear();
-                        ret.add(new ValueToken(Value.createTuple((Type.Tuple)type,values),pos, false));
+                        ret.add(new ValueToken(Value.createTuple((Type.Tuple)type,values),pos));
                         return;
                     }
                 }
@@ -3531,7 +3528,11 @@ public class Interpreter {
                     typeCheckCast(val.type,1, id.type, ret,ioContext, t.pos);
                     if (id.mutability==Mutability.IMMUTABLE && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
-                        globalConstants.put(id, ((ValueToken) prev).value.clone(true).castTo(type));
+                        Value value = ((ValueToken) prev).value;
+                        if(value.type.isMutable()){//TODO check for deep Mutability
+                            value=value.clone(true);
+                        }
+                        globalConstants.put(id, value.castTo(type));
                         if(val.type != ((ValueToken) prev).value.type){
                             throw new RuntimeException("type stack out of sync with token list");
                         }
@@ -3579,7 +3580,7 @@ public class Interpreter {
                         Value constValue = globalConstants.get(id);
                         if (constValue != null) {
                             typeStack.push(new TypeFrame(constValue.type,constValue,t.pos));
-                            ret.add(new ValueToken(constValue, identifier.pos, false));
+                            ret.add(new ValueToken(constValue, identifier.pos));
                         } else {
                             typeStack.push(new TypeFrame(id.type,null,t.pos));
                             ret.add(new VariableToken(identifier.pos, identifier.name, id,
@@ -3595,7 +3596,7 @@ public class Interpreter {
                         }
                         Value e = Value.ofType(asType);
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
-                        ret.add(new ValueToken(e, identifier.pos, false));
+                        ret.add(new ValueToken(e, identifier.pos));
                     }
                     case CONSTANT -> {
                         Value e = ((Constant) d).value;
@@ -3612,7 +3613,7 @@ public class Interpreter {
                             }
                         }
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
-                        ret.add(new ValueToken(e, identifier.pos, false));
+                        ret.add(new ValueToken(e, identifier.pos));
                     }
                     case GENERIC_TUPLE -> {
                         GenericTuple g = (GenericTuple) d;
@@ -3625,7 +3626,7 @@ public class Interpreter {
                         }
                         Value tupleType = Value.ofType(typeValue);
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
-                        ret.add(new ValueToken(tupleType,identifier.pos, false));
+                        ret.add(new ValueToken(tupleType,identifier.pos));
                     }
                     case GENERIC_STRUCT -> {
                         GenericStruct g = (GenericStruct) d;
@@ -3638,7 +3639,7 @@ public class Interpreter {
                         }
                         Value structValue = Value.ofType(typeValue);
                         typeStack.push(new TypeFrame(Type.TYPE,structValue,identifier.pos));
-                        ret.add(new ValueToken(structValue,identifier.pos, false));
+                        ret.add(new ValueToken(structValue,identifier.pos));
                     }
                 }
             }
@@ -3689,7 +3690,7 @@ public class Interpreter {
                             if(anEnum.entryNames[p].equals(identifier.name)){
                                 hasField=true;
                                 typeStack.push(new TypeFrame(anEnum,anEnum.entries[p],t.pos));
-                                ValueToken entry = new ValueToken(anEnum.entries[p], t.pos, false);
+                                ValueToken entry = new ValueToken(anEnum.entries[p], t.pos);
                                 prev=ret.get(ret.size()-1);
                                 if(prev instanceof ValueToken&&((ValueToken) prev).value.type==Type.TYPE&&
                                         ((ValueToken) prev).value.asType().equals(anEnum)) {
@@ -3935,7 +3936,7 @@ public class Interpreter {
             }
             d.markAsUsed();
             typeStack.push(new TypeFrame(procType,proc, pos));
-            ValueToken token=new ValueToken(proc, pos,false);
+            ValueToken token=new ValueToken(proc, pos);
             ret.add(token);
         }else if(d instanceof Value.Procedure proc) {
             pushSimpleProcPointer(proc, typeStack, ret, globalConstants, ioContext, pos);
@@ -3973,7 +3974,7 @@ public class Interpreter {
                                        IOContext ioContext, FilePosition pos) throws SyntaxError {
         procedure.markAsUsed();
         typeCheckProcedure(procedure, globalConstants, ioContext);//type check procedure before it is pushed onto the stack
-        ValueToken token = new ValueToken(procedure, pos, false);
+        ValueToken token = new ValueToken(procedure, pos);
         typeStack.push(new TypeFrame(token.value.type, token.value, pos));
         ret.add(token);
     }
@@ -4503,7 +4504,7 @@ public class Interpreter {
                     case LAMBDA, VALUE -> {
                         assert next instanceof ValueToken;
                         ValueToken value = (ValueToken) next;
-                        if(value.cloneOnCreate){
+                        if(value.value.type.isMutable()){//TODO check deep mutability
                             stack.push(value.value.clone(true));
                         }else{
                             stack.push(value.value);
