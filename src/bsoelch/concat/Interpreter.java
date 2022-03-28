@@ -2511,11 +2511,13 @@ public class Interpreter {
                 case "public" -> {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prevId!=null){
+                    }else if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
+                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){
                         if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
-                            throw new SyntaxError("multiple accessibility modifiers for identifier "+prevId+" : '"+str+"'",pos);
+                            throw new SyntaxError("multiple accessibility modifiers for identifier "+
+                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
                         }
-                        prev=new IdentifierToken(IdentifierType.WORD,prevId,
+                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
                                 ((IdentifierToken) prev).flags|IdentifierToken.ACCESSIBILITY_PUBLIC, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
@@ -2525,11 +2527,13 @@ public class Interpreter {
                 case "restricted" -> { //addLater better name
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prevId!=null){
+                    }else if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
+                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){
                         if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
-                            throw new SyntaxError("multiple accessibility modifiers for identifier "+prevId+" : '"+str+"'",pos);
+                            throw new SyntaxError("multiple accessibility modifiers for identifier "+
+                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
                         }
-                        prev=new IdentifierToken(IdentifierType.WORD,prevId,
+                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
                                 ((IdentifierToken) prev).flags|IdentifierToken.ACCESSIBILITY_READ_ONLY, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
@@ -2539,11 +2543,13 @@ public class Interpreter {
                 case "private" -> {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prevId!=null){
+                    }else if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
+                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){
                         if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
-                            throw new SyntaxError("multiple accessibility modifiers for identifier "+prevId+" : '"+str+"'",pos);
+                            throw new SyntaxError("multiple accessibility modifiers for identifier "+
+                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
                         }
-                        prev=new IdentifierToken(IdentifierType.WORD,prevId,
+                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
                                 ((IdentifierToken) prev).flags|IdentifierToken.ACCESSIBILITY_PRIVATE, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
@@ -2557,7 +2563,8 @@ public class Interpreter {
                     if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
                             ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){//mut as name modifier
                         if((((IdentifierToken) prev).flags&IdentifierToken.MUTABILITY_MASK)!=IdentifierToken.MUTABILITY_DEFAULT){
-                            throw new SyntaxError("multiple mutability modifiers for identifier "+prevId+" : '"+str+"'",pos);
+                            throw new SyntaxError("multiple mutability modifiers for identifier "+
+                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
                         }
                         prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
                                 ((IdentifierToken) prev).flags|IdentifierToken.MUTABILITY_MUTABLE, prev.pos);
@@ -2573,7 +2580,8 @@ public class Interpreter {
                     if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
                             ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){//mut as name modifier
                         if((((IdentifierToken) prev).flags&IdentifierToken.MUTABILITY_MASK)!=IdentifierToken.MUTABILITY_DEFAULT){
-                            throw new SyntaxError("multiple mutability modifiers for identifier "+prevId+" : '"+str+"'",pos);
+                            throw new SyntaxError("multiple mutability modifiers for identifier "+
+                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
                         }
                         prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
                                 ((IdentifierToken) prev).flags|IdentifierToken.MUTABILITY_IMMUTABLE, prev.pos);
