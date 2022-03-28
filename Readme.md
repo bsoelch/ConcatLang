@@ -49,7 +49,7 @@ interact with the global evaluation stack by
 pulling a given number of values, preforming 
 an operation on that values and then pushing the result
 ### Comments
-- `##` comments out the rest of the list
+- `##` comments out the rest of the line
 - Inline comments are surrounded by `#+` and `+#`
 ### Values
 Writing a Value in the source code simply pushes that value
@@ -69,9 +69,9 @@ on the stack, the natively supported value types are
   - or int-literal followed by `byte cast`
 - codepoints
   - char-literal prefixed with `u`
-- strings (byte list)
+- strings (byte array)
   - string-literals
-- unicode-strings (codepoints list)
+- unicode-strings (codepoints array)
   - string-literals prefixed with `u`
 - types
   - the type name as plain text
@@ -232,23 +232,23 @@ examples for interacting with optional can be found
 in the next section.
 
 ### Iterators
-Iterators simplify iterating over all elements of a list,
+Iterators simplify iterating over all elements of an array,
 they are designed to work well with for-each loops.
 Iterators are defined in the standard library and 
 can be included with `iterators include`, iterators 
 also includes [optional](https://github.com/bsoelch/ConcatLang#optionals)
 
 - `^_` created a new iterator at the start of 
-the current element (the current element has to be a list)
+the current element
 - `_^` created a new iterator at the end of
-  the current element (the current element has to be a list)
+  the current element
 - `^>` moves the iterator to the next element,
-  - if the list has a next element the iterator pushes
+  - there is a next element the iterator pushes
     itself, and an optional wrapping the next element
   - otherwise, the iterator pushes itself,
     followed by an empty optional
 - `<^` moves the iterator to the previous element
-  - if the list has a previous element the iterator pushes 
+  - there is a previous element the iterator pushes 
     itself, and an optional wrapping the previous element
   - otherwise, the iterator pushes itself,
     followed by an empty optional
@@ -276,23 +276,24 @@ array ^_ for{
 
 reverse a string:
 ```
+_list #include ## buildString/build 
 reverse proc( string => string ){
   string toReverse =:
-  ## store type and length of the list
-  toReverse .length string new string res mut =:
+  ## create an empty string builder
+  toReverse .length buildString res =::
   ## Iterate though the elements in reverse order
   toReverse _^ while{ <^ do
-    res swap << res =
+    byte cast res swap << res =
   } drop
-  res return
+  res build return
 }
 ```
 !!! `for{` does not work for backward iteration !!!
 
-Sum all elements of a list
+Sum all elements of an array
 ```
 0 int tmp mut =: ## Initialize sum to 0
-## Iterate though all elements of the list
+## Iterate though all elements of the array
 ^_ for{
  tmp swap + tmp =
 } drop
@@ -304,34 +305,34 @@ tmp ## load the total sum onto the stack
 with its type
 - `cast` typecast `val type cast` casts `val` to 
 type `type` and pushes the result
-- `list`  wraps a type in the corresponding list-type
+- `array`  wraps a type in the corresponding array-type
 - `optional`  wraps a type in the corresponding optional-type
-- `.content` unwraps list and optional types
-- `>>` `<<` add a new element at the start/end of a list
-- `*>>` `<<*`   concatenates two lists, changes the value of 
-the argument on the side of the `:`
-- `[]` get an element of a list
-   - syntax: `<list> <index> []`
-- `[]=`  set an element of a list
-  - syntax: `<value> <list> <index> []=`
+- `.content` unwraps array and optional types
+- `>>` `<<` add a new element at the start/end of a List
+- `*>>` `<<*` adds all elements of an array or a List to a List
+- `[]` get an element of an array
+   - syntax: `<array> <index> []`
+- `[]=`  set an element of an array
+  - syntax: `<value> <array> <index> []=`
   - the element at index will be set to value cast to 
-the type of the list-elements
-- `[:]`  get a sublist of a list
-  - syntax: `<list> <off> <to> [:]`
-  - returns a new list containing the elements 
-of the list with indices between `<off>` included
+the type of the array-elements
+- `[:]`  get a slice of an array
+  - syntax: `<array> <off> <to> [:]`
+  - returns a new arraySlice containing the elements 
+of the array with indices between `<off>` included
 and `<to>` excluded
-- `[:]=` replace a sublist of a list
-  - syntax: `<value> <list> <off> <to> [:]=`
-  - all the specified section of the list will be replaced 
-with the new value cast to the type of the list
+- `[:]=` replace a subList of a List
+  - syntax: `<value> <array> <off> <to> [:]=`
+  - all elements in specified section of the List 
+will be replaced with the elements of value
+cast to the type of the List
 - `()` call a procedure pointer
 
 Examples:
 ```
 1 .type println
 3.1 int cast println
-int list list drop ## list of list of ints
+int array array drop ## array of array of ints
 "Hello" ' ' "World" >> <<* '!' << println
 "Hello World!" 7 9 [:] println
 "Hello World?" '!' over 11 []= println
