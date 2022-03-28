@@ -331,8 +331,8 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
     format .format << " is no valid format specifier\n" <<* build eputs
     1 exit
   } res =::
-  res .data .length width < if{
-    width res .data .length - int count =:
+  res length width < if{
+    width res length - int count =:
     format .flags IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
     padChar count string new padding =::
     alignLeft if{
@@ -427,12 +427,12 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
         ## ' '  The result will include a leading space for positive values
         ## '0'  The result will be zero-padded
         0 int i1 mut =:
-        while{ i1 tmp .data .length < &&{ tmp i1 [] '0' == } do
+        while{ i1 tmp length < &&{ tmp i1 [] '0' == } do
           flags IO_FLAG_PAD_0 | flags =
           i1 1 + i1 =
         }
         tmp 0 i1 [:] clear
-        tmp .data .length 0 == if{
+        tmp length 0 == if{
           true while{ #+ loop condition (on stack) +# &&{ i _formatString .length < } do
             _formatString i [] tmpC =
             tmpC '-' == if{
@@ -461,7 +461,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
           } tmp =
         }
         ## ([0-9]+)? width
-        tmp .data .length 0 > if{
+        tmp length 0 > if{
           tmp build parseInt w =
           tmp clear ## clear tmp
         else i _formatString .length < &&{ _formatString i [] '*' == } if ## *(<index>).
@@ -473,7 +473,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
             _formatString i [] <<
             i 1 + i =
           } tmp =
-          tmp .data .length 0 > if{
+          tmp length 0 > if{
             tmp build parseInt w =
             tmp clear ## clear tmp
           }
@@ -499,7 +499,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
             _formatString i [] <<
             i 1 + i =
           } tmp =
-          p_ptr ! ||{ tmp .data .length 0 > } if{
+          p_ptr ! ||{ tmp length 0 > } if{
             tmp build parseInt p =
             tmp clear ## clear tmp
           }
@@ -528,7 +528,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
             i 1 + i =
           } tmp =
           i _formatString .length < &&{ _formatString i [] ')' == } if{
-            b_ptr ! ||{ tmp .data .length 0 > } if{
+            b_ptr ! ||{ tmp length 0 > } if{
               tmp build parseInt b =
               tmp clear ## clear tmp
             }
@@ -539,7 +539,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
             1 exit
           }
         }
-        i _formatString .length < ||{ tmp .data .length 0 > } if{
+        i _formatString .length < ||{ tmp length 0 > } if{
           64 buildString
           "printf: invalid Format String: \"" <<* _formatString <<* _formatChar << "\"\n" <<* build eputs
           1 exit
@@ -574,7 +574,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
     1 exit
   }
   0 i =
-  while{ i parts .data .length < do
+  while{ i parts length < do
     tmp
     parts i [] .isValue if{   ## Value format
       parts i [] args IO_printValue <<*

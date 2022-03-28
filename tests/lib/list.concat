@@ -6,36 +6,36 @@ core #import
 4 int newList x =::
 
 x 1 << 2 << 3 << 4 << 5 << 6 << 7 << debugPrint
-x .data .offset   debugPrint
-x .data .capacity debugPrint
+x offset   debugPrint
+x capacity debugPrint
 8 7 6 5 4 3 2 1 0 x >> >> >> >> >> >> >> >> >> debugPrint
-x .data .offset   debugPrint
-x .data .capacity debugPrint
+x offset   debugPrint
+x capacity debugPrint
 42 x 10 []=
 x debugPrint
 x 5 [] debugPrint
 "___________________________________" debugPrint
 -43 x 2 4 fill
 x debugPrint
-x .data .offset   debugPrint
-x .data .capacity debugPrint
+x offset   debugPrint
+x capacity debugPrint
 x 64 ensureCap
 x debugPrint
-x .data .offset   debugPrint
-x .data .capacity debugPrint
+x offset   debugPrint
+x capacity debugPrint
 "___________________________________" debugPrint
 4 int newList y =::
 y  1 << 2 << 3 << 4 << debugPrint
-y .data .offset   debugPrint
-y .data .capacity debugPrint
+y offset   debugPrint
+y capacity debugPrint
 y y <<* debugPrint
-y .data .offset   debugPrint
-y .data .capacity debugPrint
+y offset   debugPrint
+y capacity debugPrint
 4 int newList z =::
 z -3 << -2 << -1 << 0 << debugPrint
 z y *>> debugPrint
-y .data .offset   debugPrint
-y .data .capacity debugPrint
+y offset   debugPrint
+y capacity debugPrint
 "___________________________________" debugPrint
 x 7 12 [:] slice =::
 slice 0 [] debugPrint
@@ -45,38 +45,38 @@ slice debugPrint
 slice 2 5 [:] debugPrint
 "___________________________________" debugPrint
 z debugPrint
-z .data .offset   debugPrint
-z .data .capacity debugPrint
+z offset   debugPrint
+z capacity debugPrint
 1 z 3 insert
 z debugPrint
-z .data .offset   debugPrint
-z .data .capacity debugPrint
+z offset   debugPrint
+z capacity debugPrint
 2 z 0 insert
 z debugPrint
-z .data .offset   debugPrint
-z .data .capacity debugPrint
-3 z z .data .length insert
+z offset   debugPrint
+z capacity debugPrint
+3 z z length insert
 z debugPrint
-z .data .offset   debugPrint
-z .data .capacity debugPrint
+z offset   debugPrint
+z capacity debugPrint
 
 z z 2 insertAll
 z debugPrint
-z .data .offset   debugPrint
-z .data .capacity debugPrint
+z offset   debugPrint
+z capacity debugPrint
 
--11 4 int array new z z .data .length insertAll
+-11 4 int array new z z length insertAll
 z debugPrint
-z .data .offset   debugPrint
-z .data .capacity debugPrint
+z offset   debugPrint
+z capacity debugPrint
 
 0 0 0 z >> >> >> debugPrint
-z .data .offset   debugPrint
-z .data .capacity debugPrint
+z offset   debugPrint
+z capacity debugPrint
 -15 5 int array new z 2 insertAll
 z debugPrint
-z .data .offset   debugPrint
-z .data .capacity debugPrint
+z offset   debugPrint
+z capacity debugPrint
 
 "___________________________________" debugPrint
 slice debugPrint
@@ -150,39 +150,39 @@ slice10 slice10 2 4 [:]=
 slice10 debugPrint
 "___________________________________" debugPrint
 x8 debugPrint
-x8 .data .offset   debugPrint
-x8 .data .capacity debugPrint
+x8 offset   debugPrint
+x8 capacity debugPrint
 
 slice10 debugPrint
 slice10 clear
 x8 debugPrint
-x8 .data .offset   debugPrint
-x8 .data .capacity debugPrint
+x8 offset   debugPrint
+x8 capacity debugPrint
 
 x8 clear
 x8 debugPrint
-x8 .data .offset   debugPrint
-x8 .data .capacity debugPrint
+x8 offset   debugPrint
+x8 capacity debugPrint
 "___________________________________" debugPrint
 x8 0 << 1 << 2 << 3 << 4 << 5 << 6 << 7 << 8 << debugPrint
-x8 .data .offset   debugPrint
-x8 .data .capacity debugPrint
+x8 offset   debugPrint
+x8 capacity debugPrint
 
 x8 2 4 clearSlice
 x8 debugPrint
-x8 .data .offset   debugPrint
-x8 .data .capacity debugPrint
+x8 offset   debugPrint
+x8 capacity debugPrint
 
 x8 2 6 [:] 1 3 clearSlice
 x8 debugPrint
-x8 .data .offset   debugPrint
-x8 .data .capacity debugPrint
+x8 offset   debugPrint
+x8 capacity debugPrint
 "___________________________________" debugPrint
 x8 0 remove debugPrint
 x8 debugPrint
 x8 2 4 [:] 1 remove debugPrint
 x8 debugPrint
-x8 x8 .data .length 1 - remove debugPrint
+x8 x8 length 1 - remove debugPrint
 x8 debugPrint
 "___________________________________" debugPrint
 2 x8 1 insert

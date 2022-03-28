@@ -67,7 +67,7 @@ list #include
 <<* public proc( stringBuilder ustring mut? => stringBuilder ){
   append =::
   value  =::
-  value value .data .length append .length + ensureCap
+  value value length append .length + ensureCap
   0 int i mut =:
   while{ i append .length < do
     value append i [] << value =
@@ -78,7 +78,7 @@ list #include
 *>> public proc( ustring mut? stringBuilder => stringBuilder ){
   value =::
   append =::
-  value value .data .length append .length + ensureCap
+  value value length append .length + ensureCap
   append .length 1 - int i mut =:
   while{ i 0 >= do
     append i [] value >> value =
@@ -90,7 +90,7 @@ list #include
 <<* public proc( ustringBuilder string mut? => ustringBuilder ){
   append =::
   value  =::
-  value value .data .length append .length + ensureCap
+  value value length append .length + ensureCap
   append 0u
   while{ nextCodepoint do
     value swap << value =

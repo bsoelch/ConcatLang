@@ -10,12 +10,12 @@ arraySlice #include
 ##   set growth rate to factor less than 2 ( 9/8 ? )
 
 List public struct{ A <>
-  A memory mut^ :data mut
+  A memory mut^ :data private mut
 }
 ListSlice public struct{ A <>
-  A List mut^ :parent
-  uint        :offset
-  uint        :length mut
+  A List mut^ :parent restricted
+  uint        :offset restricted
+  uint        :length restricted mut
 }
 
 newList public proc( A <> uint => A List mut ){
@@ -43,8 +43,17 @@ build public proc( ustringBuilder => ustring ){
 
 valueIO #include ## include valueIO after stringBuilder is declared
 
-length public proc( A <?> A List mut? => uint ){
-  #+list+# .data .length return
+length  public proc( A <?> A List mut? => uint ){
+  #+list+# .data .length    return
+}
+offset  public proc( A <?> A List mut? => uint ){
+  #+list+# .data .offset    return
+}
+capacity public proc( A <?> A List mut? => uint ){
+  #+list+# .data .capacity  return
+}
+toArray  public proc( A <?> A List mut? => A array ){
+  #+list+# .data clone-mut~ return
 }
 
 ensureCap public proc( A <?> A List mut uint => ){##addLater better names for capacity procedure, add procedure for offset

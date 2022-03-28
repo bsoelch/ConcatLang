@@ -3679,8 +3679,8 @@ public class Interpreter {
                                 ret.add(new TupleElementAccess(index, false, t.pos));
                                 hasField=true;
                             }else{
-                                ioContext.stdErr.println("cannot access private field "+field.name()+"(declared at "+field.declaredAt()+
-                                        ") of struct "+f.type);
+                                ioContext.stdErr.println("cannot access private field "+field.name()+" (declared at "+
+                                        field.declaredAt()+") of struct "+f.type);
                             }
                         }
                     }else if(f.type==Type.TYPE&&f.value!=null&&f.value.asType() instanceof Type.Enum anEnum){
