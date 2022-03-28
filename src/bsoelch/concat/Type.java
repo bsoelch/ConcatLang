@@ -197,7 +197,7 @@ public class Type {
     public boolean isArray() {
         return false;
     }
-    public WrapperType asArray(){
+    public Type asArray(){
         throw new UnsupportedOperationException();
     }
     public boolean isMemory() {
@@ -314,7 +314,7 @@ public class Type {
         }
 
         @Override
-        public WrapperType asArray() {
+        public Type asArray() {
             return wrapperName.equals(ARRAY)?this:wrapperName.equals(MEMORY)?create(ARRAY,contentType,mutability):super.asArray();
         }
 

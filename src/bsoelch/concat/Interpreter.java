@@ -3533,7 +3533,7 @@ public class Interpreter {
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         Value value = ((ValueToken) prev).value;
                         if(value.type.isMutable()){//TODO check for deep Mutability
-                            value=value.clone(true);
+                            value=value.clone(true,null);
                         }
                         globalConstants.put(id, value.castTo(type));
                         if(val.type != ((ValueToken) prev).value.type){
@@ -4508,7 +4508,7 @@ public class Interpreter {
                         assert next instanceof ValueToken;
                         ValueToken value = (ValueToken) next;
                         if(value.value.type.isMutable()){//TODO check deep mutability
-                            stack.push(value.value.clone(true));
+                            stack.push(value.value.clone(true,null));
                         }else{
                             stack.push(value.value);
                         }

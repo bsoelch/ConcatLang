@@ -96,7 +96,7 @@ public abstract class Value {
         throw new TypeError("Cannot unwrap values of type "+type);
     }
 
-    public Value clone(boolean deep) {
+    public Value clone(boolean deep,Type targetType) {
         return this;
     }
     public Value castTo(Type type) throws ConcatRuntimeError {
@@ -637,14 +637,16 @@ public abstract class Value {
             return super.castTo(type);
         }
         @Override
-        public Value clone(boolean deep) {
+        public Value clone(boolean deep,Type targetType) {
+            if(targetType==null)
+                targetType=type;
             Value[] newData=data.clone();
             if(deep){
                 for(int i=offset;i<offset+length;i++){
-                    newData[i]=data[i].clone(true);
+                    newData[i]=data[i].clone(true,targetType.content());
                 }
             }
-            ArrayValue clone=new ArrayValue(type.mutable(),newData);
+            ArrayValue clone=new ArrayValue(targetType,newData);
             clone.offset=offset;
             clone.length=length;
             return clone;
@@ -953,12 +955,14 @@ public abstract class Value {
         }
 
         @Override
-        public Value clone(boolean deep) {
-            Value[] newElements;
+        public Value clone(boolean deep,Type targetType) {
+            if(targetType==null)
+                targetType=type;
+            Value[] newElements=elements.clone();
             if(deep){
-                newElements=Arrays.stream(elements).map(v->v.clone(true)).toArray(Value[]::new);
-            }else{
-                newElements=elements.clone();
+                for(int i=0;i<elements.length;i++){
+                    newElements[i]=elements[i].clone(true,((Type.Tuple)targetType).getElement(i));
+                }
             }
             return new TupleValue((Type.Tuple) type,newElements);
         }
@@ -1185,10 +1189,12 @@ public abstract class Value {
         }
 
         @Override
-        public Value clone(boolean deep) {
+        public Value clone(boolean deep,Type targetType) {
+            if(targetType==null)
+                targetType=type;
             if(wrapped!=null&&deep){
                 try {
-                    return new OptionalValue(wrapped.clone(true));
+                    return new OptionalValue(wrapped.clone(true,targetType.content()));
                 } catch (ConcatRuntimeError e) {
                     throw new RuntimeException(e);
                 }
@@ -1377,7 +1383,7 @@ public abstract class Value {
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone") {
                 @Override
                 Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false)};
+                    return new Value[]{values[0].clone(false,null)};
                 }
             });
         }
@@ -1387,7 +1393,7 @@ public abstract class Value {
                     new Type[]{Type.arrayOf(a).mutable()},"clone") {
                 @Override
                 Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false)};
+                    return new Value[]{values[0].clone(false,values[0].type.mutable())};
                 }
             });
         }
@@ -1397,7 +1403,7 @@ public abstract class Value {
                     new Type[]{Type.arrayOf(a).mutable()},"clone") {
                 @Override
                 Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false)};
+                    return new Value[]{values[0].clone(false,values[0].type.mutable())};
                 }
             });
         }
@@ -1407,7 +1413,7 @@ public abstract class Value {
                     new Type[]{Type.arrayOf(a)},"clone-mut~") {//addLater better name
                 @Override
                 Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false)};
+                    return new Value[]{values[0].clone(false,values[0].type.asArray().immutable())};
                 }
             });
         }
@@ -1416,7 +1422,7 @@ public abstract class Value {
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone!") {
                 @Override
                 Value[] callWith(Value[] values){//addLater? implement deep clone in standard library
-                    return new Value[]{values[0].clone(true)};
+                    return new Value[]{values[0].clone(true,null)};
                 }
             });
         }
