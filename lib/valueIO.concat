@@ -62,7 +62,7 @@ utf8 #include
     res ')' << return
   else value .type .isList if
     value <<list return
-  else value .type .isArray if
+  else value .type .isArray ||{ value .type .isMemory } if
     value <<array return
   else value .type .isOptional if
     value <<optional return
