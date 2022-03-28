@@ -631,7 +631,7 @@ public class Type {
         }
     }
 
-    record StructField(String name,boolean mutable,FilePosition declaredAt){}
+    record StructField(String name, Interpreter.Accessibility accessibility,boolean mutable, FilePosition declaredAt){}
     public static class Struct extends Tuple{
         final StructField[] fields;
         final String[] fieldNames;

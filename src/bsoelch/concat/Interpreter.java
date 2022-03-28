@@ -68,16 +68,23 @@ public class Interpreter {
             return this;
         }
     }
+    enum Accessibility {
+        DEFAULT,PUBLIC,READ_ONLY,PRIVATE
+    }
     enum IdentifierType{
         DECLARE, WORD,PROC_ID,VAR_WRITE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE,DECLARE_FIELD
     }
     static class IdentifierToken extends Token {
         static final int FLAG_NATIVE=1;
-        static final int FLAG_PUBLIC=2;
-        static final int MUTABILITY_MASK=12;
+        static final int ACCESSIBILITY_MASK =6;
+        static final int ACCESSIBILITY_DEFAULT=0;
+        static final int ACCESSIBILITY_PUBLIC=2;
+        static final int ACCESSIBILITY_READ_ONLY=4;
+        static final int ACCESSIBILITY_PRIVATE=6;
+        static final int MUTABILITY_MASK=24;
         static final int MUTABILITY_DEFAULT=0;
-        static final int MUTABILITY_MUTABLE=4;
-        static final int MUTABILITY_IMMUTABLE=8;
+        static final int MUTABILITY_MUTABLE=8;
+        static final int MUTABILITY_IMMUTABLE=16;
 
         final IdentifierType type;
         final int flags;
@@ -90,10 +97,9 @@ public class Interpreter {
             }else if(name.isEmpty()){
                 throw new SyntaxError("Identifiers have to be nonempty",pos);
             }//no else
-            if(flags!=0&&(type!=IdentifierType.WORD&&type!=IdentifierType.DECLARE &&type!=IdentifierType.IMPLICIT_DECLARE)){
-                if((flags|MUTABILITY_MASK)!=MUTABILITY_MASK||type!=IdentifierType.DECLARE_FIELD){
-                    throw new SyntaxError("modifiers can only be used in declarations",pos);
-                }
+            if(flags!=0&&(type!=IdentifierType.WORD&&type!=IdentifierType.DECLARE &&type!=IdentifierType.IMPLICIT_DECLARE&&
+                    type!=IdentifierType.DECLARE_FIELD)){
+                throw new SyntaxError("modifiers can only be used in declarations",pos);
             }
             this.flags = flags;
             this.name = name;
@@ -103,8 +109,22 @@ public class Interpreter {
         public String toString() {
             return type.toString()+": \""+ name +"\"";
         }
-        boolean isPublic(){
-            return (flags&FLAG_PUBLIC)!=0;
+        Accessibility accessibility(){
+            switch (flags&ACCESSIBILITY_MASK){
+                case ACCESSIBILITY_PRIVATE ->{
+                    return Accessibility.PRIVATE;
+                }
+                case ACCESSIBILITY_READ_ONLY ->{
+                    return Accessibility.READ_ONLY;
+                }
+                case ACCESSIBILITY_PUBLIC ->{
+                    return Accessibility.PUBLIC;
+                }
+            }
+            return Accessibility.DEFAULT;
+        }
+        boolean isPublicReadable(){
+            return accessibility()==Accessibility.PUBLIC||accessibility()==Accessibility.READ_ONLY;
         }
         boolean isNative(){
             return (flags&FLAG_NATIVE)!=0;
@@ -877,6 +897,9 @@ public class Interpreter {
         DeclareableType declarableType();
         FilePosition declaredAt();
         boolean isPublic();
+        default Accessibility accessibility() {
+            return isPublic()?Accessibility.PUBLIC:Accessibility.PRIVATE;
+        }
         void markAsUsed();
         boolean unused();
     }
@@ -988,18 +1011,18 @@ public class Interpreter {
         final VariableContext context;
         final int level;
         final Type type;
-        final boolean isPublic;
+        final Accessibility accessibility;
         final int id;
         Mutability mutability;
         final FilePosition declaredAt;
         VariableId(VariableContext context, int level, int id, Type type, Mutability mutability,
-                   boolean isPublic, FilePosition declaredAt){
+                   Accessibility accessibility, FilePosition declaredAt){
             this.context=context;
             this.id=id;
             this.level=level;
             this.type=type;
             this.mutability = mutability;
-            this.isPublic = isPublic;
+            this.accessibility = accessibility==Accessibility.DEFAULT?Accessibility.PRIVATE:accessibility;
             this.declaredAt=declaredAt;
         }
         @Override
@@ -1009,7 +1032,11 @@ public class Interpreter {
 
         @Override
         public boolean isPublic() {
-            return isPublic;
+            return accessibility==Accessibility.PUBLIC;
+        }
+        @Override
+        public Accessibility accessibility() {
+            return accessibility;
         }
 
         @Override
@@ -1033,7 +1060,7 @@ public class Interpreter {
     private static class CurriedVariable extends VariableId{
         final VariableId source;
         CurriedVariable(VariableId source,VariableContext context, int id, FilePosition declaredAt) {
-            super(context,0, id, source.type, Mutability.IMMUTABLE, false, declaredAt);
+            super(context,0, id, source.type, Mutability.IMMUTABLE, Accessibility.READ_ONLY, declaredAt);
             assert source.mutability==Mutability.IMMUTABLE;
             this.source = source;
         }
@@ -1166,10 +1193,10 @@ public class Interpreter {
         int nextVarId() {
             return variables++;
         }
-        VariableId declareVariable(String name, Type type, Mutability mutability, boolean isPublic,
+        VariableId declareVariable(String name, Type type, Mutability mutability, Accessibility accessibility,
                                    FilePosition pos, IOContext ioContext) throws SyntaxError {
             ensureDeclareable(name, DeclareableType.VARIABLE,pos);
-            VariableId id = new VariableId(this,level(), nextVarId(), type, mutability, isPublic, pos);
+            VariableId id = new VariableId(this,level(), nextVarId(), type, mutability, accessibility, pos);
             putElement(name, id);
             return id;
         }
@@ -1309,10 +1336,10 @@ public class Interpreter {
             return this instanceof RootContext?super.nextVarId():root().nextVarId();//declare variables in root
         }
         @Override
-        VariableId declareVariable(String name, Type type, Mutability mutability, boolean isPublic,
+        VariableId declareVariable(String name, Type type, Mutability mutability, Accessibility accessibility,
                                    FilePosition pos, IOContext ioContext) throws SyntaxError {
             checkShadowed(DeclareableType.VARIABLE,name,pos,ioContext);
-            return super.declareVariable(name, type, mutability, isPublic, pos,ioContext);
+            return super.declareVariable(name, type, mutability, accessibility, pos,ioContext);
         }
         @Override
         VariableId wrapCurried(String name, VariableId id, FilePosition pos){
@@ -1403,7 +1430,8 @@ public class Interpreter {
         }
         @Override
         protected Declareable putElement(String name, Declareable val) {
-            if(!val.isPublic()){
+            Accessibility access=val.accessibility();
+            if(access==Accessibility.PRIVATE){
                 return localDeclareables.put(name, val);
             }
             return root.putElement(name,val);
@@ -1470,9 +1498,9 @@ public class Interpreter {
         }
 
         @Override
-        VariableId declareVariable(String name, Type type, Mutability mutability, boolean isPublic,
+        VariableId declareVariable(String name, Type type, Mutability mutability, Accessibility accessibility,
                                    FilePosition pos, IOContext ioContext) throws SyntaxError {
-            VariableId id = super.declareVariable(name, type, mutability, isPublic, pos,ioContext);
+            VariableId id = super.declareVariable(name, type, mutability, accessibility, pos,ioContext);
             Declareable shadowed = parent.getDeclareable(name);
             if (shadowed != null) {//check for shadowing
                 ioContext.stdErr.println("Warning: variable " + name + " declared at " + pos +
@@ -1901,7 +1929,7 @@ public class Interpreter {
                     if(prevId!=null){
                         tokens.remove(tokens.size()-1);
                         finishParsing(pState, ioContext,pos);
-                        pState.currentMacro=new Macro(pos,prevId,((IdentifierToken) prev).isPublic(),new ArrayList<>());
+                        pState.currentMacro=new Macro(pos,prevId,((IdentifierToken) prev).isPublicReadable(),new ArrayList<>());
                     }else{
                         throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
                     }
@@ -1988,7 +2016,7 @@ public class Interpreter {
                         throw new SyntaxError("token before tuple has to be an identifier",pos);
                     }
                     name = ((IdentifierToken) prev).name;
-                    TupleBlock tupleBlock = new TupleBlock(name,((IdentifierToken) prev).isPublic(),
+                    TupleBlock tupleBlock = new TupleBlock(name,((IdentifierToken) prev).isPublicReadable(),
                             0, pos, pState.topLevelContext());
                     pState.openBlocks.add(tupleBlock);
                     pState.openedContexts.add(tupleBlock.context());
@@ -2008,7 +2036,7 @@ public class Interpreter {
                         throw new SyntaxError("token before enum has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
-                    pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublic(), 0,pos,pState.topLevelContext()));
+                    pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublicReadable(), 0,pos,pState.topLevelContext()));
                 }
                 case "struct{" -> {
                     String name;
@@ -2024,7 +2052,7 @@ public class Interpreter {
                         throw new SyntaxError("token before struct has to be an identifier",pos);
                     }
                     name = ((IdentifierToken) prev).name;
-                    StructBlock structBlock = new StructBlock(name,((IdentifierToken) prev).isPublic(),
+                    StructBlock structBlock = new StructBlock(name,((IdentifierToken) prev).isPublicReadable(),
                             0, pos, pState.topLevelContext());
                     pState.openBlocks.add(structBlock);
                     pState.openedContexts.add(structBlock.context());
@@ -2078,7 +2106,7 @@ public class Interpreter {
                         throw new SyntaxError("token before '"+str+"' has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
-                    ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublic(), 0,
+                    ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublicReadable(), 0,
                             pos, pState.topLevelContext(), isNative);
                     pState.openBlocks.add(proc);
                     pState.openedContexts.add(proc.context());
@@ -2484,11 +2512,39 @@ public class Interpreter {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
                     }else if(prevId!=null){
-                        if(((IdentifierToken) prev).isPublic()){
-                            throw new SyntaxError("duplicate modifier for identifier "+prevId+" : '"+str+"'",pos);
+                        if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
+                            throw new SyntaxError("multiple accessibility modifiers for identifier "+prevId+" : '"+str+"'",pos);
                         }
                         prev=new IdentifierToken(IdentifierType.WORD,prevId,
-                                ((IdentifierToken) prev).flags|IdentifierToken.FLAG_PUBLIC, prev.pos);
+                                ((IdentifierToken) prev).flags|IdentifierToken.ACCESSIBILITY_PUBLIC, prev.pos);
+                    }else{
+                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
+                    }
+                    tokens.set(tokens.size()-1,prev);
+                }
+                case "restricted" -> { //addLater better name
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
+                    }else if(prevId!=null){
+                        if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
+                            throw new SyntaxError("multiple accessibility modifiers for identifier "+prevId+" : '"+str+"'",pos);
+                        }
+                        prev=new IdentifierToken(IdentifierType.WORD,prevId,
+                                ((IdentifierToken) prev).flags|IdentifierToken.ACCESSIBILITY_READ_ONLY, prev.pos);
+                    }else{
+                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
+                    }
+                    tokens.set(tokens.size()-1,prev);
+                }
+                case "private" -> {
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
+                    }else if(prevId!=null){
+                        if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
+                            throw new SyntaxError("multiple accessibility modifiers for identifier "+prevId+" : '"+str+"'",pos);
+                        }
+                        prev=new IdentifierToken(IdentifierType.WORD,prevId,
+                                ((IdentifierToken) prev).flags|IdentifierToken.ACCESSIBILITY_PRIVATE, prev.pos);
                     }else{
                         throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
                     }
@@ -3452,7 +3508,7 @@ public class Interpreter {
                     }
                     Mutability mutability=identifier.mutability();
                     VariableId id = context.declareVariable( identifier.name, type, mutability,
-                            identifier.isPublic(), identifier.pos, ioContext);
+                            identifier.accessibility(), identifier.pos, ioContext);
                     //only remember root-level constants
                     if (identifier.isNative()) {
                         if(id.mutability==Mutability.MUTABLE){
@@ -3582,20 +3638,23 @@ public class Interpreter {
                 Declareable d= context.getDeclareable(identifier.name);
                 if(d==null){
                     throw new SyntaxError("variable "+identifier.name+" does not exist", t.pos);
-                }else if(d.declarableType()==DeclareableType.VARIABLE&&
-                        ((VariableId)d).mutability!=Mutability.IMMUTABLE){
-                    VariableId id=(VariableId) d;
-                    id.mutability=Mutability.MUTABLE;
-                    context.wrapCurried(identifier.name,id,identifier.pos);
-                    assert !globalConstants.containsKey(id);
-                    TypeFrame f = typeStack.pop();
-                    typeCheckCast(f.type,1, id.type, ret, ioContext,t.pos);
-                    ret.add(new VariableToken(identifier.pos,identifier.name,id,
-                            AccessType.WRITE, context));
-                }else{
+                }//no else
+                if(d.declarableType()!=DeclareableType.VARIABLE||((VariableId)d).mutability==Mutability.IMMUTABLE){
                     throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
                             identifier.name+" (declared at "+d.declaredAt()+") is not a mutable variable", t.pos);
+                }//no else
+                if(d.accessibility()==Accessibility.READ_ONLY&&!((VariableId) d).declaredAt.path.equals(t.pos.path)){
+                    throw new SyntaxError("variable "+identifier.name+"(declared at "+d.declaredAt()
+                            +") has cannot be modified",t.pos);
                 }
+                VariableId id=(VariableId) d;
+                id.mutability=Mutability.MUTABLE;
+                context.wrapCurried(identifier.name,id,identifier.pos);
+                assert !globalConstants.containsKey(id);
+                TypeFrame f = typeStack.pop();
+                typeCheckCast(f.type,1, id.type, ret, ioContext,t.pos);
+                ret.add(new VariableToken(identifier.pos,identifier.name,id,
+                        AccessType.WRITE, context));
             }
             case PROC_ID ->
                 typeCheckPushProcPointer(identifier, typeStack, ret, globalConstants, context, ioContext, t.pos);
@@ -3606,9 +3665,15 @@ public class Interpreter {
                     if(f.type instanceof Type.Struct){
                         Integer index=((Type.Struct) f.type).indexByName.get(identifier.name);
                         if(index!=null){
-                            typeStack.push(new TypeFrame(((Type.Struct) f.type).getElement(index),null, t.pos));
-                            ret.add(new TupleElementAccess(index, false, t.pos));
-                            hasField=true;
+                            Type.StructField field=((Type.Struct) f.type).fields[index];
+                            if((field.accessibility()!=Accessibility.PRIVATE||field.declaredAt().path.equals(t.pos.path))){
+                                typeStack.push(new TypeFrame(((Type.Struct) f.type).getElement(index),null, t.pos));
+                                ret.add(new TupleElementAccess(index, false, t.pos));
+                                hasField=true;
+                            }else{
+                                ioContext.stdErr.println("cannot access private field "+field.name()+"(declared at "+field.declaredAt()+
+                                        ") of struct "+f.type);
+                            }
                         }
                     }else if(f.type==Type.TYPE&&f.value!=null&&f.value.asType() instanceof Type.Enum anEnum){
                         int p=0;
@@ -3777,13 +3842,18 @@ public class Interpreter {
                                     struct.baseName,t.pos);
                         }
                         Type.StructField field = struct.fields[index];
-                        if(field.mutable()){
-                            typeCheckCast(val.type,2,struct.getElement(index), ret,ioContext, t.pos);
-                            ret.add(new TupleElementAccess(index, true, t.pos));
-                            hasField=true;
+                        if(field.accessibility()==Accessibility.PUBLIC||field.declaredAt().path.equals(t.pos.path)){
+                            if(field.mutable()){
+                                typeCheckCast(val.type,2,struct.getElement(index), ret,ioContext, t.pos);
+                                ret.add(new TupleElementAccess(index, true, t.pos));
+                                hasField=true;
+                            }else{
+                                throw new SyntaxError("field "+identifier.name+" (declared at "+ field.declaredAt()+
+                                        ") of struct "+struct.baseName+" (declared at "+struct.declaredAt+") is not mutable",t.pos);
+                            }
                         }else{
                             throw new SyntaxError("field "+identifier.name+" (declared at "+ field.declaredAt()+
-                                    ") of struct "+struct.baseName+" (declared at "+struct.declaredAt+") is not mutable",t.pos);
+                                    ") of struct "+struct.baseName+" (declared at "+struct.declaredAt+") cannot be accessed",t.pos);
                         }
                     }
                 }//no else
@@ -3822,8 +3892,13 @@ public class Interpreter {
                 if(typeStack.pop().type != Type.TYPE){
                     throw new RuntimeException("type stack out of sync with token list");
                 }
+                Accessibility accessibility = identifier.accessibility();
+                if(accessibility==Accessibility.DEFAULT){
+                    accessibility = Accessibility.PUBLIC;//struct fields are public by default
+                }
                 ((StructContext)context).fields.add(new StructFieldWithType(
-                        new Type.StructField(identifier.name,identifier.mutability()==Mutability.MUTABLE,t.pos),type));
+                        new Type.StructField(identifier.name, accessibility,
+                                identifier.mutability()==Mutability.MUTABLE,t.pos),type));
             }
         }
     }
