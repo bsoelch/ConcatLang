@@ -32,7 +32,7 @@ public class Interpreter {
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
         //compile time operations
-        LIST_OF,ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
+        ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
         MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifers
         //overloaded procedure pointer placeholders
         NOP,OVERLOADED_PROC_PTR
@@ -2398,7 +2398,6 @@ public class Interpreter {
 
                 case "mut?"     -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
                 case "mut^"     -> tokens.add(new Token(TokenType.MARK_INHERIT_MUTABILITY, pos));
-                case "list"     -> tokens.add(new Token(TokenType.LIST_OF,        pos));//list may be changed to a composite type
                 case "array"    -> tokens.add(new Token(TokenType.ARRAY_OF,       pos));
                 case "memory"   -> tokens.add(new Token(TokenType.MEMORY_OF,      pos));
                 case "optional" -> tokens.add(new Token(TokenType.OPTIONAL_OF,    pos));
@@ -2834,8 +2833,6 @@ public class Interpreter {
                     typeCheckTypeModifier("mut~",(t1)->Value.ofType(t1.immutable()),ret,typeStack,t.pos);
                 case MARK_INHERIT_MUTABILITY ->
                     typeCheckTypeModifier("mut^",(t1)->Value.ofType(t1.setMutability(Mutability.INHERIT)),ret,typeStack,t.pos);
-                case LIST_OF ->
-                    typeCheckTypeModifier("list",(t1)->Value.ofType(Type.listOf(t1)),ret,typeStack,t.pos);
                 case ARRAY_OF ->
                     typeCheckTypeModifier("array",(t1)->Value.ofType(Type.arrayOf(t1)),ret,typeStack,t.pos);
                 case MEMORY_OF ->
@@ -4601,7 +4598,7 @@ public class Interpreter {
                         context.stdErr.println("unresolved overloaded procedure pointer: "+next.pos);
                         return ExitType.ERROR;
                     }
-                    case DECLARE_LAMBDA, IDENTIFIER,LIST_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
+                    case DECLARE_LAMBDA, IDENTIFIER,OPTIONAL_OF,EMPTY_OPTIONAL,
                             MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,ARRAY_OF,MEMORY_OF ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
