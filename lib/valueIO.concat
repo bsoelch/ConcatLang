@@ -8,7 +8,7 @@ io #import
 numbers #include
 utf8 #include
 arraySlice #include
-_list #include
+list #include
 
 <<array public proc( A <?> stringBuilder A array mut? => stringBuilder ){
   A array mut? value =:

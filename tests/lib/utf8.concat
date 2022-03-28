@@ -2,7 +2,7 @@ tests/lib/utf8 :
 
 core #namespace
 utf8 #include
-_list #include
+list #include
 
 mut-s #define 16 buildString #end
 mut-u #define 16 buildUString #end

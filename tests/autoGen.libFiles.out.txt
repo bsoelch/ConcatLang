@@ -30,6 +30,10 @@ iterator:
 
 Stack:
 []
+list:
+
+Stack:
+[]
 lists:
 
 Stack:
@@ -59,10 +63,6 @@ utf8:
 Stack:
 []
 valueIO:
-
-Stack:
-[]
-_list:
 
 Stack:
 []

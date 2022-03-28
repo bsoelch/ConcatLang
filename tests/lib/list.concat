@@ -1,6 +1,6 @@
 tests/lib/list:
 
-_list #include
+list #include
 core #import
 
 4 int newList x =::
