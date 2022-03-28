@@ -558,7 +558,7 @@ public class Type {
                     return false;//incompatible mutability
                 }
                 for(int i=0;i<((Tuple) t).elements.length;i++){
-                    if(!elements[i].canAssignTo(((Tuple) t).elements[i],bounds)){
+                    if(!getElement(i).canAssignTo(((Tuple) t).getElement(i),bounds)){
                         return false;
                     }
                 }
@@ -578,7 +578,7 @@ public class Type {
                 }
                 int n=Math.min(elements.length,((Tuple) t).elements.length);
                 for(int i=0;i<n;i++){
-                    if(!elements[i].canCastTo(((Tuple) t).elements[i],bounds)){
+                    if(!getElement(i).canCastTo(((Tuple) t).getElement(i),bounds)){
                         return false;
                     }
                 }
