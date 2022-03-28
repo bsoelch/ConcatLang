@@ -12,7 +12,13 @@ arraySlice public struct{ A <>
    to =::
    off =::
    to off >= "to>=off" assert
-   #+array+# off to off - A arraySlice new return
+   #+array+# off to off - A arraySlice mut new return
+}
+[:] public proc( A <?> A array mut? uint uint => A arraySlice mut? ){
+   to =::
+   off =::
+   to off >= "to>=off" assert
+   #+array+# off to off - A arraySlice mut? new return
 }
 [:] public proc( A <?> A array uint uint => A arraySlice ){
    to =::
