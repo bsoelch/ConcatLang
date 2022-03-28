@@ -353,7 +353,6 @@ public class Interpreter {
             this.index = index;
         }
     }
-
     static class VariableToken extends Token{
         final VariableType variableType;
         final AccessType accessType;
@@ -396,6 +395,17 @@ public class Interpreter {
         @Override
         public String toString() {
             return variableType+"_"+accessType +":" +(variableType==VariableType.CURRIED?id:id.id)+" ("+variableName+")";
+        }
+    }
+
+    enum CompilerTokenType{TOKENS,BLOCKS,TYPES}
+    static class CompilerToken extends Token{
+        final CompilerTokenType type;
+        final int count;
+        CompilerToken(CompilerTokenType type, int count, FilePosition pos) {
+            super(TokenType.NOP, pos);
+            this.type = type;
+            this.count = count;
         }
     }
 
@@ -1849,6 +1859,49 @@ public class Interpreter {
 
     private void finishWord(String str, ParserState pState, FilePosition pos, IOContext ioContext) throws SyntaxError {
         if (str.length() > 0) {
+            if(str.startsWith("#compiler:")){
+                String[] commands=str.substring("#compiler:".length()).split(":");
+                switch (commands[0]){
+                    case "tokens"->{
+                        int n=Integer.parseInt(commands[1]);
+                        ArrayList<Token> tokens = pState.tokens;
+                        if(n>tokens.size()){
+                            System.out.println("n > #tokens ("+tokens.size()+")");
+                            n=tokens.size();
+                        }
+                        for(int k=1;k<=n;k++){
+                            System.out.println(tokens.get(tokens.size()-k));
+                        }
+                    }
+                    case "globalBlocks"->{
+                        int n=Integer.parseInt(commands[1]);
+                        ArrayDeque<CodeBlock> blocks = pState.openBlocks;
+                        if(n>blocks.size()){
+                            System.out.println("n > #blocks ("+blocks.size()+")");
+                            n=blocks.size();
+                        }
+                        CodeBlock[] blockArray = blocks.toArray(CodeBlock[]::new);
+                        for(int k=1;k<=n;k++){
+                            System.out.println(blockArray[blocks.size()-k]);
+                        }
+                    }
+                    case "code"->{
+                        int n=Integer.parseInt(commands[1]);
+                        pState.tokens.add(new CompilerToken(CompilerTokenType.TOKENS,n,pos));
+                    }
+                    case "blocks"->{
+                        int n=Integer.parseInt(commands[1]);
+                        pState.tokens.add(new CompilerToken(CompilerTokenType.BLOCKS,n,pos));
+                    }
+                    case "types"->{
+                        int n=Integer.parseInt(commands[1]);
+                        pState.tokens.add(new CompilerToken(CompilerTokenType.TYPES,n,pos));
+                    }
+                    default ->
+                        System.out.println("unknown compiler command: "+commands[0]);
+                }
+                return;
+            }
             ArrayList<Token> tokens = pState.tokens;
             Token prev= tokens.size()>0? tokens.get(tokens.size()-1):null;
             String prevId=(prev instanceof IdentifierToken &&((IdentifierToken) prev).type == IdentifierType.WORD)?
@@ -2767,6 +2820,42 @@ public class Interpreter {
         Token prev;
         for(int i=0;i<tokens.size();i++){
             Token t=tokens.get(i);
+            if(t instanceof CompilerToken){
+                switch(((CompilerToken) t).type){
+                    case TOKENS -> {
+                        int n=((CompilerToken) t).count;
+                        if(n > ret.size()){
+                            System.out.println("n > #tokens ("+ret.size()+")");
+                            n=ret.size();
+                        }
+                        for(int k=1;k<=n;k++){
+                            System.out.println(ret.get(ret.size()-k));
+                        }
+                    }
+                    case BLOCKS -> {
+                        int n=((CompilerToken) t).count;
+                        if(n > openBlocks.size()){
+                            System.out.println("n > #blocks ("+openBlocks.size()+")");
+                            n=openBlocks.size();
+                        }
+                        CodeBlock[] blocks=openBlocks.toArray(CodeBlock[]::new);
+                        for(int k=1;k<=n;k++){
+                            System.out.println(blocks[openBlocks.size()-k]);
+                        }
+                    }
+                    case TYPES -> {
+                        int n=((CompilerToken) t).count;
+                        if(n > typeStack.size()){
+                            System.out.println("n > #types ("+typeStack.size()+")");
+                            n=typeStack.size();
+                        }
+                        for(int k=1;k<=n;k++){
+                            System.out.println(typeStack.get(k));
+                        }
+                    }
+                }
+                continue;//don't check t as a normal token
+            }
             if(finishedBranch){
                 if(t.tokenType!=TokenType.UNREACHABLE&&((!(t instanceof BlockToken block))
                         ||(block.blockType!=BlockTokenType.ELSE&&block.blockType!=BlockTokenType.END_CASE
