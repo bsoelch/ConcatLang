@@ -3532,7 +3532,7 @@ public class Interpreter {
                     if (id.mutability==Mutability.IMMUTABLE && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         Value value = ((ValueToken) prev).value;
-                        if(value.type.isMutable()){//TODO check for deep Mutability
+                        if(!value.type.isDeeplyImmutable()){
                             value=value.clone(true,null);
                         }
                         globalConstants.put(id, value.castTo(type));
@@ -4507,7 +4507,7 @@ public class Interpreter {
                     case LAMBDA, VALUE -> {
                         assert next instanceof ValueToken;
                         ValueToken value = (ValueToken) next;
-                        if(value.value.type.isMutable()){//TODO check deep mutability
+                        if(!value.value.type.isDeeplyImmutable()){
                             stack.push(value.value.clone(true,null));
                         }else{
                             stack.push(value.value);

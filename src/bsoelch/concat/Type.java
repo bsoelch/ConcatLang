@@ -191,6 +191,9 @@ public class Type {
     public boolean isMutable() {
         return mutability==Mutability.MUTABLE;
     }
+    public boolean isDeeplyImmutable() {
+        return mutability!=Mutability.MUTABLE;
+    }
     public boolean isMaybeMutable() {
         return mutability==Mutability.UNDECIDED;
     }
@@ -305,6 +308,12 @@ public class Type {
         public int depth() {
             return content().depth()+1;
         }
+
+        @Override
+        public boolean isDeeplyImmutable() {
+            return super.isDeeplyImmutable()&&contentType.isDeeplyImmutable();
+        }
+
         @Override
         public Type setMutability(Mutability newMutability) {
             if(newMutability!=mutability&&!wrapperName.equals(OPTIONAL)){
@@ -478,6 +487,17 @@ public class Type {
                 d=Math.max(d,t.depth());
             }
             return d+1;
+        }
+        @Override
+        public boolean isDeeplyImmutable() {
+            if(!super.isDeeplyImmutable()){
+                return false;
+            }
+            for(Type t:elements){
+                if(!t.isDeeplyImmutable())
+                    return false;
+            }
+            return true;
         }
         boolean isMutable(int index){
             return mutability==Mutability.MUTABLE;
@@ -1178,6 +1198,19 @@ public class Type {
             }
             return d+1;
         }
+
+        @Override
+        public boolean isDeeplyImmutable() {
+            if(!super.isDeeplyImmutable()){
+                return false;
+            }
+            for(Type t:elements){
+                if(!t.isDeeplyImmutable())
+                    return false;
+            }
+            return true;
+        }
+
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             if(!(t instanceof UnionType)||((UnionType) t).elements.length!=elements.length){
