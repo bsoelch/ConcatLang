@@ -3419,7 +3419,7 @@ public class Interpreter {
                     typeCheckCast(f.type,2,type.content(),ret,ioContext,pos);
                 }
                 typeStack.push(new TypeFrame(type,null, pos));
-                //addLater? support new list/memory/array in pre-evaluation
+                //addLater? support new memory/array in pre-evaluation
             }else{
                 throw new SyntaxError("cannot apply 'new' to type "+type, pos);
             }
