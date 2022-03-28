@@ -56,8 +56,11 @@ public class Test {//TODO add a new test for array access operations
                     Interpreter.Program testP =
                             Interpreter.compileAndRun(path, new String[]{System.getProperty("user.dir")}, context);
                     if(testP!=null){
-                        Interpreter.RootContext testC=
-                                testP.rootContext();
+                        if(libFile.getValue()==null){
+                            System.err.println("unable to build library file: "+file.getAbsolutePath());
+                            continue;
+                        }
+                        Interpreter.RootContext testC= testP.rootContext();
                         for(Map.Entry<String, Interpreter.Declareable> d:libFile.getValue().rootContext().declareables()){
                             if(d.getValue() instanceof OverloadedProcedure){
                                 for(Interpreter.Callable c:((OverloadedProcedure) d.getValue()).procedures){
