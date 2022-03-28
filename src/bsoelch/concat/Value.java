@@ -584,11 +584,12 @@ public abstract class Value {
 
     public static Value ofString(String stringValue,boolean unicodeMode) {
         if(unicodeMode){
-            return new ListValue(Type.UNICODE_STRING(),stringValue.codePoints().mapToObj(Value::ofChar)
-                    .collect(Collectors.toCollection(ArrayList::new)));
+            return createArray(Type.UNICODE_STRING(),stringValue.codePoints().mapToObj(Value::ofChar)
+                    .toArray(Value[]::new));
         }else{
             byte[] bytes = stringValue.getBytes(StandardCharsets.UTF_8);
-            return new ByteListImpl(bytes.length,bytes);
+            Value[] wrapped=wrapBytes(bytes);
+            return createArray(Type.RAW_STRING(),wrapped);
         }
     }
 
@@ -1780,6 +1781,19 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
+            if(type.content()==Type.BYTE){
+                try {
+                    return new String((byte[])rawData(Type.RAW_STRING()),StandardCharsets.UTF_8);
+                } catch (TypeError e) {
+                    throw new RuntimeException(e);
+                }
+            }else if(type.content()==Type.CODEPOINT){
+                StringBuilder str=new StringBuilder();
+                for(int i=offset;i<offset+length;i++){
+                    str.append(Character.toChars(((CodepointValue)data[i]).getChar()));
+                }
+                return str.toString();
+            }
             return Arrays.toString(elements());
         }
 

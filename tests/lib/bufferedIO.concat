@@ -11,9 +11,12 @@ core #import
 10 newBufferedInput in =::
 in BufferedInput.nextByte debugPrint
 in BufferedInput.nextByte debugPrint
-10 byte list mut new buff =::
+10 byte memory mut new buff =::
 while{
-  in buff 50 BufferedInput.readTo n =::
+  in buff 0 50 read n =::
   n debugPrint
-  n 0 > dup if{ buff 0 n [:] dup debugPrint clear }
+  n 0 > dup if{
+    buff debugPrint
+    buff 0 buff .length clearSlice
+  }
 do }

@@ -47,7 +47,7 @@ lambda( ){
       lambda( ){
         " supported!" string d =:
         lambda( ){
-          32 string mut new a <<* b <<* c <<* d <<* println
+          32 buildString a <<* b <<* c <<* d <<* build println
         }
       }
     }

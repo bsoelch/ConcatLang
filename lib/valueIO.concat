@@ -7,9 +7,10 @@ io #include
 io #import
 numbers #include
 utf8 #include
+arraySlice #include
+_list #include
 
-
-<<list public proc( A <?> string mut A list mut? => string mut ){
+<<list public proc( A <?> stringBuilder A list mut? => stringBuilder ){
   A list mut? value =:
   '[' << res =::
   0 i =::
@@ -22,7 +23,7 @@ utf8 #include
   }
   res ']' << return
 }
-<<array public proc( A <?> string mut A array mut? => string mut ){
+<<array public proc( A <?> stringBuilder A array mut? => stringBuilder ){
   A array mut? value =:
   '[' << res =::
   0 i =::
@@ -35,7 +36,7 @@ utf8 #include
   }
   res ']' << return
 }
-<<optional public proc( A <?> string mut A optional => string mut ){
+<<optional public proc( A <?> stringBuilder A optional => stringBuilder ){
   A optional value =:
   value if{
     #+value+# <<s " wrap" <<* return
@@ -43,12 +44,12 @@ utf8 #include
     value .type .content <<s " empty" <<* return
   }
 }
-<<s public proc( string mut var => string mut ){
+<<s public proc( stringBuilder var => stringBuilder ){
   var value =:
-  value .type string == ||{ value .type string mut == } if{
-    value string cast <<* return
-  else value .type ustring == ||{ value .type ustring mut == } if
-    value ustring cast <<* return
+  value .type .isArray ||{ value .type .isMemory } &&{ value .type .content byte == } if{
+    value string mut? cast <<* return
+  else value .type .isArray ||{ value .type .isMemory } &&{ value .type .content codepoint == }  if
+    value ustring mut? cast <<* return
   else value .type ( ) <= if
     '(' << res =::
     0 i =::
@@ -157,23 +158,23 @@ utf8 #include
     value .type <<s "@" <<* value refId <<X return
   else unreachable }
 }
-stringValue public proc( var => string mut ){
+stringValue public proc( var => string ){
   var val =:
-  16 string mut new  val <<s return
+  64 buildString val <<s build return
 }
 
-<<byte public proc( string mut byte => string mut ){
+<<byte public proc( stringBuilder byte => stringBuilder ){
     byte value =:
     "0x" <<* value int cast  <<x return
 }
-byteToString public proc( byte => string mut ){
+byteToString public proc( byte => string ){
   byte value =:
-  4 string mut new value <<byte return
+  4 buildString value <<byte build return
 }
 
-byteListToString public proc( byte list => string mut ){
-  byte list bytes =:
-  bytes .length 6 * string mut new res =::
+byteArrayToString public proc( byte array mut? => string ){
+  byte array mut? bytes =:
+  bytes .length 6 * buildString res =::
   res "[" <<* res =
   0 int i mut =:
   while{ i bytes .length < do
@@ -183,11 +184,28 @@ byteListToString public proc( byte list => string mut ){
     res bytes i [] <<byte res =
     i 1 + i =
   }
-  res "]" <<* return
+  res "]" <<* build return
+}
+byteListToString public proc( byte list => string ){
+  byte list bytes =:
+  bytes .length 6 * buildString res =::
+  res "[" <<* res =
+  0 int i mut =:
+  while{ i bytes .length < do
+    i 0 > if{
+      res ", " <<* res =
+    }
+    res bytes i [] <<byte res =
+    i 1 + i =
+  }
+  res "]" <<* build return
 }
 
 print   public proc( var      =>      ){      stringValue           puts        }
-println public proc( var      =>      ){      stringValue '\n' <<  puts         }
+println public proc( var      =>      ){
+  var val =:
+  64 buildString val <<s '\n' << build puts
+}
 fprint  public proc( var FILE => bool ){ swap stringValue swap     fputs return }
 
 1 int IO_FLAG_PAD_0 =:
@@ -200,7 +218,7 @@ Format struct{
 }
 ## isValue:bool value:string$
 FormatString struct{ Format extend
-  string :value
+  byte arraySlice :value
 }
 ##isValue:bool index:int flags:int w:int w_ptr:boolean p:int p_ptr:boolean b:int b_ptr:boolean format:byte (char)
 FormatValue struct{ Format extend
@@ -216,7 +234,7 @@ FormatValue struct{ Format extend
 }
 
 ##TODO replace with append version
-IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runtime checks for correct types
+IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime checks for correct types
   var array mut? values =:
   FormatValue format =:
   format .flags IO_FLAG_ALIGN_LEFT & 0 != bool alignLeft mut =:
@@ -239,15 +257,15 @@ IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runt
   }
   format .format  switch{
   'b' case
-    5 string mut new
+    5 buildString
     values format .index [] bool cast if{ "true" else "false" } <<*
     end-case
   'B' case
-    5 string mut new
+    5 buildString
     values format .index [] bool cast if{ "TRUE" else "FALSE" } <<*
     end-case
   'i' case
-    64 string mut new
+    64 buildString
     plusSgn '\0' != if{
       values format .index [] int cast 0 >= if{
         plusSgn <<
@@ -256,7 +274,7 @@ IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runt
     values format .index [] int cast base <<?i
     end-case
   'I' case
-    64 string mut new
+    64 buildString
     plusSgn '\0' != if{
       values format .index [] int cast  0 >= if{
         plusSgn <<
@@ -265,21 +283,21 @@ IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runt
     values format .index [] int cast  base <<?I
     end-case
   'u' case
-    64 string mut new
+    64 buildString
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast base <<?u
     end-case
   'U' case
-    64 string mut new
+    64 buildString
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast base <<?U
     end-case
   'd' case
-    64 string mut new
+    64 buildString
     plusSgn '\0' != if{
       values format .index [] int cast 0 >= if{
         plusSgn <<
@@ -288,21 +306,21 @@ IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runt
     values format .index [] int cast <<i
     end-case
   'x' case
-    16 string mut new
+    16 buildString
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast <<x
    end-case
   'X' case
-    16 string mut new
+    16 buildString
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast <<X
     end-case
   'e' case
-    32 string mut new
+    32 buildString
     plusSgn '\0' != if{
       values format .index [] float cast 0 >= if{
         plusSgn <<
@@ -311,7 +329,7 @@ IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runt
     values format .index [] float cast precision base <<??e
     end-case
   'E' case
-    32 string mut new
+    32 buildString
     plusSgn '\0' != if{
       values format .index [] float cast 0 >= if{
         plusSgn <<
@@ -320,7 +338,7 @@ IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runt
     values format .index [] float cast precision base <<??E
     end-case
   'f' case
-    32 string mut new
+    32 buildString
     plusSgn '\0' != if{
       values format .index [] float cast 0 >= if{
         plusSgn <<
@@ -329,7 +347,7 @@ IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runt
     values format .index [] float cast precision base <<??f
     end-case
   'F' case
-    32 string mut new
+    32 buildString
     plusSgn '\0' != if{
       values format .index [] float cast 0 >= if{
         plusSgn <<
@@ -338,31 +356,30 @@ IO_printValue proc( FormatValue var array mut? => string mut ){ ## addLater runt
     values format .index [] float cast precision base <<??F
     end-case
   'c' case
-    1 string mut new values format .index [] byte cast <<
+    1 buildString values format .index [] byte cast <<
     end-case
   's' 'S' case
-    values format .index [] stringValue
+    0 buildString values format .index [] stringValue <<*
     end-case
   '%' case
-    1 string mut new '%' <<
+    1 buildString '%' <<
     end-case
   default
-    32 string mut new
-    format .format << " is no valid format specifier\n" <<* eputs
+    32 buildString
+    format .format << " is no valid format specifier\n" <<* build eputs
     1 exit
   } res =::
-  res .length width < if{
-    width res .length - int count =:
+  res .data .length width < if{
+    width res .data .length - int count =:
     format .flags IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
-    count string mut new padding =::
-    padding 0 count padChar fill
+    padChar count string new padding =::
     alignLeft if{
       res padding <<* res =
     else
       padding res *>> res =
     }
   }
-  res return
+  res build return
 }
 
 isFormatChar proc( #+char+# byte => bool ){
@@ -378,7 +395,7 @@ isFormatChar proc( #+char+# byte => bool ){
   false
 }
 
-sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
+sprintf public proc( #+args+# var array mut? #+format+# string => string ){
   string format =:
   var array mut? args =:
 
@@ -389,7 +406,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
    0 int count mut =:
   -1 int maxFormat mut =:
   0 byte tmpC mut =:
-  0 string mut new tmp =::
+  0 buildString tmp =::
   while{ i0 n < do
     i0 i =
     while{ i format .length < &&{ format i [] '%' != } do
@@ -405,21 +422,21 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
         i0 1 + i0 =
       }
       i0 format .length >= if{
-        64 string mut new
-        "printf: unfinished or invalid format String: " <<* format i format .length [:] stringValue  <<* '\n' << eputs
+        64 buildString
+        "printf: unfinished or invalid format String: " <<* format i format .length [:] stringValue  <<* '\n' << build eputs
         1 exit
       }
       format i0 [] byte _formatChar =:
-      format i i0 [:] string _formatString =:
+      format i i0 [:] byte arraySlice _formatString =:
       i0 1 + i0 =
       _formatChar '%' == if{
         _formatString .length 0 > if{
-          128 string mut new
+          128 buildString
           "printf: invalid Format String: \"" <<* _formatString <<*
-           "\" format '%' does not allow any additional parameters\n" <<* eputs
+           "\" format '%' does not allow any additional parameters\n" <<* build eputs
            1 exit
         }
-        parts   false "%" FormatString new   << parts =
+        parts   false "%" 0 1 [:] FormatString new   << parts = ## TODO? don't use new string for slice
       else
         count int  index mut =:
         count 1 +  count =
@@ -439,7 +456,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
           i 1 + i =
         } tmp =
         i _formatString .length < &&{ _formatString i [] '$' == } if{
-          tmp parseInt index =
+          tmp build parseInt index =
           tmp clear
         }
         ## ([-+ 0]+)? flags
@@ -448,12 +465,12 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
         ## ' '  The result will include a leading space for positive values
         ## '0'  The result will be zero-padded
         0 int i1 mut =:
-        while{ i1 tmp .length < &&{ tmp i1 [] '0' == } do
+        while{ i1 tmp .data .length < &&{ tmp i1 [] '0' == } do
           flags IO_FLAG_PAD_0 | flags =
           i1 1 + i1 =
         }
         tmp 0 i1 [:] clear
-        tmp .length 0 == if{
+        tmp .data .length 0 == if{
           true while{ #+ loop condition (on stack) +# &&{ i _formatString .length < } do
             _formatString i [] tmpC =
             tmpC '-' == if{
@@ -482,8 +499,8 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
           } tmp =
         }
         ## ([0-9]+)? width
-        tmp .length 0 > if{
-          tmp parseInt w =
+        tmp .data .length 0 > if{
+          tmp build parseInt w =
           tmp clear ## clear tmp
         else i _formatString .length < &&{ _formatString i [] '*' == } if ## *(<index>).
           i 1 + i =
@@ -494,8 +511,8 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
             _formatString i [] <<
             i 1 + i =
           } tmp =
-          tmp .length 0 > if{
-            tmp parseInt w =
+          tmp .data .length 0 > if{
+            tmp build parseInt w =
             tmp clear ## clear tmp
           }
         }
@@ -504,9 +521,9 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
                _formatChar 'f' ==  if{ else _formatChar 'F' == if
           else _formatChar 'e' == if else _formatChar 'E' == if
           else
-            128 string mut new
+            128 buildString
             "printf: invalid Format String: \"" <<* _formatString <<* _formatChar <<
-                             "\" precision-parameter only allowed for formats f, F, e, E, s and S\n" <<* eputs
+                             "\" precision-parameter only allowed for formats f, F, e, E, s and S\n" <<* build eputs
             1 exit
           }
           i 1 + i =
@@ -520,8 +537,8 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
             _formatString i [] <<
             i 1 + i =
           } tmp =
-          p_ptr ! ||{ tmp .length 0 > } if{
-            tmp parseInt p =
+          p_ptr ! ||{ tmp .data .length 0 > } if{
+            tmp build parseInt p =
             tmp clear ## clear tmp
           }
         }
@@ -532,9 +549,9 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
           else _formatChar 'f' == if else _formatChar 'F' == if
           else _formatChar 'e' == if else _formatChar 'E' == if
           else
-            128 string mut new
+            128 buildString
             "printf: invalid Format String: \"" <<* _formatString <<* _formatChar <<
-                             "\" base-parameter only allowed for formats i,u,f,e and s\n" <<* eputs
+                             "\" base-parameter only allowed for formats i,u,f,e and s\n" <<* build eputs
             1 exit
           }
           i 1 + i =
@@ -549,20 +566,20 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
             i 1 + i =
           } tmp =
           i _formatString .length < &&{ _formatString i [] ')' == } if{
-            b_ptr ! ||{ tmp .length 0 > } if{
-              tmp parseInt b =
+            b_ptr ! ||{ tmp .data .length 0 > } if{
+              tmp build parseInt b =
               tmp clear ## clear tmp
             }
             i 1 + i =
           else
-            64 string mut new
-            "printf: invalid Format String: \"" <<* _formatString <<* _formatChar << "\"\n" <<* eputs
+            64 buildString
+            "printf: invalid Format String: \"" <<* _formatString <<* _formatChar << "\"\n" <<* build eputs
             1 exit
           }
         }
-        i _formatString .length < ||{ tmp .length 0 > } if{
-          64 string mut new
-          "printf: invalid Format String: \"" <<* _formatString <<* _formatChar << "\"\n" <<* eputs
+        i _formatString .length < ||{ tmp .data .length 0 > } if{
+          64 buildString
+          "printf: invalid Format String: \"" <<* _formatString <<* _formatChar << "\"\n" <<* build eputs
           1 exit
         }
         parts   true index flags w w_ptr p p_ptr b b_ptr _formatChar FormatValue new   << parts =
@@ -589,23 +606,23 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string mut ){
   }
   maxFormat 1 + count =
   count args .length != if{
-    64 string mut new
+    64 buildString
     "wrong number of arguments: " <<* args .length <<i " expected " <<* count <<i
-    '\n' << eputs
+    '\n' << build eputs
     1 exit
   }
   0 i =
   while{ i parts .length < do
     tmp
     parts i [] .isValue if{   ## Value format
-      parts i [] args IO_printValue
+      parts i [] args IO_printValue <<*
     else ## string format
-      parts i [] FormatString cast .value
+      parts i [] FormatString cast .value <<*
     }
-    <<* tmp =
+    tmp =
     i 1 + i =
   }
-  tmp return
+  tmp build return
 }
 
 printf public proc( var array mut?  string => ){

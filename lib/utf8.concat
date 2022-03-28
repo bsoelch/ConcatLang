@@ -5,9 +5,10 @@ core #namespace
 stack #include
 io #include
 numbers  #include
+_list #include
 
 
-<< public proc( string mut codepoint => string mut ){
+<< public proc( stringBuilder codepoint => stringBuilder ){
   uint cp =:
   str =::
        cp 0x80    < if{   ## ascii - character
@@ -26,20 +27,44 @@ numbers  #include
         cp        0x3f & 0x80 | byte cast << return
   else
     ## don't exit on invalid codepoints, only display waring message
-    35 string mut new
-    "Codepoint out of range: 0x" <<* cp int cast <<X '\n' << eputs
+    35 buildString
+    "Codepoint out of range: 0x" <<* cp int cast <<X '\n' << build eputs
+    str return
+  }
+}
+<< public proc( byte ListSlice mut codepoint => byte ListSlice mut ){ ##addLater merge with  List version
+  uint cp =:
+  str =::
+       cp 0x80    < if{   ## ascii - character
+    str cp byte cast << return
+  else cp 0x800   < if  ## 2-byte blocks
+    str cp 6 >>          0xc0 | byte cast <<
+        cp        0x3f & 0x80 | byte cast << return
+  else cp 0x10000 < if  ## 3-byte blocks
+    str cp 12 >>         0xe0 | byte cast <<
+        cp  6 >>  0x3f & 0x80 | byte cast <<
+        cp        0x3f & 0x80 | byte cast << return
+  else cp 0x10ffff < if ## 4-byte blocks
+    str cp 18 >>         0xf0 | byte cast <<
+        cp 12 >>  0x3f & 0x80 | byte cast <<
+        cp  6 >>  0x3f & 0x80 | byte cast <<
+        cp        0x3f & 0x80 | byte cast << return
+  else
+    ## don't exit on invalid codepoints, only display waring message
+    35 buildString
+    "Codepoint out of range: 0x" <<* cp int cast <<X '\n' << build eputs
     str return
   }
 }
 
->> public proc( codepoint string mut => string mut ){
+>> public proc( codepoint stringBuilder => stringBuilder ){
   str =::
   cp =::
   str 0 0 [:] cp << drop
   str return
 }
 
-<<* public proc( string mut ustring mut? => string mut ){
+<<* public proc( stringBuilder ustring mut? => stringBuilder ){
   append =::
   value  =::
   value value .length append .length + ensureCap
@@ -50,7 +75,7 @@ numbers  #include
   }
   value return
 }
-*>> public proc( ustring mut? string mut => string mut ){
+*>> public proc( ustring mut? stringBuilder => stringBuilder ){
   value =::
   append =::
   value value .length append .length + ensureCap
@@ -62,7 +87,7 @@ numbers  #include
   value return
 }
 
-<<* public proc( ustring mut string mut? => ustring mut ){
+<<* public proc( ustringBuilder string mut? => ustringBuilder ){
   append =::
   value  =::
   value value .length append .length + ensureCap
@@ -72,20 +97,30 @@ numbers  #include
   } 3 $drop ## drop remaining data
   value return
 }
-*>> public proc( string mut? ustring mut => ustring mut ){
+<<* public proc( codepoint ListSlice mut string mut? => codepoint ListSlice mut ){ ##addLater merge with List version
+  append =::
+  value  =::
+  value value .length append .length + ensureCap
+  append 0u
+  while{ nextCodepoint do
+    value swap << value =
+  } 3 $drop ## drop remaining data
+  value return
+}
+*>> public proc( string mut? ustringBuilder => ustringBuilder ){
   value  =::
   append =::
   value 0 0 [:] append <<* drop
   value return
 }
 
-codepointToString public proc( codepoint => string mut ){
-  4 string mut new swap << return
+codepointToString public proc( codepoint => string ){
+  4 buildString swap << build return
 }
 
-codepointsToString public proc( ustring mut? => string mut ){
+codepointsToString public proc( ustring mut? => string ){
   ustring mut? source =:
-  source .length string mut new source <<* return
+  source .length buildString source <<* build return
 }
 
 #+
@@ -136,9 +171,9 @@ nextCodepoint public proc( string mut? #+index+# uint => string mut? #+end+# uin
   value index  0 codepoint cast  false return
 }
 
-codepoints public proc( string mut? => ustring mut ){
+codepoints public proc( string mut? => ustring ){
   string mut? source =:
-  source .length ustring mut new source <<* return
+  source .length buildUString source <<* build return
 }
 
 #end ##core

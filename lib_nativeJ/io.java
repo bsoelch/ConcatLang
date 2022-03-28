@@ -11,11 +11,11 @@ public class io{
     public static FileStream nativeImpl_stdOut = new SysOutStream(false);
     public static FileStream nativeImpl_stdErr = new SysOutStream(true);
 
-    public static Optional<FileStream> nativeImpl_open(Object[] path, Object[] flags){
+    public static Optional<FileStream> nativeImpl_open(byte[] path, byte[] flags){
         try {
             return Optional.of(new RandomAccessFileStream(
-                    new String((byte[])path[0],(int)path[1],(int)path[2],StandardCharsets.UTF_8),
-                    new String((byte[])flags[0],(int)flags[1],(int)flags[2], StandardCharsets.UTF_8)));
+                    new String(path,StandardCharsets.UTF_8),
+                    new String(flags,StandardCharsets.UTF_8)));
         } catch (FileNotFoundException e) {
             return Optional.empty();
         }
@@ -23,47 +23,37 @@ public class io{
     public static boolean nativeImpl_close(FileStream file){
         return file.close();
     }
+    public static long nativeImpl_read(FileStream file,byte[] buff,long off,long count){
+        return file.read(buff, off, count);
+    }
     public static long nativeImpl_read(FileStream file,Object[] buff,long off,long count){
         byte[] bytes = (byte[])buff[0];
         int bytes_off  = (int)buff[1];
         int bytes_len  = (int)buff[2];
-        int bytes_init = (int)buff[3];
-        if(bytes_len<off+count){
-            if(bytes.length<off+count+bytes_init-bytes_len){
-                byte[] tmp=new byte[(int)(off+count+bytes_init-bytes_len)];
-                System.arraycopy(bytes,0,tmp,0,bytes_off);
-                bytes=tmp;
-            }
-            System.arraycopy(bytes,bytes_off+bytes_len,bytes,(int)(bytes_off+off+count),
-                    bytes_init-(bytes_off+bytes_len));
-            buff[0]=bytes;
-            bytes_init=(int)(off+count+bytes_init-bytes_len);
-            bytes_len=(int)(off+count);
-            buff[2]=bytes_len;
-            buff[3]=bytes_init;
+        if(bytes.length<bytes_off+off+count){
+            count=Math.min(count,bytes.length-bytes_off);
+            int newOff = bytes.length - (int) (bytes_off + off + count);
+            System.arraycopy(bytes,bytes_off,bytes, newOff,(int)off);
+            bytes_off=newOff;
         }
         long r=file.read(bytes, bytes_off+off, count);
-        if(r<count){
-            long del=count-Math.max(r,0);
-            if(bytes_off+bytes_len<bytes_init){
-                System.arraycopy(bytes,bytes_off+(int)count,bytes,bytes_off+(int)Math.max(r,0),
-                        bytes_init-(int)(bytes_off+count));
+        long nRead=Math.max(r,0);
+        if(nRead<count){
+            int oldOff=(int)buff[1];
+            if(oldOff!=bytes_off&&bytes_len>oldOff+(int)(off+nRead)){
+                System.arraycopy(bytes,oldOff+(int)(off+nRead),bytes,bytes_off+(int)(off+nRead),
+                        (bytes_len-oldOff+(int)(off+nRead)));
             }
-            bytes_len-=del;
-            buff[2]=bytes_len;
-            bytes_init-=del;
-            buff[3]=bytes_init;
         }
+        buff[1]=bytes_off;
+        buff[2]=(int)(bytes_len+nRead);
         return r;
     }
-    public static boolean nativeImpl_write(FileStream file,Object[] buff,long off,long count){
-        byte[] bytes = (byte[])buff[0];
-        int bytes_off  = (int)buff[1];
-        int bytes_len  = (int)buff[2];
-        if(off+count>bytes_len){
-            throw new IndexOutOfBoundsException("Index out ouf Bounds: "+(off+count)+" length:"+bytes_len);
+    public static boolean nativeImpl_write(FileStream file,byte[] buff,long off,long count){
+        if(off+count>buff.length){
+            throw new IndexOutOfBoundsException("Index out ouf Bounds: "+(off+count)+" length:"+buff.length);
         }
-        return file.write(bytes, bytes_off+off, count);
+        return file.write(buff, off, count);
     }
     public static long nativeImpl_size(FileStream file){
         return file.size();

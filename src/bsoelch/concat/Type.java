@@ -289,14 +289,14 @@ public class Type {
         static final String MEMORY = "memory";
         static final String OPTIONAL = "optional";
 
-        static final WrapperType BYTES= new WrapperType(LIST,Type.BYTE,Mutability.IMMUTABLE);
-        static final WrapperType UNICODE_STRING= new WrapperType(LIST,Type.CODEPOINT,Mutability.IMMUTABLE);
+        static final WrapperType BYTES= new WrapperType(ARRAY,Type.BYTE,Mutability.IMMUTABLE);
+        static final WrapperType UNICODE_STRING= new WrapperType(ARRAY,Type.CODEPOINT,Mutability.IMMUTABLE);
 
         final Type contentType;
         final String wrapperName;
 
         private static WrapperType create(String wrapperName, Type contentType,Mutability mutability) {
-            if(mutability==Mutability.IMMUTABLE&&LIST.equals(wrapperName)) {
+            if(mutability==Mutability.IMMUTABLE&&ARRAY.equals(wrapperName)) {
                 if (contentType == CODEPOINT) {
                     return UNICODE_STRING;
                 } else if (contentType == BYTE) {
@@ -308,7 +308,7 @@ public class Type {
         }
         private WrapperType(String wrapperName, Type contentType,Mutability mutability){
             super(updateChildMutability(contentType,mutability).name+" "+
-                    wrapperName+mutabilityPostfix(mutability), LIST.equals(wrapperName)&&
+                    wrapperName+mutabilityPostfix(mutability), ARRAY.equals(wrapperName)&&
                     (contentType==BYTE||contentType==CODEPOINT),mutability);
             this.wrapperName = wrapperName;
             this.contentType = contentType;
@@ -339,11 +339,11 @@ public class Type {
 
         @Override
         public boolean isRawString() {
-            return wrapperName.equals(LIST)&&contentType==BYTE;
+            return wrapperName.equals(ARRAY)&&contentType==BYTE;
         }
         @Override
         public boolean isUnicodeString() {
-            return wrapperName.equals(LIST)&&contentType==CODEPOINT;
+            return wrapperName.equals(ARRAY)&&contentType==CODEPOINT;
         }
         @Override
         public boolean isList() {

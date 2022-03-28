@@ -7,7 +7,7 @@ test
 ( float int byte ):(1.3, 7, c)
 a°💻
 💻
-( var array mut? string => string mut )
+( var array mut? byte array => byte array )
 
 Stack:
 [bool:true, bool:true]

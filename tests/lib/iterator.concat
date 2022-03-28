@@ -3,17 +3,18 @@ test/iterator :
 stack #include
 iterator #include
 codeblocks #include
+_list #include
 core #import
 
-reverse proc( string => string mut ){
+reverse proc( string => string ){
   string toReverse =:
   ## store type and length of the list
-  toReverse .length string mut new res =::
+  toReverse .length buildString res =::
   ## Iterate though the elements in reverse order
   toReverse _^ while{ <^ do
     byte cast res swap << res =
   } drop
-  res return
+  res build return
 }
 
 "Hello World" reverse debugPrint
