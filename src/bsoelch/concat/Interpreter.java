@@ -2841,7 +2841,7 @@ public class Interpreter {
                     }
                     Type target=((ValueToken) prev).value.asType();
                     TypeFrame f=typeStack.pop();
-                    typeCheckCast(f.type,1,target, ret,ioContext, t.pos);
+                    typeCheckCast(f.type,1,target,false, ret,ioContext, t.pos);
                     typeStack.push(new TypeFrame(target,null,t.pos));
                 }
                 case STACK_DROP ->{
@@ -3477,7 +3477,7 @@ public class Interpreter {
                 }//no else
                 if(type.isArray()){
                     f=typeStack.pop();
-                    typeCheckCast(f.type,2,type.content(),ret,ioContext,pos);
+                    typeCheckCast(f.type,2,type.content(),true,ret,ioContext,pos);
                 }
                 typeStack.push(new TypeFrame(type,null, pos));
                 //addLater? support new memory/array in pre-evaluation
@@ -3525,7 +3525,7 @@ public class Interpreter {
                         break;
                     }
                     TypeFrame val = typeStack.pop();
-                    typeCheckCast(val.type,1, id.type, ret,ioContext, t.pos);
+                    typeCheckCast(val.type,1, id.type,true, ret,ioContext, t.pos);
                     if (id.mutability==Mutability.IMMUTABLE && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         Value value = ((ValueToken) prev).value;
@@ -3661,7 +3661,7 @@ public class Interpreter {
                 context.wrapCurried(identifier.name,id,identifier.pos);
                 assert !globalConstants.containsKey(id);
                 TypeFrame f = typeStack.pop();
-                typeCheckCast(f.type,1, id.type, ret, ioContext,t.pos);
+                typeCheckCast(f.type,1, id.type,true, ret, ioContext,t.pos);
                 ret.add(new VariableToken(identifier.pos,identifier.name,id,
                         AccessType.WRITE, context));
             }
@@ -3853,7 +3853,7 @@ public class Interpreter {
                         Type.StructField field = struct.fields[index];
                         if(field.accessibility()==Accessibility.PUBLIC||field.declaredAt().path.equals(t.pos.path)){
                             if(field.mutable()){
-                                typeCheckCast(val.type,2,struct.getElement(index), ret,ioContext, t.pos);
+                                typeCheckCast(val.type,2,struct.getElement(index),true, ret,ioContext, t.pos);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -3872,7 +3872,7 @@ public class Interpreter {
                         if(index>=0&&index< tuple.elementCount()){
                             Type fieldType = tuple.getElement(index);
                             if(tuple.isMutable(index)){
-                                typeCheckCast(val.type,2,fieldType, ret, ioContext,t.pos);
+                                typeCheckCast(val.type,2,fieldType,true, ret, ioContext,t.pos);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -4005,7 +4005,7 @@ public class Interpreter {
         return genArgs;
     }
 
-    private void typeCheckCast(Type src, int stackPos, Type target, ArrayList<Token> ret,
+    private void typeCheckCast(Type src, int stackPos, Type target,boolean strict, ArrayList<Token> ret,
                                IOContext ioContext, FilePosition pos) throws SyntaxError {
         Type.BoundMaps bounds=new Type.BoundMaps();
         if(src instanceof Type.OverloadedProcedurePointer){
@@ -4050,6 +4050,9 @@ public class Interpreter {
             }
             setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) src),(Value)matches.get(0).called);
         }else{
+            if(!strict&&target.mutability==Mutability.DEFAULT){
+                target=target.setMutability(src.mutability);
+            }
             if(!src.canAssignTo(target,bounds)){//cast to correct type if necessary
                 bounds=new Type.BoundMaps();
                 if(!src.canCastTo(target,bounds)){
@@ -4083,7 +4086,7 @@ public class Interpreter {
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
             try{
-                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],tokens,ioContext,pos);
+                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],true,tokens,ioContext,pos);
             }catch (SyntaxError e){
                 throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
                         ": "+Arrays.toString(inTypes),pos);
