@@ -407,6 +407,15 @@ public class Type {
         final GenericParameter[] genericParams;
 
         public static Tuple create(String name, boolean isPublic, Type[] elements, FilePosition declaredAt){
+            return create(name,isPublic, new GenericParameter[0], new Type[0], elements,
+                    Mutability.DEFAULT, declaredAt);
+        }
+        public static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
+                                          Type[] elements, FilePosition declaredAt) {
+            return create(name, isPublic, genericParams, genericArgs, elements,Mutability.DEFAULT,declaredAt);
+        }
+        private static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
+                                   Type[] elements,Mutability mutability,FilePosition declaredAt) {
             String typeName;
             if(name==null) {
                 StringBuilder sb = new StringBuilder("( ");
@@ -417,16 +426,7 @@ public class Type {
             }else{
                 typeName=name;
             }
-            return new Tuple(typeName,name,isPublic, new GenericParameter[0], new Type[0], elements,
-                    Mutability.DEFAULT, declaredAt);
-        }
-        public static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
-                                          Type[] elements, FilePosition declaredAt) {
-            return create(name, isPublic, genericParams, genericArgs, elements,Mutability.DEFAULT,declaredAt);
-        }
-        private static Tuple create(String name,boolean isPublic,GenericParameter[] genericParams,Type[] genericArgs,
-                                   Type[] elements,Mutability mutability,FilePosition declaredAt) {
-            String fullName = processGenericArguments(name,genericParams, genericArgs, elements);
+            String fullName = processGenericArguments(typeName,genericParams, genericArgs, elements);
             return new Tuple(fullName+mutabilityPostfix(mutability),name,isPublic,genericParams, genericArgs,
                     elements,mutability, declaredAt);
         }
@@ -549,37 +549,22 @@ public class Type {
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
             if(canAssignBaseTuple(t)&&((Tuple) t).elementCount()<=elementCount()){
-                if(canAssignMutability(t)){//TODO check reverse comparison for mutable tuples
+                if(canAssignMutability(t)){
                     return false;//incompatible mutability
                 }
                 for(int i=0;i<((Tuple) t).elements.length;i++){
                     if(!getElement(i).canAssignTo(((Tuple) t).getElement(i),bounds)){
                         return false;
                     }
-                }
-                return true;
-            }else{
-                return super.canAssignTo(t,bounds);
-            }
-        }
-        boolean canCastBaseTuple(Type t){
-            return t instanceof Tuple;
-        }
-        @Override
-        protected boolean canCastTo(Type t,  BoundMaps bounds) {
-            if(canCastBaseTuple(t)){
-                if(canAssignMutability(t)){
-                    return false;//incompatible mutability
-                }
-                int n=Math.min(elements.length,((Tuple) t).elements.length);
-                for(int i=0;i<n;i++){
-                    if(!getElement(i).canCastTo(((Tuple) t).getElement(i),bounds)){
-                        return false;
+                    if(((Tuple)t).isMutable(i)){//check reverse comparison for mutable elements
+                        if(!((Tuple) t).getElement(i).canAssignTo(getElement(i),bounds)){
+                            return false;
+                        }
                     }
                 }
                 return true;
             }else{
-                return super.canCastTo(t,bounds);
+                return super.canAssignTo(t,bounds);
             }
         }
 
@@ -744,10 +729,6 @@ public class Type {
         boolean canAssignBaseTuple(Type t) {
             return super.canAssignBaseTuple(t)||(t instanceof Struct&&((Struct) t).declaredAt.equals(declaredAt))||
                     (extended!=null&&extended.canAssignBaseTuple(t));
-        }
-        @Override
-        boolean canCastBaseTuple(Type t) {
-            return canAssignBaseTuple(t)||(t instanceof Tuple&&((Tuple)t).canAssignBaseTuple(this));
         }
     }
 
