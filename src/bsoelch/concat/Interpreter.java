@@ -2961,46 +2961,12 @@ public class Interpreter {
                     typeCheckCast(f.type,1,target, ret,ioContext, t.pos);
                     typeStack.push(new TypeFrame(target,null,t.pos));
                 }
-                case STACK_DROP ->{
-                    assert t instanceof StackModifierToken;
-                    for(TypeFrame dropped:typeStack.drop(((StackModifierToken) t).args[0])){
-                        if(dropped.type instanceof Type.OverloadedProcedurePointer opp){
-                            if(ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
-                                //delete unresolved procedure pointers
-                                ret.set(opp.tokenPos, new Token(TokenType.NOP, opp.pushedAt));
-                                ((StackModifierToken) t).args[0]--;
-                            }
-                        }
-                    }
-                    if(((StackModifierToken) t).args[0]>0){
-                        ret.add(t);
-                    }
-                }
-                case STACK_DUP ->{
-                    assert t instanceof StackModifierToken;
-                    TypeFrame duped=typeStack.get(((StackModifierToken)t).args[0]);
-                    if(duped.type instanceof Type.OverloadedProcedurePointer opp){
-                        typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(opp.proc,opp.genArgs, ret.size(),opp.pushedAt),
-                                null,t.pos));
-                        ret.add(new Token(TokenType.OVERLOADED_PROC_PTR,t.pos));
-                    }else{
-                        duped=new TypeFrame(duped.type,duped.value,t.pos);
-                        typeStack.push(duped);
-                        ret.add(t);
-                    }
-                }
-                case STACK_SET ->{
-                    assert t instanceof StackModifierToken;
-                    TypeFrame replaced=typeStack.get(((StackModifierToken)t).args[0]);
-                    if(replaced.type instanceof Type.OverloadedProcedurePointer opp&&
-                            ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
-                        ret.set(opp.tokenPos,new Token(TokenType.NOP,opp.pushedAt));
-                    }
-                    //addLater? update overloaded procedure pointers
-                    typeStack.set(((StackModifierToken)t).args[0],
-                            typeStack.get(((StackModifierToken)t).args[1]));
-                    ret.add(t);
-                }
+                case STACK_DROP ->
+                    typeCheckDrop((StackModifierToken)t, typeStack, ret);
+                case STACK_DUP ->
+                    typeCheckDup((StackModifierToken)t, typeStack, ret);
+                case STACK_SET ->
+                    typeCheckStackSet((StackModifierToken)t, typeStack, ret);
                 case CALL_PTR ->
                     typeCheckCallPtr(typeStack, ret, globalConstants, ioContext, t.pos);
                 case MARK_MUTABLE ->
@@ -3487,6 +3453,42 @@ public class Interpreter {
         }else{
             ret.add(t);
         }
+    }
+    private void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) throws RandomAccessStack.StackUnderflow {
+        for(TypeFrame dropped: typeStack.drop(t.args[0])){
+            if(dropped.type instanceof Type.OverloadedProcedurePointer opp){
+                if(ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
+                    //delete unresolved procedure pointers
+                    ret.set(opp.tokenPos, new Token(TokenType.NOP, opp.pushedAt));
+                    t.args[0]--;
+                }
+            }
+        }
+        if(t.args[0]>0){
+            ret.add(t);
+        }
+    }
+    private void typeCheckDup(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
+        TypeFrame duped= typeStack.get(t.args[0]);
+        if(duped.type instanceof Type.OverloadedProcedurePointer opp){
+            typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(opp.proc,opp.genArgs, ret.size(),opp.pushedAt),
+                    null, t.pos));
+            ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, t.pos));
+        }else{
+            duped=new TypeFrame(duped.type,duped.value, t.pos);
+            typeStack.push(duped);
+            ret.add(t);
+        }
+    }
+    private void typeCheckStackSet(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
+        TypeFrame replaced= typeStack.get(t.args[0]);
+        if(replaced.type instanceof Type.OverloadedProcedurePointer opp&&
+                ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
+            ret.set(opp.tokenPos,new Token(TokenType.NOP,opp.pushedAt));
+        }
+        //addLater? update overloaded procedure pointers
+        typeStack.set(t.args[0],typeStack.get(t.args[1]));
+        ret.add(t);
     }
     private void typeCheckTypeModifier(String name, Function<Type,Value> modifier,ArrayList<Token> ret,
                                        RandomAccessStack<TypeFrame> typeStack, FilePosition pos) throws SyntaxError,
