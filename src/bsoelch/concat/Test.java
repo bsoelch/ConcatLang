@@ -67,7 +67,7 @@ public class Test {//TODO add a new test for array access operations
                                     if(c.declaredAt().path.endsWith(libFile.getKey())){
                                         Interpreter.Declareable dTest=testC.getElement(d.getKey(),false);
                                         if(dTest==null){
-                                            System.err.println("declareable \""+d.getKey()+"\" at "+d.getValue().declaredAt()+
+                                            System.err.println("declareable \""+d.getKey()+"\" at "+c.declaredAt()+
                                                     " is not used in test for library file: \""+libFile.getKey()+"\"");
                                         }else if(dTest instanceof OverloadedProcedure){
                                             for(Interpreter.Callable cTest:((OverloadedProcedure) dTest).procedures){
@@ -78,7 +78,7 @@ public class Test {//TODO add a new test for array access operations
                                             }
                                         }else if(dTest.unused()){
                                             System.err.println(Interpreter.declarableName(dTest.declarableType(),false)+" \""+d.getKey()+
-                                                    "\" at "+d.getValue().declaredAt()+
+                                                    "\" at "+c.declaredAt()+
                                                     " is not used in test for library file: \""+libFile.getKey()+"\"");
                                         }
                                     }
