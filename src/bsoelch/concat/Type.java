@@ -741,6 +741,22 @@ public class Type {
                     create(baseName, isPublic,genericParams,newArgs,newElements,mutability,declaredAt));
         }
 
+
+        private boolean canAssignElements(Tuple t, BoundMaps bounds) {
+            if(t.elementCount()>elementCount())
+                return false;
+            for(int i = 0; i< t.elements.length; i++){
+                if(!getElement(i).canAssignTo(t.getElement(i), bounds)){
+                    return false;
+                }
+                if(t.isMutable(i)){//check reverse comparison for mutable elements
+                    if(!t.getElement(i).canAssignTo(getElement(i), bounds)){
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
         /**checks if t is a valid type for type comparison with this tuple,
          *  the base method checks if the class of t is Tuple (not struct)*/
         boolean canAssignBaseTuple(Type t){
@@ -748,21 +764,24 @@ public class Type {
         }
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
-            if(canAssignBaseTuple(t)&&((Tuple) t).elementCount()<=elementCount()){
+            if(canAssignBaseTuple(t)){
                 if(canAssignMutability(t)){
                     return false;//incompatible mutability
                 }
-                for(int i=0;i<((Tuple) t).elements.length;i++){
-                    if(!getElement(i).canAssignTo(((Tuple) t).getElement(i),bounds)){
-                        return false;
-                    }
-                    if(((Tuple)t).isMutable(i)){//check reverse comparison for mutable elements
-                        if(!((Tuple) t).getElement(i).canAssignTo(getElement(i),bounds)){
-                            return false;
-                        }
-                    }
-                }
-                return true;
+                return canAssignElements((Tuple) t, bounds);
+            }else{
+                return super.canAssignTo(t,bounds);
+            }
+        }
+        @Override
+        protected boolean canCastTo(Type t, BoundMaps bounds) {
+            if(canAssignMutability(t)){
+                return false;//incompatible mutability
+            }
+            if(canAssignBaseTuple(t)){
+                return canAssignElements((Tuple) t, bounds);
+            }else if(t instanceof Tuple&&((Tuple)t).canAssignBaseTuple(this)){
+                return ((Tuple) t).canAssignElements(this, bounds.swapped());
             }else{
                 return super.canAssignTo(t,bounds);
             }
