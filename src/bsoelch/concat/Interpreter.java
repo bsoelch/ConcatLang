@@ -17,7 +17,7 @@ public class Interpreter {
     static final IOContext defaultContext=new IOContext(System.in,System.out,System.err);
 
     enum TokenType {
-        VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,OPERATOR,CAST,NEW, NEW_ARRAY,
+        VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,CAST,NEW, NEW_ARRAY,
         STACK_DROP,STACK_DUP,STACK_SET,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
@@ -142,17 +142,6 @@ public class Interpreter {
                 }
             }
             return Mutability.UNDECIDED;
-        }
-    }
-    static class InternalFieldToken extends Token {
-        final InternalFieldName opType;
-        InternalFieldToken(InternalFieldName opType, FilePosition pos) {
-            super(TokenType.OPERATOR, pos);
-            this.opType=opType;
-        }
-        @Override
-        public String toString() {
-            return tokenType.toString()+": "+opType;
         }
     }
     static class ValueToken extends Token {
@@ -2917,8 +2906,6 @@ public class Interpreter {
                     ret.add(t);
                     finishedBranch=true;
                 }
-                case OPERATOR ->
-                        throw new RuntimeException("internal field access operations should not exist at this stage of compilation "+t.pos);
                 case NEW ->
                     typeCheckNew(typeStack,globalConstants, ret, ioContext,t.pos);
                 case DECLARE_LAMBDA -> {//parse lambda-procedures
@@ -3848,7 +3835,6 @@ public class Interpreter {
                 typeCheckPushProcPointer(identifier, typeStack, ret, globalConstants, context, ioContext, t.pos);
             case GET_FIELD -> {
                 TypeFrame f=typeStack.pop();
-                boolean hasField=false;
                 try {
                     if(f.type instanceof Type.Struct){
                         Integer index=((Type.Struct) f.type).indexByName.get(identifier.name);
@@ -3857,163 +3843,50 @@ public class Interpreter {
                             if((field.accessibility()!=Accessibility.PRIVATE||field.declaredAt().path.equals(t.pos.path))){
                                 typeStack.push(new TypeFrame(((Type.Struct) f.type).getElement(index),null, t.pos));
                                 ret.add(new TupleElementAccess(index, false, t.pos));
-                                hasField=true;
+                                break;//found field
                             }else{
                                 ioContext.stdErr.println("cannot access private field "+field.name()+" (declared at "+
                                         field.declaredAt()+") of struct "+f.type);
                             }
                         }
-                    }else if(f.type==Type.TYPE&&f.value!=null&&f.value.asType() instanceof Type.Enum anEnum){
-                        int p=0;
-                        for(;p<anEnum.entryNames.length;p++){
-                            if(anEnum.entryNames[p].equals(identifier.name)){
-                                hasField=true;
-                                typeStack.push(new TypeFrame(anEnum,anEnum.entries[p],t.pos));
-                                ValueToken entry = new ValueToken(anEnum.entries[p], t.pos);
-                                prev=ret.get(ret.size()-1);
-                                if(prev instanceof ValueToken&&((ValueToken) prev).value.type==Type.TYPE&&
-                                        ((ValueToken) prev).value.asType().equals(anEnum)) {
-                                    ret.set(ret.size()-1,entry);
-                                }else{//addLater? better way to replace previous value
-                                    ret.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{1},t.pos));
-                                    ret.add(entry);
-                                }
+                    }
+                    if(f.type==Type.TYPE&&f.value!=null){
+                        Value typeField=f.value.asType().typeFields().get(identifier.name);
+                        if(typeField!=null){
+                            typeStack.push(new TypeFrame(typeField.type, typeField, t.pos));
+                            ValueToken entry = new ValueToken(typeField, t.pos);
+                            prev = ret.get(ret.size() - 1);
+                            if (prev instanceof ValueToken && ((ValueToken) prev).value.equals(f.value)) {
+                                ret.set(ret.size() - 1, entry);
+                            } else {//addLater? better way to replace previous value
+                                ret.add(new StackModifierToken(TokenType.STACK_DROP, new int[]{1}, t.pos));
+                                ret.add(entry);
+                            }
+                            break;//found field
+                        }
+                    }
+                    Callable pseudoField=f.type.pseudoFields().get(identifier.name);
+                    if(pseudoField!=null){
+                        typeStack.push(f);//push f back onto the type-stack
+                        CallMatch match = typeCheckOverloadedCall(pseudoField.name(),new OverloadedProcedure(pseudoField),null,typeStack,
+                                globalConstants,ret,ioContext,t.pos);
+                        match.called.markAsUsed();
+                        CallToken token = new CallToken(match.called, identifier.pos);
+                        ret.add(token);
+                        break;
+                    }
+                    if(f.type instanceof Type.Tuple){
+                        try {
+                            int index = Integer.parseInt(identifier.name);
+                            if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
+                                typeStack.push(new TypeFrame(((Type.Tuple) f.type).getElement(index),null, t.pos));
+                                ret.add(new TupleElementAccess(index, false, t.pos));
                                 break;
                             }
-                        }
+                        }catch (NumberFormatException ignored){}
                     }
-                    if(!hasField) {
-                        if(identifier.name.equals("type")){
-                            if(f.type.canAssignTo(Type.ANY)){
-                                typeStack.push(new TypeFrame(Type.TYPE,f.value==null?null:Value.ofType(f.value.type),t.pos));
-                                ret.add(new InternalFieldToken(InternalFieldName.TYPE_OF, t.pos));
-                                hasField = true;
-                            }
-                        }else if(f.type.isMemory()){
-                            switch (identifier.name){
-                                case "length" ->{
-                                    typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
-                                    hasField = true;
-                                }
-                                case "capacity" ->{
-                                    typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.CAPACITY, t.pos));
-                                    hasField = true;
-                                }
-                                case "offset" ->{
-                                    typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.OFFSET, t.pos));
-                                    hasField = true;
-                                }
-                            }
-                        }else if (identifier.name.equals("length") && f.type.isArray()) {
-                            typeStack.push(new TypeFrame(Type.UINT, null, t.pos));
-                            ret.add(new InternalFieldToken(InternalFieldName.LENGTH, t.pos));
-                            hasField = true;
-                        }else if (f.type == Type.TYPE) {
-                            hasField = true;
-                            switch (identifier.name) {//TODO don't allow type fields as enum entry names
-                                case "content" -> {
-                                    if (f.value != null) {
-                                        f = new TypeFrame(Type.TYPE, Value.ofType(f.value.asType().content()), t.pos);
-                                    }
-                                    typeStack.push(f);
-                                    ret.add(new InternalFieldToken(InternalFieldName.CONTENT, t.pos));
-                                }
-                                case "inTypes" -> {
-                                    typeStack.push(new TypeFrame(Type.arrayOf(Type.TYPE), null, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IN_TYPES, t.pos));
-                                }
-                                case "outTypes" -> {
-                                    typeStack.push(new TypeFrame(Type.arrayOf(Type.TYPE), null, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.OUT_TYPES, t.pos));
-                                }
-                                case "name" -> {
-                                    typeStack.push(new TypeFrame(Type.RAW_STRING(), null, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.TYPE_NAME, t.pos));
-                                }
-                                case "fieldNames" -> {
-                                    typeStack.push(new TypeFrame(Type.arrayOf(Type.RAW_STRING()), null, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.TYPE_FIELDS, t.pos));
-                                }
-                                case "isEnum" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType() instanceof Type.Enum ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_ENUM, t.pos));
-                                }
-                                case "isArray" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isArray() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_ARRAY, t.pos));
-                                }
-                                case "isMemory" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isMemory() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MEMORY, t.pos));
-                                }
-                                case "isProc" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType() instanceof Type.Procedure ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_PROC, t.pos));
-                                }
-                                case "isOptional" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isOptional() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_OPTIONAL, t.pos));
-                                }
-                                case "isTuple" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType() instanceof Type.Tuple ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_TUPLE, t.pos));
-                                }
-                                case "isStruct" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType() instanceof Type.Struct ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_STRUCT, t.pos));
-                                }
-                                case "isUnion" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType() instanceof Type.UnionType ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_UNION, t.pos));
-                                }
-                                case "isMutable" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isMutable() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MUTABLE, t.pos));
-                                }
-                                case "isMaybeMutable" -> {
-                                    typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                            f.value.asType().isMaybeMutable() ? Value.TRUE : Value.FALSE, t.pos));
-                                    ret.add(new InternalFieldToken(InternalFieldName.IS_MAYBE_MUTABLE, t.pos));
-                                }
-                                default -> hasField = false;
-                            }
-                        }else if(f.type.isOptional()){
-                            if(identifier.name.equals("hasValue")){
-                                typeStack.push(new TypeFrame(Type.BOOL, f.value == null ? null :
-                                        f.value.hasValue() ? Value.TRUE : Value.FALSE, t.pos));
-                                ret.add(new InternalFieldToken(InternalFieldName.HAS_VALUE, t.pos));
-                                hasField=true;
-                            }else if(identifier.name.equals("value")){
-                                typeStack.push(new TypeFrame(f.type.content(), null, t.pos));
-                                //addLater re-add explicit unwrapping of optionals (with static check if optional is nonempty)
-                                //hasField=true;
-                                throw new UnsupportedOperationException("unimplemented");
-                            }
-                        }else if(f.type instanceof Type.Tuple){
-                            try {
-                                int index = Integer.parseInt(identifier.name);
-                                if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
-                                    typeStack.push(new TypeFrame(((Type.Tuple) f.type).getElement(index),null, t.pos));
-                                    ret.add(new TupleElementAccess(index, false, t.pos));
-                                    hasField=true;
-                                }
-                            }catch (NumberFormatException ignored){}
-                        }
-                        if(!hasField)
-                            throw new SyntaxError(f.type+" does not have a field "+identifier.name,t.pos);
-                    }
+                    throw new SyntaxError(f.type+((f.type==Type.TYPE&&f.value!=null)?":"+f.value.asType():"")+
+                            " does not have a field "+identifier.name,t.pos);
                 } catch (TypeError e) {
                     throw new SyntaxError(e,t.pos);
                 }
@@ -4588,95 +4461,6 @@ public class Interpreter {
         return stack;
     }
 
-    private void getInternalField(InternalFieldToken op, RandomAccessStack<Value> stack)
-            throws RandomAccessStack.StackUnderflow, ConcatRuntimeError {
-        switch (op.opType) {
-            case CONTENT -> {
-                Type wrappedType = stack.pop().asType();
-                stack.push(Value.ofType(wrappedType.content()));
-            }
-            case IN_TYPES -> {
-                Type wrappedType = stack.pop().asType();
-                stack.push(Value.createArray(Type.arrayOf(Type.TYPE),wrappedType.inTypes().stream().map(Value::ofType)
-                        .toArray(Value[]::new)));
-            }
-            case OUT_TYPES -> {
-                Type wrappedType = stack.pop().asType();
-                stack.push(Value.createArray(Type.arrayOf(Type.TYPE),wrappedType.outTypes().stream().map(Value::ofType)
-                        .toArray(Value[]::new)));
-            }
-            case TYPE_NAME -> {
-                Type wrappedType = stack.pop().asType();
-                stack.push(Value.ofString(wrappedType.typeName(),false));
-            }
-            case TYPE_FIELDS -> {
-                Type wrappedType = stack.pop().asType();
-                stack.push(Value.createArray(Type.arrayOf(Type.RAW_STRING()),wrappedType.fields().stream()
-                        .map(s->Value.ofString(s,false)).toArray(Value[]::new)));
-            }
-            case TYPE_OF -> {
-                Value val = stack.pop();
-                stack.push(Value.ofType(val.type));
-            }
-            case LENGTH -> {
-                Value val = stack.pop();
-                stack.push(Value.ofInt(val.length(),true));
-            }
-            case OFFSET -> {
-                Value val = stack.pop();
-                stack.push(Value.ofInt(((Value.ArrayLike)val).offset(),true));
-            }
-            case CAPACITY -> {
-                Value val = stack.pop();
-                stack.push(Value.ofInt(((Value.ArrayLike)val).capacity(),true));
-            }
-            case IS_OPTIONAL -> {
-                Type type = stack.pop().asType();
-                stack.push(type.isOptional()?Value.TRUE:Value.FALSE);
-            }
-            case IS_ENUM -> {
-                Type type = stack.pop().asType();
-                stack.push(type instanceof Type.Enum?Value.TRUE:Value.FALSE);
-            }
-            case IS_PROC -> {
-                Type type = stack.pop().asType();
-                stack.push(type instanceof Type.Procedure?Value.TRUE:Value.FALSE);
-            }
-            case IS_TUPLE -> {
-                Type type = stack.pop().asType();
-                stack.push(type instanceof Type.Tuple?Value.TRUE:Value.FALSE);
-            }
-            case IS_STRUCT -> {
-                Type type = stack.pop().asType();
-                stack.push(type instanceof Type.Struct?Value.TRUE:Value.FALSE);
-            }
-            case IS_UNION -> {
-                Type type = stack.pop().asType();
-                stack.push(type instanceof Type.UnionType?Value.TRUE:Value.FALSE);
-            }
-            case IS_MUTABLE -> {
-                Type type = stack.pop().asType();
-                stack.push(type.isMutable()?Value.TRUE:Value.FALSE);
-            }
-            case IS_MAYBE_MUTABLE -> {
-                Type type = stack.pop().asType();
-                stack.push(type.isMaybeMutable()?Value.TRUE:Value.FALSE);
-            }
-            case IS_ARRAY -> {
-                Type type = stack.pop().asType();
-                stack.push(type.isArray()?Value.TRUE:Value.FALSE);
-            }
-            case IS_MEMORY -> {
-                Type type = stack.pop().asType();
-                stack.push(type.isMemory()?Value.TRUE:Value.FALSE);
-            }
-            case HAS_VALUE -> {
-                Value value= stack.pop();
-                stack.push(value.hasValue()?Value.TRUE:Value.FALSE);
-            }
-        }
-    }
-
     private ExitType recursiveRun(RandomAccessStack<Value> stack, CodeSection program,ArrayList<Value[]> globalVariables,
                                   ArrayList<Value[]> variables,Value[] curried, IOContext context){
         if(variables==null){
@@ -4713,10 +4497,6 @@ public class Interpreter {
                             }
                         }
                         stack.push(proc.withCurried(curried2));
-                    }
-                    case OPERATOR -> {
-                        assert next instanceof InternalFieldToken;
-                        getInternalField((InternalFieldToken) next, stack);
                     }
                     case NEW_ARRAY -> {//{ e1 e2 ... eN }
                         assert next instanceof ArrayCreatorToken;
