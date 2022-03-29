@@ -820,7 +820,6 @@ public class Type {
             }
             return super.canAssignTo(t,bounds);
         }
-        //addLater? overwrite canCastTo
 
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter,GenericParameter> generics) {
@@ -937,10 +936,6 @@ public class Type {
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
             return super.canAssignTo(t, bounds);
-        }
-        @Override
-        protected boolean canCastTo(Type t, BoundMaps bounds) {
-            return super.canCastTo(t, bounds);
         }
     }
 
