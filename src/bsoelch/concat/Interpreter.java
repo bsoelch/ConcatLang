@@ -3756,8 +3756,9 @@ public class Interpreter {
                                     AccessType.READ, context));
                         }
                     }
-                    case MACRO -> //FIXME this case can appear when macro is defined after procedure that uses it
-                            throw new RuntimeException("macros should already be resolved at this state of compilation");
+                    case MACRO ->
+                            throw new SyntaxError("Unable to expand macro \""+((Macro)d).name+
+                                    "\", try defining it before its first appearance in a procedure body",t.pos);
                     case TUPLE, ENUM, GENERIC,STRUCT -> {
                         Type asType=(Type)d;
                         if(isMutabilityMarked){
