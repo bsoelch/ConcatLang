@@ -1,7 +1,7 @@
 tests/lib/lists :
 
 core #namespace
-lists #include
+arrays #include
 stack #include
 
 { 1 2 3 4 } clone l =:: ##addLater add possibility to directly create mutable arrays

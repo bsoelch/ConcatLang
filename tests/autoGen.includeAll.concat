@@ -1,4 +1,5 @@
 test/includeAll :
+arrays #include
 arraySlice #include
 bufferedIO #include
 bytes #include
@@ -8,7 +9,6 @@ hashMap #include
 io #include
 iterator #include
 list #include
-lists #include
 math #include
 numbers #include
 range #include
