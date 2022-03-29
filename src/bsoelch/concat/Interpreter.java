@@ -3848,6 +3848,26 @@ public class Interpreter {
                             }
                         }
                     }
+                    if(f.type instanceof Type.Tuple){
+                        try {
+                            int index = Integer.parseInt(identifier.name);
+                            if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
+                                typeStack.push(new TypeFrame(((Type.Tuple) f.type).getElement(index),null, t.pos));
+                                ret.add(new TupleElementAccess(index, false, t.pos));
+                                break;//found field
+                            }
+                        }catch (NumberFormatException ignored){}
+                    }
+                    Callable pseudoField=f.type.pseudoFields().get(identifier.name);
+                    if(pseudoField!=null){
+                        typeStack.push(f);//push f back onto the type-stack
+                        CallMatch match = typeCheckOverloadedCall(pseudoField.name(),new OverloadedProcedure(pseudoField),null,typeStack,
+                                globalConstants,ret,ioContext,t.pos);
+                        match.called.markAsUsed();
+                        CallToken token = new CallToken(match.called, identifier.pos);
+                        ret.add(token);
+                        break;//found field
+                    }
                     if(f.type==Type.TYPE&&f.value!=null){
                         Value typeField=f.value.asType().typeFields().get(identifier.name);
                         if(typeField!=null){
@@ -3862,26 +3882,6 @@ public class Interpreter {
                             }
                             break;//found field
                         }
-                    }
-                    Callable pseudoField=f.type.pseudoFields().get(identifier.name);
-                    if(pseudoField!=null){
-                        typeStack.push(f);//push f back onto the type-stack
-                        CallMatch match = typeCheckOverloadedCall(pseudoField.name(),new OverloadedProcedure(pseudoField),null,typeStack,
-                                globalConstants,ret,ioContext,t.pos);
-                        match.called.markAsUsed();
-                        CallToken token = new CallToken(match.called, identifier.pos);
-                        ret.add(token);
-                        break;//found field
-                    }
-                    if(f.type instanceof Type.Tuple){
-                        try {
-                            int index = Integer.parseInt(identifier.name);
-                            if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
-                                typeStack.push(new TypeFrame(((Type.Tuple) f.type).getElement(index),null, t.pos));
-                                ret.add(new TupleElementAccess(index, false, t.pos));
-                                break;//found field
-                            }
-                        }catch (NumberFormatException ignored){}
                     }
                     throw new SyntaxError(f.type+((f.type==Type.TYPE&&f.value!=null)?":"+f.value.asType():"")+
                             " does not have a field "+identifier.name,t.pos);
