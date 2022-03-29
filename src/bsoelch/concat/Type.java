@@ -204,7 +204,7 @@ public class Type {
     private final HashMap<String,Value> typeFields = new HashMap<>();
     /**"pseudo-fields" for values of this type,
      * a pseudo field is a procedure that takes this type as last parameter*/
-    private final HashMap<String, Interpreter.Callable> pseudoFields = new HashMap<>();
+    private final HashMap<String, Parser.Callable> pseudoFields = new HashMap<>();
     private boolean typeFieldsInitialized=false;
 
     static String mutabilityPostfix(Mutability mutability) {
@@ -365,7 +365,7 @@ public class Type {
             throw new SyntaxError(this.name+" already has a field "+name+" ",pos);
         }
     }
-    void addPseudoField(Interpreter.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
+    void addPseudoField(Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
         ensureFieldsInitialized();
         Type[] in=fieldValue.type().inTypes;
         if(in.length==0||!canAssignTo(in[in.length-1])){
@@ -378,7 +378,7 @@ public class Type {
         ensureFieldsInitialized();
         return typeFields;
     }
-    HashMap<String, Interpreter.Callable> pseudoFields(){
+    HashMap<String, Parser.Callable> pseudoFields(){
         ensureFieldsInitialized();
         return pseudoFields;
     }
@@ -594,7 +594,7 @@ public class Type {
         }
     }
 
-    public static class Tuple extends Type implements Interpreter.NamedDeclareable{
+    public static class Tuple extends Type implements Parser.NamedDeclareable{
         static final Tuple EMPTY_TUPLE=create(null, true, new Type[0],Value.InternalProcedure.POSITION);
 
         final FilePosition declaredAt;
@@ -814,8 +814,8 @@ public class Type {
             return name;
         }
         @Override
-        public Interpreter.DeclareableType declarableType() {
-            return Interpreter.DeclareableType.TUPLE;
+        public Parser.DeclareableType declarableType() {
+            return Parser.DeclareableType.TUPLE;
         }
         @Override
         public FilePosition declaredAt() {
@@ -837,7 +837,7 @@ public class Type {
         }
     }
 
-    record StructField(String name, Interpreter.Accessibility accessibility,boolean mutable, FilePosition declaredAt){}
+    record StructField(String name, Parser.Accessibility accessibility, boolean mutable, FilePosition declaredAt){}
     public static class Struct extends Tuple{
         final StructField[] fields;
         final String[] fieldNames;
@@ -907,8 +907,8 @@ public class Type {
         }
 
         @Override
-        public Interpreter.DeclareableType declarableType() {
-            return Interpreter.DeclareableType.STRUCT;
+        public Parser.DeclareableType declarableType() {
+            return Parser.DeclareableType.STRUCT;
         }
 
         @Override
@@ -1148,7 +1148,7 @@ public class Type {
 
 
 
-    public static class Enum extends Type implements Interpreter.NamedDeclareable {
+    public static class Enum extends Type implements Parser.NamedDeclareable {
         final FilePosition declaredAt;
         final boolean isPublic;
         final String[] entryNames;
@@ -1189,8 +1189,8 @@ public class Type {
         }
 
         @Override
-        public Interpreter.DeclareableType declarableType() {
-            return Interpreter.DeclareableType.ENUM;
+        public Parser.DeclareableType declarableType() {
+            return Parser.DeclareableType.ENUM;
         }
         @Override
         public FilePosition declaredAt() {
@@ -1224,7 +1224,7 @@ public class Type {
         }
     }
 
-    public static class GenericParameter extends Type implements Interpreter.Declareable {
+    public static class GenericParameter extends Type implements Parser.Declareable {
         final String label;
         final int id;
         final boolean isImplicit;
@@ -1318,8 +1318,8 @@ public class Type {
         }
 
         @Override
-        public Interpreter.DeclareableType declarableType() {
-            return Interpreter.DeclareableType.GENERIC;
+        public Parser.DeclareableType declarableType() {
+            return Parser.DeclareableType.GENERIC;
         }
 
         @Override

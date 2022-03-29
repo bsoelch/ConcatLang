@@ -1020,29 +1020,29 @@ public abstract class Value {
         }
     }
 
-    public static Procedure createProcedure(String name,boolean isPublic,Type.Procedure procType, ArrayList<Interpreter.Token> tokens, FilePosition declaredAt,
-                                            FilePosition endPos, Interpreter.ProcedureContext variableContext) {
+    public static Procedure createProcedure(String name, boolean isPublic, Type.Procedure procType, ArrayList<Parser.Token> tokens, FilePosition declaredAt,
+                                            FilePosition endPos, Parser.ProcedureContext variableContext) {
         return new Procedure(name, isPublic, procType, tokens, null,
                 new IdentityHashMap<>(), variableContext, declaredAt, endPos,TypeCheckState.UNCHECKED);
     }
     enum TypeCheckState{UNCHECKED,CHECKING,CHECKED}
-    static class Procedure extends Value implements Interpreter.CodeSection, Interpreter.Callable {
+    static class Procedure extends Value implements Parser.CodeSection, Parser.Callable {
         final String name;
         final boolean isPublic;
         final FilePosition declaredAt;
         //for position reporting in type-checker
         final FilePosition endPos;
 
-        final Interpreter.ProcedureContext context;
-        ArrayList<Interpreter.Token> tokens;//not final, to make two-step compilation easier
+        final Parser.ProcedureContext context;
+        ArrayList<Parser.Token> tokens;//not final, to make two-step compilation easier
         TypeCheckState typeCheckState;
 
         final Value[] curriedArgs;
         final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
 
-        private Procedure(String name, boolean isPublic, Type procType, ArrayList<Interpreter.Token> tokens, Value[] curriedArgs,
-                          IdentityHashMap<Type.GenericParameter, Type> genericArgs, Interpreter.ProcedureContext context,
-                          FilePosition declaredAt, FilePosition endPos,TypeCheckState typeCheckState) {
+        private Procedure(String name, boolean isPublic, Type procType, ArrayList<Parser.Token> tokens, Value[] curriedArgs,
+                          IdentityHashMap<Type.GenericParameter, Type> genericArgs, Parser.ProcedureContext context,
+                          FilePosition declaredAt, FilePosition endPos, TypeCheckState typeCheckState) {
             super(procType);
             this.name = name;
             this.isPublic = isPublic;
@@ -1091,7 +1091,7 @@ public abstract class Value {
         }
 
         @Override
-        public ArrayList<Interpreter.Token> tokens() {
+        public ArrayList<Parser.Token> tokens() {
             if(typeCheckState !=TypeCheckState.CHECKED){
                 throw new RuntimeException("tokens() of Procedure should only be called after type checking");
             }
@@ -1099,13 +1099,13 @@ public abstract class Value {
         }
 
         @Override
-        public Interpreter.VariableContext context() {
+        public Parser.VariableContext context() {
             return context;
         }
 
         @Override
-        public Interpreter.DeclareableType declarableType() {
-            return Interpreter.DeclareableType.PROCEDURE;
+        public Parser.DeclareableType declarableType() {
+            return Parser.DeclareableType.PROCEDURE;
         }
         @Override
         public FilePosition declaredAt() {
@@ -1271,7 +1271,7 @@ public abstract class Value {
         }
     }
 
-    static abstract class NativeProcedure extends Value implements Interpreter.NamedDeclareable, Interpreter.Callable {
+    static abstract class NativeProcedure extends Value implements Parser.NamedDeclareable, Parser.Callable {
         final String name;
         final FilePosition declaredAt;
         protected NativeProcedure(Type.Procedure type, String name, FilePosition declaredAt) {
@@ -1291,8 +1291,8 @@ public abstract class Value {
         }
 
         @Override
-        public Interpreter.DeclareableType declarableType() {
-            return Interpreter.DeclareableType.NATIVE_PROC;
+        public Parser.DeclareableType declarableType() {
+            return Parser.DeclareableType.NATIVE_PROC;
         }
 
         @Override

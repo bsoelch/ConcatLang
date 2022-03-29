@@ -4,16 +4,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.IdentityHashMap;
 
-public class OverloadedProcedure implements Interpreter.Declareable {
+public class OverloadedProcedure implements Parser.Declareable {
     final String name;
     final boolean isPublic;
     final FilePosition declaredAt;
-    final ArrayList<Interpreter.Callable> procedures;
+    final ArrayList<Parser.Callable> procedures;
 
     final int nArgs;
     final int nGenericParams;
 
-    public OverloadedProcedure(Interpreter.Callable p0) {
+    public OverloadedProcedure(Parser.Callable p0) {
         this.name = p0.name();
         this.isPublic = p0.isPublic();
         this.declaredAt = p0.declaredAt();
@@ -32,7 +32,7 @@ public class OverloadedProcedure implements Interpreter.Declareable {
         this.nGenericParams=src.nGenericParams;
     }
 
-    public boolean addProcedure(Interpreter.Callable newProc,boolean allowDuplicates) throws SyntaxError{
+    public boolean addProcedure(Parser.Callable newProc, boolean allowDuplicates) throws SyntaxError{
         if(!allowDuplicates && isPublic!= newProc.isPublic()){
             throw new RuntimeException("tried to merge a public procedure with a nonpublic procedure");
         }
@@ -59,7 +59,7 @@ public class OverloadedProcedure implements Interpreter.Declareable {
                 }
             }
         }
-        for(Interpreter.Callable p:procedures){//check for procedures with the same signature
+        for(Parser.Callable p:procedures){//check for procedures with the same signature
             Type.Procedure t0=p.type();
             boolean isEqual=true;
             IdentityHashMap<Type.GenericParameter, Type.GenericParameter> generics=new IdentityHashMap<>();
@@ -83,8 +83,8 @@ public class OverloadedProcedure implements Interpreter.Declareable {
     }
 
     @Override
-    public Interpreter.DeclareableType declarableType() {
-        return Interpreter.DeclareableType.OVERLOADED_PROCEDURE;
+    public Parser.DeclareableType declarableType() {
+        return Parser.DeclareableType.OVERLOADED_PROCEDURE;
     }
 
     @Override
@@ -104,7 +104,7 @@ public class OverloadedProcedure implements Interpreter.Declareable {
 
     @Override
     public boolean unused() {
-        for(Interpreter.Callable c:procedures){
+        for(Parser.Callable c:procedures){
             if(c.unused()){
                 return true;
             }

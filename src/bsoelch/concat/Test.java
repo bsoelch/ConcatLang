@@ -11,12 +11,12 @@ public class Test {//TODO add a new test for array access operations
         String testPath=System.getProperty("user.dir")+"/tests/";
         //auto generated tests.
         //test including library files (each separately and all at once)
-        File lib=new File(Interpreter.libPath);
-        HashMap<String, Interpreter.Program> libraryFiles=new HashMap<>();
+        File lib=new File(Parser.libPath);
+        HashMap<String, Parser.Program> libraryFiles=new HashMap<>();
         File[] files=lib.listFiles();
         PrintStream out;
         PrintStream err;
-        Interpreter.IOContext context;
+        IOContext context;
         BufferedWriter includeAll = new BufferedWriter(new FileWriter(testPath+"autoGen.includeAll.concat"));
         includeAll.write("test/includeAll :");
         includeAll.newLine();
@@ -25,14 +25,14 @@ public class Test {//TODO add a new test for array access operations
         if(files!=null){
             for(File file:files){
                 String path=file.getAbsolutePath();
-                if(path.endsWith(Interpreter.DEFAULT_FILE_EXTENSION)){
-                    String name = path.substring(Interpreter.libPath.length(),
-                            path.length() - Interpreter.DEFAULT_FILE_EXTENSION.length());
+                if(path.endsWith(Parser.DEFAULT_FILE_EXTENSION)){
+                    String name = path.substring(Parser.libPath.length(),
+                            path.length() - Parser.DEFAULT_FILE_EXTENSION.length());
                     out.println(name+":");
                     err.println(name+":");
                     includeAll.write(name+" #include");
                     includeAll.newLine();
-                    context=new Interpreter.IOContext(System.in,out,err);
+                    context=new IOContext(System.in,out,err);
                     libraryFiles.put(file.getName(),
                             Interpreter.compileAndRun(path,new String[]{System.getProperty("user.dir")},context));
                 }else if(!file.getName().equals("native.jar")){//ignore native code extensions
@@ -45,58 +45,58 @@ public class Test {//TODO add a new test for array access operations
 
         //run lib-tests
         if(files!=null){
-            for(Map.Entry<String, Interpreter.Program> libFile:libraryFiles.entrySet()){
+            for(Map.Entry<String, Parser.Program> libFile:libraryFiles.entrySet()){
                 File file=new File(testPath+"lib/"+libFile.getKey());
                 String path=file.getAbsolutePath();
                 if(file.exists()){
-                    String reducedPath = path.substring(0, path.length() - Interpreter.DEFAULT_FILE_EXTENSION.length());
+                    String reducedPath = path.substring(0, path.length() - Parser.DEFAULT_FILE_EXTENSION.length());
                     out=new PrintStream(new FileOutputStream(reducedPath +".out.txt"));
                     err=new PrintStream(new FileOutputStream(reducedPath +".err.txt"));
-                    context=new Interpreter.IOContext(System.in,out,err);
-                    Interpreter.Program testP =
+                    context=new IOContext(System.in,out,err);
+                    Parser.Program testP =
                             Interpreter.compileAndRun(path, new String[]{System.getProperty("user.dir")}, context);
                     if(testP!=null){
                         if(libFile.getValue()==null){
                             System.err.println("unable to build library file: "+file.getAbsolutePath());
                             continue;
                         }
-                        Interpreter.RootContext testC= testP.rootContext();
-                        for(Map.Entry<String, Interpreter.Declareable> d:libFile.getValue().rootContext().declareables()){
+                        Parser.RootContext testC= testP.rootContext();
+                        for(Map.Entry<String, Parser.Declareable> d:libFile.getValue().rootContext().declareables()){
                             if(d.getValue() instanceof OverloadedProcedure){
-                                for(Interpreter.Callable c:((OverloadedProcedure) d.getValue()).procedures){
+                                for(Parser.Callable c:((OverloadedProcedure) d.getValue()).procedures){
                                     if(c.declaredAt().path.endsWith(libFile.getKey())){
-                                        Interpreter.Declareable dTest=testC.getElement(d.getKey(),false);
+                                        Parser.Declareable dTest=testC.getElement(d.getKey(),false);
                                         if(dTest==null){
                                             System.err.println("declareable \""+d.getKey()+"\" at "+c.declaredAt()+
                                                     " is not used in test for library file: \""+libFile.getKey()+"\"");
                                         }else if(dTest instanceof OverloadedProcedure){
-                                            for(Interpreter.Callable cTest:((OverloadedProcedure) dTest).procedures){
+                                            for(Parser.Callable cTest:((OverloadedProcedure) dTest).procedures){
                                                 if(cTest.type().equals(c.type())&&cTest.unused()){
                                                     System.err.println("procedure \""+d.getKey()+"\" at "+cTest.declaredAt()+
                                                             " is not used in test for library file: \""+libFile.getKey()+"\"");
                                                 }
                                             }
                                         }else if(dTest.unused()){
-                                            System.err.println(Interpreter.declarableName(dTest.declarableType(),false)+" \""+d.getKey()+
+                                            System.err.println(Parser.declarableName(dTest.declarableType(),false)+" \""+d.getKey()+
                                                     "\" at "+c.declaredAt()+
                                                     " is not used in test for library file: \""+libFile.getKey()+"\"");
                                         }
                                     }
                                 }
                             }else if(d.getValue().declaredAt().path.endsWith(libFile.getKey())){
-                                Interpreter.Declareable dTest=testC.getElement(d.getKey(),false);
+                                Parser.Declareable dTest=testC.getElement(d.getKey(),false);
                                 if(dTest==null){
                                     System.err.println("declareable \""+d.getKey()+"\" at "+d.getValue().declaredAt()+
                                             " is not used in test for library file: \""+libFile.getKey()+"\"");
                                 }else if(dTest instanceof OverloadedProcedure){
-                                    for(Interpreter.Callable c:((OverloadedProcedure) dTest).procedures){
+                                    for(Parser.Callable c:((OverloadedProcedure) dTest).procedures){
                                         if(c.unused()){
                                             System.err.println("procedure \""+d.getKey()+"\" at "+c.declaredAt()+
                                                     " is not used in test for library file: \""+libFile.getKey()+"\"");
                                         }
                                     }
                                 }else if(dTest.unused()){
-                                    System.err.println(Interpreter.declarableName(dTest.declarableType(),false)+" \""+d.getKey()+
+                                    System.err.println(Parser.declarableName(dTest.declarableType(),false)+" \""+d.getKey()+
                                             "\" at "+d.getValue().declaredAt()+
                                             " is not used in test for library file: \""+libFile.getKey()+"\"");
                                 }
@@ -116,11 +116,11 @@ public class Test {//TODO add a new test for array access operations
         if(files!=null){
             for(File file:files){
                 String path=file.getAbsolutePath();
-                if(path.endsWith(Interpreter.DEFAULT_FILE_EXTENSION)){
-                    String reducedPath = path.substring(0, path.length() - Interpreter.DEFAULT_FILE_EXTENSION.length());
+                if(path.endsWith(Parser.DEFAULT_FILE_EXTENSION)){
+                    String reducedPath = path.substring(0, path.length() - Parser.DEFAULT_FILE_EXTENSION.length());
                     out=new PrintStream(new FileOutputStream(reducedPath +".out.txt"));
                     err=new PrintStream(new FileOutputStream(reducedPath +".err.txt"));
-                    context=new Interpreter.IOContext(System.in,out,err);
+                    context=new IOContext(System.in,out,err);
                     Interpreter.compileAndRun(path,new String[]{System.getProperty("user.dir")},context);
                 }
             }
