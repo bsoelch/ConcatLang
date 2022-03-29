@@ -1771,6 +1771,7 @@ public class Interpreter {
 
         reader.nextToken();
         WordState state=WordState.ROOT;
+        int nComments=0;//counts the currently open block-comments
         while((c=reader.nextChar())>=0){
             switch(state){
                 case ROOT:
@@ -1800,6 +1801,7 @@ public class Interpreter {
                                     reader.nextToken();
                                 } else if (c == '+') {
                                     state = WordState.COMMENT;
+                                    nComments=1;
                                     finishWord(reader.buffer.toString(), pState,reader.currentPos(),ioContext);
                                     reader.nextToken();
                                 } else {
@@ -1843,16 +1845,26 @@ public class Interpreter {
                     }
                     break;
                 case COMMENT:
-                    if(c=='+'){//addLater? detect comments in comments
+                    if(c=='+'){
                         c = reader.forceNextChar();
                         if(c=='#'){
-                            state=WordState.ROOT;
+                            nComments--;
+                            if(nComments==0){
+                                state=WordState.ROOT;
+                            }
+                        }
+                    }else if(c=='#'){
+                        c = reader.forceNextChar();
+                        if(c=='+'){
+                            nComments++;
+                        }else if(c=='#'){
+                            state=WordState.LINE_COMMENT;
                         }
                     }
                     break;
                 case LINE_COMMENT:
                     if(c=='\n'||c=='\r'){
-                        state=WordState.ROOT;
+                        state=nComments>0?WordState.COMMENT:WordState.ROOT;
                     }
                     break;
             }
