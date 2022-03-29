@@ -2920,7 +2920,7 @@ public class Interpreter {
                 case OPERATOR ->
                         throw new RuntimeException("internal field access operations should not exist at this stage of compilation "+t.pos);
                 case NEW ->
-                    typeCheckNew(typeStack, ret, ioContext,t.pos);
+                    typeCheckNew(typeStack,globalConstants, ret, ioContext,t.pos);
                 case DECLARE_LAMBDA -> {//parse lambda-procedures
                     assert t instanceof DeclareLambdaToken;
                     typeCheckLambda(globalConstants,context, typeStack, ioContext, ret, (DeclareLambdaToken)t);
@@ -2967,7 +2967,7 @@ public class Interpreter {
                     if(target.mutability==Mutability.DEFAULT){
                         target=target.setMutability(f.type.mutability);
                     }
-                    typeCheckCast(f.type,1,target, ret,ioContext, t.pos);
+                    typeCheckCast(f.type,1,target,globalConstants, ret,ioContext, t.pos);
                     typeStack.push(new TypeFrame(target,null,t.pos));
                 }
                 case STACK_DROP ->
@@ -3533,7 +3533,7 @@ public class Interpreter {
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         TypeFrame f= typeStack.pop();
         if(f.type instanceof Type.Procedure){
-            typeCheckCall("call-ptr", typeStack, (Type.Procedure) f.type, ret,ioContext, pos, true);
+            typeCheckCall("call-ptr", typeStack, (Type.Procedure) f.type,globalConstants, ret,ioContext, pos, true);
             ret.add(new Token(TokenType.CALL_PTR, pos));
         }else if(f.type instanceof Type.OverloadedProcedurePointer){
             CallMatch call = typeCheckOverloadedCall("call-ptr",
@@ -3610,7 +3610,7 @@ public class Interpreter {
         }
     }
 
-    private void typeCheckNew(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, IOContext ioContext,FilePosition pos)
+    private void typeCheckNew(RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants, ArrayList<Token> ret, IOContext ioContext, FilePosition pos)
             throws SyntaxError, RandomAccessStack.StackUnderflow {
         Token prev;
         if(ret.size()<1||!((prev= ret.remove(ret.size()-1)) instanceof ValueToken)) {
@@ -3624,7 +3624,7 @@ public class Interpreter {
             if(type instanceof Type.Tuple){
                 Type[] elements = ((Type.Tuple) type).getElements();
                 typeCheckCall("new", typeStack,
-                        Type.Procedure.create(elements,new Type[]{type}), ret,ioContext, pos, false);
+                        Type.Procedure.create(elements,new Type[]{type}),globalConstants, ret,ioContext, pos, false);
 
                 int c=((Type.Tuple) type).elementCount();
                 if(c < 0){
@@ -3655,7 +3655,7 @@ public class Interpreter {
                 }//no else
                 if(type.isArray()){
                     f=typeStack.pop();
-                    typeCheckCast(f.type,2,type.content(), ret,ioContext,pos);
+                    typeCheckCast(f.type,2,type.content(),globalConstants, ret,ioContext,pos);
                 }
                 typeStack.push(new TypeFrame(type,null, pos));
                 //addLater? support new memory/array in pre-evaluation
@@ -3703,7 +3703,7 @@ public class Interpreter {
                         break;
                     }
                     TypeFrame val = typeStack.pop();
-                    typeCheckCast(val.type,1, id.type, ret,ioContext, t.pos);
+                    typeCheckCast(val.type,1, id.type,globalConstants, ret,ioContext, t.pos);
                     if (id.mutability==Mutability.IMMUTABLE && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         Value value = ((ValueToken) prev).value;
@@ -3840,7 +3840,7 @@ public class Interpreter {
                 context.wrapCurried(identifier.name,id,identifier.pos);
                 assert !globalConstants.containsKey(id);
                 TypeFrame f = typeStack.pop();
-                typeCheckCast(f.type,1, id.type, ret, ioContext,t.pos);
+                typeCheckCast(f.type,1, id.type,globalConstants, ret, ioContext,t.pos);
                 ret.add(new VariableToken(identifier.pos,identifier.name,id,
                         AccessType.WRITE, context));
             }
@@ -4032,7 +4032,7 @@ public class Interpreter {
                         Type.StructField field = struct.fields[index];
                         if(field.accessibility()==Accessibility.PUBLIC||field.declaredAt().path.equals(t.pos.path)){
                             if(field.mutable()){
-                                typeCheckCast(val.type,2,struct.getElement(index), ret,ioContext, t.pos);
+                                typeCheckCast(val.type,2,struct.getElement(index),globalConstants, ret,ioContext, t.pos);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -4051,7 +4051,7 @@ public class Interpreter {
                         if(index>=0&&index< tuple.elementCount()){
                             Type fieldType = tuple.getElement(index);
                             if(tuple.isMutable(index)){
-                                typeCheckCast(val.type,2,fieldType, ret, ioContext,t.pos);
+                                typeCheckCast(val.type,2,fieldType,globalConstants, ret, ioContext,t.pos);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -4133,6 +4133,7 @@ public class Interpreter {
                     genMap.put(proc.procType.explicitGenerics[i], genArgs[i]);
                 }
                 Value.Procedure non_generic=proc.withPrams(genMap);
+                typeCheckProcedure(non_generic,globalConstants,ioContext);
                 pushSimpleProcPointer(non_generic, typeStack, ret, globalConstants, ioContext, pos);
             }else{
                 typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, ret.size(), pos),null, pos));
@@ -4184,7 +4185,7 @@ public class Interpreter {
         return genArgs;
     }
 
-    private void typeCheckCast(Type src, int stackPos, Type target, ArrayList<Token> ret,
+    private void typeCheckCast(Type src, int stackPos, Type target, HashMap<VariableId, Value> globalConstants, ArrayList<Token> ret,
                                IOContext ioContext, FilePosition pos) throws SyntaxError {
         Type.BoundMaps bounds=new Type.BoundMaps();
         if(src instanceof Type.OverloadedProcedurePointer){
@@ -4211,6 +4212,9 @@ public class Interpreter {
                             }
                         }
                         c=((GenericProcedure) c).withPrams(update);
+                    }
+                    if(c instanceof Value.Procedure){//ensure procedures are type-checked
+                        typeCheckProcedure((Value.Procedure) c, globalConstants, ioContext);
                     }
                     matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,0,new HashMap<>()));
                 }
@@ -4248,7 +4252,8 @@ public class Interpreter {
     }
 
     private void typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type,
-                               ArrayList<Token> tokens,IOContext ioContext,FilePosition pos, boolean isPtr)
+                               HashMap<VariableId, Value> globalConstants, ArrayList<Token> tokens,
+                               IOContext ioContext, FilePosition pos, boolean isPtr)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         int offset=isPtr?1:0;
         if(type instanceof Type.GenericProcedureType){
@@ -4262,7 +4267,7 @@ public class Interpreter {
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
             try{
-                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i], tokens,ioContext,pos);
+                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],globalConstants, tokens,ioContext,pos);
             }catch (SyntaxError e){
                 throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
                         ": "+Arrays.toString(inTypes),pos);
@@ -4343,7 +4348,7 @@ public class Interpreter {
         }
         ArrayList<CallMatch> matchingCalls=new ArrayList<>();
         for(Callable p1:proc.procedures){
-            typeCheckPotentialCall(p1, typeArgs, inTypes, matchingCalls, pos);
+            typeCheckPotentialCall(p1, typeArgs, inTypes, matchingCalls,globalConstants,ioContext, pos);
         }
         CallMatch match = findMatchingCall(matchingCalls, proc, inTypes, globalConstants, ioContext, pos);
         updateProcedureArguments(match, inTypes, tokens, ptrGenArgs!=null, pos);
@@ -4353,7 +4358,8 @@ public class Interpreter {
         return match;
     }
     private void typeCheckPotentialCall(Callable potentialCall, Type[] typeArgs, Type[] inTypes,
-                           ArrayList<CallMatch> matchingCalls, FilePosition pos) throws SyntaxError {
+                           ArrayList<CallMatch> matchingCalls,HashMap<VariableId, Value> globalConstants,
+                                        IOContext ioContext, FilePosition pos) throws SyntaxError {
         Type.Procedure type= potentialCall.type();
         boolean isMatch=true;
         IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
@@ -4382,7 +4388,7 @@ public class Interpreter {
             for(int i = 0; i< inTypes.length; i++){
                 if(inTypes[i] instanceof Type.OverloadedProcedurePointer){
                     bounds = resolveOppParam(type.inTypes[i],bounds,(Type.OverloadedProcedurePointer)inTypes[i],
-                            opps, pos);
+                            opps,globalConstants,ioContext,pos);
                     if(bounds==null||!isMatch){
                         isMatch=false;
                         break;
@@ -4407,6 +4413,8 @@ public class Interpreter {
     private Type.BoundMaps resolveOppParam(Type calledType, Type.BoundMaps callBounds,
                                            Type.OverloadedProcedurePointer param,
                                            HashMap<Type.OverloadedProcedurePointer,CallMatch> opps,
+                                           HashMap<VariableId, Value> globalConstants,
+                                           IOContext ioContext,
                                            FilePosition pos) throws SyntaxError {
         ArrayList<CallMatch> matches=new ArrayList<>();
         ArrayList<Type.BoundMaps> matchBounds=new ArrayList<>();
@@ -4440,6 +4448,9 @@ public class Interpreter {
                     }
                 }
                 if(matchesParam){
+                    if(c instanceof Value.Procedure){
+                        typeCheckProcedure((Value.Procedure) c,globalConstants,ioContext);
+                    }
                     matches.add(new CallMatch(c,procType,implicitGenerics,0,implicitGenerics.size(),
                             new HashMap<>()));
                     matchBounds.add(test);
