@@ -232,9 +232,12 @@ x9 clear
 x9 debugPrint
 x9 peekFirst debugPrint
 x9 peekLast  debugPrint
-
-
-
+"___________________________________" debugPrint
+8 buildUString u"Hello " <<* u"World!" <<* build debugPrint
+"build" buildString "String" <<* toArray debugPrint
+"___________________________________" debugPrint
+arraySlice #include
+5 int newList { 0 1 2 3 4 } 1 4 [:] <<* debugPrint
 
 
 

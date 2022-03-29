@@ -1,0 +1,11 @@
+(int array:[int:0, int:1, int:2, int:3, int:4, int:5, int:6, int:7, int:8],uint:2,uint:5)
+2
+6
+_________________________________________
+(int array mut:[int:0, int:1, int:2, int:3, int:4, int:5, int:6, int:7, int:8],uint:2,uint:5)
+(int array mut:[int:0, int:1, int:2, int:3, int:42, int:5, int:6, int:7, int:8],uint:2,uint:5)
+_________________________________________
+(int array:[int:0, int:1, int:2, int:3, int:4, int:5, int:6, int:7, int:8],uint:2,uint:5)
+
+Stack:
+[]

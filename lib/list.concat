@@ -52,7 +52,7 @@ offset  public proc( A <?> A List mut? => uint ){
 capacity public proc( A <?> A List mut? => uint ){
   #+list+# .data .capacity  return
 }
-toArray  public proc( A <?> A List mut? => A array ){
+toArray  public proc( A <?> A List mut? => A array mut~ ){
   #+list+# .data clone-mut~ return
 }
 

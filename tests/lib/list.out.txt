@@ -164,6 +164,11 @@ byte array mut~ empty
 (byte array mut~ memory mut:[])
 byte array mut~ empty
 byte array mut~ empty
+___________________________________
+Hello World!
+buildString
+___________________________________
+(int memory mut:[int:1, int:2, int:3])
 
 Stack:
 []
