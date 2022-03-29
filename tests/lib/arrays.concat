@@ -42,4 +42,22 @@ lenCmp proc( string string => int ){
 
 { 1 2 3 4 5 } lambda( int => bool ){ 2 % 0 != } filter debugPrint
 
+"_________________________" debugPrint
+"search:\n" debugPrint
+{ 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71 73 79 83 89 97 } primes =::
+primes debugPrint
+primes 17  binarySearch  debugPrint
+primes 51  binarySearch  debugPrint
+primes 1   binarySearch  debugPrint
+primes 100 binarySearch  debugPrint
+{ "search" "sorted" "strings" } search2 =::
+strings #include
+search2 debugPrint
+search2 @lexCmp "sorted"    binarySearch2 debugPrint
+search2 @lexCmp "searching" binarySearch2 debugPrint
+search2 @lexCmp "before"    binarySearch2 debugPrint
+search2 @lexCmp "where"     binarySearch2 debugPrint
+
+
+
 #end

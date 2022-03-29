@@ -19,6 +19,19 @@ _________________________
 filter:
 
 [int:1, int:3, int:5]
+_________________________
+search:
+
+[int:2, int:3, int:5, int:7, int:11, int:13, int:17, int:19, int:23, int:29, int:31, int:37, int:41, int:43, int:47, int:53, int:59, int:61, int:67, int:71, int:73, int:79, int:83, int:89, int:97]
+6
+-1
+-1
+-1
+[byte array mut~:search, byte array mut~:sorted, byte array mut~:strings]
+1
+-1
+-1
+-1
 
 Stack:
 []

@@ -4,7 +4,45 @@ core #namespace
 stack #include
 codeblocks #include
 
-## TODO binary search
+## uses '<' operator for comparing elements
+binarySearch public proc( A <?> A array mut? A => int ){
+  A val =:
+  A array mut? data =:
+  0            uint l mut =:
+  data .length uint r mut =:
+  l r + 2 / c =::
+  while{
+    val data c [] < if{
+      c r =
+    else val data c [] == if
+      c int cast return
+    else
+      c l =
+    }
+    l r + 2 / c =
+  r l - 1 > do }
+  -1 return
+}
+binarySearch2 public proc( A <?> A array mut? ( A A => int ) A => int ){
+  A val =:
+  ( A A => int ) cmp =:
+  A array mut? data =:
+  0            uint l mut =:
+  data .length uint r mut =:
+  l r + 2 / c =::
+  while{
+    val data c [] cmp () cp =::
+    cp 0 < if{
+      c r =
+    else cp 0 == if
+      c int cast return
+    else
+      c l =
+    }
+    l r + 2 / c =
+  r l - 1 > do }
+  -1 return
+}
 
 reverse public proc( A <?> A array mut  => ){
   toReverse =::
