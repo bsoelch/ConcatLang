@@ -2331,8 +2331,8 @@ public class Interpreter {
                             if(((ProcedureBlock) block).state==ProcedureBlock.STATE_BODY) {
                                 if (outs != null) {
                                     procType=(generics.size()>0)?
-                                            Type.GenericProcedureType.create(generics.toArray(Type.GenericParameter[]::new),ins,outs):
-                                            Type.Procedure.create(ins,outs);
+                                            Type.GenericProcedureType.create(generics.toArray(Type.GenericParameter[]::new),ins,outs,pos):
+                                            Type.Procedure.create(ins,outs,pos);
                                 }
                             }else{
                                 if(((ProcedureBlock) block).state==ProcedureBlock.STATE_IN){
@@ -2476,7 +2476,7 @@ public class Interpreter {
                                         new RandomAccessStack<>(8),null,pos,ioContext).tokens,false);
                         subList=tokens.subList(open.start,tokens.size());
                         subList.clear();
-                        Type.Procedure procType=Type.Procedure.create(inTypes,outTypes);
+                        Type.Procedure procType=Type.Procedure.create(inTypes,outTypes,pos);
                         tokens.add(new ValueToken(Value.ofType(procType),pos));
                     }else if(open.type==BlockType.ANONYMOUS_TUPLE){
                         List<Token> subList=tokens.subList(open.start, tokens.size());
@@ -3544,7 +3544,7 @@ public class Interpreter {
         }
     }
 
-    private void findEnumFields(SwitchCaseBlock switchBlock, List<Token> caseValues) {
+    private void findEnumFields(SwitchCaseBlock switchBlock, List<Token> caseValues){
         if(switchBlock.switchType instanceof Type.Enum sType){
             for(int p = 0; p < caseValues.size(); p++){
                 Token prev=caseValues.get(p);
@@ -3582,8 +3582,8 @@ public class Interpreter {
             }
         }
         Type.Procedure procType=t.generics.size()>0?
-                Type.GenericProcedureType.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes):
-                Type.Procedure.create(t.inTypes, outTypes);
+                Type.GenericProcedureType.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes,t.pos):
+                Type.Procedure.create(t.inTypes, outTypes,t.pos);
         Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, newContext);
         lambda.typeCheckState = Value.TypeCheckState.CHECKED;//mark lambda as checked
         //push type information
@@ -3609,7 +3609,7 @@ public class Interpreter {
             if(type instanceof Type.Tuple){
                 Type[] elements = ((Type.Tuple) type).getElements();
                 typeCheckCall("new", typeStack,
-                        Type.Procedure.create(elements,new Type[]{type}),globalConstants, ret,ioContext, pos, false);
+                        Type.Procedure.create(elements,new Type[]{type},pos),globalConstants, ret,ioContext, pos, false);
 
                 int c=((Type.Tuple) type).elementCount();
                 if(c < 0){
@@ -3871,7 +3871,7 @@ public class Interpreter {
                         match.called.markAsUsed();
                         CallToken token = new CallToken(match.called, identifier.pos);
                         ret.add(token);
-                        break;
+                        break;//found field
                     }
                     if(f.type instanceof Type.Tuple){
                         try {
@@ -3879,7 +3879,7 @@ public class Interpreter {
                             if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
                                 typeStack.push(new TypeFrame(((Type.Tuple) f.type).getElement(index),null, t.pos));
                                 ret.add(new TupleElementAccess(index, false, t.pos));
-                                break;
+                                break;//found field
                             }
                         }catch (NumberFormatException ignored){}
                     }

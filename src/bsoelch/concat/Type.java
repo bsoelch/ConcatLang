@@ -36,103 +36,103 @@ public class Type {
     };
     public static final Type TYPE  = new Type("type", false) {
         @Override
-        void initTypeFields() {
+        void initTypeFields() throws SyntaxError {
             super.initTypeFields();//addLater? make type-data getters return optional
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{TYPE},"content") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofType(values[0].asType().content())};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"inTypes") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
                             values[0].asType().inTypes().stream().map(Value::ofType).toArray(Value[]::new))};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"outTypes") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
                             values[0].asType().outTypes().stream().map(Value::ofType).toArray(Value[]::new))};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{RAW_STRING()},"name") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofString(values[0].asType().typeName(),false)};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(RAW_STRING())},"fieldNames") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.createArray(Type.arrayOf(Type.RAW_STRING()),values[0].asType().fields()
                             .stream().map(s->Value.ofString(s,false)).toArray(Value[]::new))};
                 }
-            });
+            }, declaredAt());
 
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isEnum") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType() instanceof Enum)};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isArray") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType().isArray())};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMemory") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType().isMemory())};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isProc") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType() instanceof Type.Procedure)};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isOptional") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType().isOptional())};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isTuple") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType() instanceof Tuple)};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isStruct") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType() instanceof Struct)};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isUnion") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType() instanceof UnionType)};
                 }
-            });
+            }, declaredAt());
 
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMutable") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType().isMutable())};
                 }
-            });
+            }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMaybeMutable") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofBool(values[0].asType().isMaybeMutable())};
                 }
-            });
+            }, declaredAt());
         }
     };
     public static final Type BOOL  = new Type("bool", false);
@@ -226,19 +226,26 @@ public class Type {
         this.mutability=mutability;
     }
 
-    private void ensurePseudoFieldsInitialized(){
+    FilePosition declaredAt(){
+        return Value.InternalProcedure.POSITION;
+    }
+    private void ensureFieldsInitialized(){
         if(!typeFieldsInitialized){
             typeFieldsInitialized=true;
-            initTypeFields();
+            try {
+                initTypeFields();
+            } catch (SyntaxError e) {
+                throw new RuntimeException(e);
+            }
         }
     }
-    void initTypeFields(){
+    void initTypeFields() throws SyntaxError {
         addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{TYPE},"type") {
             @Override
             Value[] callWith(Value[] values){
                 return new Value[]{Value.ofType(values[0].type)};
             }
-        });
+        },declaredAt());
     }
 
     @Override
@@ -353,24 +360,26 @@ public class Type {
     }
 
     void addField(String name,Value fieldValue,FilePosition pos) throws SyntaxError {
+        ensureFieldsInitialized();
         if(typeFields.put(name, fieldValue)!=null){
             throw new SyntaxError(this.name+" already has a field "+name+" ",pos);
         }
     }
-    void addPseudoField(Interpreter.Callable fieldValue){
-        ensurePseudoFieldsInitialized();
+    void addPseudoField(Interpreter.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
+        ensureFieldsInitialized();
         Type[] in=fieldValue.type().inTypes;
         if(in.length==0||!canAssignTo(in[in.length-1])){
-            throw new IllegalArgumentException("invalid signature for pseudo-field: "+Arrays.toString(in));
+            throw new SyntaxError("invalid signature for pseudo-field: "+Arrays.toString(in),declaredAt);
         }
         pseudoFields.put(fieldValue.name(),fieldValue);
-
+        addField(fieldValue.name(),(Value)fieldValue, declaredAt);
     }
     HashMap<String,Value> typeFields(){
+        ensureFieldsInitialized();
         return typeFields;
     }
     HashMap<String, Interpreter.Callable> pseudoFields(){
-        ensurePseudoFieldsInitialized();
+        ensureFieldsInitialized();
         return pseudoFields;
     }
 
@@ -442,7 +451,7 @@ public class Type {
         }
 
         @Override
-        void initTypeFields() {
+        void initTypeFields() throws SyntaxError {
             super.initTypeFields();
             switch (wrapperName) {
                 case OPTIONAL -> {
@@ -451,14 +460,14 @@ public class Type {
                         Value[] callWith(Value[] values) throws ConcatRuntimeError {
                             return new Value[]{Value.ofBool(values[0].hasValue())};
                         }
-                    });
+                    }, declaredAt());
                     //addLater static check if optional is nonempty
                     addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{contentType}, "value") {
                         @Override
                         Value[] callWith(Value[] values) throws ConcatRuntimeError {
                             return new Value[]{values[0].unwrap()};
                         }
-                    });
+                    }, declaredAt());
                 }
                 case MEMORY -> {
                     addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{UINT}, "length") {
@@ -466,26 +475,26 @@ public class Type {
                         Value[] callWith(Value[] values) {
                             return new Value[]{Value.ofInt(((ArrayLike) values[0]).length(), true)};
                         }
-                    });
+                    }, declaredAt());
                     addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{UINT}, "capacity") {
                         @Override
                         Value[] callWith(Value[] values) {
                             return new Value[]{Value.ofInt(((ArrayLike) values[0]).capacity(), true)};
                         }
-                    });
+                    }, declaredAt());
                     addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{UINT}, "offset") {
                         @Override
                         Value[] callWith(Value[] values) {
                             return new Value[]{Value.ofInt(((ArrayLike) values[0]).offset(), true)};
                         }
-                    });
+                    }, declaredAt());
                 }
                 case ARRAY -> addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{UINT}, "length") {
                     @Override
                     Value[] callWith(Value[] values) {
                         return new Value[]{Value.ofInt(((ArrayLike) values[0]).length(), true)};
                     }
-                });
+                }, declaredAt());
             }
         }
 
@@ -926,7 +935,7 @@ public class Type {
     public static class Procedure extends Type{
         final Type[] inTypes;
         final Type[] outTypes;
-
+        final FilePosition declaredAt;
 
         static String getName(Type[] inTypes, Type[] outTypes) {
             StringBuilder name=new StringBuilder("( ");
@@ -940,14 +949,20 @@ public class Type {
             name.append(")");
             return name.toString();
         }
-        public static Procedure create(Type[] inTypes,Type[] outTypes){
-            return new Procedure(getName(inTypes, outTypes),inTypes,outTypes);
+        public static Procedure create(Type[] inTypes,Type[] outTypes, FilePosition declaredAt){
+            return new Procedure(getName(inTypes, outTypes),inTypes,outTypes, declaredAt);
         }
 
-        private Procedure(String name,Type[] inTypes,Type[] outTypes) {
+        private Procedure(String name, Type[] inTypes, Type[] outTypes, FilePosition declaredAt) {
             super(name, false);
             this.inTypes=inTypes;
             this.outTypes=outTypes;
+            this.declaredAt = declaredAt;
+        }
+
+        @Override
+        FilePosition declaredAt() {
+            return declaredAt;
         }
 
         @Override
@@ -988,7 +1003,7 @@ public class Type {
                     changed=true;
                 }
             }
-            return changed?Procedure.create(newIns,newOuts):this;
+            return changed?Procedure.create(newIns,newOuts,declaredAt):this;
         }
 
         @Override
@@ -1049,7 +1064,7 @@ public class Type {
             }
             return sb.append(getName(inTypes, outTypes)).toString();
         }
-        public static GenericProcedureType create(GenericParameter[] genericParams, Type[] inTypes, Type[] outTypes) {
+        public static GenericProcedureType create(GenericParameter[] genericParams, Type[] inTypes, Type[] outTypes, FilePosition declaredAt) {
             ArrayList<GenericParameter> explicitParams=new ArrayList<>(genericParams.length);
             ArrayList<GenericParameter> implicitParams=new ArrayList<>(genericParams.length);
             for (GenericParameter genericParam : genericParams) {
@@ -1062,12 +1077,13 @@ public class Type {
             //Unwrap generic arguments
             String name = genericName(inTypes, outTypes, explicitParams);
             return new GenericProcedureType(name,explicitParams.toArray(GenericParameter[]::new),
-                    explicitParams.toArray(GenericParameter[]::new),implicitParams.toArray(GenericParameter[]::new),inTypes,outTypes);
+                    explicitParams.toArray(GenericParameter[]::new),implicitParams.toArray(GenericParameter[]::new),inTypes,
+                    outTypes,declaredAt);
         }
 
         private GenericProcedureType(String name, GenericParameter[] explicitGenerics, Type[] genericArgs,
-                                     GenericParameter[] implicitGenerics, Type[] inTypes, Type[] outTypes) {
-            super(name, inTypes,outTypes);
+                                     GenericParameter[] implicitGenerics, Type[] inTypes, Type[] outTypes, FilePosition declaredAt) {
+            super(name, inTypes,outTypes, declaredAt);
             this.explicitGenerics = explicitGenerics;
             this.implicitGenerics = implicitGenerics;
             this.genericArgs=genericArgs;
@@ -1111,7 +1127,7 @@ public class Type {
                 }
             }
             return changed?isGeneric?new GenericProcedureType(genericName(newIn,newOut,Arrays.asList(newArgs)), explicitGenerics,
-                            newArgs,implicitGenerics,newIn,newOut):new Procedure(getName(newIn,newOut),newIn,newOut):this;
+                            newArgs,implicitGenerics,newIn,newOut,declaredAt):new Procedure(getName(newIn,newOut),newIn,newOut, declaredAt):this;
         }
 
         @Override

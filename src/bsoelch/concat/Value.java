@@ -1323,10 +1323,10 @@ public abstract class Value {
         public static final FilePosition POSITION = new FilePosition("internal", 0, 0);
 
         protected InternalProcedure(Type[] inTypes, Type[] outTypes, String name) {
-            super(Type.Procedure.create(inTypes, outTypes), name, POSITION);
+            super(Type.Procedure.create(inTypes, outTypes,POSITION), name, POSITION);
         }
         protected InternalProcedure(Type.GenericParameter[] generics,Type[] inTypes, Type[] outTypes, String name) {
-            super(Type.GenericProcedureType.create(generics,inTypes, outTypes), name, POSITION);
+            super(Type.GenericProcedureType.create(generics,inTypes, outTypes,POSITION), name, POSITION);
         }
         @Override
         abstract Value[] callWith(Value[] values) throws ConcatRuntimeError;
