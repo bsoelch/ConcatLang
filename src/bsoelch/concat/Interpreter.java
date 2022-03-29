@@ -1468,9 +1468,11 @@ public class Interpreter {
     private static class NamespaceContext extends TopLevelContext{
         final TopLevelContext parent;
         final String prefix;
-        NamespaceContext(String namespace,TopLevelContext parent) {
+        final FilePosition startPos;
+        NamespaceContext(String namespace, TopLevelContext parent, FilePosition startPos) {
             this.parent = parent;
             this.prefix = namespace+NAMESPACE_SEPARATOR;
+            this.startPos = startPos;
 
             if(parent.namespace().length()>0){//add namespace path to namespaces
                 root().namespaces.add(parent.namespace()+NAMESPACE_SEPARATOR+namespace);
@@ -1703,11 +1705,11 @@ public class Interpreter {
             }
             topLevelContext=new FileContext(rootContext,name);
         }
-        void startNamespace(String name){
+        void startNamespace(String name,FilePosition startPos){
             if(topLevelContext==null){
                 throw new IllegalArgumentException("namespaces cannot exist outside of files");
             }
-            topLevelContext=new NamespaceContext(name,topLevelContext);
+            topLevelContext=new NamespaceContext(name,topLevelContext,startPos);
         }
         void endNamespace(FilePosition pos) throws SyntaxError {
             if(topLevelContext instanceof NamespaceContext){
@@ -1716,8 +1718,15 @@ public class Interpreter {
                 throw new SyntaxError("unexpected end of namespace",pos);
             }
         }
-        void endFile(){
-            //addLater report unclosed namespaces
+        void endFile(IOContext ioContext,FilePosition endOfFile){
+            if(topLevelContext instanceof NamespaceContext){
+                ioContext.stdErr.println("unclosed namespaces at "+endOfFile);
+                do{
+                    ioContext.stdErr.println(" - "+topLevelContext.namespace()+" (opened at "+
+                            ((NamespaceContext) topLevelContext).startPos+")");
+                    topLevelContext=((NamespaceContext) topLevelContext).parent;
+                }while (topLevelContext instanceof NamespaceContext);
+            }
             topLevelContext=openedFiles.pollLast();
         }
         final HashSet<String> files=new HashSet<>();
@@ -1891,7 +1900,7 @@ public class Interpreter {
             throw new SyntaxError("unclosed block: "+pState.openBlocks.getLast(),pState.openBlocks.getLast().startPos);
         }
 
-        pState.endFile();
+        pState.endFile(ioContext,reader.currentPos());
 
         return new Program(pState.globalCode,pState.files,pState.rootContext);
     }
@@ -2048,7 +2057,7 @@ public class Interpreter {
                     if(prevId != null){
                         tokens.remove(tokens.size()-1);
                         finishParsing(pState, ioContext,pos);
-                        pState.startNamespace(prevId);
+                        pState.startNamespace(prevId,pos);
                     }else{
                         throw new SyntaxError("namespace name has to be an identifier",pos);
                     }
