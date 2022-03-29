@@ -38,6 +38,9 @@ public abstract class Value {
             return true;
         }
     };
+    public static Value ofBool(boolean bool){
+        return bool?TRUE:FALSE;
+    }
 
     final Type type;
     protected Value(Type type) {
