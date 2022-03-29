@@ -352,8 +352,10 @@ public class Type {
         throw new UnsupportedOperationException();
     }
 
-    void addField(String name,Value fieldValue){
-        typeFields.put(name, fieldValue);//addLater check if field already exists
+    void addField(String name,Value fieldValue,FilePosition pos) throws SyntaxError {
+        if(typeFields.put(name, fieldValue)!=null){
+            throw new SyntaxError(this.name+" already has a field "+name+" ",pos);
+        }
     }
     void addPseudoField(Interpreter.Callable fieldValue){
         ensurePseudoFieldsInitialized();
@@ -1134,12 +1136,13 @@ public class Type {
         final FilePosition declaredAt;
         final boolean isPublic;
         final String[] entryNames;
-        public Enum(String name, boolean isPublic, String[] entryNames,FilePosition declaredAt) {
+        public Enum(String name, boolean isPublic, String[] entryNames,FilePosition[] entryPositions,FilePosition declaredAt)
+                throws SyntaxError {
             super(name, true);
             this.isPublic = isPublic;
             this.entryNames =entryNames;
             for(int i=0;i<entryNames.length;i++){
-                addField(entryNames[i],new Value.EnumEntry(this,i));
+                addField(entryNames[i],new Value.EnumEntry(this,i),entryPositions[i]);
             }
             this.declaredAt = declaredAt;
         }

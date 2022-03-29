@@ -1324,7 +1324,7 @@ public class Interpreter {
 
         void declareEnum(EnumBlock source, IOContext ioContext) throws SyntaxError {
             Type.Enum anEnum=new Type.Enum(source.name, source.isPublic, source.elements.toArray(new String[0]),
-                    source.startPos);
+                    source.elementPositions.toArray(new FilePosition[0]), source.startPos);
             declareNamedDeclareable(anEnum,ioContext);
         }
         void declareNamedDeclareable(NamedDeclareable declareable, IOContext ioContext) throws SyntaxError {
