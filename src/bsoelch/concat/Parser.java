@@ -708,7 +708,7 @@ public class Parser {
         }
 
         @Override
-        VariableContext context() {
+        GenericContext context() {
             return context;
         }
     }
@@ -748,7 +748,7 @@ public class Parser {
             super(start, BlockType.STRUCT, startPos, parentContext);
             this.name=name;
             this.isPublic=isPublic;
-            context=new StructContext(parentContext,false);
+            context=new StructContext(parentContext);
         }
 
         @Override
@@ -1070,98 +1070,6 @@ public class Parser {
         @Override
         public DeclareableType declarableType() {
             return DeclareableType.CURRIED_VARIABLE;
-        }
-    }
-
-    private static final class GenericTuple implements NamedDeclareable {
-        final String name;
-        final boolean isPublic;
-        final Type.GenericParameter[] params;
-        final Type[] types;
-        final FilePosition declaredAt;
-
-        private GenericTuple(String name, boolean isPublic, Type.GenericParameter[] params,
-                             Type[] types,
-                             FilePosition declaredAt) {
-            this.name = name;
-            this.isPublic = isPublic;
-            this.params = params;
-            this.types = types;
-            this.declaredAt = declaredAt;
-        }
-
-        @Override
-        public DeclareableType declarableType() {
-            return DeclareableType.GENERIC_TUPLE;
-        }
-
-        @Override
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public boolean isPublic() {
-            return isPublic;
-        }
-        @Override
-        public FilePosition declaredAt() {
-            return declaredAt;
-        }
-        boolean unused=true;
-        @Override
-        public void markAsUsed() {
-            unused=false;
-        }
-        @Override
-        public boolean unused() {
-            return unused;
-        }
-    }
-
-    private static final class GenericStruct implements NamedDeclareable {
-        final String name;
-        final boolean isPublic;
-        final Type.Struct extended;
-        final Type.GenericParameter[] params;
-        final Type[] types;
-        final Type.StructField[] fields;
-        final FilePosition declaredAt;
-
-        private GenericStruct(String name, boolean isPublic, Type.Struct extended, Type.GenericParameter[] params,
-                              Type[] types,Type.StructField[] fields, FilePosition declaredAt) {
-            this.name = name;
-            this.isPublic = isPublic;
-            this.extended = extended;
-            this.params = params;
-            this.types = types;
-            this.fields = fields;
-            this.declaredAt = declaredAt;
-        }
-
-        @Override
-        public DeclareableType declarableType() {
-            return DeclareableType.GENERIC_STRUCT;
-        }
-        @Override
-        public String name() {
-            return name;
-        }
-        @Override
-        public boolean isPublic() {
-            return isPublic;
-        }
-        public FilePosition declaredAt() {
-            return declaredAt;
-        }
-        boolean unused=true;
-        @Override
-        public void markAsUsed() {
-            unused=false;
-        }
-        @Override
-        public boolean unused() {
-            return unused;
         }
     }
 
@@ -1500,6 +1408,11 @@ public class Parser {
             assert parent!=null;
         }
 
+        /**elements declared in this block context as an iterable of key value pairs*/
+        public Iterable<Map.Entry<String, Declareable>> elements() {
+            return elements.entrySet();
+        }
+
         @Override
         protected Declareable getElement(String name,boolean merge){
             return elements.get(name);
@@ -1621,8 +1534,8 @@ public class Parser {
     record StructFieldWithType(Type.StructField field, Type type){}
     static class StructContext extends GenericContext{
         final ArrayList<StructFieldWithType> fields=new ArrayList<>();
-        StructContext(VariableContext parent, boolean allowImplicit) {
-            super(parent, allowImplicit);
+        StructContext(VariableContext parent) {
+            super(parent, false);
         }
     }
 
@@ -2165,13 +2078,14 @@ public class Parser {
                     }
                     if(((StructBlock) block).extended!=null){
                         throw new SyntaxError("structs can only contain one '"+str+"' statement",pos);
-                    }else if(((StructBlock) block).context.fields.size()>0){
-                        throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
                     }
                     List<Token> subList = tokens.subList(block.start, tokens.size());
                     TypeCheckResult r=typeCheck(subList,pState.getContext(),pState.globalConstants,
                             new RandomAccessStack<>(8),null,pos,ioContext);
                     subList.clear();
+                    if(((StructBlock) block).context.fields.size()>0){
+                        throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
+                    }
                     if(r.types.size()!=1||r.types.get(1).type!=Type.TYPE||r.types.get(1).value==null){
                         throw new SyntaxError("value before '"+str+"' has to be one constant type",pos);
                     }
@@ -2181,10 +2095,6 @@ public class Parser {
                             throw new SyntaxError("extended type has to be a struct got: "+extended,pos);
                         }
                         ((StructBlock) block).extended=(Type.Struct) extended;
-                        for(int i=0;i<((Type.Struct) extended).elementCount();i++){
-                            ((StructBlock) block).context.fields.add(new StructFieldWithType(((Type.Struct) extended).fields[i],
-                                    ((Type.Struct) extended).getElement(i)));
-                        }
                     } catch (TypeError e) {
                         throw new SyntaxError(e,pos);
                     }
@@ -2380,18 +2290,15 @@ public class Parser {
                             }
                             ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
                             List<Token> subList = tokens.subList(block.start, tokens.size());
-                            Type[] types=ProcedureBlock.getSignature(
-                                    typeCheck(subList, block.context(), pState.globalConstants,
-                                            new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
+                            ArrayList<Token> tupleTokens = new ArrayList<>(subList);
                             subList.clear();
                             if(generics.size()>0){
                                 GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,((TupleBlock) block).isPublic,
-                                        generics.toArray(Type.GenericParameter[]::new),
-                                        types,block.startPos);
+                                        false,null,((TupleBlock) block).context(),tupleTokens,block.startPos,pos);
                                 pState.topLevelContext().declareNamedDeclareable(tuple,ioContext);
                             }else{
                                 Type.Tuple tuple=Type.Tuple.create(((TupleBlock) block).name, ((TupleBlock) block).isPublic,
-                                        types,block.startPos);
+                                        tupleTokens,((TupleBlock) block).context(),block.startPos,pos);
                                 pState.topLevelContext().declareNamedDeclareable(tuple,ioContext);
                             }
                         }
@@ -2403,28 +2310,17 @@ public class Parser {
                                 throw new RuntimeException("openedContexts is out of sync with openBlocks");
                             }
                             List<Token> subList = tokens.subList(block.start, tokens.size());
-                            ArrayList<Token> body=typeCheck(subList, block.context(), pState.globalConstants,
-                                            new RandomAccessStack<>(8),null,pos,ioContext).tokens;
+                            ArrayList<Token> structTokens=new ArrayList<>(subList);
                             subList.clear();
-                            if(body.size()>0){
-                                tmp=body.get(0);
-                                throw new SyntaxError("Unexpected token in struct: "+tmp,tmp.pos);
-                            }
                             ArrayList<Type.GenericParameter> generics= structContext.generics;
-                            Type.StructField[] fieldNames=new Type.StructField[structContext.fields.size()];
-                            Type[] types=new Type[fieldNames.length];
-                            for(int i=0;i<types.length;i++){
-                                fieldNames[i]= structContext.fields.get(i).field;
-                                types[i]= structContext.fields.get(i).type;
-                            }
                             if(generics.size()>0){
-                                GenericStruct struct=new GenericStruct(((StructBlock) block).name,((StructBlock) block).isPublic,
-                                        ((StructBlock) block).extended,generics.toArray(Type.GenericParameter[]::new),
-                                        types,fieldNames,block.startPos);
+                                GenericTuple struct=new GenericTuple(((StructBlock) block).name,((StructBlock) block).isPublic,true,
+                                        ((StructBlock) block).extended,structContext,
+                                        structTokens,block.startPos,pos);
                                 pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
                             }else{
                                 Type.Struct struct=Type.Struct.create(((StructBlock) block).name, ((StructBlock) block).isPublic,
-                                        ((StructBlock) block).extended,fieldNames,types,block.startPos);
+                                        ((StructBlock) block).extended,structTokens,structContext,block.startPos,pos);
                                 pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
                             }
                         }
@@ -2479,7 +2375,7 @@ public class Parser {
                                 typeCheck(subList,open.context(),pState.globalConstants,
                                         new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
                         subList.clear();
-                        tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(null, false, tupleTypes,pos)),
+                        tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(null, false, tupleTypes,open.startPos,pos)),
                                 pos));
                     }else /*if(open.type==BlockType.UNION)*/{
                         List<Token> subList=tokens.subList(open.start, tokens.size());
@@ -2803,6 +2699,36 @@ public class Parser {
                     p.endPos, ioContext);
             p.tokens=res.tokens;
             p.typeCheckState = Value.TypeCheckState.CHECKED;
+        }
+    }
+    private void typeCheckTuple(Type.Tuple aTuple, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext) throws SyntaxError {
+        if(!aTuple.isTypeChecked()){
+            if(aTuple instanceof Type.Struct&&((Type.Struct) aTuple).extended!=null){
+                Type.Struct extended = ((Type.Struct) aTuple).extended;
+                typeCheckTuple(extended, globalConstants, ioContext);
+                for(int i = 0; i< extended.elementCount(); i++){
+                    ((StructContext)aTuple.context).fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
+                }
+            }
+            TypeCheckResult res=typeCheck(aTuple.getTokens(),aTuple.context,globalConstants,new RandomAccessStack<>(8),
+                    null,aTuple.endPos,ioContext);
+            System.out.println(res.types);
+            if(aTuple instanceof Type.Struct){
+                if(res.types.size()>0){
+                    TypeFrame tmp=res.types.get(res.types.size());
+                    throw new SyntaxError("Unexpected value in struct body: "+tmp,tmp.pushedAt);
+                }
+                StructContext structContext=(StructContext) aTuple.context;
+                Type.StructField[] fieldNames=new Type.StructField[structContext.fields.size()];
+                Type[] types=new Type[fieldNames.length];
+                for(int i=0;i<types.length;i++){
+                    fieldNames[i]= structContext.fields.get(i).field;
+                    types[i]= structContext.fields.get(i).type;
+                }
+                ((Type.Struct) aTuple).setFields(fieldNames,types);
+            }else{
+                throw new UnsupportedOperationException("unimplemented");
+            }
         }
     }
 
@@ -3602,6 +3528,7 @@ public class Parser {
         try {
             Type type = ((ValueToken)prev).value.asType();
             if(type instanceof Type.Tuple){
+                typeCheckTuple((Type.Tuple)type,globalConstants,ioContext);
                 Type[] elements = ((Type.Tuple) type).getElements();
                 typeCheckCall("new", typeStack,
                         Type.Procedure.create(elements,new Type[]{type},pos),globalConstants, ret,ioContext, pos, false);
@@ -3774,31 +3701,17 @@ public class Parser {
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
                         ret.add(new ValueToken(e, identifier.pos));
                     }
-                    case GENERIC_TUPLE -> {
+                    case GENERIC_TUPLE,GENERIC_STRUCT -> {
                         GenericTuple g = (GenericTuple) d;
                         String tupleName=g.name;
-                        Type[] genArgs=getArguments(tupleName,DeclareableType.GENERIC_TUPLE,g.params.length, typeStack, ret, t.pos);
-                        Type typeValue = Type.Tuple.create(g.name, g.isPublic, g.params.clone(), genArgs,
-                                g.types.clone(), g.declaredAt);
+                        Type[] genArgs=getArguments(tupleName,DeclareableType.GENERIC_TUPLE,g.argCount(), typeStack, ret, t.pos);
+                        Type.Tuple typeValue = g.withPrams(genArgs);
                         if(isMutabilityMarked){
                             typeValue=typeValue.setMutability(identifier.mutability());
                         }
                         Value tupleType = Value.ofType(typeValue);
                         typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos));
                         ret.add(new ValueToken(tupleType,identifier.pos));
-                    }
-                    case GENERIC_STRUCT -> {
-                        GenericStruct g = (GenericStruct) d;
-                        String structName=g.name;
-                        Type[] genArgs=getArguments(structName,DeclareableType.GENERIC_STRUCT, g.params.length, typeStack, ret, t.pos);
-                        Type typeValue = Type.Struct.create(g.name, g.isPublic, g.extended, g.params.clone(), genArgs,
-                                g.fields,g.types.clone(), g.declaredAt);
-                        if(isMutabilityMarked){
-                            typeValue=typeValue.setMutability(identifier.mutability());
-                        }
-                        Value structValue = Value.ofType(typeValue);
-                        typeStack.push(new TypeFrame(Type.TYPE,structValue,identifier.pos));
-                        ret.add(new ValueToken(structValue,identifier.pos));
                     }
                 }
             }
