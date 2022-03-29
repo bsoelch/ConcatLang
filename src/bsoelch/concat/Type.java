@@ -37,7 +37,7 @@ public class Type {
     public static final Type TYPE  = new Type("type", false) {
         @Override
         void initTypeFields() {
-            super.initTypeFields();
+            super.initTypeFields();//addLater? make type-data getters return optional
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{TYPE},"content") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
@@ -336,7 +336,7 @@ public class Type {
     public boolean isUnicodeString(){
         return false;
     }
-    public Type content() {//addLater make type-data getters return optional
+    public Type content() {
         throw new UnsupportedOperationException();
     }
     public List<Type> inTypes(){
@@ -1134,15 +1134,12 @@ public class Type {
         final FilePosition declaredAt;
         final boolean isPublic;
         final String[] entryNames;
-        final Value.EnumEntry[] entries;
         public Enum(String name, boolean isPublic, String[] entryNames,FilePosition declaredAt) {
             super(name, true);
             this.isPublic = isPublic;
             this.entryNames =entryNames;
-            entries=new Value.EnumEntry[entryNames.length];
             for(int i=0;i<entryNames.length;i++){
-                entries[i]=new Value.EnumEntry(this,i);
-                addField(entryNames[i],entries[i]);
+                addField(entryNames[i],new Value.EnumEntry(this,i));
             }
             this.declaredAt = declaredAt;
         }

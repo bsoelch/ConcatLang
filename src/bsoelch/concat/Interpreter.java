@@ -654,9 +654,10 @@ public class Interpreter {
                     }
                 }else if(blockJumps.size()<((Type.Enum) switchType).elementCount()){
                     ioContext.stdErr.println("missing cases in enum switch-case:");
-                    for(int i=0;i<((Type.Enum) switchType).elementCount();i++){
-                        if(!blockJumps.containsKey(((Type.Enum) switchType).entries[i])){
-                            ioContext.stdErr.println(" - "+((Type.Enum) switchType).entryNames[i]);
+                    for(Value v:switchType.typeFields().values()){
+                        if(v instanceof Value.EnumEntry&& !blockJumps.containsKey(v)){
+                            ioContext.stdErr.println(" - "+
+                                    ((Type.Enum) switchType).entryNames[((Value.EnumEntry)v).index]);
                         }
                     }
                     throw new SyntaxError("enum switch-case does not cover all cases",pos);
@@ -2301,7 +2302,7 @@ public class Interpreter {
                     }
                     tokens.add(new BlockToken(BlockTokenType.DEFAULT, pos, -1));
                 }
-                case "end-case" -> {//addLater? simplify end-case
+                case "end-case" -> {//addLater better name
                     if(!(pState.openBlocks.peekLast() instanceof SwitchCaseBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
@@ -3545,15 +3546,12 @@ public class Interpreter {
 
     private void findEnumFields(SwitchCaseBlock switchBlock, List<Token> caseValues) {
         if(switchBlock.switchType instanceof Type.Enum sType){
-            String[] names=((Type.Enum) switchBlock.switchType).entryNames;
             for(int p = 0; p < caseValues.size(); p++){
                 Token prev=caseValues.get(p);
                 if(prev instanceof IdentifierToken id&&id.type==IdentifierType.WORD){
-                    for(int p2 = 0;p2 < names.length; p2++){
-                        if(id.name.equals(names[p2])){
-                            caseValues.set(p,new ValueToken(sType.entries[p2],id.pos));
-                            break;
-                        }
+                    Value entry=sType.typeFields().get(id.name);
+                    if(entry instanceof Value.EnumEntry){
+                        caseValues.set(p,new ValueToken(entry,id.pos));
                     }
                 }
             }
