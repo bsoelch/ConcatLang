@@ -1556,8 +1556,12 @@ public class Parser {
     }
 
     record StructFieldWithType(Type.StructField field, Type type){}
+    record PseudoFieldDeclaration(String name,Callable called,FilePosition declaredAt){}
+    record TypeFieldDeclaration(String name,Value value,FilePosition declaredAt){}
     static class StructContext extends GenericContext{
         final ArrayList<StructFieldWithType> fields=new ArrayList<>();
+        final ArrayList<PseudoFieldDeclaration> pseudoFields=new ArrayList<>();
+        final ArrayList<TypeFieldDeclaration> typeFields=new ArrayList<>();
         StructContext(VariableContext parent) {
             super(parent, false);
         }
@@ -1568,6 +1572,7 @@ public class Parser {
             }
             return copy;
         }
+
     }
 
     interface CodeSection{
@@ -2726,18 +2731,20 @@ public class Parser {
             p.typeCheckState = Value.TypeCheckState.CHECKED;
         }
     }
-    private void typeCheckStruct(Type.Struct aTuple, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext) throws SyntaxError {
-        if(!aTuple.isTypeChecked()){
-            if(aTuple.extended!=null){
-                Type.Struct extended = aTuple.extended;
+    private void typeCheckStruct(Type.Struct aStruct, HashMap<Parser.VariableId, Value> globalConstants,
+                                 IOContext ioContext) throws SyntaxError {
+        if(!aStruct.isTypeChecked()){
+            if(aStruct.extended!=null){
+                Type.Struct extended = aStruct.extended;
                 typeCheckStruct(extended, globalConstants, ioContext);
                 for(int i = 0; i< extended.elementCount(); i++){
-                    aTuple.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
+                    aStruct.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
+                //TODO inherit declared type/pseudo-fields from parent
             }
-            TypeCheckResult res=typeCheck(aTuple.getTokens(),aTuple.context,globalConstants,new RandomAccessStack<>(8),
-                    null,aTuple.endPos,ioContext);
-            if(aTuple.isTypeChecked()){
+            TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,globalConstants,new RandomAccessStack<>(8),
+                    null,aStruct.endPos,ioContext);
+            if(aStruct.isTypeChecked()){
                 //addLater find way to check proc-pointers in tuple after tuple is finished
                 return;//recursive type-checking already checked this tuple
             }
@@ -2745,14 +2752,24 @@ public class Parser {
                 TypeFrame tmp=res.types.get(res.types.size());
                 throw new SyntaxError("Unexpected value in struct body: "+tmp,tmp.pushedAt);
             }
-            StructContext structContext=aTuple.context;
+            StructContext structContext=aStruct.context;
             Type.StructField[] fieldNames=new Type.StructField[structContext.fields.size()];
             Type[] types=new Type[fieldNames.length];
             for(int i=0;i<types.length;i++){
                 fieldNames[i]= structContext.fields.get(i).field;
                 types[i]= structContext.fields.get(i).type;
             }
-            aTuple.setFields(fieldNames,types);
+            aStruct.setFields(fieldNames,types);
+            for(PseudoFieldDeclaration e:structContext.pseudoFields){
+                if(!aStruct.declaredTypeFields.contains(e.name)){
+                    aStruct.addPseudoField(e.name,e.called,e.declaredAt);
+                }
+            }
+            for(TypeFieldDeclaration e:structContext.typeFields){
+                if(!aStruct.declaredTypeFields.contains(e.name)){
+                    aStruct.addField(e.name,e.value,e.declaredAt);
+                }
+            }
         }
     }
 
@@ -3771,6 +3788,7 @@ public class Parser {
                 TypeFrame f=typeStack.pop();
                 try {
                     if(f.type instanceof Type.Struct){
+                        typeCheckStruct((Type.Struct) f.type,globalConstants,ioContext);//ensure struct is initialized
                         Integer index=((Type.Struct) f.type).indexByName.get(identifier.name);
                         if(index!=null){
                             Type.StructField field=((Type.Struct) f.type).fields[index];
@@ -3805,6 +3823,10 @@ public class Parser {
                         break;//found field
                     }
                     if(f.type==Type.TYPE&&f.value!=null){
+                        if(f.value.asType() instanceof Type.Struct){
+                            //ensure that struct is initialized
+                            typeCheckStruct((Type.Struct) f.value.asType(),globalConstants,ioContext);
+                        }
                         Value typeField=f.value.asType().typeFields().get(identifier.name);
                         if(typeField!=null){
                             typeStack.push(new TypeFrame(typeField.type, typeField, t.pos));
@@ -3819,8 +3841,9 @@ public class Parser {
                             break;//found field
                         }
                     }
-                    throw new SyntaxError(f.type+((f.type==Type.TYPE&&f.value!=null)?":"+f.value.asType():"")+
-                            " does not have a field "+identifier.name,t.pos);
+                    throw new SyntaxError("values of type "+
+                            f.type+((f.type==Type.TYPE&&f.value!=null)?":"+f.value.asType():"")+
+                            " do not have a field "+identifier.name,t.pos);
                 } catch (TypeError e) {
                     throw new SyntaxError(e,t.pos);
                 }
@@ -3890,7 +3913,7 @@ public class Parser {
                     if(!typeStack.pop().type.equals(proc.type)){
                         throw new RuntimeException("type stack out of sync with token list");
                     }
-                    //TODO handle pseudo fields
+                    ((StructContext)context).pseudoFields.add(new PseudoFieldDeclaration(identifier.name,(Callable)proc,t.pos));
                     //pseudo field takes one procedure pointer as argument
                     break;
                 }
@@ -3923,7 +3946,7 @@ public class Parser {
                     if(!value.type.canAssignTo(type)){
                         throw new RuntimeException("cannot assign "+value.type+" to "+type);
                     }
-                    //TODO store type-field
+                    ((StructContext)context).typeFields.add(new TypeFieldDeclaration(identifier.name,value,t.pos));
                     break;
                 }
                 ((StructContext)context).fields.add(new StructFieldWithType(

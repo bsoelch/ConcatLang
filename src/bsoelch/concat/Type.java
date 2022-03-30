@@ -223,14 +223,14 @@ public class Type {
     final boolean switchable;
     final Mutability mutability;
     /**fields that are attached to this type*/
-    private final HashMap<String,Value> typeFields = new HashMap<>();
+    private final HashMap<String,Value> typeFields;
     /**"pseudo-fields" for values of this type,
      * a pseudo field is a procedure that takes this type as last parameter*/
-    private final HashMap<String, Parser.Callable> pseudoFields = new HashMap<>();
+    private final HashMap<String, Parser.Callable> pseudoFields;
     private boolean typeFieldsInitialized=false;
 
     /**cache for the different variants of this type*/
-    private HashMap<Mutability,Type> withMutability=new HashMap<>();
+    private final HashMap<Mutability,Type> withMutability;
 
     static String mutabilityPostfix(Mutability mutability) {
         switch (mutability){
@@ -250,7 +250,22 @@ public class Type {
         this.switchable = switchable;
         this.mutability=mutability;
 
+        typeFields = new HashMap<>();
+        pseudoFields = new HashMap<>();
+        withMutability=new HashMap<>();
         withMutability.put(mutability,this);
+    }
+    private Type(String newName,Type src,Mutability newMutability){
+        this.name = newName;
+        this.switchable = src.switchable;
+        this.mutability = newMutability;
+
+        src.ensureFieldsInitialized();//ensure type fields are initialized
+        typeFields =src.typeFields;
+        typeFieldsInitialized=true;//type fields of copied type are already initialized
+        pseudoFields = src.pseudoFields;
+        withMutability= src.withMutability;
+        withMutability.put(newMutability,this);
     }
 
     FilePosition declaredAt(){
@@ -397,13 +412,17 @@ public class Type {
         }
     }
     void addPseudoField(Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
+        addPseudoField(fieldValue.name(),fieldValue,declaredAt);
+    }
+    void addPseudoField(String name,Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
         ensureFieldsInitialized();
         Type[] in=fieldValue.type().inTypes;
         if(in.length==0||!canAssignTo(in[in.length-1])){
-            throw new SyntaxError("invalid signature for pseudo-field: "+Arrays.toString(in),declaredAt);
+            throw new SyntaxError(fieldValue.name()+" (declared at "+fieldValue.declaredAt()+") "+
+                    "has an invalid signature for a pseudo-field of "+this+": "+Arrays.toString(in),declaredAt);
         }
-        pseudoFields.put(fieldValue.name(),fieldValue);
-        addField(fieldValue.name(),(Value)fieldValue, declaredAt);
+        pseudoFields.put(name,fieldValue);
+        addField(name,(Value)fieldValue, declaredAt);
     }
     HashMap<String,Value> typeFields(){
         ensureFieldsInitialized();
@@ -423,12 +442,12 @@ public class Type {
                 return withMut;
             }
             withMut=copyWithMutability(newMutability);
-            withMut.withMutability=withMutability;
-            withMut.withMutability.put(newMutability,withMut);
+            assert withMut.withMutability==withMutability;
             return withMut;
         }
         return this;
     }
+    /**classes overwriting this method should create a new instance using the {@link #Type(String,Type,Mutability))} constructor*/
     Type copyWithMutability(Mutability newMutability){ return this; }
     static Type updateChildMutability(Type t, Mutability mutability){
         if(t.mutability==Mutability.INHERIT){
@@ -511,20 +530,26 @@ public class Type {
             this.wrapperName = wrapperName;
             this.contentType = contentType;
         }
+        private WrapperType(WrapperType src,Mutability mutability){
+            super(updateChildMutability(src.contentType,mutability).name+" "+
+                    src.wrapperName+mutabilityPostfix(mutability), src,mutability);
+            this.wrapperName = src.wrapperName;
+            this.contentType = src.contentType;
+        }
 
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();
             switch (wrapperName) {
                 case OPTIONAL -> {
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{BOOL}, "hasValue") {
+                    addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{BOOL}, "hasValue") {
                         @Override
                         Value[] callWith(Value[] values) throws ConcatRuntimeError {
                             return new Value[]{Value.ofBool(values[0].hasValue())};
                         }
                     }, declaredAt());
                     //addLater static check if optional is nonempty
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{contentType}, "value") {
+                    addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{contentType}, "value") {
                         @Override
                         Value[] callWith(Value[] values) throws ConcatRuntimeError {
                             return new Value[]{values[0].unwrap()};
@@ -532,26 +557,30 @@ public class Type {
                     }, declaredAt());
                 }
                 case MEMORY -> {
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{UINT}, "length") {
+                    addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
+                            new Type[]{UINT}, "length") {
                         @Override
                         Value[] callWith(Value[] values) {
                             return new Value[]{Value.ofInt(((ArrayLike) values[0]).length(), true)};
                         }
                     }, declaredAt());
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{UINT}, "capacity") {
+                    addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
+                            new Type[]{UINT}, "capacity") {
                         @Override
                         Value[] callWith(Value[] values) {
                             return new Value[]{Value.ofInt(((ArrayLike) values[0]).capacity(), true)};
                         }
                     }, declaredAt());
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{UINT}, "offset") {
+                    addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
+                            new Type[]{UINT}, "offset") {
                         @Override
                         Value[] callWith(Value[] values) {
                             return new Value[]{Value.ofInt(((ArrayLike) values[0]).offset(), true)};
                         }
                     }, declaredAt());
                 }
-                case ARRAY -> addPseudoField(new Value.InternalProcedure(new Type[]{this}, new Type[]{UINT}, "length") {
+                case ARRAY -> addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
+                        new Type[]{UINT}, "length") {
                     @Override
                     Value[] callWith(Value[] values) {
                         return new Value[]{Value.ofInt(((ArrayLike) values[0]).length(), true)};
@@ -585,7 +614,7 @@ public class Type {
         }
         @Override
         public Type copyWithMutability(Mutability newMutability) {
-            return new WrapperType(wrapperName,contentType,newMutability);
+            return wrapperName.equals(OPTIONAL)?this:new WrapperType(this,newMutability);
         }
 
         @Override
@@ -663,6 +692,9 @@ public class Type {
     static abstract class TupleLike extends Type{
         private TupleLike(String name, boolean switchable, Mutability mutability) {
             super(name, switchable, mutability);
+        }
+        private TupleLike(String name, Type src, Mutability mutability) {
+            super(name, src, mutability);
         }
         @Override
         void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
@@ -744,17 +776,21 @@ public class Type {
             super(name, false,mutability);
             this.elements=elements;
         }
+        private Tuple(Tuple src,Mutability mutability){
+            super(src.name, src,mutability);
+            this.elements=src.elements;
+        }
 
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();
-            addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{UINT},"length") {
+            addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{UINT},"length") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofInt(values[0].length(),true)};
                 }
             },declaredAt());//addLater? remember declaration position of tuples
-            addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{arrayOf(ANY)},"elements") {
+            addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{arrayOf(ANY)},"elements") {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.createArray(arrayOf(ANY),values[0].getElements())};
@@ -783,12 +819,7 @@ public class Type {
             return (Tuple) super.setMutability(newMutability);
         }
         Tuple copyWithMutability(Mutability newMutability) {
-            Tuple prev;
-            if(elements==null){
-                throw new RuntimeException("elements in anonymous tuple should not be null");
-            }
-            prev = create(elements, newMutability);
-            return prev;
+            return new Tuple(this,newMutability);
         }
 
         @Override
@@ -884,6 +915,7 @@ public class Type {
 
         final String baseName;
         final Type[] genericArgs;
+        final HashSet<String> declaredTypeFields;
 
         /**initialized types in this Tuple or null if this tuple is not yet initialized*/
         Type[] elements;
@@ -900,50 +932,42 @@ public class Type {
         static Struct create(String name,boolean isPublic,Struct extended,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
                              FilePosition declaredAt,FilePosition endPos){
-            return create(name, isPublic, extended, new Type[0],tokens,context,Mutability.DEFAULT,declaredAt,endPos,true);
+            return create(name, isPublic, extended, new Type[0],tokens,context,Mutability.DEFAULT,declaredAt,endPos);
         }
         static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
                              FilePosition declaredAt,FilePosition endPos){
-           return create(name, isPublic, extended, genericArgs, tokens,context,Mutability.DEFAULT,declaredAt,endPos,true);
+           return create(name, isPublic, extended, genericArgs, tokens,context,Mutability.DEFAULT,declaredAt,endPos);
         }
-        static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
+        static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
-                             Mutability mutability,FilePosition declaredAt,FilePosition endPos,boolean useCache){
+                             Mutability mutability, FilePosition declaredAt, FilePosition endPos){
             StructId id=new StructId(declaredAt,genericArgs);
             Struct prev;
-            if(useCache){
-                prev=cached.get(id);
-                if(prev!=null){
-                    return prev.setMutability(mutability);
-                }
+            prev=cached.get(id);
+            if(prev!=null){
+                return prev.setMutability(mutability);
             }
             prev=new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
                     extended, genericArgs,null,null,tokens,context,mutability,declaredAt,endPos);
-            if (useCache) {
-                cached.put(id,prev);
-            }
+            cached.put(id,prev);
             return prev;
         }
-        private static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
-                             StructField[] fields,Type[] types,Mutability mutability, FilePosition declaredAt,FilePosition endPos,
-                                     boolean useCache) {
+        private static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,
+                                     StructField[] fields, Type[] types, Mutability mutability,
+                                     FilePosition declaredAt, FilePosition endPos) {
             if(fields.length!=types.length){
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
             StructId id=new StructId(declaredAt,genericArgs);
             Struct prev;
-            if(useCache){
-                prev=cached.get(id);
-                if(prev!=null){
-                    return prev.setMutability(mutability);
-                }
+            prev=cached.get(id);
+            if(prev!=null){
+                return prev.setMutability(mutability);
             }
             prev = new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
                     extended, genericArgs, types,fields,null, null,mutability, declaredAt,endPos);
-            if (useCache) {
-                cached.put(id,prev);
-            }
+            cached.put(id,prev);
             return prev;
         }
         static String namePrefix(String baseName, Type[] genericArgs) {
@@ -963,10 +987,11 @@ public class Type {
             if((elements==null)==(tokens==null)){
                 throw new RuntimeException("exactly one of elements and tokens should be non-null");
             }
+            declaredTypeFields=new HashSet<>();
             this.isPublic=isPublic;
             this.declaredAt=declaredAt;
             this.endPos=endPos;
-            this.extended = extended;
+            this.extended =extended;
             this.baseName=baseName;
             this.genericArgs=genArgs;
 
@@ -982,6 +1007,35 @@ public class Type {
                 fieldNames=null;
                 indexByName=null;
             }
+        }
+        private Struct(Struct src,Mutability mutability){
+            super(namePrefix(src.baseName,src.genericArgs)+mutabilityPostfix(mutability),src,mutability);
+
+            declaredTypeFields=src.declaredTypeFields;
+            this.isPublic = src.isPublic;
+            this.declaredAt = src.declaredAt;
+            this.endPos = src.endPos;
+            this.extended = src.extended==null?null:src.extended.setMutability(mutability);
+            this.baseName = src.baseName;
+            this.genericArgs = src.genericArgs;
+
+            this.elements = src.elements;
+            this.fields=src.fields;
+            this.tokens = src.tokens!=null?new ArrayList<>(src.tokens):null;
+            this.context = src.context!=null?src.context.newInstance(true):null;
+            fieldNames=src.fieldNames;
+            indexByName=src.indexByName;
+        }
+
+        @Override
+        void addField(String name, Value fieldValue, FilePosition pos) throws SyntaxError {
+            declaredTypeFields.add(name);
+            super.addField(name, fieldValue, pos);
+        }
+        @Override
+        void addPseudoField(String name, Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
+            declaredTypeFields.add(name);
+            super.addPseudoField(name, fieldValue, declaredAt);
         }
 
         @Override
@@ -1050,13 +1104,7 @@ public class Type {
         }
         @Override
         Struct copyWithMutability(Mutability newMutability) {
-            if(!isTypeChecked()){
-                return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
-                        genericArgs,new ArrayList<>(tokens),context.newInstance(true),
-                        newMutability,declaredAt,endPos,false);
-            }
-            return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
-                    genericArgs,fields,elements,newMutability,declaredAt,endPos,false);
+            return new Struct(this,newMutability);
         }
 
         @Override
@@ -1107,7 +1155,7 @@ public class Type {
                     }
                 }
                 return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                        newArgs,newTokens,newContext,mutability,declaredAt,endPos,true):this;
+                        newArgs,newTokens,newContext,mutability,declaredAt,endPos):this;
             }
             Type[] newElements=new Type[elements.length];
             for(int i=0;i<elements.length;i++){
@@ -1117,7 +1165,7 @@ public class Type {
                 }
             }
             return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                            newArgs,fields,newElements,mutability,declaredAt,endPos,true):this;
+                            newArgs,fields,newElements,mutability,declaredAt,endPos):this;
         }
 
         @Override
