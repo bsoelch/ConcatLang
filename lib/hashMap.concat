@@ -22,14 +22,8 @@ hashCode public proc( var => uint ){
   ## addLater? use array-hash for tuple/enum-types
   valType .isArray ||{ valType .isMemory } if{
     value arrayHash return
-  else valType ( ) <= if
-    0 uint hash mut =:
-    0 uint i mut =:
-    while{ i value ( ) cast length < do
-      hash 31 * value ( ) cast i [] hashCode + hash =
-      i 1 + i =
-    }
-    hash
+  else valType .isTuple if
+    value ( ) cast .elements arrayHash return
   else
     value refId
   }

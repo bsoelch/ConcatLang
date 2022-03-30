@@ -83,8 +83,8 @@ public abstract class Value {
     public int length() throws TypeError {
         throw new TypeError(type+" does not have a length");
     }
-    public List<Value> getElements() throws TypeError {
-        throw new TypeError("Cannot convert "+type+" to list");
+    public Value[] getElements() throws TypeError {
+        throw new TypeError("getElements is not supported for type "+type);
     }
     public Value get(long index) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
@@ -974,6 +974,12 @@ public abstract class Value {
         public int length() throws TypeError {
             return elements.length;
         }
+
+        @Override
+        public Value[] getElements() {
+            return elements.clone();
+        }
+
         @Override
         public Value get(long index) throws ConcatRuntimeError {
             if(index<0||index>=elements.length){
@@ -1362,12 +1368,6 @@ public abstract class Value {
                 return new Value[]{values[0].isEqualTo(values[1])?FALSE:TRUE};
             }
         });
-        procs.add(new InternalProcedure(new Type[]{Type.Tuple.EMPTY_TUPLE},new Type[]{Type.UINT},"length") {
-            @Override
-            Value[] callWith(Value[] values) throws TypeError {
-                return new Value[]{Value.ofInt(values[0].length(),true)};
-            }
-        });
         //addLater? implement equals in standard library
         procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"==") {
             @Override
@@ -1700,15 +1700,6 @@ public abstract class Value {
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     //list index
                     return new Value[]{((ArrayLike)values[0]).get(values[1].asLong())};
-                }
-            });
-        }
-        {//untyped tuple element access
-            procs.add(new InternalProcedure(new Type[]{Type.Tuple.EMPTY_TUPLE.maybeMutable(),Type.UINT},new Type[]{Type.ANY},"[]") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list index
-                    return new Value[]{values[0].get(values[1].asLong())};
                 }
             });
         }

@@ -710,8 +710,6 @@ public class Type {
         }
     }
     public static class Tuple extends TupleLike{
-        static final Tuple EMPTY_TUPLE=create( new Type[0]);
-
         /**initialized types in this Tuple or null if this tuple is not yet initialized*/
         final Type[] elements;
 
@@ -733,6 +731,23 @@ public class Type {
         private Tuple(String name,  Type[] elements,Mutability mutability){
             super(name, false,mutability);
             this.elements=elements;
+        }
+
+        @Override
+        void initTypeFields() throws SyntaxError {
+            super.initTypeFields();
+            addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{UINT},"length") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    return new Value[]{Value.ofInt(values[0].length(),true)};
+                }
+            },declaredAt());//addLater? remember declaration position of tuples
+            addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{arrayOf(ANY)},"elements") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    return new Value[]{Value.createArray(arrayOf(ANY),values[0].getElements())};
+                }
+            },declaredAt());
         }
 
         @Override
@@ -955,6 +970,11 @@ public class Type {
                 fieldNames=null;
                 indexByName=null;
             }
+        }
+        @Override
+        void initTypeFields() throws SyntaxError {
+            super.initTypeFields();
+            //TODO implement elements access for structs
         }
         @Override
         public List<Type> genericArguments() {

@@ -38,16 +38,17 @@ list #include
   else value .type .isArray ||{ value .type .isMemory } &&{ value .type .content codepoint == }  if
     value ustring mut? cast <<* return
   else value .type .isTuple if
-    '(' << res =::
+    value ( ) cast .elements elements =::
     0 i =::
-    while{ i value ( ) cast length < do
+    '(' <<
+    while{ i elements .length < do
       i 0 > if{
-        res ", " <<* res =
+        ", " <<*
       }
-      res value ( ) cast i [] <<s res =
+      elements i [] <<s
       i 1 + i =
     }
-    res ')' << return
+    ')' << return
   else value .type .isStruct if
     "(struct)" <<* return ## FIXME print structure body
   else value .type .isArray ||{ value .type .isMemory } if
