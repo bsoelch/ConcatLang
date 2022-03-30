@@ -400,7 +400,7 @@ public class Parser {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,TUPLE,ANONYMOUS_TUPLE,PROC_TYPE, CONST_ARRAY,UNION,STRUCT
+        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,ANONYMOUS_TUPLE,PROC_TYPE, CONST_ARRAY,UNION,STRUCT
     }
     static abstract class CodeBlock{
         final int start;
@@ -699,23 +699,6 @@ public class Parser {
             }
             elements.add(str);
             elementPositions.add(pos);
-        }
-    }
-    private static class TupleBlock extends CodeBlock{
-        final String name;
-        final boolean isPublic;
-        final GenericContext context;
-
-        TupleBlock(String name,boolean isPublic,int start, FilePosition startPos, VariableContext parentContext) {
-            super(start, BlockType.TUPLE, startPos, parentContext);
-            this.name=name;
-            this.isPublic=isPublic;
-            context=new GenericContext(parentContext, false);
-        }
-
-        @Override
-        GenericContext context() {
-            return context;
         }
     }
     private static class ArrayBlock extends CodeBlock{
@@ -2064,25 +2047,6 @@ public class Parser {
                         throw new SyntaxError("include path has to be a string literal or identifier",pos);
                     }
                 }
-                case "tuple{" -> { //named tuples may be removed in a future version
-                    String name;
-                    if(pState.openBlocks.size()>0){
-                        throw new SyntaxError("tuples can only be declared at root level",pos);
-                    }
-                    if(tokens.size()==0){
-                        throw new SyntaxError("missing tuple name",pos);
-                    }
-                    prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, ioContext,pos);
-                    if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before tuple has to be an identifier",pos);
-                    }
-                    name = ((IdentifierToken) prev).name;
-                    TupleBlock tupleBlock = new TupleBlock(name,((IdentifierToken) prev).isPublicReadable(),
-                            0, pos, pState.topLevelContext());
-                    pState.openBlocks.add(tupleBlock);
-                    pState.openedContexts.add(tupleBlock.context());
-                }
                 case "enum{" ->{
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("enums can only be declared at root level",pos);
@@ -2331,24 +2295,6 @@ public class Parser {
                                 throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
                             }
                             pState.topLevelContext().declareEnum(((EnumBlock) block),ioContext);
-                        }
-                        case TUPLE -> {
-                            if(((TupleBlock) block).context != pState.openedContexts.pollLast()){
-                                throw new RuntimeException("openedContexts is out of sync with openBlocks");
-                            }
-                            ArrayList<Type.GenericParameter> generics=((TupleBlock) block).context.generics;
-                            List<Token> subList = tokens.subList(block.start, tokens.size());
-                            ArrayList<Token> tupleTokens = new ArrayList<>(subList);
-                            subList.clear();
-                            if(generics.size()>0){
-                                GenericTuple tuple=new GenericTuple(((TupleBlock) block).name,((TupleBlock) block).isPublic,
-                                        false,null,((TupleBlock) block).context(),tupleTokens,block.startPos,pos);
-                                pState.topLevelContext().declareNamedDeclareable(tuple,ioContext);
-                            }else{
-                                Type.Tuple tuple=Type.Tuple.create(((TupleBlock) block).name, ((TupleBlock) block).isPublic,
-                                        tupleTokens,((TupleBlock) block).context(),block.startPos,pos);
-                                pState.topLevelContext().declareNamedDeclareable(tuple,ioContext);
-                            }
                         }
                         case STRUCT ->{
                             assert block instanceof StructBlock;
@@ -3428,7 +3374,7 @@ public class Parser {
                             merge(typeStack,mainEnd,branch.types,branch.end,"switch");
                         }
                     }
-                    case PROCEDURE,PROC_TYPE,ANONYMOUS_TUPLE,TUPLE,ENUM,UNION,STRUCT ->
+                    case PROCEDURE,PROC_TYPE,ANONYMOUS_TUPLE,ENUM,UNION,STRUCT ->
                             throw new SyntaxError("blocks of type "+open.type+
                                     " should not exist at this stage of compilation",pos);
                 }
