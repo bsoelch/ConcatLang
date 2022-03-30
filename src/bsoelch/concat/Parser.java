@@ -1407,6 +1407,16 @@ public class Parser {
             this.parent = parent;
             assert parent!=null;
         }
+        BlockContext newInstance(boolean copyValues){
+            BlockContext copy = new BlockContext(parent);
+            if(copyValues){
+                copyValuesTo(copy);
+            }
+            return copy;
+        }
+        void copyValuesTo(BlockContext copy){
+            copy.elements.putAll(elements);
+        }
 
         /**elements declared in this block context as an iterable of key value pairs*/
         public Iterable<Map.Entry<String, Declareable>> elements() {
@@ -1473,6 +1483,18 @@ public class Parser {
             super(parent);
             this.allowImplicit = allowImplicit;
         }
+        GenericContext newInstance(boolean copyValues){
+            GenericContext copy = new GenericContext(parent,allowImplicit);
+            if(copyValues){
+                copyValuesTo(copy);
+            }
+            return copy;
+        }
+        void copyValuesTo(GenericContext copy){
+            super.copyValuesTo(copy);
+            copy.generics.addAll(generics);
+        }
+
         void declareGeneric(String name, boolean isImplicit, FilePosition pos, IOContext ioContext) throws SyntaxError {
             if(locked){
                 throw new SyntaxError("declaring generics is not allowed in the current context",pos);
@@ -1504,7 +1526,20 @@ public class Parser {
             assert parent!=null;
         }
 
-        VariableId wrapCurried(String name,VariableId id,FilePosition pos) throws SyntaxError {
+        @Override
+        ProcedureContext newInstance(boolean copyValues) {
+            ProcedureContext copy=new ProcedureContext(parent);
+            if(copyValues){
+                copyValuesTo(copy);
+            }
+            return copy;
+        }
+        void copyValuesTo(ProcedureContext copy){
+            super.copyValuesTo(copy);
+            copy.curried.addAll(curried);
+        }
+
+        VariableId wrapCurried(String name, VariableId id, FilePosition pos) throws SyntaxError {
             ProcedureContext procedure = id.context.procedureContext();
             if(procedure !=this){
                 id=parent.wrapCurried(name, id, pos);//curry through parent
@@ -1536,6 +1571,13 @@ public class Parser {
         final ArrayList<StructFieldWithType> fields=new ArrayList<>();
         StructContext(VariableContext parent) {
             super(parent, false);
+        }
+        StructContext newInstance(boolean copyValues){
+            StructContext copy = new StructContext(parent);
+            if(copyValues){
+                copyValuesTo(copy);
+            }
+            return copy;
         }
     }
 
@@ -2689,7 +2731,8 @@ public class Parser {
 
     private void typeCheckProcedure(Value.Procedure p, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext) throws SyntaxError {
         if(p.typeCheckState == Value.TypeCheckState.UNCHECKED){
-            p.typeCheckState =Value.TypeCheckState.CHECKING;
+            p.typeCheckState = Value.TypeCheckState.CHECKING;
+            p.type.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
             TypeCheckResult res;
             RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(8);
             for(Type t:((Type.Procedure) p.type).inTypes){
@@ -2703,6 +2746,7 @@ public class Parser {
     }
     private void typeCheckTuple(Type.Tuple aTuple, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext) throws SyntaxError {
         if(!aTuple.isTypeChecked()){
+
             if(aTuple instanceof Type.Struct&&((Type.Struct) aTuple).extended!=null){
                 Type.Struct extended = ((Type.Struct) aTuple).extended;
                 typeCheckTuple(extended, globalConstants, ioContext);
@@ -2712,7 +2756,6 @@ public class Parser {
             }
             TypeCheckResult res=typeCheck(aTuple.getTokens(),aTuple.context,globalConstants,new RandomAccessStack<>(8),
                     null,aTuple.endPos,ioContext);
-            System.out.println(res.types);
             if(aTuple instanceof Type.Struct){
                 if(res.types.size()>0){
                     TypeFrame tmp=res.types.get(res.types.size());
@@ -2902,7 +2945,10 @@ public class Parser {
                 case OPTIONAL_OF ->
                     typeCheckTypeModifier("optional",(t1)->Value.ofType(Type.optionalOf(t1)),ret,typeStack,t.pos);
                 case EMPTY_OPTIONAL ->
-                    typeCheckTypeModifier("empty", Value::emptyOptional,ret,typeStack,t.pos);
+                    typeCheckTypeModifier("empty", t1->{
+                        t1.forEachTuple(t2->typeCheckTuple(t2,globalConstants,ioContext));
+                        return Value.emptyOptional(t1);
+                    },ret,typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
                         CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
@@ -3408,7 +3454,7 @@ public class Parser {
         typeStack.set(t.args[0],typeStack.get(t.args[1]));
         ret.add(t);
     }
-    private void typeCheckTypeModifier(String name, Function<Type,Value> modifier,ArrayList<Token> ret,
+    private void typeCheckTypeModifier(String name, SyntaxError.ThrowingFunction<Type,Value> modifier, ArrayList<Token> ret,
                                        RandomAccessStack<TypeFrame> typeStack, FilePosition pos) throws SyntaxError,
             RandomAccessStack.StackUnderflow, TypeError {
         TypeFrame f = typeStack.pop();
@@ -3527,8 +3573,8 @@ public class Parser {
         }
         try {
             Type type = ((ValueToken)prev).value.asType();
+            type.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
             if(type instanceof Type.Tuple){
-                typeCheckTuple((Type.Tuple)type,globalConstants,ioContext);
                 Type[] elements = ((Type.Tuple) type).getElements();
                 typeCheckCall("new", typeStack,
                         Type.Procedure.create(elements,new Type[]{type},pos),globalConstants, ret,ioContext, pos, false);
@@ -3562,6 +3608,7 @@ public class Parser {
                 }//no else
                 if(type.isArray()){
                     f=typeStack.pop();
+                    f.type.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
                     typeCheckCast(f.type,2,type.content(),globalConstants, ret,ioContext,pos);
                 }
                 typeStack.push(new TypeFrame(type,null, pos));
@@ -3966,6 +4013,7 @@ public class Parser {
 
     private void typeCheckCast(Type src, int stackPos, Type target, HashMap<VariableId, Value> globalConstants, ArrayList<Token> ret,
                                IOContext ioContext, FilePosition pos) throws SyntaxError {
+        target.forEachTuple((t)->typeCheckTuple(t,globalConstants,ioContext));
         Type.BoundMaps bounds=new Type.BoundMaps();
         if(src instanceof Type.OverloadedProcedurePointer){
             if(!(target instanceof Type.Procedure)){
@@ -4140,6 +4188,7 @@ public class Parser {
                            ArrayList<CallMatch> matchingCalls,HashMap<VariableId, Value> globalConstants,
                                         IOContext ioContext, FilePosition pos) throws SyntaxError {
         Type.Procedure type= potentialCall.type();
+        type.forEachTuple((t)->typeCheckTuple(t,globalConstants,ioContext));
         boolean isMatch=true;
         IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
         int nCasts=0,nImplicit=0;
@@ -4195,12 +4244,14 @@ public class Parser {
                                            HashMap<VariableId, Value> globalConstants,
                                            IOContext ioContext,
                                            FilePosition pos) throws SyntaxError {
+        calledType.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
         ArrayList<CallMatch> matches=new ArrayList<>();
         ArrayList<Type.BoundMaps> matchBounds=new ArrayList<>();
         boolean matchesParam;
         for(Callable c: param.proc.procedures){
             matchesParam=true;
             Type.Procedure procType=c.type();
+            procType.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
             Type.BoundMaps test= callBounds.copy();
             if(procType.canAssignTo(calledType,test)){
                 IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();

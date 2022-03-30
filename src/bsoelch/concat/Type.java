@@ -248,6 +248,7 @@ public class Type {
             }
         },declaredAt());
     }
+    void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError{ }
 
     @Override
     public final boolean equals(Object o) {
@@ -498,6 +499,9 @@ public class Type {
                 }, declaredAt());
             }
         }
+        void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError {
+            contentType.forEachTuple(action);
+        }
 
         @Override
         WrapperType replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
@@ -599,6 +603,8 @@ public class Type {
         static final Tuple EMPTY_TUPLE=create(null, true, new Type[0],
                 Value.InternalProcedure.POSITION,Value.InternalProcedure.POSITION);
 
+        private HashMap<Mutability,Tuple> withMutability=new HashMap<>();
+
         final String baseName;
         final boolean isPublic;
         final FilePosition declaredAt;
@@ -612,7 +618,6 @@ public class Type {
         /**initialized types in this Tuple or null if this tuple is not yet initialized*/
         Type[] elements;
 
-        //TODO update name when generic parameters are changed
         public static Tuple create(String typeName, boolean isPublic,
                                    ArrayList<Parser.Token> tokens, Parser.GenericContext context, FilePosition declaredAt, FilePosition endPos) {
             return create(typeName, isPublic,new Type[0],tokens,context, declaredAt,endPos);
@@ -625,7 +630,8 @@ public class Type {
         public static Tuple create(String typeName,boolean isPublic,Type[] genericArgs,ArrayList<Parser.Token> tokens,
                                    Parser.GenericContext context,Mutability mutability, FilePosition declaredAt, FilePosition endPos) {
             assert typeName!=null;
-            return new Tuple(typeName,typeName,isPublic, genericArgs,
+            String fullName = namePrefix(typeName,genericArgs)+mutabilityPostfix(mutability);
+            return new Tuple(fullName,typeName,isPublic, genericArgs,
                     null,tokens,context,mutability, declaredAt, endPos);
         }
         public static Tuple create(String name, boolean isPublic, Type[] elements, FilePosition declaredAt, FilePosition endPos){
@@ -633,11 +639,19 @@ public class Type {
         }
         private static Tuple create(String name,boolean isPublic,Type[] genericArgs,
                                    Type[] elements,Mutability mutability,FilePosition declaredAt, FilePosition endPos) {
-            String typeName = getTypeName(name, elements);
+            String typeName = namePrefix(getTypeName(name, elements),genericArgs);
             return new Tuple(typeName+mutabilityPostfix(mutability),name,isPublic, genericArgs,
                     elements,null,null,mutability, declaredAt, endPos);
         }
 
+        static String namePrefix(String baseName, Type[] genericArgs) {
+            StringBuilder sb=new StringBuilder();
+            //add generic args to name
+            for(Type t: genericArgs){
+                sb.append(t.name).append(" ");
+            }
+            return sb.append(baseName).toString();
+        }
         private static String getTypeName(String name, Type[] elements) {
             String typeName;
             if(name ==null) {
@@ -667,6 +681,7 @@ public class Type {
             this.context = context;
             this.declaredAt = declaredAt;
             this.endPos = endPos;
+            withMutability.put(mutability,this);
         }
 
         public boolean isTypeChecked(){
@@ -684,6 +699,14 @@ public class Type {
             }
             this.elements = elements;
             tokens.clear();//tokens are no longer necessary
+        }
+        void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError {
+            action.accept(this);
+            if(elements!=null){
+                for(Type t:elements){
+                    t.forEachTuple(action);
+                }
+            }
         }
 
         @Override
@@ -751,9 +774,7 @@ public class Type {
                     if(newToken!=t)
                         changed=true;
                 }
-                Parser.GenericContext newContext=(context instanceof Parser.StructContext)?
-                        new Parser.StructContext(context.parent):
-                        new Parser.GenericContext(context.parent,false);
+                Parser.GenericContext newContext=context.newInstance(false);
                 for(Map.Entry<String, Parser.Declareable> e:context.elements()){
                     if(e.getValue() instanceof GenericParameter){
                         Type replace=generics.get((GenericParameter)e.getValue());
@@ -783,12 +804,26 @@ public class Type {
         @Override
         public Tuple setMutability(Mutability newMutability) {
             if(newMutability!=mutability){
-                if(elements==null){
-                    return create(baseName,isPublic,genericArgs,tokens,context,newMutability,declaredAt,endPos);
+                Tuple prev=withMutability.get(newMutability);
+                if(prev!=null){
+                    return prev;
                 }
-                return create(baseName,isPublic,genericArgs,elements,newMutability,declaredAt,endPos);
+                prev = createWithMutability(newMutability);
+                prev.withMutability=withMutability;
+                withMutability.put(prev.mutability,prev);
+                return prev;
             }
             return this;
+        }
+        Tuple createWithMutability(Mutability newMutability) {
+            Tuple prev;
+            if(elements==null){
+                prev = create(baseName,isPublic,genericArgs,new ArrayList<>(tokens),
+                        context.newInstance(true), newMutability,declaredAt,endPos);
+            }else{
+                prev = create(baseName,isPublic,genericArgs,elements, newMutability,declaredAt,endPos);
+            }
+            return prev;
         }
 
         @Override
@@ -951,16 +986,16 @@ public class Type {
         static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
                              ArrayList<Parser.Token> tokens, Parser.GenericContext context,
                              Mutability mutability,FilePosition declaredAt,FilePosition endPos){
-            return new Struct(name, name, isPublic, extended, genericArgs,null,null,
-                    tokens,context,mutability,declaredAt,endPos);
+            return new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
+                    extended, genericArgs,null,null,tokens,context,mutability,declaredAt,endPos);
         }
         private static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
                              StructField[] fields,Type[] types,Mutability mutability, FilePosition declaredAt,FilePosition endPos) {
             if(fields.length!=types.length){
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
-            return new Struct(name+mutabilityPostfix(mutability), name, isPublic, extended,  genericArgs, types,
-                    fields,null, null,mutability, declaredAt,endPos);
+            return new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
+                    extended, genericArgs, types,fields,null, null,mutability, declaredAt,endPos);
         }
 
         private Struct(String name, String baseName, boolean isPublic, Struct extended,
@@ -996,15 +1031,17 @@ public class Type {
 
         @Override
         public Struct setMutability(Mutability newMutability) {
-            if(newMutability!=mutability){
-                if(!isTypeChecked()){
-                    return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
-                            genericArgs,tokens,context,newMutability,declaredAt,endPos);
-                }
+            return (Struct) super.setMutability(newMutability);
+        }
+        @Override
+        Tuple createWithMutability(Mutability newMutability) {
+            if(!isTypeChecked()){
                 return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
-                        genericArgs,fields,elements,newMutability,declaredAt,endPos);
+                        genericArgs,new ArrayList<>(tokens),context.newInstance(true),
+                        newMutability,declaredAt,endPos);
             }
-            return this;
+            return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
+                    genericArgs,fields,elements,newMutability,declaredAt,endPos);
         }
 
         @Override
@@ -1081,6 +1118,16 @@ public class Type {
         @Override
         FilePosition declaredAt() {
             return declaredAt;
+        }
+
+        @Override
+        void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError {
+            for(Type t:inTypes){
+                t.forEachTuple(action);
+            }
+            for(Type t:outTypes){
+                t.forEachTuple(action);
+            }
         }
 
         @Override
@@ -1488,6 +1535,13 @@ public class Type {
         private UnionType(String name, Type[] elements) {
             super(name, false);
             this.elements = elements;
+        }
+
+        @Override
+        void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError {
+            for(Type t:elements){
+                t.forEachTuple(action);
+            }
         }
 
         @Override

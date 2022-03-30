@@ -16,4 +16,11 @@ public class SyntaxError extends Exception {
         super(parent);
         this.pos=pos;
     }
+
+    public interface ThrowingConsumer<T> {
+        void accept(T val) throws SyntaxError;
+    }
+    public interface ThrowingFunction<K,V> {
+        V apply(K val) throws SyntaxError;
+    }
 }

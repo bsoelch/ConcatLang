@@ -71,8 +71,7 @@ public class GenericTuple implements Parser.NamedDeclareable {
     private final HashMap<TypeArray, Type.Tuple> cached=new HashMap<>();
     public Type.Tuple withPrams(Type[] genericArgs) {
         IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
-        Parser.GenericContext newContext=isStruct?new Parser.StructContext(context.parent):
-                new Parser.GenericContext(context.parent,false);
+        Parser.GenericContext newContext=context.newInstance(false);
         for(int i=0;i< genericArgs.length;i++){
             Type.GenericParameter t=context.generics.get(i);
             Type replace=genericArgs[i];
@@ -90,32 +89,20 @@ public class GenericTuple implements Parser.NamedDeclareable {
                 newTokens.add(t.replaceGenerics(update));
             }
             if(isStruct){
-                tuple = Type.Struct.create(namePrefix(name,genericArgs),isPublic,
+                tuple = Type.Struct.create(name,isPublic,
                         parent==null?null:parent.replaceGenerics(update),
                         genericArgs,newTokens,newContext,declaredAt,endPos);
             }else{
-                tuple = Type.Tuple.create(namePrefix(name,genericArgs),isPublic,genericArgs,newTokens,newContext,declaredAt,endPos);
+                tuple = Type.Tuple.create(name,isPublic,genericArgs,newTokens,newContext,declaredAt,endPos);
             }
             cached.put(new TypeArray(genericArgs),tuple);
         }
         return tuple;
     }
-    private static String namePrefix(String baseName, Type[] genericArgs) {
-        StringBuilder sb=new StringBuilder();
-        //add generic args to name
-        for(Type t: genericArgs){
-            sb.append(t.name).append(" ");
-        }
-        return sb.append(baseName).toString();
-    }
 
     @Override
     public boolean unused() {
-        for(Type.Tuple c:cached.values()){
-            if(!c.unused())
-                return false;
-        }
-        return true;
+        return cached.isEmpty();
     }
 
     @Override
