@@ -208,6 +208,9 @@ public class Type {
     private final HashMap<String, Parser.Callable> pseudoFields = new HashMap<>();
     private boolean typeFieldsInitialized=false;
 
+    /**cache for the different variants of this type*/
+    private HashMap<Mutability,Type> withMutability=new HashMap<>();
+
     static String mutabilityPostfix(Mutability mutability) {
         switch (mutability){
             case DEFAULT -> {return "";}
@@ -225,6 +228,8 @@ public class Type {
         this.name = name;
         this.switchable = switchable;
         this.mutability=mutability;
+
+        withMutability.put(mutability,this);
     }
 
     FilePosition declaredAt(){
@@ -385,10 +390,22 @@ public class Type {
         return pseudoFields;
     }
 
-    /**returns the semi-mutable version of this type*/
+    /**returns the semi-mutable version of this type
+     * @return a copy of this type with the given mutability*/
     public Type setMutability(Mutability newMutability){
+        if(newMutability!=mutability){
+            Type withMut=withMutability.get(newMutability);
+            if(withMut!=null){
+                return withMut;
+            }
+            withMut=copyWithMutability(newMutability);
+            withMut.withMutability=withMutability;
+            withMut.withMutability.put(newMutability,withMut);
+            return withMut;
+        }
         return this;
     }
+    Type copyWithMutability(Mutability newMutability){ return this; }
     static Type updateChildMutability(Type t, Mutability mutability){
         if(t.mutability==Mutability.INHERIT){
             return t.setMutability(mutability==Mutability.INHERIT?Mutability.DEFAULT:mutability);
@@ -423,26 +440,40 @@ public class Type {
     }
 
     private static class WrapperType extends Type {
+        static final HashMap<Type,WrapperType> arrays = new HashMap<>();
+        static final HashMap<Type,WrapperType> memories = new HashMap<>();
+        static final HashMap<Type,WrapperType> optionals = new HashMap<>();
+
         static final String ARRAY = "array";
         static final String MEMORY = "memory";
         static final String OPTIONAL = "optional";
 
-        static final WrapperType BYTES= new WrapperType(ARRAY,Type.BYTE,Mutability.IMMUTABLE);
-        static final WrapperType UNICODE_STRING= new WrapperType(ARRAY,Type.CODEPOINT,Mutability.IMMUTABLE);
+        static final WrapperType BYTES= create(ARRAY,Type.BYTE,Mutability.IMMUTABLE);
+        static final WrapperType UNICODE_STRING= create(ARRAY,Type.CODEPOINT,Mutability.IMMUTABLE);
+
 
         final Type contentType;
         final String wrapperName;
 
         private static WrapperType create(String wrapperName, Type contentType,Mutability mutability) {
-            if(mutability==Mutability.IMMUTABLE&&ARRAY.equals(wrapperName)) {
-                if (contentType == CODEPOINT) {
-                    return UNICODE_STRING;
-                } else if (contentType == BYTE) {
-                    return BYTES;
-                }
+            WrapperType cached;
+            switch (wrapperName){
+                case ARRAY -> cached = arrays.get(contentType);
+                case MEMORY -> cached = memories.get(contentType);
+                case OPTIONAL ->cached = optionals.get(contentType);
+                default -> throw new IllegalArgumentException("unexpected type-wrapper : "+wrapperName);
             }
-            //addLater? caching
-            return new WrapperType(wrapperName,contentType,mutability);
+            if(cached!=null){
+                return cached.setMutability(mutability);
+            }
+            cached = new WrapperType(wrapperName,contentType,mutability);
+            switch (wrapperName){
+                case ARRAY -> arrays.put(contentType,cached);
+                case MEMORY -> memories.put(contentType,cached);
+                case OPTIONAL -> optionals.put(contentType,cached);
+                default -> throw new IllegalArgumentException("unexpected type-wrapper : "+wrapperName);
+            }
+            return cached;
         }
         private WrapperType(String wrapperName, Type contentType,Mutability mutability){
             super(updateChildMutability(contentType,mutability).name+" "+
@@ -520,11 +551,12 @@ public class Type {
         }
 
         @Override
-        public Type setMutability(Mutability newMutability) {
-            if(newMutability!=mutability&&!wrapperName.equals(OPTIONAL)){
-                return create(wrapperName,contentType,newMutability);
-            }
-            return this;
+        public WrapperType setMutability(Mutability newMutability) {
+            return (WrapperType)super.setMutability(newMutability);
+        }
+        @Override
+        public Type copyWithMutability(Mutability newMutability) {
+            return new WrapperType(wrapperName,contentType,newMutability);
         }
 
         @Override
@@ -603,8 +635,6 @@ public class Type {
         static final Tuple EMPTY_TUPLE=create(null, true, new Type[0],
                 Value.InternalProcedure.POSITION,Value.InternalProcedure.POSITION);
 
-        private HashMap<Mutability,Tuple> withMutability=new HashMap<>();
-
         final String baseName;
         final boolean isPublic;
         final FilePosition declaredAt;
@@ -632,7 +662,7 @@ public class Type {
             assert typeName!=null;
             String fullName = namePrefix(typeName,genericArgs)+mutabilityPostfix(mutability);
             return new Tuple(fullName,typeName,isPublic, genericArgs,
-                    null,tokens,context,mutability, declaredAt, endPos);
+                    null,tokens,context,mutability, declaredAt, endPos);//addLater? caching
         }
         public static Tuple create(String name, boolean isPublic, Type[] elements, FilePosition declaredAt, FilePosition endPos){
             return create(name,isPublic,  new Type[0], elements, Mutability.DEFAULT, declaredAt,endPos);
@@ -641,7 +671,7 @@ public class Type {
                                    Type[] elements,Mutability mutability,FilePosition declaredAt, FilePosition endPos) {
             String typeName = namePrefix(getTypeName(name, elements),genericArgs);
             return new Tuple(typeName+mutabilityPostfix(mutability),name,isPublic, genericArgs,
-                    elements,null,null,mutability, declaredAt, endPos);
+                    elements,null,null,mutability, declaredAt, endPos);//addLater? caching
         }
 
         static String namePrefix(String baseName, Type[] genericArgs) {
@@ -681,7 +711,6 @@ public class Type {
             this.context = context;
             this.declaredAt = declaredAt;
             this.endPos = endPos;
-            withMutability.put(mutability,this);
         }
 
         public boolean isTypeChecked(){
@@ -800,22 +829,11 @@ public class Type {
             }
             return changed?update1.apply(newArgs,newElements):this;
         }
-
         @Override
         public Tuple setMutability(Mutability newMutability) {
-            if(newMutability!=mutability){
-                Tuple prev=withMutability.get(newMutability);
-                if(prev!=null){
-                    return prev;
-                }
-                prev = createWithMutability(newMutability);
-                prev.withMutability=withMutability;
-                withMutability.put(prev.mutability,prev);
-                return prev;
-            }
-            return this;
+            return (Tuple) super.setMutability(newMutability);
         }
-        Tuple createWithMutability(Mutability newMutability) {
+        Tuple copyWithMutability(Mutability newMutability) {
             Tuple prev;
             if(elements==null){
                 prev = create(baseName,isPublic,genericArgs,new ArrayList<>(tokens),
@@ -987,7 +1005,7 @@ public class Type {
                              ArrayList<Parser.Token> tokens, Parser.GenericContext context,
                              Mutability mutability,FilePosition declaredAt,FilePosition endPos){
             return new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
-                    extended, genericArgs,null,null,tokens,context,mutability,declaredAt,endPos);
+                    extended, genericArgs,null,null,tokens,context,mutability,declaredAt,endPos);//addLater? caching
         }
         private static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
                              StructField[] fields,Type[] types,Mutability mutability, FilePosition declaredAt,FilePosition endPos) {
@@ -995,7 +1013,7 @@ public class Type {
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
             return new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
-                    extended, genericArgs, types,fields,null, null,mutability, declaredAt,endPos);
+                    extended, genericArgs, types,fields,null, null,mutability, declaredAt,endPos);//addLater? caching
         }
 
         private Struct(String name, String baseName, boolean isPublic, Struct extended,
@@ -1034,7 +1052,7 @@ public class Type {
             return (Struct) super.setMutability(newMutability);
         }
         @Override
-        Tuple createWithMutability(Mutability newMutability) {
+        Tuple copyWithMutability(Mutability newMutability) {
             if(!isTypeChecked()){
                 return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
                         genericArgs,new ArrayList<>(tokens),context.newInstance(true),
@@ -1105,7 +1123,7 @@ public class Type {
             return name.toString();
         }
         public static Procedure create(Type[] inTypes,Type[] outTypes, FilePosition declaredAt){
-            return new Procedure(getName(inTypes, outTypes),inTypes,outTypes, declaredAt);
+            return new Procedure(getName(inTypes, outTypes),inTypes,outTypes, declaredAt);//addLater? caching
         }
 
         private Procedure(String name, Type[] inTypes, Type[] outTypes, FilePosition declaredAt) {
@@ -1243,7 +1261,7 @@ public class Type {
             String name = genericName(inTypes, outTypes, explicitParams);
             return new GenericProcedureType(name,explicitParams.toArray(GenericParameter[]::new),
                     explicitParams.toArray(GenericParameter[]::new),implicitParams.toArray(GenericParameter[]::new),inTypes,
-                    outTypes,declaredAt);
+                    outTypes,declaredAt);//addLater? caching
         }
 
         private GenericProcedureType(String name, GenericParameter[] explicitGenerics, Type[] genericArgs,
@@ -1290,7 +1308,7 @@ public class Type {
                     isGeneric = true;
                     break;
                 }
-            }
+            }//addLater? caching
             return changed?isGeneric?new GenericProcedureType(genericName(newIn,newOut,Arrays.asList(newArgs)), explicitGenerics,
                             newArgs,implicitGenerics,newIn,newOut,declaredAt):new Procedure(getName(newIn,newOut),newIn,newOut, declaredAt):this;
         }
@@ -1529,7 +1547,7 @@ public class Type {
             }
             if(types.size()==1){
                 return types.get(0);
-            }
+            }//addLater? caching
             return new UnionType(name.append(")").toString(),types.toArray(Type[]::new));
         }
         private UnionType(String name, Type[] elements) {
