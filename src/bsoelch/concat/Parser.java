@@ -3555,12 +3555,12 @@ public class Parser {
         try {
             Type type = ((ValueToken)prev).value.asType();
             type.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
-            if(type instanceof Type.Tuple){
-                Type[] elements = ((Type.Tuple) type).getElements();
+            if(type instanceof Type.TupleLike){
+                Type[] elements = ((Type.TupleLike) type).getElements();
                 typeCheckCall("new", typeStack,
                         Type.Procedure.create(elements,new Type[]{type},pos),globalConstants, ret,ioContext, pos, false);
 
-                int c=((Type.Tuple) type).elementCount();
+                int c=((Type.TupleLike) type).elementCount();
                 if(c < 0){
                     throw new ConcatRuntimeError("the element count has to be at least 0");
                 }
@@ -3577,7 +3577,7 @@ public class Parser {
                     }
                     if(c==0||values[0]!=null){//all types resolved successfully
                         ret.subList(iMin, ret.size()).clear();
-                        ret.add(new ValueToken(Value.createTuple((Type.Tuple)type,values),pos));
+                        ret.add(new ValueToken(Value.createTuple((Type.TupleLike)type,values),pos));
                         return;
                     }
                 }
@@ -3733,7 +3733,7 @@ public class Parser {
                         GenericStruct g = (GenericStruct) d;
                         String tupleName=g.name;
                         Type[] genArgs=getArguments(tupleName,DeclareableType.GENERIC_STRUCT,g.argCount(), typeStack, ret, t.pos);
-                        Type.Tuple typeValue = g.withPrams(genArgs);
+                        Type.Struct typeValue = g.withPrams(genArgs);
                         if(isMutabilityMarked){
                             typeValue=typeValue.setMutability(identifier.mutability());
                         }
@@ -3857,18 +3857,13 @@ public class Parser {
                         int index = Integer.parseInt(identifier.name);
                         if(index>=0&&index< tuple.elementCount()){
                             Type fieldType = tuple.getElement(index);
-                            if(tuple.isMutable(index)){
+                            if(tuple.isMutable()){
                                 typeCheckCast(val.type,2,fieldType,globalConstants, ret, ioContext,t.pos);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
-                                if(tuple instanceof Type.Struct struct){
-                                    throw new SyntaxError("element at "+index+" in struct "+ tuple.name+
-                                            " (declared at "+struct.declaredAt+")"+" is not mutable",t.pos);
-                                }else{
-                                    throw new SyntaxError("tuple "+ tuple.name+
-                                            " (pushed at "+f.pushedAt+")"+" is not mutable",t.pos);
-                                }
+                                throw new SyntaxError("tuple "+ tuple.name+
+                                        " (pushed at "+f.pushedAt+")"+" is not mutable",t.pos);
                             }
                         }
                     }catch (NumberFormatException ignored){}

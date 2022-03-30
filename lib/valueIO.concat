@@ -37,7 +37,7 @@ list #include
     value string mut? cast <<* return
   else value .type .isArray ||{ value .type .isMemory } &&{ value .type .content codepoint == }  if
     value ustring mut? cast <<* return
-  else value .type ( ) <= if
+  else value .type .isTuple if
     '(' << res =::
     0 i =::
     while{ i value ( ) cast length < do
@@ -48,6 +48,8 @@ list #include
       i 1 + i =
     }
     res ')' << return
+  else value .type .isStruct if
+    "(struct)" <<* return ## FIXME print structure body
   else value .type .isArray ||{ value .type .isMemory } if
     value <<array return
   else value .type .isOptional if
@@ -55,24 +57,39 @@ list #include
   else value .type .isEnum if
     value .type .name <<* ' ' << value .type .fieldNames value uint cast [] <<* " ." <<* return
   else value .type type == if
-    value type cast .isTuple if{
-      value type cast .name <<* ## return tuple-name
-    else value type cast .isProc if
-      "( " <<* res =::
-      value type cast .inTypes type array args mut =:
-      0 i =::
+    value type cast .genericArguments args =::
+    0 i =::
+    while{ i args .length < do
+        args i [] <<s " " <<*
+        i 1 + i =
+    }
+    value type cast .isStruct if{
+      value type cast .name <<*
+    else value type cast .isTuple if
+      value type cast .outTypes args =
+      0 i =
+      "( " <<*
       while{ i args .length < do
-        res args i [] <<s " " <<* res =
+        args i [] <<s " " <<*
         i 1 + i =
       }
-      res "=> " <<* res =
+      ")" <<*
+    else value type cast .isProc if
+      value type cast .inTypes args =
+      0 i =
+      "( " <<*
+      while{ i args .length < do
+        args i [] <<s " " <<*
+        i 1 + i =
+      }
+      "=> " <<*
       value type cast .outTypes args =
       0 i =
       while{ i args .length < do
-        res args i [] <<s " " <<* res =
+        args i [] <<s " " <<*
         i 1 + i =
       }
-      res ")" <<*
+      ")" <<*
     else value type cast .isArray if
       value type cast .content <<s " array" <<*
     else value type cast .isMemory if
@@ -82,14 +99,14 @@ list #include
     else value type cast .isEnum if
       value type cast .name <<* ## return enum-name
     else value type cast .isUnion if
-      "union( " <<* res =::
-      value type cast .inTypes type array args =:
-      0 i =::
+      value type cast .inTypes args =
+      0 i =
+      "union( " <<*
       while{ i args .length < do
-        res args i [] <<s " " <<* res =
+        args i [] <<s " " <<*
         i 1 + i =
       }
-      res ')' <<
+      ')' <<
     else value type == if
       "type"  <<*
     else value bool == if

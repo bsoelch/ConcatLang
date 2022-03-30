@@ -127,13 +127,13 @@ public class Interpreter {
                         if(type==null){//dynamic operation
                             type=stack.pop().asType();
                         }
-                        if(type instanceof Type.Tuple){
-                            int count=((Type.Tuple)type).elementCount();
+                        if(type instanceof Type.TupleLike){
+                            int count=((Type.TupleLike)type).elementCount();
                             Value[] values=new Value[count];
                             for(int i=1;i<= values.length;i++){
                                 values[count-i]= stack.pop();//values should already have the correct types
                             }
-                            stack.push(Value.createTuple((Type.Tuple)type,values));
+                            stack.push(Value.createTuple((Type.TupleLike)type,values));
                         }else if(type.isMemory()){
                             long initCap= stack.pop().asLong();
                             stack.push(Value.createMemory(type,initCap));

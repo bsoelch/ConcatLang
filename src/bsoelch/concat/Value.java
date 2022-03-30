@@ -929,7 +929,7 @@ public abstract class Value {
         }
     }
 
-    public static Value createTuple(Type.Tuple type, Value[] elements) throws ConcatRuntimeError {
+    public static Value createTuple(Type.TupleLike type, Value[] elements) throws ConcatRuntimeError {
         if(elements.length!=type.elementCount()){
             throw new IllegalArgumentException("elements has to have the same length as types");
         }
@@ -941,7 +941,7 @@ public abstract class Value {
         /**true when this value is currently used in toString (used to handle self containing tuples)*/
         private boolean inToString;
 
-        private TupleValue(Type.Tuple type,Value[] elements){
+        private TupleValue(Type.TupleLike type,Value[] elements){
             super(type);
             this.elements = elements;
         }
@@ -964,10 +964,10 @@ public abstract class Value {
             Value[] newElements=elements.clone();
             if(deep){
                 for(int i=0;i<elements.length;i++){
-                    newElements[i]=elements[i].clone(true,((Type.Tuple)targetType).getElement(i));
+                    newElements[i]=elements[i].clone(true,((Type.TupleLike)targetType).getElement(i));
                 }
             }
-            return new TupleValue((Type.Tuple) type,newElements);
+            return new TupleValue((Type.TupleLike) type,newElements);
         }
 
         @Override

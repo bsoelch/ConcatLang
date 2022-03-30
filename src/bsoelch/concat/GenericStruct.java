@@ -66,8 +66,8 @@ public class GenericStruct implements Parser.NamedDeclareable {
             return Arrays.hashCode(types);
         }
     }
-    private final HashMap<TypeArray, Type.Tuple> cached=new HashMap<>();
-    public Type.Tuple withPrams(Type[] genericArgs) {
+    private final HashMap<TypeArray, Type.Struct> cached=new HashMap<>();
+    public Type.Struct withPrams(Type[] genericArgs) {
         IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
         Parser.StructContext newContext=context.newInstance(false);
         for(int i=0;i< genericArgs.length;i++){
@@ -80,18 +80,18 @@ public class GenericStruct implements Parser.NamedDeclareable {
                 newContext.putElement(t.label,new Parser.Constant(t.name,false,Value.ofType(replace),t.declaredAt));
             }
         }
-        Type.Tuple tuple=cached.get(new TypeArray(genericArgs));
-        if(tuple==null){
+        Type.Struct struct=cached.get(new TypeArray(genericArgs));
+        if(struct==null){
             ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens.size());
             for(Parser.Token t:tokens){
                 newTokens.add(t.replaceGenerics(update));
             }
-            tuple = Type.Struct.create(name,isPublic,
+            struct = Type.Struct.create(name,isPublic,
                     parent==null?null:parent.replaceGenerics(update),
                     genericArgs,newTokens,newContext,declaredAt,endPos);
-            cached.put(new TypeArray(genericArgs),tuple);
+            cached.put(new TypeArray(genericArgs),struct);
         }
-        return tuple;
+        return struct;
     }
 
     @Override

@@ -1,7 +1,6 @@
 package bsoelch.concat;
 
 import java.util.*;
-import java.util.function.Function;
 
 public class Type {
     public static final Type INT   = new Type("int",  true) {
@@ -42,6 +41,13 @@ public class Type {
                 @Override
                 Value[] callWith(Value[] values) throws ConcatRuntimeError {
                     return new Value[]{Value.ofType(values[0].asType().content())};
+                }
+            }, declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"genericArguments") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    return new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
+                            values[0].asType().genericArguments().stream().map(Value::ofType).toArray(Value[]::new))};
                 }
             }, declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"inTypes") {
@@ -323,7 +329,7 @@ public class Type {
         return 0;
     }
 
-    boolean canAssignMutability(Type t) {
+    boolean mutabilityIncompatible(Type t) {
         return Mutability.isDifferent(t.mutability,mutability) && t.mutability != Mutability.UNDECIDED;
     }
     public boolean isMutable() {
@@ -353,20 +359,23 @@ public class Type {
     public boolean isUnicodeString(){
         return false;
     }
-    public Type content() {
-        throw new UnsupportedOperationException();
-    }
-    public List<Type> inTypes(){
-        throw new UnsupportedOperationException();
-    }
-    public List<Type> outTypes(){
-        throw new UnsupportedOperationException();
-    }
     public String typeName(){
         throw new UnsupportedOperationException();
     }
-    public List<String> fields(){
+    public Type content() {
         throw new UnsupportedOperationException();
+    }
+    public List<Type> genericArguments(){
+        return Collections.emptyList();
+    }
+    public List<Type> inTypes(){
+        return Collections.emptyList();
+    }
+    public List<Type> outTypes(){
+        return Collections.emptyList();
+    }
+    public List<String> fields(){
+        return Collections.emptyList();
     }
 
     void addField(String name,Value fieldValue,FilePosition pos) throws SyntaxError {
@@ -614,7 +623,7 @@ public class Type {
         @Override
         public boolean canCastTo(Type t, BoundMaps bounds) {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                if (canAssignMutability(t)) return false;//incompatible mutability
+                if (mutabilityIncompatible(t)) return false;//incompatible mutability
                 return content().canCastTo(t.content(),bounds);
             }else{
                 return super.canCastTo(t,bounds);
@@ -639,11 +648,72 @@ public class Type {
         }
     }
 
-    public static class Tuple extends Type{//addLater? separate Tuple from Struct
+    static abstract class TupleLike extends Type{
+        private TupleLike(String name, boolean switchable, Mutability mutability) {
+            super(name, switchable, mutability);
+        }
+        @Override
+        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
+            for(int i=0;i<elementCount();i++){
+                getElement(i).forEachStruct(action);
+            }
+        }
+        abstract int elementCount();
+        abstract Type getRawElement(long index);
+        Type getElement(long index) {
+            return updateChildMutability(getRawElement(index));
+        }
+        abstract Type[] getElements();
+        private static boolean canAssignElements(TupleLike t1,TupleLike t2, BoundMaps bounds) {
+            if(t1.equals(t2))
+                return true;
+            if(t2.elementCount()>t1.elementCount())
+                return false;
+            for(int i = 0; i< t2.elementCount(); i++){
+                if(!t1.getElement(i).canAssignTo(t2.getElement(i), bounds)){
+                    return false;
+                }
+            }
+            if(t2.isMutable()){//check reverse comparison for mutable elements
+                for(int i = 0; i< t2.elementCount(); i++){
+                    if(!t2.getElement(i).canAssignTo(t1.getElement(i), bounds)){
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public List<Type> outTypes() {
+            return Arrays.asList(getElements());
+        }
+
+        @Override
+        public int depth() {
+            int d=0;
+            for(int i=0;i<elementCount();i++){
+                d=Math.max(d,getRawElement(i).depth());
+            }
+            return d+1;
+        }
+        @Override
+        public boolean isDeeplyImmutable() {
+            if(!super.isDeeplyImmutable()){
+                return false;
+            }
+            for(int i=0;i<elementCount();i++){
+                if(!getRawElement(i).isDeeplyImmutable())
+                    return false;
+            }
+            return true;
+        }
+    }
+    public static class Tuple extends TupleLike{
         static final Tuple EMPTY_TUPLE=create( new Type[0]);
 
         /**initialized types in this Tuple or null if this tuple is not yet initialized*/
-        Type[] elements;
+        final Type[] elements;
 
         public static Tuple create(Type[] elements){
             return create(elements, Mutability.DEFAULT);
@@ -665,57 +735,12 @@ public class Type {
             this.elements=elements;
         }
 
-        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
-            if(elements!=null){
-                for(Type t:elements){
-                    t.forEachStruct(action);
-                }
-            }
-        }
-
         @Override
-        public List<Type> outTypes() {
+        Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             if(elements==null){
-                throw new RuntimeException("cannot call outTypes() on uninitialized tuple");
+                throw new RuntimeException("elements in anonymous tuple should not be null");
             }
-            return Arrays.stream(elements).map(this::updateChildMutability).toList();
-        }
-        @Override
-        public String typeName() {
-            return name;
-        }
-
-        @Override
-        public int depth() {
-            if(elements==null){
-                throw new RuntimeException("cannot call depth() on uninitialized tuple");
-            }
-            int d=0;
-            for(Type t:elements){
-                d=Math.max(d,t.depth());
-            }
-            return d+1;
-        }
-        @Override
-        public boolean isDeeplyImmutable() {
-            if(elements==null){
-                throw new RuntimeException("cannot call isDeeplyImmutable() on uninitialized tuple");
-            }
-            if(!super.isDeeplyImmutable()){
-                return false;
-            }
-            for(Type t:elements){
-                if(!t.isDeeplyImmutable())
-                    return false;
-            }
-            return true;
-        }
-        boolean isMutable(int index){
-            return mutability==Mutability.MUTABLE;
-        }
-
-        Tuple updateElements(IdentityHashMap<GenericParameter, Type> generics, Function<Type[], Tuple> update1,
-                             boolean changed) {
+            boolean changed=false;
             Type[] newElements=new Type[elements.length];
             for(int i=0;i<elements.length;i++){
                 newElements[i]=elements[i].replaceGenerics(generics);
@@ -723,17 +748,8 @@ public class Type {
                     changed =true;
                 }
             }
-            return changed ? update1.apply( newElements) : this;
+            return changed ? create(newElements,mutability) : this;
         }
-        @Override
-        Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
-            if(elements==null){
-                throw new RuntimeException("elements in anonymous tuple should not be null");
-            }
-            return updateElements(generics, (newElements)->
-                    create(newElements,mutability), false);
-        }
-
 
         @Override
         public Tuple setMutability(Mutability newMutability) {
@@ -748,73 +764,40 @@ public class Type {
             return prev;
         }
 
-
-        private boolean canAssignElements(Tuple t, BoundMaps bounds) {
-            if(equals(t))
-                return true;
-            if(elements==null){
-                throw new RuntimeException("cannot call canAssignElements() on uninitialized tuple");
-            }
-            if(t.elementCount()>elementCount())
-                return false;
-            for(int i = 0; i< t.elements.length; i++){
-                if(!getElement(i).canAssignTo(t.getElement(i), bounds)){
-                    return false;
-                }
-                if(t.isMutable(i)){//check reverse comparison for mutable elements
-                    if(!t.getElement(i).canAssignTo(getElement(i), bounds)){
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-        /**checks if t is a valid type for type comparison with this tuple,
-         *  the base method checks if the class of t is Tuple (not struct)*/
-        boolean canAssignBaseTuple(Type t){
-            return t.getClass()==Tuple.class;
-        }
         @Override
         protected boolean canAssignTo(Type t, BoundMaps bounds) {
-            if(canAssignBaseTuple(t)){
-                if(canAssignMutability(t)){
+            if(t instanceof Tuple){
+                if(mutabilityIncompatible(t)){
                     return false;//incompatible mutability
                 }
-                return canAssignElements((Tuple) t, bounds);
+                return TupleLike.canAssignElements(this,(Tuple) t, bounds);
             }else{
                 return super.canAssignTo(t,bounds);
             }
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
-            if(canAssignMutability(t)){
+            if(mutabilityIncompatible(t)){
                 return false;//incompatible mutability
             }
-            if(canAssignBaseTuple(t)){
-                return canAssignElements((Tuple) t, bounds);
-            }else if(t instanceof Tuple&&((Tuple)t).canAssignBaseTuple(this)){
-                return ((Tuple) t).canAssignElements(this, bounds.swapped());
+            if(t instanceof Tuple){
+                return TupleLike.canAssignElements(this,(Tuple) t, bounds)||
+                        TupleLike.canAssignElements(((Tuple) t),this, bounds.swapped());
             }else{
                 return super.canAssignTo(t,bounds);
             }
         }
 
+        @Override
         public int elementCount(){
-            if(elements==null){
-                throw new RuntimeException("cannot call elementCount() on uninitialized tuple");
-            }
             return elements.length;
         }
-        public Type getElement(long i){
-            if(elements==null){
-                throw new RuntimeException("cannot call getElement() on uninitialized tuple");
-            }
-            return updateChildMutability(elements[(int) i]);
+        @Override
+        public Type getRawElement(long i){
+            return elements[(int) i];
         }
+        @Override
         public Type[] getElements() {
-            if(elements==null){
-                throw new RuntimeException("cannot call getElements() on uninitialized tuple");
-            }
             Type[] mappedElements=new Type[elements.length];
             for(int i=0;i<elements.length;i++){
                 mappedElements[i]=updateChildMutability(elements[i]);
@@ -863,7 +846,7 @@ public class Type {
         }
     }
     record StructField(String name, Parser.Accessibility accessibility, boolean mutable, FilePosition declaredAt){}
-    public static class Struct extends Tuple implements Parser.NamedDeclareable {
+    public static class Struct extends TupleLike implements Parser.NamedDeclareable {
         static final HashMap<StructId,Struct> cached=new HashMap<>();
         public static void resetCached(){
             cached.clear();
@@ -875,6 +858,8 @@ public class Type {
         final String baseName;
         final Type[] genericArgs;
 
+        /**initialized types in this Tuple or null if this tuple is not yet initialized*/
+        Type[] elements;
         /**Tokens in the body of this Tuple*/
         ArrayList<Parser.Token> tokens;
         /**Context in which this tuple was declared*/
@@ -947,7 +932,7 @@ public class Type {
                        Type[] genArgs, Type[] elements, StructField[] fields,
                        ArrayList<Parser.Token> tokens, Parser.StructContext context,
                        Mutability mutability, FilePosition declaredAt,FilePosition endPos) {
-            super(name,elements, mutability);
+            super(name,false,mutability);
             if((elements==null)==(tokens==null)){
                 throw new RuntimeException("exactly one of elements and tokens should be non-null");
             }
@@ -958,6 +943,7 @@ public class Type {
             this.baseName=baseName;
             this.genericArgs=genArgs;
 
+            this.elements = elements;
             this.tokens = tokens;
             this.context = context;
             if(fields!=null){
@@ -970,6 +956,11 @@ public class Type {
                 indexByName=null;
             }
         }
+        @Override
+        public List<Type> genericArguments() {
+            return Arrays.asList(genericArgs);
+        }
+
         public boolean isTypeChecked(){
             return elements!=null;
         }
@@ -993,6 +984,31 @@ public class Type {
             initializeFields(fields);
             tokens.clear();//tokens are no longer necessary
         }
+        @Override
+        public int elementCount(){
+            if(elements==null){
+                throw new RuntimeException("cannot call elementCount() on uninitialized tuple");
+            }
+            return elements.length;
+        }
+        @Override
+        public Type getRawElement(long i){
+            if(elements==null){
+                throw new RuntimeException("cannot call getElement() on uninitialized tuple");
+            }
+            return updateChildMutability(elements[(int) i]);
+        }
+        @Override
+        public Type[] getElements() {
+            if(elements==null){
+                throw new RuntimeException("cannot call getElements() on uninitialized tuple");
+            }
+            Type[] mappedElements=new Type[elements.length];
+            for(int i=0;i<elements.length;i++){
+                mappedElements[i]=updateChildMutability(elements[i]);
+            }
+            return mappedElements;
+        }
 
         @Override
         void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
@@ -1005,7 +1021,7 @@ public class Type {
             return (Struct) super.setMutability(newMutability);
         }
         @Override
-        Tuple copyWithMutability(Mutability newMutability) {
+        Struct copyWithMutability(Mutability newMutability) {
             if(!isTypeChecked()){
                 return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
                         genericArgs,new ArrayList<>(tokens),context.newInstance(true),
@@ -1013,11 +1029,6 @@ public class Type {
             }
             return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
                     genericArgs,fields,elements,newMutability,declaredAt,endPos,false);
-        }
-
-        @Override
-        boolean isMutable(int index) {
-            return super.isMutable(index)&&fields[index].mutable();
         }
 
         @Override
@@ -1070,9 +1081,15 @@ public class Type {
                 return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
                         newArgs,newTokens,newContext,mutability,declaredAt,endPos,true):this;
             }
-            return (Struct)updateElements(generics, (newElements)->
-                    create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                            newArgs,fields,newElements,mutability,declaredAt,endPos,true), changed);
+            Type[] newElements=new Type[elements.length];
+            for(int i=0;i<elements.length;i++){
+                newElements[i]=elements[i].replaceGenerics(generics);
+                if(newElements[i]!=elements[i]){
+                    changed =true;
+                }
+            }
+            return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
+                            newArgs,fields,newElements,mutability,declaredAt,endPos,true):this;
         }
 
         @Override
@@ -1083,15 +1100,45 @@ public class Type {
         }
 
         @Override
-        boolean canAssignBaseTuple(Type t) {
-            return super.canAssignBaseTuple(t)||(t instanceof Struct&&((Struct) t).declaredAt.equals(declaredAt))||
-                    (extended!=null&&extended.canAssignBaseTuple(t));
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
+            if(t instanceof Struct){
+                if(mutabilityIncompatible(t)){
+                    return false;
+                }
+                if(!declaredAt.equals(((Struct) t).declaredAt)){
+                    return extended != null && extended.canAssignTo(t, bounds);
+                }
+                return TupleLike.canAssignElements(this,(Struct)t,bounds);
+            }
+            return super.canAssignTo(t, bounds);
         }
-
+        private boolean rootCastableTo(Struct s){
+           return declaredAt.equals(s.declaredAt)||
+                   (extended != null && extended.rootCastableTo(s))||
+                   (s.extended != null && rootCastableTo(s.extended));
+        }
+        @Override
+        protected boolean canCastTo(Type t, BoundMaps bounds) {
+            if(t instanceof Struct) {
+                if(mutabilityIncompatible(t)){
+                    return false;
+                }
+                if(!rootCastableTo((Struct)t)){
+                    return false;
+                }
+                return TupleLike.canAssignElements(this, (Struct) t, bounds) ||
+                        TupleLike.canAssignElements(((Struct) t), this, bounds.swapped());
+            }
+            return super.canAssignTo(t, bounds);
+        }
 
         @Override
         public String name() {
             return name;
+        }
+        @Override
+        public String typeName() {
+            return baseName;
         }
         @Override
         public Parser.DeclareableType declarableType() {
@@ -1159,6 +1206,7 @@ public class Type {
                 t.forEachStruct(action);
             }
         }
+
 
         @Override
         public List<Type> inTypes() {
@@ -1282,6 +1330,11 @@ public class Type {
             this.explicitGenerics = explicitGenerics;
             this.implicitGenerics = implicitGenerics;
             this.genericArgs=genericArgs;
+        }
+
+        @Override
+        public List<Type> genericArguments() {
+            return Arrays.asList(genericArgs);
         }
 
         @Override
