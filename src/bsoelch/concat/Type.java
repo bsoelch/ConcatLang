@@ -197,6 +197,10 @@ public class Type {
                     (IdentityHashMap<GenericParameter, GenericBound>) r.clone());
         }
     }
+    public static void resetCached() {
+        WrapperType.resetCached();
+        Struct.resetCached();
+    }
 
     final String name;
     final boolean switchable;
@@ -443,6 +447,11 @@ public class Type {
         static final HashMap<Type,WrapperType> arrays = new HashMap<>();
         static final HashMap<Type,WrapperType> memories = new HashMap<>();
         static final HashMap<Type,WrapperType> optionals = new HashMap<>();
+        public static void resetCached(){
+            arrays.clear();
+            memories.clear();
+            optionals.clear();
+        }
 
         static final String ARRAY = "array";
         static final String MEMORY = "memory";
@@ -1001,6 +1010,9 @@ public class Type {
     record StructField(String name, Parser.Accessibility accessibility, boolean mutable, FilePosition declaredAt){}
     public static class Struct extends Tuple{
         static final HashMap<StructId,Struct> cached=new HashMap<>();
+        public static void resetCached(){
+            cached.clear();
+        }
 
         StructField[] fields;
         String[] fieldNames;

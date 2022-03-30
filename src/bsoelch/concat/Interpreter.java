@@ -373,6 +373,7 @@ public class Interpreter {
     }
 
     static Parser.Program compileAndRun(String path, String[] arguments, IOContext context) throws IOException {
+        Type.resetCached();
         Parser parse = new Parser();
         Parser.Program program;
         try {
