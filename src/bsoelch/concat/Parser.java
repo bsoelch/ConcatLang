@@ -2201,7 +2201,7 @@ public class Parser {
                         if(proc.state==ProcedureBlock.STATE_BODY){
                             throw new SyntaxError("unexpected '"+str+"'",pos);
                         }
-                        List<Token> outs = tokens.subList(proc.start, tokens.size());
+                        List<Token> outs = tokens.subList(proc.start, tokens.size());//addLater check lambda signature in type-check phase
                         proc.addOuts(typeCheck(outs,block.context(),pState.globalConstants,
                                 new RandomAccessStack<>(8),null,pos,ioContext).tokens,pos);
                         outs.clear();
@@ -2792,6 +2792,10 @@ public class Parser {
             }
             TypeCheckResult res=typeCheck(aTuple.getTokens(),aTuple.context,globalConstants,new RandomAccessStack<>(8),
                     null,aTuple.endPos,ioContext);
+            if(aTuple.isTypeChecked()){
+                //addLater find way to check proc-pointers in tuple after tuple is finished
+                return;//recursive type-checking already checked this tuple
+            }
             if(aTuple instanceof Type.Struct){
                 if(res.types.size()>0){
                     TypeFrame tmp=res.types.get(res.types.size());
@@ -3930,8 +3934,24 @@ public class Parser {
                 if(!(context instanceof StructContext)){
                     throw new SyntaxError("field declarations are only allowed in structs",t.pos);
                 }
+                boolean isPseudo=(identifier.flags&IdentifierToken.MASK_FIELD_MODIFIER)==IdentifierToken.FIELD_MODIFIER_PSEUDO;
                 if (ret.size() <= 0 || !((prev = ret.remove(ret.size() - 1)) instanceof ValueToken)) {
-                    throw new SyntaxError("Token before declaration has to be a type", identifier.pos);
+                    throw new SyntaxError("the token before a "+(isPseudo?"pseudo":"")+
+                            "field declaration has to be a constant "+(isPseudo?"procedure pointer":"type"),
+                            identifier.pos);
+                }
+                if(isPseudo){
+                    Value proc=((ValueToken) prev).value;
+                    if(!(proc.type instanceof Type.Procedure)){
+                        throw new SyntaxError("the token before a pseudo file declaration has to be a procedure pointer",
+                                identifier.pos);
+                    }
+                    if(!typeStack.pop().type.equals(proc.type)){
+                        throw new RuntimeException("type stack out of sync with token list");
+                    }
+                    //TODO handle pseudo fields
+                    //pseudo field takes one procedure pointer as argument
+                    break;
                 }
                 Type type;
                 try {
@@ -3945,6 +3965,25 @@ public class Parser {
                 Accessibility accessibility = identifier.accessibility();
                 if(accessibility==Accessibility.DEFAULT){
                     accessibility = Accessibility.PUBLIC;//struct fields are public by default
+                }
+                boolean isTypeField=(identifier.flags&IdentifierToken.MASK_FIELD_MODIFIER)==IdentifierToken.FIELD_MODIFIER_TYPE;
+                if(isTypeField){//type fields require value
+                    if(type.isMutable()){
+                        throw new SyntaxError("type fields cannot be mutable",identifier.pos);
+                    }
+                    if (ret.size() <= 0 || !((prev = ret.remove(ret.size() - 1)) instanceof ValueToken)) {
+                        throw new SyntaxError("Token before type-field declaration has to be a constant value",
+                                identifier.pos);
+                    }
+                    Value value=((ValueToken) prev).value;
+                    if(!typeStack.pop().type.equals(value.type)){
+                        throw new RuntimeException("type stack out of sync with token list");
+                    }
+                    if(!value.type.canAssignTo(type)){
+                        throw new RuntimeException("cannot assign "+value.type+" to "+type);
+                    }
+                    //TODO store type-field
+                    break;
                 }
                 ((StructContext)context).fields.add(new StructFieldWithType(
                         new Type.StructField(identifier.name, accessibility,
