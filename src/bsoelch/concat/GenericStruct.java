@@ -5,24 +5,22 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 
-public class GenericTuple implements Parser.NamedDeclareable {
+public class GenericStruct implements Parser.NamedDeclareable {
     final String name;
     final boolean isPublic;
-    final boolean isStruct;
     final Type.Struct parent;
 
-    final Parser.GenericContext context;
+    final Parser.StructContext context;
 
     final ArrayList<Parser.Token> tokens;
 
     final FilePosition declaredAt;
     final FilePosition endPos;
 
-    public GenericTuple(String name, boolean isPublic,boolean isStruct, Type.Struct parent,
-                        Parser.GenericContext context, ArrayList<Parser.Token> tokens, FilePosition declaredAt, FilePosition endPos) {
+    public GenericStruct(String name, boolean isPublic, Type.Struct parent,
+                         Parser.StructContext context, ArrayList<Parser.Token> tokens, FilePosition declaredAt, FilePosition endPos) {
         this.name = name;
         this.isPublic = isPublic;
-        this.isStruct = isStruct;
         this.parent = parent;
         this.context = context;
         this.tokens = tokens;
@@ -36,7 +34,7 @@ public class GenericTuple implements Parser.NamedDeclareable {
 
     @Override
     public Parser.DeclareableType declarableType() {
-        return Parser.DeclareableType.GENERIC_TUPLE;
+        return Parser.DeclareableType.GENERIC_STRUCT;
     }
 
     @Override
@@ -71,7 +69,7 @@ public class GenericTuple implements Parser.NamedDeclareable {
     private final HashMap<TypeArray, Type.Tuple> cached=new HashMap<>();
     public Type.Tuple withPrams(Type[] genericArgs) {
         IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
-        Parser.GenericContext newContext=context.newInstance(false);
+        Parser.StructContext newContext=context.newInstance(false);
         for(int i=0;i< genericArgs.length;i++){
             Type.GenericParameter t=context.generics.get(i);
             Type replace=genericArgs[i];
@@ -88,13 +86,9 @@ public class GenericTuple implements Parser.NamedDeclareable {
             for(Parser.Token t:tokens){
                 newTokens.add(t.replaceGenerics(update));
             }
-            if(isStruct){
-                tuple = Type.Struct.create(name,isPublic,
-                        parent==null?null:parent.replaceGenerics(update),
-                        genericArgs,newTokens,newContext,declaredAt,endPos);
-            }else{
-                tuple = Type.Tuple.create(name,isPublic,genericArgs,newTokens,newContext,declaredAt,endPos);
-            }
+            tuple = Type.Struct.create(name,isPublic,
+                    parent==null?null:parent.replaceGenerics(update),
+                    genericArgs,newTokens,newContext,declaredAt,endPos);
             cached.put(new TypeArray(genericArgs),tuple);
         }
         return tuple;

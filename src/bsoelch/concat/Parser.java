@@ -833,7 +833,7 @@ public class Parser {
 
     enum DeclareableType{
         VARIABLE,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, GENERIC, NATIVE_PROC,
-        GENERIC_TUPLE, OVERLOADED_PROCEDURE, STRUCT, GENERIC_STRUCT, GENERIC_PROCEDURE,CONSTANT
+        GENERIC_STRUCT, OVERLOADED_PROCEDURE, STRUCT, GENERIC_PROCEDURE,CONSTANT
     }
     static String declarableName(DeclareableType t, boolean a){
         switch (t){
@@ -858,7 +858,7 @@ public class Parser {
             case ENUM -> {
                 return a?"an enum":"enum";
             }
-            case GENERIC_TUPLE, TUPLE -> {
+            case TUPLE -> {
                 return a?"a tuple":"tuple";
             }
             case GENERIC -> {
@@ -901,7 +901,7 @@ public class Parser {
                 return true;
             }
             case VARIABLE,CURRIED_VARIABLE,MACRO,
-                    ENUM,TUPLE,GENERIC,GENERIC_TUPLE,STRUCT,GENERIC_STRUCT,CONSTANT -> {
+                    ENUM,TUPLE,GENERIC, GENERIC_STRUCT,STRUCT,CONSTANT -> {
                 return false;
             }
         }
@@ -2308,7 +2308,7 @@ public class Parser {
                             subList.clear();
                             ArrayList<Type.GenericParameter> generics= structContext.generics;
                             if(generics.size()>0){
-                                GenericTuple struct=new GenericTuple(((StructBlock) block).name,((StructBlock) block).isPublic,true,
+                                GenericStruct struct=new GenericStruct(((StructBlock) block).name,((StructBlock) block).isPublic,
                                         ((StructBlock) block).extended,structContext,
                                         structTokens,block.startPos,pos);
                                 pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
@@ -2369,7 +2369,7 @@ public class Parser {
                                 typeCheck(subList,open.context(),pState.globalConstants,
                                         new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
                         subList.clear();
-                        tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(null, false, tupleTypes,open.startPos,pos)),
+                        tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(tupleTypes)),
                                 pos));
                     }else /*if(open.type==BlockType.UNION)*/{
                         List<Token> subList=tokens.subList(open.start, tokens.size());
@@ -2714,7 +2714,7 @@ public class Parser {
     private void typeCheckProcedure(Value.Procedure p, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext) throws SyntaxError {
         if(p.typeCheckState == Value.TypeCheckState.UNCHECKED){
             p.typeCheckState = Value.TypeCheckState.CHECKING;
-            p.type.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
+            p.type.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
             TypeCheckResult res;
             RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(8);
             for(Type t:((Type.Procedure) p.type).inTypes){
@@ -2726,14 +2726,13 @@ public class Parser {
             p.typeCheckState = Value.TypeCheckState.CHECKED;
         }
     }
-    private void typeCheckTuple(Type.Tuple aTuple, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext) throws SyntaxError {
+    private void typeCheckStruct(Type.Struct aTuple, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext) throws SyntaxError {
         if(!aTuple.isTypeChecked()){
-
-            if(aTuple instanceof Type.Struct&&((Type.Struct) aTuple).extended!=null){
-                Type.Struct extended = ((Type.Struct) aTuple).extended;
-                typeCheckTuple(extended, globalConstants, ioContext);
+            if(aTuple.extended!=null){
+                Type.Struct extended = aTuple.extended;
+                typeCheckStruct(extended, globalConstants, ioContext);
                 for(int i = 0; i< extended.elementCount(); i++){
-                    ((StructContext)aTuple.context).fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
+                    aTuple.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
             }
             TypeCheckResult res=typeCheck(aTuple.getTokens(),aTuple.context,globalConstants,new RandomAccessStack<>(8),
@@ -2742,22 +2741,18 @@ public class Parser {
                 //addLater find way to check proc-pointers in tuple after tuple is finished
                 return;//recursive type-checking already checked this tuple
             }
-            if(aTuple instanceof Type.Struct){
-                if(res.types.size()>0){
-                    TypeFrame tmp=res.types.get(res.types.size());
-                    throw new SyntaxError("Unexpected value in struct body: "+tmp,tmp.pushedAt);
-                }
-                StructContext structContext=(StructContext) aTuple.context;
-                Type.StructField[] fieldNames=new Type.StructField[structContext.fields.size()];
-                Type[] types=new Type[fieldNames.length];
-                for(int i=0;i<types.length;i++){
-                    fieldNames[i]= structContext.fields.get(i).field;
-                    types[i]= structContext.fields.get(i).type;
-                }
-                ((Type.Struct) aTuple).setFields(fieldNames,types);
-            }else{
-                throw new UnsupportedOperationException("unimplemented");
+            if(res.types.size()>0){
+                TypeFrame tmp=res.types.get(res.types.size());
+                throw new SyntaxError("Unexpected value in struct body: "+tmp,tmp.pushedAt);
             }
+            StructContext structContext=aTuple.context;
+            Type.StructField[] fieldNames=new Type.StructField[structContext.fields.size()];
+            Type[] types=new Type[fieldNames.length];
+            for(int i=0;i<types.length;i++){
+                fieldNames[i]= structContext.fields.get(i).field;
+                types[i]= structContext.fields.get(i).type;
+            }
+            aTuple.setFields(fieldNames,types);
         }
     }
 
@@ -2932,7 +2927,7 @@ public class Parser {
                     typeCheckTypeModifier("optional",(t1)->Value.ofType(Type.optionalOf(t1)),ret,typeStack,t.pos);
                 case EMPTY_OPTIONAL ->
                     typeCheckTypeModifier("empty", t1->{
-                        t1.forEachTuple(t2->typeCheckTuple(t2,globalConstants,ioContext));
+                        t1.forEachStruct(t2-> typeCheckStruct(t2,globalConstants,ioContext));
                         return Value.emptyOptional(t1);
                     },ret,typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
@@ -3559,7 +3554,7 @@ public class Parser {
         }
         try {
             Type type = ((ValueToken)prev).value.asType();
-            type.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
+            type.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
             if(type instanceof Type.Tuple){
                 Type[] elements = ((Type.Tuple) type).getElements();
                 typeCheckCall("new", typeStack,
@@ -3594,7 +3589,7 @@ public class Parser {
                 }//no else
                 if(type.isArray()){
                     f=typeStack.pop();
-                    f.type.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
+                    f.type.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
                     typeCheckCast(f.type,2,type.content(),globalConstants, ret,ioContext,pos);
                 }
                 typeStack.push(new TypeFrame(type,null, pos));
@@ -3734,10 +3729,10 @@ public class Parser {
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
                         ret.add(new ValueToken(e, identifier.pos));
                     }
-                    case GENERIC_TUPLE,GENERIC_STRUCT -> {
-                        GenericTuple g = (GenericTuple) d;
+                    case GENERIC_STRUCT -> {
+                        GenericStruct g = (GenericStruct) d;
                         String tupleName=g.name;
-                        Type[] genArgs=getArguments(tupleName,DeclareableType.GENERIC_TUPLE,g.argCount(), typeStack, ret, t.pos);
+                        Type[] genArgs=getArguments(tupleName,DeclareableType.GENERIC_STRUCT,g.argCount(), typeStack, ret, t.pos);
                         Type.Tuple typeValue = g.withPrams(genArgs);
                         if(isMutabilityMarked){
                             typeValue=typeValue.setMutability(identifier.mutability());
@@ -3867,8 +3862,13 @@ public class Parser {
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
-                                throw new SyntaxError("element at "+index+" in tuple "+ tuple.name+
-                                        " (declared at "+tuple.declaredAt+") is not mutable",t.pos);
+                                if(tuple instanceof Type.Struct struct){
+                                    throw new SyntaxError("element at "+index+" in struct "+ tuple.name+
+                                            " (declared at "+struct.declaredAt+")"+" is not mutable",t.pos);
+                                }else{
+                                    throw new SyntaxError("tuple "+ tuple.name+
+                                            " (pushed at "+f.pushedAt+")"+" is not mutable",t.pos);
+                                }
                             }
                         }
                     }catch (NumberFormatException ignored){}
@@ -4034,7 +4034,7 @@ public class Parser {
 
     private void typeCheckCast(Type src, int stackPos, Type target, HashMap<VariableId, Value> globalConstants, ArrayList<Token> ret,
                                IOContext ioContext, FilePosition pos) throws SyntaxError {
-        target.forEachTuple((t)->typeCheckTuple(t,globalConstants,ioContext));
+        target.forEachStruct((t)-> typeCheckStruct(t,globalConstants,ioContext));
         Type.BoundMaps bounds=new Type.BoundMaps();
         if(src instanceof Type.OverloadedProcedurePointer){
             if(!(target instanceof Type.Procedure)){
@@ -4209,7 +4209,7 @@ public class Parser {
                            ArrayList<CallMatch> matchingCalls,HashMap<VariableId, Value> globalConstants,
                                         IOContext ioContext, FilePosition pos) throws SyntaxError {
         Type.Procedure type= potentialCall.type();
-        type.forEachTuple((t)->typeCheckTuple(t,globalConstants,ioContext));
+        type.forEachStruct((t)-> typeCheckStruct(t,globalConstants,ioContext));
         boolean isMatch=true;
         IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
         int nCasts=0,nImplicit=0;
@@ -4265,14 +4265,14 @@ public class Parser {
                                            HashMap<VariableId, Value> globalConstants,
                                            IOContext ioContext,
                                            FilePosition pos) throws SyntaxError {
-        calledType.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
+        calledType.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
         ArrayList<CallMatch> matches=new ArrayList<>();
         ArrayList<Type.BoundMaps> matchBounds=new ArrayList<>();
         boolean matchesParam;
         for(Callable c: param.proc.procedures){
             matchesParam=true;
             Type.Procedure procType=c.type();
-            procType.forEachTuple(t->typeCheckTuple(t,globalConstants,ioContext));
+            procType.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
             Type.BoundMaps test= callBounds.copy();
             if(procType.canAssignTo(calledType,test)){
                 IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();

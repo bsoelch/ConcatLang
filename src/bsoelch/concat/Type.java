@@ -1,7 +1,6 @@
 package bsoelch.concat;
 
 import java.util.*;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class Type {
@@ -257,7 +256,7 @@ public class Type {
             }
         },declaredAt());
     }
-    void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError{ }
+    void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError{ }
 
     @Override
     public final boolean equals(Object o) {
@@ -539,8 +538,8 @@ public class Type {
                 }, declaredAt());
             }
         }
-        void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError {
-            contentType.forEachTuple(action);
+        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
+            contentType.forEachStruct(action);
         }
 
         @Override
@@ -640,109 +639,36 @@ public class Type {
         }
     }
 
-    public static class Tuple extends Type implements Parser.NamedDeclareable{
-        static final Tuple EMPTY_TUPLE=create(null, true, new Type[0],
-                Value.InternalProcedure.POSITION,Value.InternalProcedure.POSITION);
+    public static class Tuple extends Type{//addLater? separate Tuple from Struct
+        static final Tuple EMPTY_TUPLE=create( new Type[0]);
 
-        final String baseName;
-        final boolean isPublic;
-        final FilePosition declaredAt;
-        final FilePosition endPos;
-        final Type[] genericArgs;
-
-        /**Tokens in the body of this Tuple*/
-        ArrayList<Parser.Token> tokens;
-        /**Context in which this tuple was declared*/
-        Parser.GenericContext context;
         /**initialized types in this Tuple or null if this tuple is not yet initialized*/
         Type[] elements;
 
-        public static Tuple create(String typeName, boolean isPublic,
-                                   ArrayList<Parser.Token> tokens, Parser.GenericContext context, FilePosition declaredAt, FilePosition endPos) {
-            return create(typeName, isPublic,new Type[0],tokens,context, declaredAt,endPos);
+        public static Tuple create(Type[] elements){
+            return create(elements, Mutability.DEFAULT);
         }
-        public static Tuple create(String typeName,boolean isPublic,Type[] genericArgs,
-                                          ArrayList<Parser.Token> tokens, Parser.GenericContext context, FilePosition declaredAt, FilePosition endPos) {
-            assert typeName!=null;
-            return create(typeName,isPublic, genericArgs,tokens,context,Mutability.DEFAULT, declaredAt, endPos);
+        private static Tuple create(Type[] elements,Mutability mutability) {
+            String typeName = getTypeName(elements);
+            return new Tuple(typeName+mutabilityPostfix(mutability),elements, mutability);//addLater? caching
         }
-        public static Tuple create(String typeName,boolean isPublic,Type[] genericArgs,ArrayList<Parser.Token> tokens,
-                                   Parser.GenericContext context,Mutability mutability, FilePosition declaredAt, FilePosition endPos) {
-            assert typeName!=null;
-            String fullName = namePrefix(typeName,genericArgs)+mutabilityPostfix(mutability);
-            return new Tuple(fullName,typeName,isPublic, genericArgs,
-                    null,tokens,context,mutability, declaredAt, endPos);//addLater? caching
-        }
-        public static Tuple create(String name, boolean isPublic, Type[] elements, FilePosition declaredAt, FilePosition endPos){
-            return create(name,isPublic,  new Type[0], elements, Mutability.DEFAULT, declaredAt,endPos);
-        }
-        private static Tuple create(String name,boolean isPublic,Type[] genericArgs,
-                                   Type[] elements,Mutability mutability,FilePosition declaredAt, FilePosition endPos) {
-            String typeName = namePrefix(getTypeName(name, elements),genericArgs);
-            return new Tuple(typeName+mutabilityPostfix(mutability),name,isPublic, genericArgs,
-                    elements,null,null,mutability, declaredAt, endPos);//addLater? caching
+        private static String getTypeName(Type[] elements) {
+            StringBuilder sb = new StringBuilder("( ");
+            for (Type t : elements) {
+                sb.append(t).append(" ");
+            }
+            return sb.append(")").toString();
         }
 
-        static String namePrefix(String baseName, Type[] genericArgs) {
-            StringBuilder sb=new StringBuilder();
-            //add generic args to name
-            for(Type t: genericArgs){
-                sb.append(t.name).append(" ");
-            }
-            return sb.append(baseName).toString();
-        }
-        private static String getTypeName(String name, Type[] elements) {
-            String typeName;
-            if(name ==null) {
-                StringBuilder sb = new StringBuilder("( ");
-                for (Type t : elements) {
-                    sb.append(t).append(" ");
-                }
-                typeName=sb.append(")").toString();
-            }else{
-                typeName= name;
-            }
-            return typeName;
-        }
-
-        private Tuple(String name, String baseName, boolean isPublic, Type[] genericArgs,
-                      Type[] elements, ArrayList<Parser.Token> tokens,Parser.GenericContext context, Mutability mutability,
-                      FilePosition declaredAt, FilePosition endPos){
+        private Tuple(String name,  Type[] elements,Mutability mutability){
             super(name, false,mutability);
-            if((elements==null)==(tokens==null)){
-                throw new IllegalArgumentException("exactly one of elements and tokens has to be non-null");
-            }
-            this.baseName=baseName;
-            this.isPublic = isPublic;
-            this.genericArgs = genericArgs;
             this.elements=elements;
-            this.tokens=tokens;
-            this.context = context;
-            this.declaredAt = declaredAt;
-            this.endPos = endPos;
         }
 
-        public boolean isTypeChecked(){
-            return elements!=null;
-        }
-        public ArrayList<Parser.Token> getTokens() {
-            if(isTypeChecked()){
-                throw new RuntimeException("getTokens() can only be called before typeChecking");
-            }
-            return tokens;
-        }
-        public void setElements(Type[] elements) {
-            if(isTypeChecked()){
-                throw new RuntimeException("setElements() can only be called once on a tuple");
-            }
-            this.elements = elements;
-            tokens.clear();//tokens are no longer necessary
-        }
-        void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError {
-            action.accept(this);
+        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
             if(elements!=null){
                 for(Type t:elements){
-                    t.forEachTuple(action);
+                    t.forEachStruct(action);
                 }
             }
         }
@@ -788,56 +714,27 @@ public class Type {
             return mutability==Mutability.MUTABLE;
         }
 
-        Tuple replaceGenerics(IdentityHashMap<GenericParameter,Type> generics,
-                              BiFunction<Type[],Type[],Tuple> update1,
-                              Function<Type[],BiFunction<ArrayList<Parser.Token>, Parser.GenericContext,Tuple>> update2){
-            boolean changed=false;
-            Type[] newArgs;
-            if(generics.size()>0){
-                newArgs=new Type[this.genericArgs.length];
-                for(int i=0;i<this.genericArgs.length;i++){
-                    newArgs[i]=this.genericArgs[i].replaceGenerics(generics);
-                    if(newArgs[i]!=this.genericArgs[i]){
-                        changed=true;
-                    }
-                }
-            }else{
-                newArgs=genericArgs;
-            }
-            if(elements==null){
-                ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens.size());
-                for(Parser.Token t:tokens){
-                    Parser.Token newToken = t.replaceGenerics(generics);
-                    newTokens.add(newToken);
-                    if(newToken!=t)
-                        changed=true;
-                }
-                Parser.GenericContext newContext=context.newInstance(false);
-                for(Map.Entry<String, Parser.Declareable> e:context.elements()){
-                    if(e.getValue() instanceof GenericParameter){
-                        Type replace=generics.get((GenericParameter)e.getValue());
-                        if(replace!=null){//replace generics in constants
-                            if(replace instanceof Type.GenericParameter){
-                                newContext.putElement(e.getKey(),(Type.GenericParameter) replace);
-                            }else{
-                                newContext.putElement(e.getKey(),
-                                        new Parser.Constant(e.getKey(),false,Value.ofType(replace),e.getValue().declaredAt()));
-                            }
-                            changed=true;
-                        }
-                    }
-                }
-                return changed?update2.apply(newArgs).apply(newTokens,newContext):this;
-            }
+        Tuple updateElements(IdentityHashMap<GenericParameter, Type> generics, Function<Type[], Tuple> update1,
+                             boolean changed) {
             Type[] newElements=new Type[elements.length];
             for(int i=0;i<elements.length;i++){
                 newElements[i]=elements[i].replaceGenerics(generics);
                 if(newElements[i]!=elements[i]){
-                    changed=true;
+                    changed =true;
                 }
             }
-            return changed?update1.apply(newArgs,newElements):this;
+            return changed ? update1.apply( newElements) : this;
         }
+        @Override
+        Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+            if(elements==null){
+                throw new RuntimeException("elements in anonymous tuple should not be null");
+            }
+            return updateElements(generics, (newElements)->
+                    create(newElements,mutability), false);
+        }
+
+
         @Override
         public Tuple setMutability(Mutability newMutability) {
             return (Tuple) super.setMutability(newMutability);
@@ -845,20 +742,10 @@ public class Type {
         Tuple copyWithMutability(Mutability newMutability) {
             Tuple prev;
             if(elements==null){
-                prev = create(baseName,isPublic,genericArgs,new ArrayList<>(tokens),
-                        context.newInstance(true), newMutability,declaredAt,endPos);
-            }else{
-                prev = create(baseName,isPublic,genericArgs,elements, newMutability,declaredAt,endPos);
+                throw new RuntimeException("elements in anonymous tuple should not be null");
             }
+            prev = create(elements, newMutability);
             return prev;
-        }
-
-        @Override
-        Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
-            return replaceGenerics(generics,(newArgs,newElements)->
-                    create(baseName, isPublic,newArgs,newElements,mutability,declaredAt,endPos),
-                    (newArgs)->(newTokens,newContext)->create(baseName,isPublic,newArgs,newTokens,newContext,
-                            mutability,declaredAt,endPos));
         }
 
 
@@ -951,12 +838,6 @@ public class Type {
                 if(!(elements[i].equals(tuple.elements[i],generics)))
                     return false;
             }
-            if(tuple.genericArgs.length!=genericArgs.length)
-                return false;
-            for(int i = 0; i< genericArgs.length; i++){//compare generic parameters with their equivalents
-                if(!genericArgs[i].equals(tuple.genericArgs[i],generics))
-                    return false;
-            }
             return true;
         }
         @Override
@@ -964,32 +845,6 @@ public class Type {
             return Arrays.hashCode(elements);
         }
 
-        @Override
-        public String name() {
-            return name;
-        }
-        @Override
-        public Parser.DeclareableType declarableType() {
-            return Parser.DeclareableType.TUPLE;
-        }
-        @Override
-        public FilePosition declaredAt() {
-            return declaredAt;
-        }
-        @Override
-        public boolean isPublic() {
-            return isPublic;
-        }
-
-        boolean unused=true;
-        @Override
-        public void markAsUsed() {
-            unused=false;
-        }
-        @Override
-        public boolean unused() {
-            return unused;
-        }
     }
 
     record StructId(FilePosition pos,Type[] genericArgs){
@@ -1008,11 +863,22 @@ public class Type {
         }
     }
     record StructField(String name, Parser.Accessibility accessibility, boolean mutable, FilePosition declaredAt){}
-    public static class Struct extends Tuple{
+    public static class Struct extends Tuple implements Parser.NamedDeclareable {
         static final HashMap<StructId,Struct> cached=new HashMap<>();
         public static void resetCached(){
             cached.clear();
         }
+        final boolean isPublic;
+        final FilePosition declaredAt;
+        final FilePosition endPos;
+
+        final String baseName;
+        final Type[] genericArgs;
+
+        /**Tokens in the body of this Tuple*/
+        ArrayList<Parser.Token> tokens;
+        /**Context in which this tuple was declared*/
+        Parser.StructContext context;
 
         StructField[] fields;
         String[] fieldNames;
@@ -1020,18 +886,17 @@ public class Type {
         final Struct extended;
 
         static Struct create(String name,boolean isPublic,Struct extended,
-                             ArrayList<Parser.Token> tokens, Parser.GenericContext context,
+                             ArrayList<Parser.Token> tokens, Parser.StructContext context,
                              FilePosition declaredAt,FilePosition endPos){
-            return create(name, isPublic, extended, new Type[0],
-                    tokens,context,declaredAt,endPos);
+            return create(name, isPublic, extended, new Type[0],tokens,context,Mutability.DEFAULT,declaredAt,endPos,true);
         }
         static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
-                             ArrayList<Parser.Token> tokens, Parser.GenericContext context,
+                             ArrayList<Parser.Token> tokens, Parser.StructContext context,
                              FilePosition declaredAt,FilePosition endPos){
            return create(name, isPublic, extended, genericArgs, tokens,context,Mutability.DEFAULT,declaredAt,endPos,true);
         }
         static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
-                             ArrayList<Parser.Token> tokens, Parser.GenericContext context,
+                             ArrayList<Parser.Token> tokens, Parser.StructContext context,
                              Mutability mutability,FilePosition declaredAt,FilePosition endPos,boolean useCache){
             StructId id=new StructId(declaredAt,genericArgs);
             Struct prev;
@@ -1041,7 +906,7 @@ public class Type {
                     return prev.setMutability(mutability);
                 }
             }
-            prev=new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
+            prev=new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
                     extended, genericArgs,null,null,tokens,context,mutability,declaredAt,endPos);
             if (useCache) {
                 cached.put(id,prev);
@@ -1062,20 +927,39 @@ public class Type {
                     return prev.setMutability(mutability);
                 }
             }
-            prev = new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
+            prev = new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
                     extended, genericArgs, types,fields,null, null,mutability, declaredAt,endPos);
             if (useCache) {
                 cached.put(id,prev);
             }
             return prev;
         }
+        static String namePrefix(String baseName, Type[] genericArgs) {
+            StringBuilder sb=new StringBuilder();
+            //add generic args to name
+            for(Type t: genericArgs){
+                sb.append(t.name).append(" ");
+            }
+            return sb.append(baseName).toString();
+        }
 
         private Struct(String name, String baseName, boolean isPublic, Struct extended,
                        Type[] genArgs, Type[] elements, StructField[] fields,
-                       ArrayList<Parser.Token> tokens, Parser.GenericContext context,
+                       ArrayList<Parser.Token> tokens, Parser.StructContext context,
                        Mutability mutability, FilePosition declaredAt,FilePosition endPos) {
-            super(name,baseName,isPublic,genArgs,elements,tokens,context,mutability, declaredAt, endPos);
+            super(name,elements, mutability);
+            if((elements==null)==(tokens==null)){
+                throw new RuntimeException("exactly one of elements and tokens should be non-null");
+            }
+            this.isPublic=isPublic;
+            this.declaredAt=declaredAt;
+            this.endPos=endPos;
             this.extended = extended;
+            this.baseName=baseName;
+            this.genericArgs=genArgs;
+
+            this.tokens = tokens;
+            this.context = context;
             if(fields!=null){
                 assert elements!=null;
                 initializeFields(fields);
@@ -1086,7 +970,15 @@ public class Type {
                 indexByName=null;
             }
         }
-
+        public boolean isTypeChecked(){
+            return elements!=null;
+        }
+        public ArrayList<Parser.Token> getTokens() {
+            if(isTypeChecked()){
+                throw new RuntimeException("getTokens() can only be called before typeChecking");
+            }
+            return tokens;
+        }
         private void initializeFields(StructField[] fields) {
             this.fields= fields;
             indexByName =new HashMap<>(fields.length);
@@ -1097,8 +989,15 @@ public class Type {
             }
         }
         public void setFields(StructField[] fields,Type[] elements) {
-            super.setElements(elements);
+            this.elements = elements;
             initializeFields(fields);
+            tokens.clear();//tokens are no longer necessary
+        }
+
+        @Override
+        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
+            action.accept(this);
+            super.forEachStruct(action);
         }
 
         @Override
@@ -1129,20 +1028,51 @@ public class Type {
             return Arrays.asList(fieldNames);
         }
 
-        @Override
-        public Parser.DeclareableType declarableType() {
-            return Parser.DeclareableType.STRUCT;
-        }
 
         @Override
         Struct replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
-            return (Struct)replaceGenerics(generics,(newArgs,newElements)->
+            boolean changed=false;
+            Type[] newArgs;
+            if(generics.size()>0){
+                newArgs=new Type[this.genericArgs.length];
+                for(int i=0;i<this.genericArgs.length;i++){
+                    newArgs[i]=this.genericArgs[i].replaceGenerics(generics);
+                    if(newArgs[i]!=this.genericArgs[i]){
+                        changed=true;
+                    }
+                }
+            }else{
+                newArgs=genericArgs;
+            }
+            if(elements==null){
+                ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens.size());
+                for(Parser.Token t:tokens){
+                    Parser.Token newToken = t.replaceGenerics(generics);
+                    newTokens.add(newToken);
+                    if(newToken!=t)
+                        changed=true;
+                }
+                Parser.StructContext newContext=context.newInstance(false);
+                for(Map.Entry<String, Parser.Declareable> e:context.elements()){
+                    if(e.getValue() instanceof GenericParameter){
+                        Type replace=generics.get((GenericParameter)e.getValue());
+                        if(replace!=null){//replace generics in constants
+                            if(replace instanceof Type.GenericParameter){
+                                newContext.putElement(e.getKey(),(Type.GenericParameter) replace);
+                            }else{
+                                newContext.putElement(e.getKey(),
+                                        new Parser.Constant(e.getKey(),false,Value.ofType(replace),e.getValue().declaredAt()));
+                            }
+                            changed=true;
+                        }
+                    }
+                }
+                return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
+                        newArgs,newTokens,newContext,mutability,declaredAt,endPos,true):this;
+            }
+            return (Struct)updateElements(generics, (newElements)->
                     create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                   newArgs,fields,newElements,mutability,declaredAt,endPos,true),
-                    (newArgs)->(newTokens,newContext)->
-                            create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                                    newArgs,newTokens,newContext,mutability,declaredAt,endPos,true)
-                    );
+                            newArgs,fields,newElements,mutability,declaredAt,endPos,true), changed);
         }
 
         @Override
@@ -1156,6 +1086,34 @@ public class Type {
         boolean canAssignBaseTuple(Type t) {
             return super.canAssignBaseTuple(t)||(t instanceof Struct&&((Struct) t).declaredAt.equals(declaredAt))||
                     (extended!=null&&extended.canAssignBaseTuple(t));
+        }
+
+
+        @Override
+        public String name() {
+            return name;
+        }
+        @Override
+        public Parser.DeclareableType declarableType() {
+            return Parser.DeclareableType.STRUCT;
+        }
+        @Override
+        public FilePosition declaredAt() {
+            return declaredAt;
+        }
+        @Override
+        public boolean isPublic() {
+            return isPublic;
+        }
+
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
         }
     }
 
@@ -1193,12 +1151,12 @@ public class Type {
         }
 
         @Override
-        void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError {
+        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
             for(Type t:inTypes){
-                t.forEachTuple(action);
+                t.forEachStruct(action);
             }
             for(Type t:outTypes){
-                t.forEachTuple(action);
+                t.forEachStruct(action);
             }
         }
 
@@ -1610,9 +1568,9 @@ public class Type {
         }
 
         @Override
-        void forEachTuple(SyntaxError.ThrowingConsumer<Tuple> action) throws SyntaxError {
+        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
             for(Type t:elements){
-                t.forEachTuple(action);
+                t.forEachStruct(action);
             }
         }
 
