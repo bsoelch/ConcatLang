@@ -2,7 +2,6 @@ package bsoelch.concat;
 
 import java.io.*;
 import java.util.*;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 
 public class Parser {
@@ -80,6 +79,10 @@ public class Parser {
         static final int MUTABILITY_DEFAULT=0;
         static final int MUTABILITY_MUTABLE=8;
         static final int MUTABILITY_IMMUTABLE=16;
+        static final int MASK_FIELD_MODIFIER =96;
+        static final int FIELD_MODIFIER_NONE=0;
+        static final int FIELD_MODIFIER_PSEUDO=32;
+        static final int FIELD_MODIFIER_TYPE=64;
 
         final IdentifierType type;
         final int flags;
@@ -95,6 +98,9 @@ public class Parser {
             if(flags!=0&&(type!=IdentifierType.WORD&&type!=IdentifierType.DECLARE &&type!=IdentifierType.IMPLICIT_DECLARE&&
                     type!=IdentifierType.DECLARE_FIELD)){
                 throw new SyntaxError("modifiers can only be used in declarations",pos);
+            }
+            if((flags& MASK_FIELD_MODIFIER)!=FIELD_MODIFIER_NONE&&(type!=IdentifierType.DECLARE_FIELD)){
+                throw new SyntaxError("field modifiers can only be used for field declarations",pos);
             }
             this.flags = flags;
             this.name = name;
@@ -2628,6 +2634,36 @@ public class Parser {
                     }else {
                         tokens.add(new Token(TokenType.MARK_IMMUTABLE, pos));
                     }
+                }
+                case "pseudo" -> {//addLater better name
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
+                    }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD){
+                        if((((IdentifierToken) prev).flags&IdentifierToken.MASK_FIELD_MODIFIER)!=IdentifierToken.FIELD_MODIFIER_NONE){
+                            throw new SyntaxError("multiple field modifiers for identifier "+
+                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
+                        }
+                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
+                                ((IdentifierToken) prev).flags|IdentifierToken.FIELD_MODIFIER_PSEUDO, prev.pos);
+                    }else{
+                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
+                    }
+                    tokens.set(tokens.size()-1,prev);
+                }
+                case "typefield" -> {
+                    if(prev==null){
+                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
+                    }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD){
+                        if((((IdentifierToken) prev).flags&IdentifierToken.MASK_FIELD_MODIFIER)!=IdentifierToken.FIELD_MODIFIER_NONE){
+                            throw new SyntaxError("multiple field modifiers for identifier "+
+                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
+                        }
+                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
+                                ((IdentifierToken) prev).flags|IdentifierToken.FIELD_MODIFIER_TYPE, prev.pos);
+                    }else{
+                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
+                    }
+                    tokens.set(tokens.size()-1,prev);
                 }
                 case "<>", "<?>" ->{
                     if(prev==null){
