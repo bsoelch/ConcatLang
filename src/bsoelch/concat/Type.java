@@ -983,8 +983,25 @@ public class Type {
         }
     }
 
+    record StructId(FilePosition pos,Type[] genericArgs){
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StructId structId = (StructId) o;
+            return Objects.equals(pos, structId.pos) && Arrays.equals(genericArgs, structId.genericArgs);
+        }
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(pos);
+            result = 31 * result + Arrays.hashCode(genericArgs);
+            return result;
+        }
+    }
     record StructField(String name, Parser.Accessibility accessibility, boolean mutable, FilePosition declaredAt){}
     public static class Struct extends Tuple{
+        static final HashMap<StructId,Struct> cached=new HashMap<>();
+
         StructField[] fields;
         String[] fieldNames;
         HashMap<String,Integer> indexByName;
@@ -999,21 +1016,46 @@ public class Type {
         static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
                              ArrayList<Parser.Token> tokens, Parser.GenericContext context,
                              FilePosition declaredAt,FilePosition endPos){
-           return create(name, isPublic, extended, genericArgs, tokens,context,Mutability.DEFAULT,declaredAt,endPos);
+           return create(name, isPublic, extended, genericArgs, tokens,context,Mutability.DEFAULT,declaredAt,endPos,true);
         }
         static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
                              ArrayList<Parser.Token> tokens, Parser.GenericContext context,
-                             Mutability mutability,FilePosition declaredAt,FilePosition endPos){
-            return new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
-                    extended, genericArgs,null,null,tokens,context,mutability,declaredAt,endPos);//addLater? caching
+                             Mutability mutability,FilePosition declaredAt,FilePosition endPos,boolean useCache){
+            StructId id=new StructId(declaredAt,genericArgs);
+            Struct prev;
+            if(useCache){
+                prev=cached.get(id);
+                if(prev!=null){
+                    return prev.setMutability(mutability);
+                }
+            }
+            prev=new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
+                    extended, genericArgs,null,null,tokens,context,mutability,declaredAt,endPos);
+            if (useCache) {
+                cached.put(id,prev);
+            }
+            return prev;
         }
         private static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
-                             StructField[] fields,Type[] types,Mutability mutability, FilePosition declaredAt,FilePosition endPos) {
+                             StructField[] fields,Type[] types,Mutability mutability, FilePosition declaredAt,FilePosition endPos,
+                                     boolean useCache) {
             if(fields.length!=types.length){
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
-            return new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
-                    extended, genericArgs, types,fields,null, null,mutability, declaredAt,endPos);//addLater? caching
+            StructId id=new StructId(declaredAt,genericArgs);
+            Struct prev;
+            if(useCache){
+                prev=cached.get(id);
+                if(prev!=null){
+                    return prev.setMutability(mutability);
+                }
+            }
+            prev = new Struct(Tuple.namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
+                    extended, genericArgs, types,fields,null, null,mutability, declaredAt,endPos);
+            if (useCache) {
+                cached.put(id,prev);
+            }
+            return prev;
         }
 
         private Struct(String name, String baseName, boolean isPublic, Struct extended,
@@ -1056,10 +1098,10 @@ public class Type {
             if(!isTypeChecked()){
                 return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
                         genericArgs,new ArrayList<>(tokens),context.newInstance(true),
-                        newMutability,declaredAt,endPos);
+                        newMutability,declaredAt,endPos,false);
             }
             return create(baseName,isPublic,extended==null?null:extended.setMutability(newMutability),
-                    genericArgs,fields,elements,newMutability,declaredAt,endPos);
+                    genericArgs,fields,elements,newMutability,declaredAt,endPos,false);
         }
 
         @Override
@@ -1084,10 +1126,10 @@ public class Type {
         Struct replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             return (Struct)replaceGenerics(generics,(newArgs,newElements)->
                     create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                   newArgs,fields,newElements,mutability,declaredAt,endPos),
+                   newArgs,fields,newElements,mutability,declaredAt,endPos,true),
                     (newArgs)->(newTokens,newContext)->
                             create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                                    newArgs,newTokens,newContext,mutability,declaredAt,endPos)
+                                    newArgs,newTokens,newContext,mutability,declaredAt,endPos,true)
                     );
         }
 
