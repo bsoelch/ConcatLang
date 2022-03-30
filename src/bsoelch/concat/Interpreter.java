@@ -344,7 +344,7 @@ public class Interpreter {
                     case TUPLE_GET_INDEX -> {
                         assert next instanceof Parser.TupleElementAccess;
                         Value tuple = stack.pop();
-                        stack.push(tuple.get(((Parser.TupleElementAccess) next).index));
+                        stack.push(tuple.getField(((Parser.TupleElementAccess) next).index));
                     }
                     case TUPLE_SET_INDEX -> {
                         assert next instanceof Parser.TupleElementAccess;

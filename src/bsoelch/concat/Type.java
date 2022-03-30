@@ -77,6 +77,18 @@ public class Type {
                             .stream().map(s->Value.ofString(s,false)).toArray(Value[]::new))};
                 }
             }, declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{ANY,UINT,TYPE},new Type[]{ANY},"getField") {
+                @Override
+                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+                    Value instance = values[0];
+                    long index     = values[1].asLong();
+                    Type type      = values[2].asType();
+                    if(!instance.type.canAssignTo(type)){
+                        throw new TypeError("cannot assign "+instance.type+" to "+type);
+                    }
+                    return new Value[]{instance.getField(index)};
+                }
+            }, declaredAt());
 
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isEnum") {
                 @Override
@@ -971,11 +983,7 @@ public class Type {
                 indexByName=null;
             }
         }
-        @Override
-        void initTypeFields() throws SyntaxError {
-            super.initTypeFields();
-            //TODO implement elements access for structs
-        }
+
         @Override
         public List<Type> genericArguments() {
             return Arrays.asList(genericArgs);

@@ -1,6 +1,6 @@
 float byte genTuple
-uint uint genTuple (1, 2, 3)
-float float genTuple (1, 2, 3)
+uint uint genTuple (a:1, b:2, c:3)
+float float genTuple (a:1, b:2, c:3)
 
 Stack:
 []

@@ -86,7 +86,7 @@ public abstract class Value {
     public Value[] getElements() throws TypeError {
         throw new TypeError("getElements is not supported for type "+type);
     }
-    public Value get(long index) throws ConcatRuntimeError {
+    public Value getField(long index) throws ConcatRuntimeError {
         throw new TypeError("Element access not supported for type "+type);
     }
     public void set(long index,Value value) throws ConcatRuntimeError {
@@ -384,19 +384,6 @@ public abstract class Value {
                 return ((Type.Enum) typeValue).elementCount();
             }else{
                 return super.length();
-            }
-        }
-
-        @Override
-        public Value get(long index) throws ConcatRuntimeError {
-            if(typeValue instanceof Type.Enum){
-                if(index<0||index>=((Type.Enum) typeValue).elementCount()){
-                    throw new ConcatRuntimeError("index out of bounds:"+index+" size:"
-                            +((Type.Enum) typeValue).elementCount());
-                }
-                return ofString(((Type.Enum) typeValue).get((int)index),false);
-            }else{
-                return super.get(index);
             }
         }
 
@@ -981,7 +968,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value get(long index) throws ConcatRuntimeError {
+        public Value getField(long index) throws ConcatRuntimeError {
             if(index<0||index>=elements.length){
                 throw new ConcatRuntimeError("Index out of bounds:"+index+" length:"+elements.length);
             }

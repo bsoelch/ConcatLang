@@ -50,7 +50,18 @@ list #include
     }
     ')' << return
   else value .type .isStruct if
-    "(struct)" <<* return ## FIXME print structure body
+    value .type sType =::
+    sType .fieldNames fields =::
+    0 i =::
+    '(' <<
+    while{ i fields .length < do
+      i 0 > if{
+        ", " <<*
+      }
+      fields i [] <<* ':' << value i sType .getField <<s
+      i 1 + i =
+    }
+    ')' << return
   else value .type .isArray ||{ value .type .isMemory } if
     value <<array return
   else value .type .isOptional if
