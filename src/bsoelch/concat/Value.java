@@ -1346,17 +1346,25 @@ public abstract class Value {
             return unused;
         }
     }
-    public abstract static class InternalProcedure extends NativeProcedure{
+    public static final class InternalProcedure extends NativeProcedure{
         public static final FilePosition POSITION = new FilePosition("internal", 0, 0);
 
-        protected InternalProcedure(Type[] inTypes, Type[] outTypes, String name) {
+        final ConcatRuntimeError.Function<Value[],Value[]> action;
+
+        InternalProcedure(Type[] inTypes, Type[] outTypes, String name,
+                          ConcatRuntimeError.Function<Value[], Value[]> action) {
             super(Type.Procedure.create(inTypes, outTypes,POSITION), name, POSITION);
+            this.action = action;
         }
-        protected InternalProcedure(Type.GenericParameter[] generics,Type[] inTypes, Type[] outTypes, String name) {
+        InternalProcedure(Type.GenericParameter[] generics, Type[] inTypes, Type[] outTypes, String name,
+                                    ConcatRuntimeError.Function<Value[], Value[]> action) {
             super(Type.GenericProcedureType.create(generics,inTypes, outTypes,POSITION), name, POSITION);
+            this.action = action;
         }
         @Override
-        abstract Value[] callWith(Value[] values) throws ConcatRuntimeError;
+        Value[] callWith(Value[] values) throws ConcatRuntimeError {
+            return action.apply(values);
+        }
 
         @Override
         public String stringValue() {
@@ -1371,543 +1379,301 @@ public abstract class Value {
 
     static ArrayList<InternalProcedure> internalProcedures(){
         ArrayList<InternalProcedure> procs=new ArrayList<>();
-        procs.add(new InternalProcedure(new Type[]{Type.ANY},new Type[]{Type.UINT},"refId") {
-            @Override
-            Value[] callWith(Value[] values){
-                return new Value[]{Value.ofInt(values[0].id(),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"===") {
-            @Override
-            Value[] callWith(Value[] values){
-                return new Value[]{values[0].isEqualTo(values[1])?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"=!=") {
-            @Override
-            Value[] callWith(Value[] values){
-                return new Value[]{values[0].isEqualTo(values[1])?FALSE:TRUE};
-            }
-        });
+        procs.add(new InternalProcedure(new Type[]{Type.ANY},new Type[]{Type.UINT},"refId",
+                (values) -> new Value[]{Value.ofInt(values[0].id(),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"===",
+                (values) -> new Value[]{values[0].isEqualTo(values[1])?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"=!=",
+                (values) -> new Value[]{values[0].isEqualTo(values[1])?FALSE:TRUE}));
         //addLater? implement equals in standard library
-        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"==") {
-            @Override
-            Value[] callWith(Value[] values){
-                return new Value[]{values[0].equals(values[1])?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"!=") {
-            @Override
-            Value[] callWith(Value[] values){
-                return new Value[]{values[0].equals(values[1])?FALSE:TRUE};
-            }
-        });
+        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"==",
+                (values) -> new Value[]{values[0].equals(values[1])?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"!=",
+                (values) -> new Value[]{values[0].equals(values[1])?FALSE:TRUE}));
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone") {
-                @Override
-                Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false,null)};
-                }
-            });
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone",
+                    (values) -> new Value[]{values[0].clone(false,null)}));
         }
         {//cloning an immutable array creates a mutable copy
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a)},
-                    new Type[]{Type.arrayOf(a).mutable()},"clone") {
-                @Override
-                Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false,values[0].type.mutable())};
-                }
-            });
+                    new Type[]{Type.arrayOf(a).mutable()},"clone",
+                    (values) -> new Value[]{values[0].clone(false,values[0].type.mutable())}));
         }
         {//cloning an immutable array creates a mutable copy
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable()},
-                    new Type[]{Type.arrayOf(a).mutable()},"clone") {
-                @Override
-                Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false,values[0].type.mutable())};
-                }
-            });
+                    new Type[]{Type.arrayOf(a).mutable()},"clone",
+                    (values) -> new Value[]{values[0].clone(false,values[0].type.mutable())}));
         }
         {//cloning an immutable copy of a mutable array
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable()},
-                    new Type[]{Type.arrayOf(a)},"clone-mut~") {//addLater better name
-                @Override
-                Value[] callWith(Value[] values){
-                    return new Value[]{values[0].clone(false,values[0].type.asArray().immutable())};
-                }
-            });
+                    new Type[]{Type.arrayOf(a)},"clone-mut~",//addLater better name
+                    (values) -> new Value[]{values[0].clone(false,values[0].type.asArray().immutable())}));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone!") {
-                @Override
-                Value[] callWith(Value[] values){//addLater? implement deep clone in standard library
-                    return new Value[]{values[0].clone(true,null)};
-                }
-            });
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone!",
+                    (values) -> new Value[]{values[0].clone(true,null)}));
         }
 
         Type unsigned = Type.UnionType.create(new Type[]{Type.BYTE,Type.CODEPOINT,Type.UINT});
         Type integer = Type.UnionType.create(new Type[]{unsigned,Type.INT});
         Type number  = Type.UnionType.create(new Type[]{integer,Type.FLOAT});
 
-        procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!") {
-            @Override
-            Value[] callWith(Value[] values) throws TypeError {
-                return new Value[]{values[0].asBool()?FALSE:TRUE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"~") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(~values[0].asLong(),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.UINT},new Type[]{Type.UINT},"~") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(~values[0].asLong(),true)};
-            }
-        });
+        procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!",
+                (values) -> new Value[]{values[0].asBool()?FALSE:TRUE}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"~",
+                (values) -> new Value[]{ofInt(~values[0].asLong(),false)}));
+        procs.add(new InternalProcedure(new Type[]{Type.UINT},new Type[]{Type.UINT},"~",
+                (values) -> new Value[]{ofInt(~values[0].asLong(),true)}));
 
-        procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"&") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{values[0].asBool()&&values[1].asBool()?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"|") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{values[0].asBool()||values[1].asBool()?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"xor") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{values[0].asBool()^values[1].asBool()?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"&") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()&values[1].asLong(),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"&") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()&values[1].asLong(),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"|") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()|values[1].asLong(),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"|") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()|values[1].asLong(),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"xor") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()^values[1].asLong(),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"xor") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()^values[1].asLong(),false)};
-            }
-        });
+        procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"&",
+                (values) -> new Value[]{values[0].asBool()&&values[1].asBool()?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"|",
+                (values) -> new Value[]{values[0].asBool()||values[1].asBool()?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"xor",
+                (values) -> new Value[]{values[0].asBool()^values[1].asBool()?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"&",
+                (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"&",
+                (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),false)}));
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"|",
+                (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"|",
+                (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),false)}));
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"xor",
+                (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"xor",
+                (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),false)}));
 
-        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"<<") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()<<values[1].asLong(),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"<<") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(Value.signedLeftShift(values[0].asLong(),values[1].asLong()),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},">>") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()>>>values[1].asLong(),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},">>") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()>>values[1].asLong(),false)};
-            }
-        });
+        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"<<",
+                (values) -> new Value[]{ofInt(values[0].asLong()<<values[1].asLong(),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"<<",
+                (values) -> new Value[]{ofInt(signedLeftShift(values[0].asLong(),values[1].asLong()),false)}));
+        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},">>",
+                (values) -> new Value[]{ofInt(values[0].asLong()>>>values[1].asLong(),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},">>",
+                (values) -> new Value[]{ofInt(values[0].asLong()>>values[1].asLong(),false)}));
 
-        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"-_") {
-            @Override
-            Value[] callWith(Value[] values) throws TypeError {
-                return new Value[]{Value.ofInt(-(values[0].asLong()),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"-_") {
-            @Override
-            Value[] callWith(Value[] values) throws TypeError {
-                return new Value[]{Value.ofFloat(-(values[0].asDouble()))};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"/_") {
-            @Override
-            Value[] callWith(Value[] values) throws TypeError {
-                return new Value[]{Value.ofFloat(1.0/values[0].asDouble())};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"+") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()+values[1].asLong(),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"+") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()+values[1].asLong(),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"+") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofFloat(values[0].asDouble()+values[1].asDouble())};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"-") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()-values[1].asLong(),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{integer,integer},new Type[]{Type.INT},"-") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()-values[1].asLong(),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"-") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofFloat(values[0].asDouble()-values[1].asDouble())};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"*") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()*values[1].asLong(),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"*") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()*values[1].asLong(),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"*") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofFloat(values[0].asDouble()*values[1].asDouble())};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"/") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"/") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()/values[1].asLong(),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"/") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofFloat(values[0].asDouble()/values[1].asDouble())};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"%") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(Long.remainderUnsigned(values[0].asLong(),values[1].asLong()),true)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"%") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofInt(values[0].asLong()%values[1].asLong(),false)};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"%") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{ofFloat(values[0].asDouble()%values[1].asDouble())};
-            }
-        });
+        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"-_",
+                (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false)}));
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"-_",
+                (values) -> new Value[]{Value.ofFloat(-(values[0].asDouble()))}));
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"/_",
+                (values) -> new Value[]{Value.ofFloat(1.0/values[0].asDouble())}));
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"+",
+                (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"+",
+                (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),false)}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"+",
+                (values) -> new Value[]{ofFloat(values[0].asDouble()+values[1].asDouble())}));
+        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"-",
+                (values)-> new Value[]{ofInt(values[0].asLong()-values[1].asLong(),true)}));
+        procs.add(new InternalProcedure(new Type[]{integer,integer},new Type[]{Type.INT},"-",
+                (values) ->  new Value[]{ofInt(values[0].asLong()-values[1].asLong(),false)}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"-",
+                (values) ->  new Value[]{ofFloat(values[0].asDouble()-values[1].asDouble())}));
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"*",
+                (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"*",
+                (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),false)}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"*",
+                (values) ->  new Value[]{ofFloat(values[0].asDouble()*values[1].asDouble())}));
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"/",
+                (values) ->  new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"/",
+                (values) ->  new Value[]{ofInt(values[0].asLong()/values[1].asLong(),false)}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"/",
+                (values) ->  new Value[]{ofFloat(values[0].asDouble()/values[1].asDouble())}));
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"%",
+                (values) ->  new Value[]{ofInt(Long.remainderUnsigned(values[0].asLong(),values[1].asLong()),true)}));
+        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"%",
+                (values) ->  new Value[]{ofInt(values[0].asLong()%values[1].asLong(),false)}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"%",
+                (values) ->  new Value[]{ofFloat(values[0].asDouble()%values[1].asDouble())}));
 
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{compareNumbers(values[0],values[1])>0?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">=") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{compareNumbers(values[0],values[1])>=0?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{compareNumbers(values[0],values[1])<0?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<=") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{compareNumbers(values[0],values[1])<=0?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"==") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{compareNumbers(values[0],values[1])==0?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"!=") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{compareNumbers(values[0],values[1])!=0?TRUE:FALSE};
-            }
-        });
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">",
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])>0?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">=",
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])>=0?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<",
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])<0?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<=",
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])<=0?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"==",
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])==0?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"!=",
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])!=0?TRUE:FALSE}));
 
-        procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},"<=") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{values[0].asType().canAssignTo(values[1].asType())?TRUE:FALSE};
-            }
-        });
-        procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},">=") {
-            @Override
-            Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                return new Value[]{values[1].asType().canAssignTo(values[0].asType())?TRUE:FALSE};
-            }
-        });
+        procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},"<=",
+                (values) ->  new Value[]{values[0].asType().canAssignTo(values[1].asType())?TRUE:FALSE}));
+        procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},">=",
+                (values) ->  new Value[]{values[1].asType().canAssignTo(values[0].asType())?TRUE:FALSE}));
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),Type.UINT},
-                    new Type[]{a},"[]") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list index
-                    return new Value[]{((ArrayLike)values[0]).get(values[1].asLong())};
-                }
-            });
+                    new Type[]{a},"[]",
+                    (values) ->  new Value[]{((ArrayLike)values[0]).get(values[1].asLong())}));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.arrayOf(a).mutable(),Type.UINT},
-                    new Type[]{},"[]=") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //val list index
-                    ((ArrayLike)values[1]).set(values[2].asLong(),values[0]);
-                    return new Value[0];
-                }
-            });
+                    new Type[]{},"[]=", (values) ->  {
+                        //val list index
+                        ((ArrayLike)values[1]).set(values[2].asLong(),values[0]);
+                        return new Value[0];
+                    }));
         }
 
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{Type.optionalOf(a)},"wrap") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{wrap(values[0])};
-                }
-            });
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{Type.optionalOf(a)},
+                    "wrap",
+                    (values) ->  new Value[]{wrap(values[0])}));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.optionalOf(a)},new Type[]{Type.BOOL},"!") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{values[0].hasValue()?FALSE:TRUE};
-                }
-            });
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.optionalOf(a)},
+                    new Type[]{Type.BOOL},"!",
+                    (values) ->  new Value[]{values[0].hasValue()?FALSE:TRUE}));
         }
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             Type list = Type.memoryOf(a).mutable();
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{list,a},new Type[]{},"[]^=") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //list val
-                    ((ArrayLike)values[0]).append(values[1]);
-                    return new Value[0];
-                }
-            });
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{list,a},new Type[]{},"[]^=",
+                    (values) ->   {
+                        //list val
+                        ((ArrayLike)values[0]).append(values[1]);
+                        return new Value[0];
+                    }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             Type list = Type.memoryOf(a).mutable();
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,list},new Type[]{},"^[]=") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //val list
-                    ((ArrayLike)values[1]).prepend(values[0]);
-                    return new Value[0];
-                }
-            });
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,list},new Type[]{},"^[]=",
+                    (values) ->  {
+                        //val list
+                        ((ArrayLike)values[1]).prepend(values[0]);
+                        return new Value[0];
+                    }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
-                    Type.UINT,Type.memoryOf(a).mutable(), Type.INT,Type.UINT}, new Type[]{},"copy") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //src srcOff target targetOff count
-                    ArrayLike src=(ArrayLike)values[0];
-                    long srcOff=values[1].asLong();
-                    ArrayLike target=(ArrayLike)values[2];
-                    long off=values[3].asLong();
-                    long count=values[4].asLong();
-                    target.copyFrom(off,src.elements(),srcOff,count);
-                    return new Value[0];
-                }
-            });
+                    Type.UINT,Type.memoryOf(a).mutable(), Type.INT,Type.UINT}, new Type[]{},"copy",
+                    (values) ->   {
+                        //src srcOff target targetOff count
+                        ArrayLike src=(ArrayLike)values[0];
+                        long srcOff=values[1].asLong();
+                        ArrayLike target=(ArrayLike)values[2];
+                        long off=values[3].asLong();
+                        long count=values[4].asLong();
+                        target.copyFrom(off,src.elements(),srcOff,count);
+                        return new Value[0];
+                    }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
-                    Type.UINT,Type.arrayOf(a).mutable(), Type.UINT,Type.UINT}, new Type[]{},"copy") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //src srcOff target targetOff count
-                    ArrayLike src=(ArrayLike)values[0];
-                    long srcOff=values[1].asLong();
-                    ArrayLike target=(ArrayLike)values[2];
-                    long off=values[3].asLong();
-                    long count=values[4].asLong();
-                    target.copyFrom(off,src.elements(),srcOff,count);
-                    return new Value[0];
-                }
-            });
+                    Type.UINT,Type.arrayOf(a).mutable(), Type.UINT,Type.UINT}, new Type[]{},"copy",
+                    (values) ->  {
+                        //src srcOff target targetOff count
+                        ArrayLike src=(ArrayLike)values[0];
+                        long srcOff=values[1].asLong();
+                        ArrayLike target=(ArrayLike)values[2];
+                        long off=values[3].asLong();
+                        long count=values[4].asLong();
+                        target.copyFrom(off,src.elements(),srcOff,count);
+                        return new Value[0];
+                    }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
                     Type.UINT,Type.memoryOf(a).mutable(), Type.UINT,Type.UINT,Type.UINT},
-                    new Type[]{},"copyToSlice") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //src srcOff target targetOff count
-                    ArrayLike src=(ArrayLike)values[0];
-                    long srcOff=values[1].asLong();
-                    ArrayLike target=(ArrayLike)values[2];
-                    long sliceStart=values[3].asLong();
-                    long sliceEnd=values[4].asLong();
-                    long count=values[5].asLong();
-                    target.copyToSlice(sliceStart,sliceEnd,src.elements(),srcOff,count);
-                    return new Value[0];
-                }
-            });
+                    new Type[]{},"copyToSlice",
+                    (values) ->  {
+                        //src srcOff target targetOff count
+                        ArrayLike src=(ArrayLike)values[0];
+                        long srcOff=values[1].asLong();
+                        ArrayLike target=(ArrayLike)values[2];
+                        long sliceStart=values[3].asLong();
+                        long sliceEnd=values[4].asLong();
+                        long count=values[5].asLong();
+                        target.copyToSlice(sliceStart,sliceEnd,src.elements(),srcOff,count);
+                        return new Value[0];
+                    }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.memoryOf(a).mutable(),
-                    Type.INT,Type.UINT}, new Type[]{},"fill") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //val target off count
-                    Value val=values[0];
-                    ArrayLike target=(ArrayLike)values[1];
-                    long off=values[2].asLong();
-                    long count=values[3].asLong();
-                    target.fill(val,off,count);
-                    return new Value[0];
-                }
-            });
+                    Type.INT,Type.UINT}, new Type[]{},"fill",
+                    (values) ->   {
+                        //val target off count
+                        Value val=values[0];
+                        ArrayLike target=(ArrayLike)values[1];
+                        long off=values[2].asLong();
+                        long count=values[3].asLong();
+                        target.fill(val,off,count);
+                        return new Value[0];
+                    }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.arrayOf(a).mutable(),
-                    Type.INT,Type.UINT}, new Type[]{},"fill") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //val target off count
-                    Value val=values[0];
-                    ArrayLike target=(ArrayLike)values[1];
-                    long off=values[2].asLong();
-                    long count=values[3].asLong();
-                    target.fill(val,off,count);
-                    return new Value[0];
-                }
-            });
+                    Type.INT,Type.UINT}, new Type[]{},"fill",
+                    (values) ->   {
+                        //val target off count
+                        Value val=values[0];
+                        ArrayLike target=(ArrayLike)values[1];
+                        long off=values[2].asLong();
+                        long count=values[3].asLong();
+                        target.fill(val,off,count);
+                        return new Value[0];
+                    }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},
-                    new Type[]{Type.memoryOf(a).mutable(),Type.UINT,Type.UINT}, new Type[]{},"clearSlice") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //memory off to
-                    ArrayLike mem=(ArrayLike)values[0];
-                    long off=values[1].asLong();
-                    long to=values[2].asLong();
-                    mem.clearSlice(off,to);
-                    return new Value[0];
-                }
-            });
+                    new Type[]{Type.memoryOf(a).mutable(),Type.UINT,Type.UINT}, new Type[]{},"clearSlice",
+                    (values) ->  {
+                        //memory off to
+                        ArrayLike mem=(ArrayLike)values[0];
+                        long off=values[1].asLong();
+                        long to=values[2].asLong();
+                        mem.clearSlice(off,to);
+                        return new Value[0];
+                    }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.memoryOf(a).mutable(),
-                    Type.UINT}, new Type[]{},"realloc") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //memory newSize
-                    ArrayLike mem=(ArrayLike)values[0];
-                    long newSize=values[1].asLong();
-                    mem.reallocate(newSize);
-                    return new Value[0];
-                }
-            });
+                    Type.UINT}, new Type[]{},"realloc",
+                    (values) ->   {
+                        //memory newSize
+                        ArrayLike mem=(ArrayLike)values[0];
+                        long newSize=values[1].asLong();
+                        mem.reallocate(newSize);
+                        return new Value[0];
+                    }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.memoryOf(a).mutable(),
-                    Type.INT}, new Type[]{},"setOffset") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    //memory newOffset
-                    ArrayLike mem=(ArrayLike)values[0];
-                    long newOffset=values[1].asLong();
-                    mem.setOffset(newOffset);
-                    return new Value[0];
-                }
-            });
+                    Type.INT}, new Type[]{},"setOffset",
+                    (values) ->  {
+                        //memory newOffset
+                        ArrayLike mem=(ArrayLike)values[0];
+                        long newOffset=values[1].asLong();
+                        mem.setOffset(newOffset);
+                        return new Value[0];
+                    }));
         }
 
         return procs;

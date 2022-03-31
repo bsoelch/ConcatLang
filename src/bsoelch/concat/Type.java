@@ -37,49 +37,33 @@ public class Type {
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();//addLater? make type-data getters return optional
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{TYPE},"content") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofType(values[0].asType().content())};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"genericArguments") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
-                            values[0].asType().genericArguments().stream().map(Value::ofType).toArray(Value[]::new))};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"inTypes") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
-                            values[0].asType().inTypes().stream().map(Value::ofType).toArray(Value[]::new))};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"outTypes") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
-                            values[0].asType().outTypes().stream().map(Value::ofType).toArray(Value[]::new))};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{RAW_STRING()},"name") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofString(values[0].asType().typeName(),false)};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(RAW_STRING())},"fieldNames") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.createArray(Type.arrayOf(Type.RAW_STRING()),values[0].asType().fields()
-                            .stream().map(s->Value.ofString(s,false)).toArray(Value[]::new))};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{ANY,UINT,TYPE},new Type[]{ANY},"getField") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{TYPE},"content",
+                    (values) ->
+                            new Value[]{Value.ofType(values[0].asType().content())}), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"genericArguments",
+                (values) ->
+                        new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
+                            values[0].asType().genericArguments().stream().map(Value::ofType).toArray(Value[]::new))}),
+                    declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"inTypes",
+                (values) ->
+                        new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
+                            values[0].asType().inTypes().stream().map(Value::ofType).toArray(Value[]::new))}),
+                    declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"outTypes",
+                (values) ->
+                        new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
+                            values[0].asType().outTypes().stream().map(Value::ofType).toArray(Value[]::new))}),
+                    declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{RAW_STRING()},"name",
+                (values) -> new Value[]{Value.ofString(values[0].asType().typeName(),false)}),
+                    declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(RAW_STRING())},"fieldNames",
+                (values) -> new Value[]{Value.createArray(Type.arrayOf(Type.RAW_STRING()),values[0].asType().fields()
+                            .stream().map(s->Value.ofString(s,false)).toArray(Value[]::new))}),
+                    declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{ANY,UINT,TYPE},new Type[]{ANY},"getField",
+                (values) ->  {
                     Value instance = values[0];
                     long index     = values[1].asLong();
                     Type type      = values[2].asType();
@@ -87,70 +71,28 @@ public class Type {
                         throw new TypeError("cannot assign "+instance.type+" to "+type);
                     }
                     return new Value[]{instance.getField(index)};
-                }
-            }, declaredAt());
+                }), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isEnum",
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Enum)}), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isArray",
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isArray())}), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMemory",
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isMemory())}), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isProc",
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Type.Procedure)}), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isOptional",
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isOptional())}), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isTuple",
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Tuple)}), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isStruct",
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Struct)}), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isUnion",
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof UnionType)}), declaredAt());
 
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isEnum") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType() instanceof Enum)};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isArray") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType().isArray())};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMemory") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType().isMemory())};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isProc") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType() instanceof Type.Procedure)};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isOptional") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType().isOptional())};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isTuple") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType() instanceof Tuple)};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isStruct") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType() instanceof Struct)};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isUnion") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType() instanceof UnionType)};
-                }
-            }, declaredAt());
-
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMutable") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType().isMutable())};
-                }
-            }, declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMaybeMutable") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofBool(values[0].asType().isMaybeMutable())};
-                }
-            }, declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMutable",
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isMutable())}), declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMaybeMutable",
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isMaybeMutable())}), declaredAt());
         }
     };
     public static final Type BOOL  = new Type("bool", false);
@@ -282,12 +224,8 @@ public class Type {
         }
     }
     void initTypeFields() throws SyntaxError {
-        addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{TYPE},"type") {
-            @Override
-            Value[] callWith(Value[] values){
-                return new Value[]{Value.ofType(values[0].type)};
-            }
-        },declaredAt());
+        addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{TYPE},"type",
+                (values) ->  new Value[]{Value.ofType(values[0].type)}),declaredAt());
     }
     void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError{ }
 
@@ -542,50 +480,26 @@ public class Type {
             super.initTypeFields();
             switch (wrapperName) {
                 case OPTIONAL -> {
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{BOOL}, "hasValue") {
-                        @Override
-                        Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                            return new Value[]{Value.ofBool(values[0].hasValue())};
-                        }
-                    }, declaredAt());
+                    addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{BOOL}, "hasValue",
+                            (values) -> new Value[]{Value.ofBool(values[0].hasValue())}), declaredAt());
                     //addLater static check if optional is nonempty
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{contentType}, "value") {
-                        @Override
-                        Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                            return new Value[]{values[0].unwrap()};
-                        }
-                    }, declaredAt());
+                    addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{contentType}, "value",
+                            (values) -> new Value[]{values[0].unwrap()}), declaredAt());
                 }
                 case MEMORY -> {
                     addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
-                            new Type[]{UINT}, "length") {
-                        @Override
-                        Value[] callWith(Value[] values) {
-                            return new Value[]{Value.ofInt(((ArrayLike) values[0]).length(), true)};
-                        }
-                    }, declaredAt());
+                            new Type[]{UINT}, "length", (values) ->
+                            new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)}), declaredAt());
                     addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
-                            new Type[]{UINT}, "capacity") {
-                        @Override
-                        Value[] callWith(Value[] values) {
-                            return new Value[]{Value.ofInt(((ArrayLike) values[0]).capacity(), true)};
-                        }
-                    }, declaredAt());
+                            new Type[]{UINT}, "capacity", (values) ->
+                            new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).capacity(), true)}), declaredAt());
                     addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
-                            new Type[]{UINT}, "offset") {
-                        @Override
-                        Value[] callWith(Value[] values) {
-                            return new Value[]{Value.ofInt(((ArrayLike) values[0]).offset(), true)};
-                        }
-                    }, declaredAt());
+                            new Type[]{UINT}, "offset", (values) ->
+                            new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).offset(), true)}), declaredAt());
                 }
                 case ARRAY -> addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
-                        new Type[]{UINT}, "length") {
-                    @Override
-                    Value[] callWith(Value[] values) {
-                        return new Value[]{Value.ofInt(((ArrayLike) values[0]).length(), true)};
-                    }
-                }, declaredAt());
+                        new Type[]{UINT}, "length", (values) ->
+                        new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)}), declaredAt());
             }
         }
         void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
@@ -784,18 +698,11 @@ public class Type {
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();
-            addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{UINT},"length") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.ofInt(values[0].length(),true)};
-                }
-            },declaredAt());//addLater? remember declaration position of tuples
-            addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{arrayOf(ANY)},"elements") {
-                @Override
-                Value[] callWith(Value[] values) throws ConcatRuntimeError {
-                    return new Value[]{Value.createArray(arrayOf(ANY),values[0].getElements())};
-                }
-            },declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{UINT},"length",
+                (values) -> //addLater? remember declaration position of tuples
+                        new Value[]{Value.ofInt(values[0].length(),true)}),declaredAt());
+            addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{arrayOf(ANY)},"elements",
+                (values) ->  new Value[]{Value.createArray(arrayOf(ANY),values[0].getElements())}),declaredAt());
         }
 
         @Override
