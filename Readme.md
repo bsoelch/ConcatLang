@@ -276,7 +276,7 @@ array ^_ for{
 
 reverse a string:
 ```
-_list #include ## buildString/build 
+list #include ## buildString/build 
 reverse proc( string => string ){
   string toReverse =:
   ## create an empty string builder
@@ -285,7 +285,7 @@ reverse proc( string => string ){
   toReverse _^ while{ <^ do
     byte cast res swap << res =
   } drop
-  res build return
+  res .build return
 }
 ```
 !!! `for{` does not work for backward iteration !!!
