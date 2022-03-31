@@ -175,6 +175,9 @@ public class Type {
 
     /**cache for the different variants of this type*/
     private final HashMap<Mutability,Type> withMutability;
+    Iterable<Type> withMutability(){
+        return withMutability.values();
+    }
 
     static String mutabilityPostfix(Mutability mutability) {
         switch (mutability){
@@ -994,8 +997,8 @@ public class Type {
 
             this.elements = src.elements;
             this.fields=src.fields;
-            this.tokens = src.tokens!=null?new ArrayList<>(src.tokens):null;
-            this.context = src.context!=null?src.context.newInstance(true):null;
+            this.tokens = src.tokens;
+            this.context = src.context;
             fieldNames=src.fieldNames;
             indexByName=src.indexByName;
         }
@@ -1053,6 +1056,15 @@ public class Type {
         public void setFields(StructField[] fields,Type[] elements) {
             this.elements = elements;
             initializeFields(fields);
+            for(Type t:withMutability()){//update elements of all mutabilities
+                assert t instanceof Struct;
+                if(((Struct)t).elements==null){
+                    ((Struct) t).elements=elements;
+                    ((Struct) t).initializeFields(fields);
+                    ((Struct) t).context=null;
+                }
+            }
+            context=null;
             tokens.clear();//tokens are no longer necessary
         }
         @Override
