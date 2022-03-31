@@ -9,6 +9,13 @@ ArrayBuilder public struct{ A <>
   A @missingBuild     :build     pseudo
 }
 
+<< public proc( A <?> A ArrayBuilder mut A => A ArrayBuilder mut ){
+  swap .append
+}
+<<* public proc( A <?> A ArrayBuilder mut A array mut? => A ArrayBuilder mut ){
+  swap .appendAll
+}
+
 missingAppend proc( A <> A A ArrayBuilder mut => A ArrayBuilder mut ){
   "missingAppend" debugPrint
   unreachable
