@@ -4,7 +4,7 @@ core #namespace
 stack #include
 codeblocks #include
 arraySlice #include
-consumer #include
+arrayBuilder #include
 
 ## TODO better way of reallocating:
 ##   try moving offset to avoid reallocating
