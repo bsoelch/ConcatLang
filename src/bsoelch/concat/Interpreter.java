@@ -245,6 +245,15 @@ public class Interpreter {
                         }
                         variables.remove(variables.size()-1);
                     }
+                    case PSEUDO_FIELD_ACCESS -> {
+                        assert next instanceof Parser.PseudoFieldAccess;
+                        Value val = stack.peek();
+                        Parser.Callable called=val.type.getPseudoField(((Parser.PseudoFieldAccess) next).fieldId);
+                        ExitType e=call(called, next, stack, globalVariables, variables, context);
+                        if(e!=ExitType.NORMAL){
+                            return e;
+                        }
+                    }
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Parser.Callable called;
                         if(next.tokenType== Parser.TokenType.CALL_PROC){
@@ -257,29 +266,10 @@ public class Interpreter {
                             }
                             called=(Parser.Callable) ptr;
                         }
-                        if(called instanceof Value.NativeProcedure nativeProc){
-                            int count=nativeProc.argCount();
-                            Value[] args=new Value[count];
-                            for(int i=count-1;i>=0;i--){
-                                args[i]=stack.pop();
-                            }
-                            args=nativeProc.callWith(args);
-                            for (Value arg : args) {
-                                stack.push(arg);
-                            }
-                        }else if(called instanceof Value.Procedure procedure){
-                            assert ((Value.Procedure) called).context.curried.isEmpty() || procedure.curriedArgs != null;
-                            ExitType e=recursiveRun(stack,procedure,globalVariables==null?variables:globalVariables,
-                                    null,procedure.curriedArgs,context);
-                            if(e!=ExitType.NORMAL){
-                                if(e==ExitType.ERROR) {
-                                    context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
-                                }
-                                return e;
-                            }
-                        }else{
-                            throw new RuntimeException("unexpected callable type: "+called.getClass());
-                        }//no else
+                        ExitType e=call(called, next, stack, globalVariables, variables, context);
+                        if(e!=ExitType.NORMAL){
+                            return e;
+                        }
                     }
                     case RETURN -> {
                         return ExitType.NORMAL;
@@ -369,6 +359,36 @@ public class Interpreter {
                 ip++;
             }
         }
+        return ExitType.NORMAL;
+    }
+
+    private ExitType call(Parser.Callable called, Parser.Token next, RandomAccessStack<Value> stack,
+                          ArrayList<Value[]> globalVariables, ArrayList<Value[]> variables,
+                          IOContext context)
+            throws RandomAccessStack.StackUnderflow, ConcatRuntimeError {
+        if(called instanceof Value.NativeProcedure nativeProc){
+            int count=nativeProc.argCount();
+            Value[] args=new Value[count];
+            for(int i=count-1;i>=0;i--){
+                args[i]= stack.pop();
+            }
+            args=nativeProc.callWith(args);
+            for (Value arg : args) {
+                stack.push(arg);
+            }
+        }else if(called instanceof Value.Procedure procedure){
+            assert ((Value.Procedure) called).context.curried.isEmpty() || procedure.curriedArgs != null;
+            ExitType e=recursiveRun(stack,procedure, globalVariables ==null? variables : globalVariables,
+                    null,procedure.curriedArgs, context);
+            if(e!=ExitType.NORMAL){
+                if(e==ExitType.ERROR) {
+                    context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                }
+                return e;
+            }
+        }else{
+            throw new RuntimeException("unexpected callable type: "+ called.getClass());
+        }//no else
         return ExitType.NORMAL;
     }
 

@@ -428,6 +428,10 @@ public class Type {
         Integer id=pseudoFieldNames.get(name);
         return id==null?null:(Parser.Callable)typeFields.get(id);
     }
+    Parser.Callable getPseudoField(int id){
+        ensureFieldsInitialized();
+        return (Parser.Callable)typeFields.get(id);
+    }
 
     /**returns the semi-mutable version of this type
      * @return a copy of this type with the given mutability*/

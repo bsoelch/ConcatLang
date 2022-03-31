@@ -25,6 +25,7 @@ public class Parser {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
+        PSEUDO_FIELD_ACCESS,
         //compile time operations
         ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
         MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifiers
@@ -380,6 +381,13 @@ public class Parser {
         @Override
         public String toString() {
             return variableType+"_"+accessType +":" +(variableType==VariableType.CURRIED?id:id.id)+" ("+variableName+")";
+        }
+    }
+    static class PseudoFieldAccess extends Token{
+        final int fieldId;
+        PseudoFieldAccess(FilePosition pos, int fieldId) {
+            super(TokenType.PSEUDO_FIELD_ACCESS, pos);
+            this.fieldId = fieldId;
         }
     }
 
@@ -2735,7 +2743,9 @@ public class Parser {
                 for(int i = 0; i< extended.elementCount(); i++){
                     aStruct.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
-                aStruct.inheritDeclaredFields(extended);
+                if(aStruct.typeFields().size()<=1){//FIXME find better way to detect if struct already inherited fields
+                    aStruct.inheritDeclaredFields(extended);
+                }
             }
             TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,globalConstants,new RandomAccessStack<>(8),
                     null,aStruct.endPos,ioContext);
@@ -2944,7 +2954,8 @@ public class Parser {
                         return Value.emptyOptional(t1);
                     },ret,typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
-                        CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX ->
+                        CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX,
+                        PSEUDO_FIELD_ACCESS ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -3809,14 +3820,12 @@ public class Parser {
                         }catch (NumberFormatException ignored){}
                     }
                     Callable pseudoField=f.type.getPseudoField(identifier.name);
-                    //TODO remember pseudo-fields accesses by their field-id (allow subtypes to overwrite values of pseudo field)
                     if(pseudoField!=null){
                         typeStack.push(f);//push f back onto the type-stack
                         CallMatch match = typeCheckOverloadedCall(pseudoField.name(),new OverloadedProcedure(pseudoField),null,typeStack,
                                 globalConstants,ret,ioContext,t.pos);
                         match.called.markAsUsed();
-                        CallToken token = new CallToken(match.called, identifier.pos);
-                        ret.add(token);
+                        ret.add(new PseudoFieldAccess(identifier.pos,f.type.pseudoFieldId(identifier.name)));
                         break;//found field
                     }
                     if(f.type==Type.TYPE&&f.value!=null){
