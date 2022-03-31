@@ -349,14 +349,13 @@ public class Type {
         return Collections.emptyList();
     }
 
-    int addField(String name,Value fieldValue,FilePosition pos) throws SyntaxError {
+    void addField(String name, Value fieldValue, FilePosition pos) throws SyntaxError {
         ensureFieldsInitialized();
         int id=typeFields.size();
-        if(typeFieldNames.put(name, id)!=null){
-            throw new SyntaxError(this.name+" already has a field "+name+" ",pos);
+        if(typeFieldNames.put(name,id)!=null){
+            throw new SyntaxError(this.name+" already has a type field "+name+" ",pos);
         }
         typeFields.add(fieldValue);
-        return id;
     }
     void addPseudoField(Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
         addPseudoField(fieldValue.name(),fieldValue,declaredAt);
@@ -368,8 +367,11 @@ public class Type {
             throw new SyntaxError(fieldValue.name()+" (declared at "+fieldValue.declaredAt()+") "+
                     "has an invalid signature for a pseudo-field of "+this+": "+Arrays.toString(in),declaredAt);
         }
-        int id=addField(name,(Value)fieldValue, declaredAt);//addLater? don't allow accessing pseudo fields as type fields
-        pseudoFieldNames.put(name,id);
+        int id=typeFields.size();
+        if(pseudoFieldNames.put(name,id)!=null){
+            throw new SyntaxError(this.name+" already has a field "+name+" ",declaredAt);
+        }
+        typeFields.add((Value) fieldValue);
     }
     void inheritDeclaredFields(Type extended) {
         ensureFieldsInitialized();
@@ -397,6 +399,10 @@ public class Type {
         //TODO check for correct type
         typeFields.set(index,newValue);
     }
+    void overwritePseudoField(int index,Value newValue){
+        //TODO check for correct type
+        typeFields.set(index,newValue);
+    }
 
 
     List<Value> typeFields(){
@@ -405,6 +411,11 @@ public class Type {
     int typeFieldId(String name){
         ensureFieldsInitialized();
         Integer id=typeFieldNames.get(name);
+        return id==null?-1:id;
+    }
+    int pseudoFieldId(String name){
+        ensureFieldsInitialized();
+        Integer id=pseudoFieldNames.get(name);
         return id==null?-1:id;
     }
     Value getTypeField(String name){
@@ -981,23 +992,18 @@ public class Type {
             indexByName=src.indexByName;
         }
 
-
-        public void inheritFields(Struct extended) {
-            super.inheritDeclaredFields(extended);
-        }
-
         void declareTypeField(String name, Value fieldValue, FilePosition pos) throws SyntaxError {
             ensureFieldsInitialized();
             if(declaredTypeFields.contains(name)){
                 throw new SyntaxError(baseName+" already has a field "+name,pos);
             }
             declaredTypeFields.add(name);
-            int parent=typeFieldId(name);
-            if(parent==-1){
+            int prevPos=typeFieldId(name);
+            if(prevPos==-1){
                 addField(name, fieldValue, pos);
                 return;
             }
-            overwriteTypeField(parent,fieldValue);
+            overwriteTypeField(prevPos,fieldValue);
         }
         void declarePseudoField(String name, Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
             ensureFieldsInitialized();
@@ -1005,12 +1011,12 @@ public class Type {
                 throw new SyntaxError(baseName+" already has a field "+name,declaredAt);
             }
             declaredTypeFields.add(name);
-            int parent=typeFieldId(name);
-            if(parent==-1) {
+            int prevPos=pseudoFieldId(name);
+            if(prevPos==-1) {
                 addPseudoField(name, fieldValue, declaredAt);
                 return;
             }
-            overwriteTypeField(parent,(Value)fieldValue);
+            overwritePseudoField(prevPos,(Value)fieldValue);
         }
 
         @Override

@@ -2735,7 +2735,7 @@ public class Parser {
                 for(int i = 0; i< extended.elementCount(); i++){
                     aStruct.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
-                aStruct.inheritFields(extended);
+                aStruct.inheritDeclaredFields(extended);
             }
             TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,globalConstants,new RandomAccessStack<>(8),
                     null,aStruct.endPos,ioContext);
