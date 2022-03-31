@@ -3974,9 +3974,15 @@ public class Parser {
                 }
             }
             d.markAsUsed();
-            typeStack.push(new TypeFrame(procType,proc, pos));
-            ValueToken token=new ValueToken(proc, pos);
-            ret.add(token);
+            if(procType instanceof Type.GenericProcedureType){
+                typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(new OverloadedProcedure(proc),
+                        new Type[0], ret.size(), pos),null, pos));
+                ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
+            }else{
+                typeStack.push(new TypeFrame(procType,proc, pos));
+                ValueToken token=new ValueToken(proc, pos);
+                ret.add(token);
+            }
         }else if(d instanceof Value.Procedure proc) {
             pushSimpleProcPointer(proc, typeStack, ret, globalConstants, ioContext, pos);
         }else if(d instanceof GenericProcedure proc){
