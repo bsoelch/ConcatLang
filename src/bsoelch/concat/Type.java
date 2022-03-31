@@ -1169,14 +1169,14 @@ public class Type {
                 if(!declaredAt.equals(((Struct) t).declaredAt)){
                     return extended != null && extended.canAssignTo(t, bounds);
                 }
-                return TupleLike.canAssignElements(this,(Struct)t,bounds);
+                for(int i=0;i<genericArgs.length;i++){
+                    if(!(genericArgs[i].canAssignTo(((Struct) t).genericArgs[i],bounds)&&
+                            ((Struct) t).genericArgs[i].canAssignTo(genericArgs[i],bounds.swapped())))
+                        return false;//addLater allow up/down-casting generic parameters (in specific conditions)
+                }
+                return true;
             }
             return super.canAssignTo(t, bounds);
-        }
-        private boolean rootCastableTo(Struct s){
-           return declaredAt.equals(s.declaredAt)||
-                   (extended != null && extended.rootCastableTo(s))||
-                   (s.extended != null && rootCastableTo(s.extended));
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
@@ -1184,11 +1184,16 @@ public class Type {
                 if(mutabilityIncompatible(t)){
                     return false;
                 }
-                if(!rootCastableTo((Struct)t)){
-                    return false;
+                if(!declaredAt.equals(((Struct) t).declaredAt)){
+                    return (extended != null && extended.canAssignTo(t, bounds))||
+                            (((Struct) t).extended != null && canCastTo(((Struct) t).extended,bounds));
                 }
-                return TupleLike.canAssignElements(this, (Struct) t, bounds) ||
-                        TupleLike.canAssignElements(((Struct) t), this, bounds.swapped());
+                for(int i=0;i<genericArgs.length;i++){
+                    if(!(genericArgs[i].canAssignTo(((Struct) t).genericArgs[i],bounds)&&
+                            ((Struct) t).genericArgs[i].canAssignTo(genericArgs[i],bounds.swapped())))
+                        return false;
+                }
+                return true;
             }
             return super.canAssignTo(t, bounds);
         }

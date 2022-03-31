@@ -3906,7 +3906,8 @@ public class Parser {
                 }
                 boolean isPseudo=(identifier.flags&IdentifierToken.MASK_FIELD_MODIFIER)==IdentifierToken.FIELD_MODIFIER_PSEUDO;
                 if (ret.size() <= 0 || !((prev = ret.remove(ret.size() - 1)) instanceof ValueToken)) {
-                    throw new SyntaxError("the token before a "+(isPseudo?"pseudo":"")+
+                    //TODO better message for implicit procedure pointers
+                    throw new SyntaxError("the token before a "+(isPseudo?" pseudo":"")+
                             "field declaration has to be a constant "+(isPseudo?"procedure pointer":"type"),
                             identifier.pos);
                 }
