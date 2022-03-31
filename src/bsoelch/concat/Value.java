@@ -1361,6 +1361,20 @@ public abstract class Value {
             super(Type.GenericProcedureType.create(generics,inTypes, outTypes,POSITION), name, POSITION);
             this.action = action;
         }
+        private InternalProcedure(Type.Procedure type, String name,ConcatRuntimeError.Function<Value[], Value[]> action) {
+            super(type, name, POSITION);
+            this.action = action;
+        }
+
+        @Override
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            Type newType=type.replaceGenerics(genericParams);
+            if(newType!=type){
+                return new InternalProcedure((Type.Procedure) newType,name,action);
+            }
+            return this;
+        }
+
         @Override
         Value[] callWith(Value[] values) throws ConcatRuntimeError {
             return action.apply(values);
