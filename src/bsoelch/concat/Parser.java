@@ -162,15 +162,10 @@ public class Parser {
 
         @Override
         public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
-            if(value.type==Type.TYPE){
-                try {
-                    return new ValueToken(Value.ofType(value.asType().replaceGenerics(genericParams)),pos);
-                } catch (TypeError e) {
-                    throw new RuntimeException(e);
-                }
-            }else{//value.type should not contain any generics
-                return this;
-            }
+            Value newValue = value.replaceGenerics(genericParams);
+            if(newValue!=value)
+                return new ValueToken(newValue,pos);
+            return this;
         }
     }
     static class StackModifierToken extends Token{

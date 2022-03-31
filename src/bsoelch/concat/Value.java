@@ -109,6 +109,9 @@ public abstract class Value {
             throw new TypeError("cannot cast from "+this.type+" to "+type);
         }
     }
+    public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        return this;
+    }
 
     public boolean isString(){
         return type.isRawString()||type.isUnicodeString();
@@ -119,6 +122,7 @@ public abstract class Value {
     public String toString() {
         return type+":"+stringValue();
     }
+
 
 
     private interface NumberValue{}
@@ -379,12 +383,12 @@ public abstract class Value {
         }
 
         @Override
-        public int length() throws TypeError {
-            if(typeValue instanceof Type.Enum){
-                return ((Type.Enum) typeValue).elementCount();
-            }else{
-                return super.length();
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            Type newType=typeValue.replaceGenerics(genericParams);
+            if(newType!=typeValue){
+                return new TypeValue(newType);
             }
+            return this;
         }
 
         @Override
@@ -610,6 +614,18 @@ public abstract class Value {
             Arrays.fill(data,content);
             offset=0;
             length=capacity;
+        }
+
+        @Override
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            Type newType=type.replaceGenerics(genericParams);
+            boolean changed=newType!=type;
+            Value[] newData=new Value[data.length];
+            for(int i=0;i<length;i++){
+                newData[i+offset]=data[i+offset].replaceGenerics(genericParams);
+                changed|=data[i+offset]!=newData[i+offset];
+            }
+            return changed?this:new ArrayValue(newType,newData,offset,length);
         }
 
         @Override
@@ -945,6 +961,18 @@ public abstract class Value {
         }
 
         @Override
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            Type.TupleLike newType=(Type.TupleLike)type.replaceGenerics(genericParams);
+            boolean changed=newType!=type;
+            Value[] newData=new Value[elements.length];
+            for(int i=0;i<elements.length;i++){
+                newData[i]=elements[i].replaceGenerics(genericParams);
+                changed|=elements[i]!=newData[i];
+            }
+            return changed?this:new TupleValue(newType,newData);
+        }
+
+        @Override
         public Value clone(boolean deep,Type targetType) {
             if(targetType==null)
                 targetType=type;
@@ -1053,6 +1081,7 @@ public abstract class Value {
             return declaredAt.hashCode();
         }
 
+        //TODO replace generics
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type instanceof Type.Procedure&&this.type.canCastTo(type)){
@@ -1148,6 +1177,14 @@ public abstract class Value {
         Object rawData(Type argType) throws TypeError {
             Value.jClass(type.content());//check type
             return wrapped==null?Optional.empty():Optional.of(wrapped.rawData(argType.content()));
+        }
+
+        @Override
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            Value newWrap=wrapped.replaceGenerics(genericParams);
+            if(newWrap!=wrapped)
+                return new OptionalValue(newWrap);
+            return this;
         }
 
         @Override
@@ -1273,6 +1310,7 @@ public abstract class Value {
             this.declaredAt = declaredAt;
         }
 
+        //TODO replace generics
         @Override
         public String name() {
             return name;
