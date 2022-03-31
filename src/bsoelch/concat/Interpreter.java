@@ -246,13 +246,18 @@ public class Interpreter {
                         variables.remove(variables.size()-1);
                     }
                     case PSEUDO_FIELD_ACCESS -> {
-                        assert next instanceof Parser.PseudoFieldAccess;
+                        assert next instanceof Parser.TypeFieldAccess;
                         Value val = stack.peek();
-                        Parser.Callable called=val.type.getPseudoField(((Parser.PseudoFieldAccess) next).fieldId);
+                        Parser.Callable called=val.type.getPseudoField(((Parser.TypeFieldAccess) next).fieldId);
                         ExitType e=call(called, next, stack, globalVariables, variables, context);
                         if(e!=ExitType.NORMAL){
                             return e;
                         }
+                    }
+                    case TYPE_FIELD_ACCESS -> {
+                        assert next instanceof Parser.TypeFieldAccess;
+                        Value val = stack.pop();
+                        stack.push(val.type.getTypeField(((Parser.TypeFieldAccess) next).fieldId));
                     }
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Parser.Callable called;

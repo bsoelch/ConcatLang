@@ -423,6 +423,10 @@ public class Type {
         Integer id=typeFieldNames.get(name);
         return id==null?null:typeFields.get(id);
     }
+    Value getTypeField(int id){
+        ensureFieldsInitialized();
+        return typeFields.get(id);
+    }
     Parser.Callable getPseudoField(String name){
         ensureFieldsInitialized();
         Integer id=pseudoFieldNames.get(name);
