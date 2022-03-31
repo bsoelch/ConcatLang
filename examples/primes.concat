@@ -18,7 +18,7 @@ printPrimes proc( int => ){
     buff k <<i ", " <<* buff =
     lambda( int ){ k % 0 != } filter ##filter out all multiples of k
   } drop
-  buff '\n' << build puts
+  buff '\n' << .build puts
 }
 
 100 printPrimes

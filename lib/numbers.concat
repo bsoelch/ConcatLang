@@ -41,7 +41,7 @@ getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
         ## even though <<i calls this function
         ## this error check should not be activated when <<i is called normally
         32 buildString
-        "Digit out of range: " <<* value <<i " base: " <<* base <<i '\n' << build eputs
+        "Digit out of range: " <<* value <<i " base: " <<* base <<i '\n' << .build eputs
         1 exit
     }
     value 10 < if{
@@ -54,7 +54,7 @@ getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
     }
 }
 
-<<???i public proc( #+buffer+# stringBuilder #+value+# uint #+base+# int #+signed+# bool #+big+# bool => stringBuilder ){
+<<???i public proc( #+buffer+# StringBuilder #+value+# uint #+base+# int #+signed+# bool #+big+# bool => StringBuilder ){
   bool big =:
   bool signed =:
   int base =:
@@ -63,7 +63,7 @@ getDigit proc( #+value+# int #+base+# int #+big+# bool => #+char+# byte ){
     ## even though printing recursively calls this function
     ## this error check should not be activated when <<i is called normally
     64 buildString
-    "Base out of range: " <<* base <<i ", base has to be between 2 and 62\n" <<* build eputs
+    "Base out of range: " <<* base <<i ", base has to be between 2 and 62\n" <<* .build eputs
     1 exit
   }
   value 0 == if{
@@ -86,35 +86,35 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
   bool signed =:
   int base =:
   int value =:
-  64 buildString value base signed big <<???i build return
+  64 buildString value base signed big <<???i .build return
 }
 
-<<?i public proc( #+buffer+#stringBuilder #+value+# int #+base+# int => stringBuilder ){
+<<?i public proc( #+buffer+#StringBuilder #+value+# int #+base+# int => StringBuilder ){
   #+signed+# true  #+big+# false <<???i return
 }
-<<?I public proc( #+buffer+#stringBuilder #+value+# int #+base+# int => stringBuilder ){
+<<?I public proc( #+buffer+#StringBuilder #+value+# int #+base+# int => StringBuilder ){
   #+signed+# true  #+big+# true  <<???i return
 }
-<<?u public proc( #+buffer+#stringBuilder #+value+# int #+base+# int => stringBuilder ){
+<<?u public proc( #+buffer+#StringBuilder #+value+# int #+base+# int => StringBuilder ){
   #+signed+# false #+big+# false <<???i return
 }
-<<?U public proc( #+buffer+#stringBuilder #+value+# int #+base+# int => stringBuilder ){
+<<?U public proc( #+buffer+#StringBuilder #+value+# int #+base+# int => StringBuilder ){
   #+signed+# false #+big+# true  <<???i return
 }
-<<i public proc( #+buffer+#stringBuilder #+value+# int => stringBuilder ){
+<<i public proc( #+buffer+#StringBuilder #+value+# int => StringBuilder ){
   #+base+# 10 #+signed+# true  #+big+# false <<???i
 }
-<<u public proc( #+buffer+#stringBuilder #+value+# int => stringBuilder ){
+<<u public proc( #+buffer+#StringBuilder #+value+# int => StringBuilder ){
   #+base+# 10 #+signed+# false #+big+# false <<???i
 }
-<<x public proc( #+buffer+#stringBuilder #+value+# int => stringBuilder ){
+<<x public proc( #+buffer+#StringBuilder #+value+# int => StringBuilder ){
   #+base+# 16 #+signed+# false #+big+# false <<???i
 }
-<<X public proc( #+buffer+#stringBuilder #+value+# int => stringBuilder ){
+<<X public proc( #+buffer+#StringBuilder #+value+# int => StringBuilder ){
   #+base+# 16 #+signed+# false #+big+# true  <<???i
 }
 
-<<????f public proc( #+buffer+# stringBuilder #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => stringBuilder ){
+<<????f public proc( #+buffer+# StringBuilder #+value+# float #+precision+# int #+base+# int #+big+# bool #+sci+# bool => StringBuilder ){
   bool  sci =:
   bool  big =:
   int   base =:
@@ -122,7 +122,7 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
   float value mut =:
   base 2 < ||{ base 62 > } if{
     64 buildString
-    "Base out of range: " <<* base <<i ", base has to be between 2 and 62\n" <<* build eputs
+    "Base out of range: " <<* base <<i ", base has to be between 2 and 62\n" <<* .build eputs
     1 exit
   }
   value float_isFinite ! if{
@@ -216,28 +216,28 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
   }
   return
 }
-<<??f public proc( #+buffer+# stringBuilder #+value+# float #+precision+# int #+base+# int => stringBuilder ){
+<<??f public proc( #+buffer+# StringBuilder #+value+# float #+precision+# int #+base+# int => StringBuilder ){
   #+big+# false #+sci+# false <<????f
 }
-<<??F public proc( #+buffer+# stringBuilder #+value+# float #+precision+# int #+base+# int => stringBuilder ){
+<<??F public proc( #+buffer+# StringBuilder #+value+# float #+precision+# int #+base+# int => StringBuilder ){
   #+big+# true  #+sci+# false <<????f
 }
-<<??e public proc( #+buffer+# stringBuilder #+value+# float #+precision+# int #+base+# int => stringBuilder ){
+<<??e public proc( #+buffer+# StringBuilder #+value+# float #+precision+# int #+base+# int => StringBuilder ){
   #+big+# false #+sci+# true  <<????f
 }
-<<??E public proc( #+buffer+# stringBuilder #+value+# float #+precision+# int #+base+# int => stringBuilder ){
+<<??E public proc( #+buffer+# StringBuilder #+value+# float #+precision+# int #+base+# int => StringBuilder ){
   #+big+# true  #+sci+# true  <<????f
 }
-<<?f public proc( #+buffer+# stringBuilder #+value+# float #+precision+# int => stringBuilder ){
+<<?f public proc( #+buffer+# StringBuilder #+value+# float #+precision+# int => StringBuilder ){
   #+base+# 10 #+big+# false #+sci+# false <<????f
 }
-<<?e public proc( #+buffer+# stringBuilder #+value+# float #+precision+# int => stringBuilder ){
+<<?e public proc( #+buffer+# StringBuilder #+value+# float #+precision+# int => StringBuilder ){
   #+base+# 10 #+big+# false #+sci+# true  <<????f
 }
-<<f public proc( #+buffer+# stringBuilder #+value+# float => stringBuilder ){
+<<f public proc( #+buffer+# StringBuilder #+value+# float => StringBuilder ){
   #+precision+# 0 #+base+# 10 #+big+# false #+sci+# false <<????f
 }
-<<e public proc( #+buffer+# stringBuilder #+value+# float => stringBuilder ){
+<<e public proc( #+buffer+# StringBuilder #+value+# float => StringBuilder ){
   #+precision+# 0 #+base+# 10 #+big+# false #+sci+# true  <<????f
 }
 
@@ -248,7 +248,7 @@ floatToString public proc( #+value+# float #+precision+# int #+base+# int #+big+
   int   precision =:
   float value =:
   64 buildString
-  value precision base big sci <<????f build return
+  value precision base big sci <<????f .build return
 }
 
 valueOfDigit public proc( #+digit +# byte #+base+# int => #+value+# int ){
@@ -329,22 +329,22 @@ checkErrCode proc( #+err-code+# StringParseError #+type-name+# string mut? #+sou
   ERR_NONE case end-case
   ERR_BASE case
       100 buildString
-      "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (base outside of allowed rage)\n" <<* build eputs
+      "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (base outside of allowed rage)\n" <<* .build eputs
       1 exit
   end-case
   ERR_EMPTY case
       100 buildString
-      "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (empty-string)\n" <<* build eputs
+      "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (empty-string)\n" <<* .build eputs
       1 exit
   end-case
   ERR_ILLEGAL_CHAR case
       100 buildString
-      "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (illegal-character)\n" <<* build eputs
+      "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (illegal-character)\n" <<* .build eputs
       1 exit
   end-case
   ERR_OVERFLOW case
       100 buildString
-      "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (overflow)\n" <<* build eputs
+      "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (overflow)\n" <<* .build eputs
       1 exit
   end-case
   }

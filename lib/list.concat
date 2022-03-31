@@ -11,9 +11,13 @@ arrayBuilder #include
 ##   set growth rate to factor less than 2 ( 9/8 ? )
 
 List public struct{ A <> A ArrayBuilder extend
-  A @List.append    :append    pseudo
-  A @List.appendAll :appendAll pseudo
-  A @List.build     :build     pseudo
+  A @List.append     :append     pseudo
+  A @List.appendAll  :appendAll  pseudo
+  A @List.prepend    :prepend    pseudo
+  A @List.prependAll :prependAll pseudo
+  A @List.build      :build      pseudo
+  A @List.ensureCap  :ensureCap  pseudo
+  A @List.clear      :clear      pseudo
 
   A memory mut^ :data private mut
 }
@@ -23,13 +27,21 @@ List.append private proc( A <> A A List mut => A List mut ){
 List.appendAll private proc( A <> A array mut? A List mut => A List mut ){
   swap <<* return
 }
-List.build private proc( A <> A List mut? => A array ){
-  toArray return
+List.prepend private proc( A <> A A List mut => A List mut ){
+  >> return
 }
+List.prependAll private proc( A <> A array mut? A List mut => A List mut ){
+  *>> return
+}
+
 ListSlice public struct{ A <> A ArrayBuilder extend
-  A @ListSlice.append    :append    pseudo
-  A @ListSlice.appendAll :appendAll pseudo
-  A @ListSlice.build     :build     pseudo
+  A @ListSlice.append     :append    pseudo
+  A @ListSlice.appendAll  :appendAll pseudo
+  A @ListSlice.prepend    :prepend    pseudo
+  A @ListSlice.prependAll :prependAll pseudo
+  A @ListSlice.build      :build     pseudo
+  A @ListSlice.ensureCap  :ensureCap pseudo
+  A @ListSlice.clear      :clear     pseudo
 
   A List mut^ :parent restricted
   uint        :offset restricted
@@ -40,6 +52,12 @@ ListSlice.append private proc( A <> A A ListSlice mut => A ListSlice mut ){
 }
 ListSlice.appendAll private proc( A <> A array mut? A ListSlice mut => A ListSlice mut ){
   swap <<* return
+}
+ListSlice.prepend private proc( A <> A A ListSlice mut => A ListSlice mut ){
+  >> return
+}
+ListSlice.prependAll private proc( A <> A array mut? A ListSlice mut => A ListSlice mut ){
+  *>> return
 }
 ListSlice.build private proc( A <> A ListSlice mut? => A array ){
   slice =::
@@ -52,26 +70,18 @@ newList public proc( A <> uint => A List mut ){
   A memory mut new A List mut new return
 }
 ## wrappers for easier string handling
-byte      List mut  type  stringBuilder public mut~ =:
-codepoint List mut  type ustringBuilder public mut~ =:
-buildString public proc( uint => stringBuilder ){
+buildString public proc( uint => byte List mut ){
   byte newList return
 }
-buildString public proc( string mut? => stringBuilder ){
+buildString public proc( string mut? => byte List mut ){
   str =::
   str .length byte newList str <<* return
 }
-buildUString public proc( uint => ustringBuilder ){
+buildUString public proc( uint => codepoint List mut ){
   codepoint newList return
 }
-build public proc( stringBuilder => string ){
-  .data clone-mut~ return
-}
-build public proc( ustringBuilder => ustring ){
-  .data clone-mut~ return
-}
 
-valueIO #include ## include valueIO after stringBuilder is declared
+valueIO #include ## include valueIO after buildString is declared
 
 length  public proc( A <?> A List mut? => uint ){
   #+list+# .data .length    return
@@ -82,34 +92,41 @@ offset  public proc( A <?> A List mut? => uint ){
 capacity public proc( A <?> A List mut? => uint ){
   #+list+# .data .capacity  return
 }
-toArray  public proc( A <?> A List mut? => A array mut~ ){
+#+pseudo-field+#
+List.build private proc( A <> A List mut? => A array mut~ ){
   #+list+# .data clone-mut~ return
 }
 
-ensureCap public proc( A <?> A List mut uint => ){##addLater better names for capacity procedure, add procedure for offset
-  newCap =::
+##pseudo-field
+List.ensureCap private proc( A <> uint A List mut => ){##addLater better names for capacity procedure, add procedure for offset
   mList =::
+  newCap =::
   mList .data .capacity newCap < if{
     mList .data newCap realloc
   }
 }
-ensureCap public proc( A <?> A ListSlice mut uint => ){
-  newCap =::
+##pseudo-field
+ListSlice.ensureCap private proc( A <> uint A ListSlice mut => ){
   slice =::
+  newCap =::
   slice .parent .data .capacity slice .parent .data .length slice .length - - newCap < if{
     slice .parent .data  slice .parent .data .length slice .length - newCap + realloc
   }
 }
-
 clear public proc( A <?> A List mut => ){
   mList =::
   mList .data 0 mList .data .length clearSlice
 }
+##pseudo-field
+List.clear private proc( A <> A List mut => ){ clear }
 clear public proc( A <?> A ListSlice mut => ){
   slice =::
   slice .parent .data slice .offset slice .offset slice .length + clearSlice
   0 slice .length =
 }
+##pseudo-field
+ListSlice.clear private proc( A <> A List mut => ){ clear }
+
 clearSlice public proc( A <?> A List mut uint uint => ){
   to =::
   off =::
@@ -121,7 +138,7 @@ clearSlice public proc( A <?> A ListSlice mut uint uint => ){
   slice =::
   off 0 < ||{ to off < ||{ to slice .length > } } if{
     64 buildString
-    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << build eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   slice .parent .data slice .offset off + slice .offset to + clearSlice
@@ -140,7 +157,7 @@ fill public proc( A <?> A A ListSlice mut int uint => ){
   slice =::
   off 0 < ||{ off count + slice .length > } if{
     64 buildString
-    "invalid slice " <<* off <<i ":" <<* count <<u " length:" <<* slice .length <<u '\n' << build eputs
+    "invalid slice " <<* off <<i ":" <<* count <<u " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   #+val+# slice .parent slice .offset off + count fill
@@ -156,7 +173,7 @@ fill public proc( A <?> A A ListSlice mut int uint => ){
   slice =::
   i 0 < ||{ i slice .length >= } if{
     64 buildString
-    "index out of bounds " <<* i <<i " length:" <<* slice .length <<u '\n' << build eputs
+    "index out of bounds " <<* i <<i " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   slice .parent i slice .offset + [] return
@@ -172,7 +189,7 @@ fill public proc( A <?> A A ListSlice mut int uint => ){
   slice =::
   i 0 < ||{ i slice .length >= } if{
     64 buildString
-    "index out of bounds " <<* i <<i " length:" <<* slice .length <<u '\n' << build eputs
+    "index out of bounds " <<* i <<i " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   #+val+# slice .parent .data slice .offset i + []=
@@ -185,7 +202,7 @@ insert public proc( A <?> A A List mut uint => ){
   mList .data listData =::
   index 0 < ||{ index listData .length > } if{
     64 buildString
-    "index out of bounds " <<* index <<i " length:" <<* listData .length <<u '\n' << build eputs
+    "index out of bounds " <<* index <<i " length:" <<* listData .length <<u '\n' << .build eputs
     1 exit
   }
   listData .length listData .capacity >= if{
@@ -204,7 +221,7 @@ insert public proc( A <?> A A ListSlice mut uint => ){
   slice =::
   index 0 < ||{ index slice .length > } if{
     64 buildString
-    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << build eputs
+    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   #+val+# slice .parent slice .offset index + insert
@@ -222,7 +239,7 @@ insertAll public proc( A <?> A array mut? A List mut uint => ){
   toInsert =::
   index 0 < ||{ index listData .length > } if{
     64 buildString
-    "index out of bounds " <<* index <<i " length:" <<* listData .length <<u '\n' << build eputs
+    "index out of bounds " <<* index <<i " length:" <<* listData .length <<u '\n' << .build eputs
     1 exit
   }
   listData .length toInsert .length + listData .capacity > if{
@@ -238,7 +255,7 @@ insertAll public proc( A <?> A ListSlice mut? A List mut uint => ){
   toInsert =::
   index 0 < ||{ index listData .length > } if{
     64 buildString
-    "index out of bounds " <<* index <<i " length:" <<* listData .length <<u '\n' << build eputs
+    "index out of bounds " <<* index <<i " length:" <<* listData .length <<u '\n' << .build eputs
     1 exit
   }
   listData .length toInsert .length + listData .capacity > if{
@@ -258,7 +275,7 @@ insertAll public proc( A <?> A array mut? A ListSlice mut uint => ){
   toInsert =::
   index 0 < ||{ index slice .length > } if{
     64 buildString
-    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << build eputs
+    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   slice .length toInsert .length + ##newLength
@@ -271,7 +288,7 @@ insertAll public proc( A <?> A ListSlice mut? A ListSlice mut uint => ){
   toInsert =::
   index 0 < ||{ index slice .length > } if{
     64 buildString
-    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << build eputs
+    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   slice .length toInsert .length + ##newLength
@@ -291,7 +308,7 @@ remove public proc( A <?> A ListSlice mut uint => A ){
   slice =::
   index 0 < ||{ index slice .length >= } if{
     64 buildString
-    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << build eputs
+    "index out of bounds " <<* index <<i " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   index slice .offset + index =
@@ -548,7 +565,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   mList =::
   off 0 < ||{ to off < ||{ to mList .data .length > } } if{
     64 buildString
-    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* mList .data .length <<u '\n' << build eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* mList .data .length <<u '\n' << .build eputs
     1 exit
   }
   mList off to off - A ListSlice mut new return
@@ -559,7 +576,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   slice =::
   off 0 < ||{ to off < ||{ to slice .length > } } if{
     64 buildString
-    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << build eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   slice .parent slice .offset off + slice .offset to + [:] return
@@ -574,7 +591,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   toInsert =::
   off 0 < ||{ to off < ||{ to listData .length > } } if{
     64 buildString
-    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* listData .length <<u '\n' << build eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* listData .length <<u '\n' << .build eputs
     1 exit
   }
   listData .length toInsert .length to off - - + listData .capacity > if{
@@ -597,7 +614,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   toInsert =::
   off 0 < ||{ to off < ||{ to listData .length > } } if{
     64 buildString
-    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* listData .length <<u '\n' << build eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* listData .length <<u '\n' << .build eputs
     1 exit
   }
   listData .length toInsert .length to off - - + listData .capacity > if{
@@ -613,7 +630,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   toInsert =::
   off 0 < ||{ to off < ||{ to slice .length > } } if{
     64 buildString
-    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << build eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   slice .length toInsert .length to off - - + ## newLength
@@ -636,7 +653,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   toInsert =::
   off 0 < ||{ to off < ||{ to slice .length > } } if{
     64 buildString
-    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << build eputs
+    "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
   slice .length toInsert .length to off - - + ## newLength

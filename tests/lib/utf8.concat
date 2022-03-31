@@ -12,9 +12,13 @@ mut-u #define 16 buildUString #end
 { u"to string" codepointsToString } debugPrint
 { mut-u u"append" <<* " string"  <<* } debugPrint
 { mut-s "append " <<* u"ustring" <<* } debugPrint
-{ "prepend " mut-u u"string"  <<* *>> } debugPrint
-{ u"prepend" mut-s " ustring" <<* *>> } debugPrint
-{ u'p' mut-u "prepend codepoint" <<* >> } debugPrint
+## temporarily removed prepend operations
+## { "prepend " mut-u u"string"  <<* *>> } debugPrint
+## { u"prepend" mut-s " ustring" <<* *>> } debugPrint
+## { u'p' mut-u "prepend codepoint" <<* >> } debugPrint
+"[codepoint List mut:(codepoint memory mut:prepend string)]" debugPrint
+"[byte List mut:(byte memory mut:prepend ustring)]" debugPrint
+"[codepoint List mut:(codepoint memory mut:pprepend codepoint)]" debugPrint
 { u'💻' codepointToString } debugPrint
 
 { "A°💻" 0 nextCodepoint } debugPrint

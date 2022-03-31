@@ -17,7 +17,7 @@ uint_MAX debugPrint
 ' '  << 1024 20 <<?I
 ' '  << 10  2 <<?u
 ' '  << -1 32 <<?U
-build debugPrint
+.build debugPrint
 
 3.141592653589793238 pi =::
 "_____________________________" debugPrint
@@ -31,7 +31,7 @@ build debugPrint
 '\n' << pi 5 16 <<??f
 ' '  << pi 20 2  <<??F
 ' '  << pi 99 62 <<??F
-build debugPrint
+.build debugPrint
 "_____________________________" debugPrint
 "12345" parseInt debugPrint
 "-1"   parseUInt debugPrint

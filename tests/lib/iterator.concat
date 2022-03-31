@@ -14,7 +14,7 @@ reverse proc( string => string ){
   toReverse _^ while{ <^ do
     byte cast res swap << res =
   } drop
-  res build return
+  res .build return
 }
 
 "Hello World" reverse debugPrint
