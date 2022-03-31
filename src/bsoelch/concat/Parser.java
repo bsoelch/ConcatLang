@@ -1562,9 +1562,12 @@ public class Parser {
     record PseudoFieldDeclaration(String name,Callable called,FilePosition declaredAt){}
     record TypeFieldDeclaration(String name,Value value,FilePosition declaredAt){}
     static class StructContext extends GenericContext{
-        final ArrayList<StructFieldWithType> fields=new ArrayList<>();
-        final ArrayList<PseudoFieldDeclaration> pseudoFields=new ArrayList<>();
-        final ArrayList<TypeFieldDeclaration> typeFields=new ArrayList<>();
+        final ArrayList<StructFieldWithType> fields = new ArrayList<>();
+        final ArrayList<PseudoFieldDeclaration> pseudoFields = new ArrayList<>();
+        final ArrayList<TypeFieldDeclaration> typeFields = new ArrayList<>();
+
+        final ArrayDeque<Value.Procedure> uncheckedProcedures = new ArrayDeque<>();
+
         StructContext(VariableContext parent) {
             super(parent, false);
         }
@@ -1827,7 +1830,7 @@ public class Parser {
         finishParsing(pState, ioContext,reader.currentPos());
         Declareable main=pState.topLevelContext().getDeclareable("main");
         if(main instanceof Value.Procedure){
-            typeCheckProcedure((Value.Procedure) main,pState.globalConstants,ioContext);
+            typeCheckProcedure((Value.Procedure) main,pState.globalConstants,ioContext,pState.getContext());
             if(!((Value.Procedure) main).isPublic){
                 ioContext.stdErr.println("Warning: procedure main at "+((Value.Procedure) main).declaredAt+" is private");
             }
@@ -2719,10 +2722,17 @@ public class Parser {
         pState.tokens.clear();
     }
 
-    private void typeCheckProcedure(Value.Procedure p, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext) throws SyntaxError {
+    /**@param callerContext context that contains the first use of this procedure (may be null),
+     *                       if the context is a StructContext the procedure will be type-checked after the struct is finished*/
+    private void typeCheckProcedure(Value.Procedure p, HashMap<Parser.VariableId, Value> globalConstants,
+                                    IOContext ioContext,VariableContext callerContext) throws SyntaxError {
         if(p.typeCheckState == Value.TypeCheckState.UNCHECKED){
+            if(callerContext instanceof StructContext){
+                p.typeCheckState = Value.TypeCheckState.WAITING;
+                ((StructContext) callerContext).uncheckedProcedures.add(p);
+                return;
+            }
             p.typeCheckState = Value.TypeCheckState.CHECKING;
-            p.type.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
             TypeCheckResult res;
             RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(8);
             for(Type t:((Type.Procedure) p.type).inTypes){
@@ -2743,16 +2753,10 @@ public class Parser {
                 for(int i = 0; i< extended.elementCount(); i++){
                     aStruct.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
-                if(aStruct.typeFields().size()<=1){//FIXME find better way to detect if struct already inherited fields
-                    aStruct.inheritDeclaredFields(extended);
-                }
+                aStruct.inheritDeclaredFields(extended);
             }
             TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,globalConstants,new RandomAccessStack<>(8),
                     null,aStruct.endPos,ioContext);
-            if(aStruct.isTypeChecked()){
-                //addLater find way to check proc-pointers in tuple after tuple is finished
-                return;//recursive type-checking already checked this tuple
-            }
             if(res.types.size()>0){
                 TypeFrame tmp=res.types.get(res.types.size());
                 throw new SyntaxError("Unexpected value in struct body: "+tmp,tmp.pushedAt);
@@ -2774,6 +2778,13 @@ public class Parser {
             for(TypeFieldDeclaration e:structContext.typeFields){
                 if(!aStruct.declaredTypeFields.contains(e.name)){
                     aStruct.declareTypeField(e.name,e.value,e.declaredAt);
+                }
+            }
+            Value.Procedure p;
+            while((p=structContext.uncheckedProcedures.pollLast())!=null){
+                if(p.typeCheckState == Value.TypeCheckState.WAITING){
+                    p.typeCheckState = Value.TypeCheckState.UNCHECKED;
+                    typeCheckProcedure(p,globalConstants,ioContext,null);
                 }
             }
         }
@@ -2876,7 +2887,7 @@ public class Parser {
                     finishedBranch=true;
                 }
                 case NEW ->
-                    typeCheckNew(typeStack,globalConstants, ret, ioContext,t.pos);
+                    typeCheckNew(typeStack,globalConstants, ret, ioContext,t.pos, context);
                 case DECLARE_LAMBDA -> {//parse lambda-procedures
                     assert t instanceof DeclareLambdaToken;
                     typeCheckLambda(globalConstants,context, typeStack, ioContext, ret, (DeclareLambdaToken)t);
@@ -2923,7 +2934,7 @@ public class Parser {
                     if(target.mutability==Mutability.DEFAULT){
                         target=target.setMutability(f.type.mutability);
                     }
-                    typeCheckCast(f.type,1,target,globalConstants, ret,ioContext, t.pos);
+                    typeCheckCast(f.type,1,target,globalConstants, ret,ioContext, t.pos,context);
                     typeStack.push(new TypeFrame(target,null,t.pos));
                 }
                 case STACK_DROP ->
@@ -2933,7 +2944,7 @@ public class Parser {
                 case STACK_SET ->
                     typeCheckStackSet((StackModifierToken)t, typeStack, ret);
                 case CALL_PTR ->
-                    typeCheckCallPtr(typeStack, ret, globalConstants, ioContext, t.pos);
+                    typeCheckCallPtr(typeStack, ret, globalConstants, ioContext, t.pos, context);
                 case MARK_MUTABLE ->
                     typeCheckTypeModifier("mut",(t1)->Value.ofType(t1.mutable()),ret,typeStack,t.pos);
                 case MARK_MAYBE_MUTABLE ->
@@ -3489,17 +3500,19 @@ public class Parser {
 
 
     private void typeCheckCallPtr(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret,
-                                  HashMap<VariableId, Value> globalConstants, IOContext ioContext, FilePosition pos)
+                                  HashMap<VariableId, Value> globalConstants, IOContext ioContext, FilePosition pos,
+                                  VariableContext callerContext)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         TypeFrame f= typeStack.pop();
         if(f.type instanceof Type.Procedure){
-            typeCheckCall("call-ptr", typeStack, (Type.Procedure) f.type,globalConstants, ret,ioContext, pos, true);
+            typeCheckCall("call-ptr", typeStack, (Type.Procedure) f.type,globalConstants, ret,ioContext, pos,
+                    true,callerContext);
             ret.add(new Token(TokenType.CALL_PTR, pos));
         }else if(f.type instanceof Type.OverloadedProcedurePointer){
             CallMatch call = typeCheckOverloadedCall("call-ptr",
                     ((Type.OverloadedProcedurePointer) f.type).proc,
                     ((Type.OverloadedProcedurePointer) f.type).genArgs,
-                    typeStack, globalConstants, ret, ioContext, pos);
+                    typeStack, globalConstants, ret, ioContext, pos,callerContext);
             Callable proc=call.called;
             proc.markAsUsed();
             setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) f.type), (Value) proc);
@@ -3567,7 +3580,8 @@ public class Parser {
         }
     }
 
-    private void typeCheckNew(RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants, ArrayList<Token> ret, IOContext ioContext, FilePosition pos)
+    private void typeCheckNew(RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants,
+                              ArrayList<Token> ret, IOContext ioContext, FilePosition pos,VariableContext callerContext)
             throws SyntaxError, RandomAccessStack.StackUnderflow {
         Token prev;
         if(ret.size()<1||!((prev= ret.remove(ret.size()-1)) instanceof ValueToken)) {
@@ -3582,7 +3596,8 @@ public class Parser {
             if(type instanceof Type.TupleLike){
                 Type[] elements = ((Type.TupleLike) type).getElements();
                 typeCheckCall("new", typeStack,
-                        Type.Procedure.create(elements,new Type[]{type},pos),globalConstants, ret,ioContext, pos, false);
+                        Type.Procedure.create(elements,new Type[]{type},pos),globalConstants, ret,ioContext, pos,
+                        false, callerContext);
 
                 int c=((Type.TupleLike) type).elementCount();
                 if(c < 0){
@@ -3613,8 +3628,7 @@ public class Parser {
                 }//no else
                 if(type.isArray()){
                     f=typeStack.pop();
-                    f.type.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
-                    typeCheckCast(f.type,2,type.content(),globalConstants, ret,ioContext,pos);
+                    typeCheckCast(f.type,2,type.content(),globalConstants, ret,ioContext,pos,callerContext);
                 }
                 typeStack.push(new TypeFrame(type,null, pos));
                 //addLater? support new memory/array in pre-evaluation
@@ -3662,7 +3676,7 @@ public class Parser {
                         break;
                     }
                     TypeFrame val = typeStack.pop();
-                    typeCheckCast(val.type,1, id.type,globalConstants, ret,ioContext, t.pos);
+                    typeCheckCast(val.type,1, id.type,globalConstants, ret,ioContext, t.pos,context);
                     if (id.mutability==Mutability.IMMUTABLE && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         Value value = ((ValueToken) prev).value;
@@ -3702,7 +3716,7 @@ public class Parser {
                                 d instanceof OverloadedProcedure?(OverloadedProcedure) d:new OverloadedProcedure((Callable) d);
                         CallMatch match = typeCheckOverloadedCall(
                                 "procedure "+identifier.name, new OverloadedProcedure(proc),null,
-                                typeStack,globalConstants,ret,ioContext,t.pos);
+                                typeStack,globalConstants,ret,ioContext,t.pos, context);
                         match.called.markAsUsed();
                         CallToken token = new CallToken( match.called, identifier.pos);
                         ret.add(token);
@@ -3785,12 +3799,12 @@ public class Parser {
                 context.wrapCurried(identifier.name,id,identifier.pos);
                 assert !globalConstants.containsKey(id);
                 TypeFrame f = typeStack.pop();
-                typeCheckCast(f.type,1, id.type,globalConstants, ret, ioContext,t.pos);
+                typeCheckCast(f.type,1, id.type,globalConstants, ret, ioContext,t.pos,context);
                 ret.add(new VariableToken(identifier.pos,identifier.name,id,
                         AccessType.WRITE, context));
             }
             case PROC_ID ->
-                typeCheckPushProcPointer(identifier, typeStack, ret, globalConstants, context, ioContext, t.pos);
+                typeCheckPushProcPointer(identifier, typeStack, ret, globalConstants, context, ioContext, t.pos,context);
             case GET_FIELD -> {
                 TypeFrame f=typeStack.pop();
                 try {
@@ -3823,7 +3837,7 @@ public class Parser {
                     if(pseudoField!=null){
                         typeStack.push(f);//push f back onto the type-stack
                         CallMatch match = typeCheckOverloadedCall(pseudoField.name(),new OverloadedProcedure(pseudoField),null,typeStack,
-                                globalConstants,ret,ioContext,t.pos);
+                                globalConstants,ret,ioContext,t.pos, context);
                         match.called.markAsUsed();
                         ret.add(new PseudoFieldAccess(identifier.pos,f.type.pseudoFieldId(identifier.name)));
                         break;//found field
@@ -3859,6 +3873,7 @@ public class Parser {
                 TypeFrame val=typeStack.pop();
                 boolean hasField=false;
                 if(f.type instanceof Type.Struct struct){
+                    typeCheckStruct((Type.Struct) f.type,globalConstants,ioContext);//ensure struct is initialized
                     Integer index= struct.indexByName.get(identifier.name);
                     if(index!=null){
                         if(!struct.isMutable()){
@@ -3868,7 +3883,7 @@ public class Parser {
                         Type.StructField field = struct.fields[index];
                         if(field.accessibility()==Accessibility.PUBLIC||field.declaredAt().path.equals(t.pos.path)){
                             if(field.mutable()){
-                                typeCheckCast(val.type,2,struct.getElement(index),globalConstants, ret,ioContext, t.pos);
+                                typeCheckCast(val.type,2,struct.getElement(index),globalConstants, ret,ioContext, t.pos,context);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -3887,7 +3902,7 @@ public class Parser {
                         if(index>=0&&index< tuple.elementCount()){
                             Type fieldType = tuple.getElement(index);
                             if(tuple.isMutable()){
-                                typeCheckCast(val.type,2,fieldType,globalConstants, ret, ioContext,t.pos);
+                                typeCheckCast(val.type,2,fieldType,globalConstants, ret, ioContext,t.pos,context);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -3965,7 +3980,8 @@ public class Parser {
 
     private void typeCheckPushProcPointer(IdentifierToken identifier, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret,
                                           HashMap<VariableId, Value> globalConstants, VariableContext context, IOContext ioContext,
-                                          FilePosition pos) throws SyntaxError, RandomAccessStack.StackUnderflow {
+                                          FilePosition pos,VariableContext callerContext)
+            throws SyntaxError, RandomAccessStack.StackUnderflow {
         Declareable d= context.getDeclareable(identifier.name);
         if(d==null){
             throw new SyntaxError("procedure "+ identifier.name+" does not exist", pos);
@@ -3996,7 +4012,7 @@ public class Parser {
                 ret.add(token);
             }
         }else if(d instanceof Value.Procedure proc) {
-            pushSimpleProcPointer(proc, typeStack, ret, globalConstants, ioContext, pos);
+            pushSimpleProcPointer(proc, typeStack, ret, globalConstants, ioContext, pos,callerContext);
         }else if(d instanceof GenericProcedure proc){
             Type[] genArgs;
             if(proc.procType.explicitGenerics.length>0) {
@@ -4011,8 +4027,7 @@ public class Parser {
                     genMap.put(proc.procType.explicitGenerics[i], genArgs[i]);
                 }
                 Value.Procedure non_generic=proc.withPrams(genMap);
-                typeCheckProcedure(non_generic,globalConstants,ioContext);
-                pushSimpleProcPointer(non_generic, typeStack, ret, globalConstants, ioContext, pos);
+                pushSimpleProcPointer(non_generic, typeStack, ret, globalConstants, ioContext, pos,callerContext);
             }else{
                 typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, ret.size(), pos),null, pos));
                 ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
@@ -4029,9 +4044,9 @@ public class Parser {
 
     private void pushSimpleProcPointer(Value.Procedure procedure, RandomAccessStack<TypeFrame> typeStack,
                                        ArrayList<Token> ret, HashMap<VariableId, Value> globalConstants,
-                                       IOContext ioContext, FilePosition pos) throws SyntaxError {
+                                       IOContext ioContext, FilePosition pos,VariableContext callerContext) throws SyntaxError {
         procedure.markAsUsed();
-        typeCheckProcedure(procedure, globalConstants, ioContext);//type check procedure before it is pushed onto the stack
+        typeCheckProcedure(procedure, globalConstants, ioContext, callerContext);//type check procedure before it is pushed onto the stack
         ValueToken token = new ValueToken(procedure, pos);
         typeStack.push(new TypeFrame(token.value.type, token.value, pos));
         ret.add(token);
@@ -4064,8 +4079,7 @@ public class Parser {
     }
 
     private void typeCheckCast(Type src, int stackPos, Type target, HashMap<VariableId, Value> globalConstants, ArrayList<Token> ret,
-                               IOContext ioContext, FilePosition pos) throws SyntaxError {
-        target.forEachStruct((t)-> typeCheckStruct(t,globalConstants,ioContext));
+                               IOContext ioContext, FilePosition pos,VariableContext callerContext) throws SyntaxError {
         Type.BoundMaps bounds=new Type.BoundMaps();
         if(src instanceof Type.OverloadedProcedurePointer){
             if(!(target instanceof Type.Procedure)){
@@ -4093,7 +4107,7 @@ public class Parser {
                         c=((GenericProcedure) c).withPrams(update);
                     }
                     if(c instanceof Value.Procedure){//ensure procedures are type-checked
-                        typeCheckProcedure((Value.Procedure) c, globalConstants, ioContext);
+                        typeCheckProcedure((Value.Procedure) c, globalConstants, ioContext, callerContext);
                     }
                     matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,0,new HashMap<>()));
                 }
@@ -4132,7 +4146,7 @@ public class Parser {
 
     private void typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type,
                                HashMap<VariableId, Value> globalConstants, ArrayList<Token> tokens,
-                               IOContext ioContext, FilePosition pos, boolean isPtr)
+                               IOContext ioContext, FilePosition pos, boolean isPtr,VariableContext callerContext)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         int offset=isPtr?1:0;
         if(type instanceof Type.GenericProcedureType){
@@ -4146,7 +4160,8 @@ public class Parser {
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
             try{
-                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],globalConstants, tokens,ioContext,pos);
+                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],globalConstants, tokens,ioContext,
+                        pos,callerContext);
             }catch (SyntaxError e){
                 throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
                         ": "+Arrays.toString(inTypes),pos);
@@ -4211,8 +4226,8 @@ public class Parser {
 
     private CallMatch typeCheckOverloadedCall(String procName, OverloadedProcedure proc, Type[] ptrGenArgs,
                                               RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants,
-                                              ArrayList<Token> tokens, IOContext ioContext, FilePosition pos)
-            throws RandomAccessStack.StackUnderflow, SyntaxError {
+                                              ArrayList<Token> tokens, IOContext ioContext, FilePosition pos,
+                                              VariableContext callerContext)  throws RandomAccessStack.StackUnderflow, SyntaxError {
         Type[] typeArgs=null;
         if(proc.nGenericParams!=0){
             if(ptrGenArgs!=null){
@@ -4227,9 +4242,9 @@ public class Parser {
         }
         ArrayList<CallMatch> matchingCalls=new ArrayList<>();
         for(Callable p1:proc.procedures){
-            typeCheckPotentialCall(p1, typeArgs, inTypes, matchingCalls,globalConstants,ioContext, pos);
+            typeCheckPotentialCall(p1, typeArgs, inTypes, matchingCalls,globalConstants,ioContext, pos, callerContext);
         }
-        CallMatch match = findMatchingCall(matchingCalls, proc, inTypes, globalConstants, ioContext, pos);
+        CallMatch match = findMatchingCall(matchingCalls, proc, inTypes, globalConstants, ioContext, pos,callerContext);
         updateProcedureArguments(match, inTypes, tokens, ptrGenArgs!=null, pos);
         for(Type t:match.type.outTypes){
             typeStack.push(new TypeFrame(t,null,pos));
@@ -4238,9 +4253,8 @@ public class Parser {
     }
     private void typeCheckPotentialCall(Callable potentialCall, Type[] typeArgs, Type[] inTypes,
                            ArrayList<CallMatch> matchingCalls,HashMap<VariableId, Value> globalConstants,
-                                        IOContext ioContext, FilePosition pos) throws SyntaxError {
+                                        IOContext ioContext, FilePosition pos, VariableContext callerContext) throws SyntaxError {
         Type.Procedure type= potentialCall.type();
-        type.forEachStruct((t)-> typeCheckStruct(t,globalConstants,ioContext));
         boolean isMatch=true;
         IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
         int nCasts=0,nImplicit=0;
@@ -4268,7 +4282,7 @@ public class Parser {
             for(int i = 0; i< inTypes.length; i++){
                 if(inTypes[i] instanceof Type.OverloadedProcedurePointer){
                     bounds = resolveOppParam(type.inTypes[i],bounds,(Type.OverloadedProcedurePointer)inTypes[i],
-                            opps,globalConstants,ioContext,pos);
+                            opps,globalConstants,ioContext,pos,callerContext);
                     if(bounds==null||!isMatch){
                         isMatch=false;
                         break;
@@ -4294,16 +4308,13 @@ public class Parser {
                                            Type.OverloadedProcedurePointer param,
                                            HashMap<Type.OverloadedProcedurePointer,CallMatch> opps,
                                            HashMap<VariableId, Value> globalConstants,
-                                           IOContext ioContext,
-                                           FilePosition pos) throws SyntaxError {
-        calledType.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
+                                           IOContext ioContext,FilePosition pos,VariableContext callerContext) throws SyntaxError {
         ArrayList<CallMatch> matches=new ArrayList<>();
         ArrayList<Type.BoundMaps> matchBounds=new ArrayList<>();
         boolean matchesParam;
         for(Callable c: param.proc.procedures){
             matchesParam=true;
             Type.Procedure procType=c.type();
-            procType.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
             Type.BoundMaps test= callBounds.copy();
             if(procType.canAssignTo(calledType,test)){
                 IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
@@ -4331,7 +4342,7 @@ public class Parser {
                 }
                 if(matchesParam){
                     if(c instanceof Value.Procedure){
-                        typeCheckProcedure((Value.Procedure) c,globalConstants,ioContext);
+                        typeCheckProcedure((Value.Procedure) c,globalConstants,ioContext,callerContext);
                     }
                     matches.add(new CallMatch(c,procType,implicitGenerics,0,implicitGenerics.size(),
                             new HashMap<>()));
@@ -4370,15 +4381,15 @@ public class Parser {
     }
     private CallMatch findMatchingCall(ArrayList<CallMatch> matchingCalls, OverloadedProcedure proc,
                                        Type[] inTypes, HashMap<VariableId, Value> globalConstants,
-                                       IOContext ioContext, FilePosition pos) throws SyntaxError {
+                                       IOContext ioContext, FilePosition pos,VariableContext callerContext) throws SyntaxError {
         for(int i = 0; i< matchingCalls.size(); i++){
             CallMatch c= matchingCalls.get(i);
             if(c.called instanceof Value.Procedure){
-                typeCheckProcedure((Value.Procedure)c.called, globalConstants, ioContext);
+                typeCheckProcedure((Value.Procedure)c.called, globalConstants, ioContext, callerContext);
             }else if(c.called instanceof GenericProcedure){//resolve generic procedure
                 Value.Procedure withPrams = ((GenericProcedure) c.called).withPrams(c.genericParams);
                 try {
-                    typeCheckProcedure(withPrams, globalConstants, ioContext);
+                    typeCheckProcedure(withPrams, globalConstants, ioContext, callerContext);
                 }catch (SyntaxError err){
                     throw new SyntaxError(err, pos);
                 }
