@@ -32,30 +32,6 @@ list #include
     str return
   }
 }
-<< public proc( byte ListSlice mut codepoint => byte ListSlice mut ){ ##addLater merge with  List version
-  uint cp =:
-  str =::
-       cp 0x80    < if{   ## ascii - character
-    str cp byte cast << return
-  else cp 0x800   < if  ## 2-byte blocks
-    str cp 6 >>          0xc0 | byte cast <<
-        cp        0x3f & 0x80 | byte cast << return
-  else cp 0x10000 < if  ## 3-byte blocks
-    str cp 12 >>         0xe0 | byte cast <<
-        cp  6 >>  0x3f & 0x80 | byte cast <<
-        cp        0x3f & 0x80 | byte cast << return
-  else cp 0x10ffff < if ## 4-byte blocks
-    str cp 18 >>         0xf0 | byte cast <<
-        cp 12 >>  0x3f & 0x80 | byte cast <<
-        cp  6 >>  0x3f & 0x80 | byte cast <<
-        cp        0x3f & 0x80 | byte cast << return
-  else
-    ## don't exit on invalid codepoints, only display waring message
-    35 buildString
-    "Codepoint out of range: 0x" <<* cp int cast <<X '\n' << .build eputs
-    str return
-  }
-}
 
 <<* public proc( StringBuilder ustring mut? => StringBuilder ){
   append =::
@@ -73,16 +49,6 @@ list #include
   append =::
   value  =::
   value length append .length +  value .ensureCap
-  append 0u
-  while{ nextCodepoint do
-    value swap << value =
-  } 3 $drop ## drop remaining data
-  value return
-}
-<<* public proc( codepoint ListSlice mut string mut? => codepoint ListSlice mut ){ ##addLater merge with List version
-  append =::
-  value  =::
-  value .length append .length +  value .ensureCap
   append 0u
   while{ nextCodepoint do
     value swap << value =
