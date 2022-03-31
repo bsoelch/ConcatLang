@@ -2735,7 +2735,6 @@ public class Parser {
                 for(int i = 0; i< extended.elementCount(); i++){
                     aStruct.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
-                //TODO inherit declared type/pseudo-fields from parent
             }
             TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,globalConstants,new RandomAccessStack<>(8),
                     null,aStruct.endPos,ioContext);
@@ -2763,6 +2762,19 @@ public class Parser {
             for(TypeFieldDeclaration e:structContext.typeFields){
                 if(!aStruct.declaredTypeFields.contains(e.name)){
                     aStruct.addField(e.name,e.value,e.declaredAt);
+                }
+            }
+            if(aStruct.extended!=null){
+                Type.Struct extended = aStruct.extended;
+                for(String name: extended.declaredTypeFields){
+                    Callable pseudo = extended.pseudoFields().get(name);//TODO ensure type/pseudo fields have the correct types
+                    if(pseudo!=null&&!aStruct.declaredTypeFields.contains(name)){
+                        aStruct.addPseudoField(name, pseudo,aStruct.declaredAt);
+                    }
+                    Value typeField = extended.typeFields().get(name);
+                    if(typeField!=null&&!aStruct.declaredTypeFields.contains(name)){
+                        aStruct.addField(name, typeField,aStruct.declaredAt);
+                    }
                 }
             }
         }
@@ -3808,6 +3820,7 @@ public class Parser {
                         }catch (NumberFormatException ignored){}
                     }
                     Callable pseudoField=f.type.pseudoFields().get(identifier.name);
+                    //TODO remember pseudo-fields by their field-id (allow subtypes to overwrite values of pseudo field)
                     if(pseudoField!=null){
                         typeStack.push(f);//push f back onto the type-stack
                         CallMatch match = typeCheckOverloadedCall(pseudoField.name(),new OverloadedProcedure(pseudoField),null,typeStack,
