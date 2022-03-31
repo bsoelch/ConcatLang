@@ -1,0 +1,25 @@
+lib/consumer:
+
+core #namespace
+stack #include
+
+ArrayBuilder public struct{ A <>
+  A @missingAppend    :append    pseudo
+  A @missingAppendAll :appendAll pseudo
+  A @missingBuild     :build     pseudo
+}
+
+missingAppend proc( A <> A A ArrayBuilder mut => A ArrayBuilder mut ){
+  "missingAppend" debugPrint
+  unreachable
+}
+missingAppendAll proc( A <> A array mut? A ArrayBuilder mut => A ArrayBuilder mut ){
+  "missingAppendAll" debugPrint
+  unreachable
+}
+missingBuild proc( A <> A ArrayBuilder mut => A array ){
+  "missingBuild" debugPrint
+  unreachable
+}
+
+#end

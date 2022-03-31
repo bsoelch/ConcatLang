@@ -4,18 +4,48 @@ core #namespace
 stack #include
 codeblocks #include
 arraySlice #include
+consumer #include
 
 ## TODO better way of reallocating:
 ##   try moving offset to avoid reallocating
 ##   set growth rate to factor less than 2 ( 9/8 ? )
 
-List public struct{ A <>
+List public struct{ A <> A ArrayBuilder extend
+  A @List.append    :append    pseudo
+  A @List.appendAll :appendAll pseudo
+  A @List.build     :build     pseudo
+
   A memory mut^ :data private mut
 }
-ListSlice public struct{ A <>
+List.append private proc( A <> A A List mut => A List mut ){
+  swap << return
+}
+List.appendAll private proc( A <> A array mut? A List mut => A List mut ){
+  swap <<* return
+}
+List.build private proc( A <> A List mut? => A array ){
+  toArray return
+}
+ListSlice public struct{ A <> A ArrayBuilder extend
+  A @ListSlice.append    :append    pseudo
+  A @ListSlice.appendAll :appendAll pseudo
+  A @ListSlice.build     :build     pseudo
+
   A List mut^ :parent restricted
   uint        :offset restricted
   uint        :length restricted mut
+}
+ListSlice.append private proc( A <> A A ListSlice mut => A ListSlice mut ){
+  swap << return
+}
+ListSlice.appendAll private proc( A <> A array mut? A ListSlice mut => A ListSlice mut ){
+  swap <<* return
+}
+ListSlice.build private proc( A <> A ListSlice mut? => A array ){
+  slice =::
+  slice .length A memory mut new tmp =::
+  slice .parent .data slice .offset tmp 0 slice .length copy
+  tmp clone-mut~ return
 }
 
 newList public proc( A <> uint => A List mut ){
