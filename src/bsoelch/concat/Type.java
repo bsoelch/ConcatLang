@@ -1140,7 +1140,7 @@ public class Type {
                     if(newToken!=t)
                         changed=true;
                 }
-                Parser.StructContext newContext=context.newInstance(false);
+                Parser.StructContext newContext=context.emptyCopy();
                 for(Map.Entry<String, Parser.Declareable> e:context.elements()){
                     if(e.getValue() instanceof GenericParameter){
                         Type replace=generics.get((GenericParameter)e.getValue());

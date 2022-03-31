@@ -1399,12 +1399,8 @@ public class Parser {
             this.parent = parent;
             assert parent!=null;
         }
-        BlockContext newInstance(boolean copyValues){
-            BlockContext copy = new BlockContext(parent);
-            if(copyValues){
-                copyValuesTo(copy);
-            }
-            return copy;
+        BlockContext emptyCopy(){
+            return new BlockContext(parent);
         }
         void copyValuesTo(BlockContext copy){
             copy.elements.putAll(elements);
@@ -1475,12 +1471,8 @@ public class Parser {
             super(parent);
             this.allowImplicit = allowImplicit;
         }
-        GenericContext newInstance(boolean copyValues){
-            GenericContext copy = new GenericContext(parent,allowImplicit);
-            if(copyValues){
-                copyValuesTo(copy);
-            }
-            return copy;
+        GenericContext emptyCopy(){
+            return new GenericContext(parent,allowImplicit);
         }
         void copyValuesTo(GenericContext copy){
             super.copyValuesTo(copy);
@@ -1519,12 +1511,8 @@ public class Parser {
         }
 
         @Override
-        ProcedureContext newInstance(boolean copyValues) {
-            ProcedureContext copy=new ProcedureContext(parent);
-            if(copyValues){
-                copyValuesTo(copy);
-            }
-            return copy;
+        ProcedureContext emptyCopy() {
+            return new ProcedureContext(parent);
         }
         void copyValuesTo(ProcedureContext copy){
             super.copyValuesTo(copy);
@@ -1571,12 +1559,8 @@ public class Parser {
         StructContext(VariableContext parent) {
             super(parent, false);
         }
-        StructContext newInstance(boolean copyValues){
-            StructContext copy = new StructContext(parent);
-            if(copyValues){
-                copyValuesTo(copy);
-            }
-            return copy;
+        StructContext emptyCopy(){
+            return new StructContext(parent);
         }
 
     }

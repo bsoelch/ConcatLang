@@ -69,7 +69,7 @@ public class GenericStruct implements Parser.NamedDeclareable {
     private final HashMap<TypeArray, Type.Struct> cached=new HashMap<>();
     public Type.Struct withPrams(Type[] genericArgs) {
         IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
-        Parser.StructContext newContext=context.newInstance(false);
+        Parser.StructContext newContext=context.emptyCopy();
         for(int i=0;i< genericArgs.length;i++){
             Type.GenericParameter t=context.generics.get(i);
             Type replace=genericArgs[i];
