@@ -602,10 +602,13 @@ public abstract class Value {
         /**create an array with a specific data as values,
          * it is assumed, that all elements of data are non-null*/
         protected ArrayValue(Type type,Value[] data) {
+            this(type,data,0,data.length);
+        }
+        private ArrayValue(Type type,Value[] data,int offset,int length) {
             super(type);
             this.data=data;
-            offset=0;
-            length=data.length;
+            this.offset=offset;
+            this.length=length;
         }
         /**creates an array with the given lengths and fills it with the given initial value*/
         protected ArrayValue(Type type,Value content,int capacity) {
@@ -652,10 +655,7 @@ public abstract class Value {
                     newData[i]=data[i].clone(true,targetType.content());
                 }
             }
-            ArrayValue clone=new ArrayValue(targetType,newData);
-            clone.offset=offset;
-            clone.length=length;
-            return clone;
+            return new ArrayValue(targetType,newData,offset,length);
         }
 
         /*raw data of this Value as a standard java Object*/
@@ -1165,7 +1165,7 @@ public abstract class Value {
     }
     static class OptionalValue extends Value{
         final Value wrapped;
-        private OptionalValue(Value wrapped) throws ConcatRuntimeError {
+        private OptionalValue(Value wrapped){
             super(Type.optionalOf(wrapped.type));
             this.wrapped = wrapped;
         }
@@ -1226,11 +1226,7 @@ public abstract class Value {
             if(targetType==null)
                 targetType=type;
             if(wrapped!=null&&deep){
-                try {
-                    return new OptionalValue(wrapped.clone(true,targetType.content()));
-                } catch (ConcatRuntimeError e) {
-                    throw new RuntimeException(e);
-                }
+                return new OptionalValue(wrapped.clone(true,targetType.content()));
             }else{
                 return this;
             }
@@ -1952,10 +1948,7 @@ public abstract class Value {
                 return new ArrayValue(type,wrapBytes((byte[])jValue));
             }else if(type.isMemory()&&type.content()==Type.BYTE){
                 Object[] parts=(Object[])jValue;
-                ArrayValue val=new ArrayValue(type,wrapBytes((byte[])parts[0]));
-                val.offset=(int)parts[1];
-                val.length=(int)parts[2];
-                return val;
+                return new ArrayValue(type,wrapBytes((byte[])parts[0]),(int)parts[1],(int)parts[2]);
             }else if(type.isOptional()){
                 Optional<?> o=(Optional<?>)jValue;
                 if(o.isEmpty()){
