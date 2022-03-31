@@ -1402,9 +1402,6 @@ public class Parser {
         BlockContext emptyCopy(){
             return new BlockContext(parent);
         }
-        void copyValuesTo(BlockContext copy){
-            copy.elements.putAll(elements);
-        }
 
         /**elements declared in this block context as an iterable of key value pairs*/
         public Iterable<Map.Entry<String, Declareable>> elements() {
@@ -1474,10 +1471,6 @@ public class Parser {
         GenericContext emptyCopy(){
             return new GenericContext(parent,allowImplicit);
         }
-        void copyValuesTo(GenericContext copy){
-            super.copyValuesTo(copy);
-            copy.generics.addAll(generics);
-        }
 
         void declareGeneric(String name, boolean isImplicit, FilePosition pos, IOContext ioContext) throws SyntaxError {
             if(locked){
@@ -1513,10 +1506,6 @@ public class Parser {
         @Override
         ProcedureContext emptyCopy() {
             return new ProcedureContext(parent);
-        }
-        void copyValuesTo(ProcedureContext copy){
-            super.copyValuesTo(copy);
-            copy.curried.addAll(curried);
         }
 
         VariableId wrapCurried(String name, VariableId id, FilePosition pos) throws SyntaxError {
