@@ -5,7 +5,7 @@
 [byte List mut:(byte memory mut:append ustring)]
 [codepoint List mut:(codepoint memory mut:prepend string)]
 [byte List mut:(byte memory mut:prepend ustring)]
-[codepoint List mut:(codepoint memory mut:pprepend codepoint)]
+[byte List mut:(byte memory mut:💻prepend codepoint)]
 [byte array mut~:💻]
 [byte array mut~:A°💻, uint:1, codepoint:A, bool:true]
 [byte array mut~:A°💻, uint:2, codepoint:°, bool:true]

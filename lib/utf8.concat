@@ -56,14 +56,34 @@ list #include
   value return
 }
 
-## addLater reintroduce prepend operations
-#+>> public proc( codepoint StringBuilder => StringBuilder ){
+>> public proc( codepoint StringBuilder => StringBuilder ){
   str =::
-  cp =::
-  str 0 0 [:] cp << drop
-  str return
-}+#
-#+*>> public proc( ustring mut? StringBuilder => StringBuilder ){
+  uint cp =:
+       cp 0x80    < if{   ## ascii - character
+    cp byte cast str >> return
+  else cp 0x800   < if  ## 2-byte blocks
+     cp 6 >>          0xc0 | byte cast
+     cp        0x3f & 0x80 | byte cast
+     str >> >> return
+  else cp 0x10000 < if  ## 3-byte blocks
+    cp 12 >>         0xe0 | byte cast
+    cp  6 >>  0x3f & 0x80 | byte cast
+    cp        0x3f & 0x80 | byte cast
+    str >> >> >> return
+  else cp 0x10ffff < if ## 4-byte blocks
+    cp 18 >>         0xf0 | byte cast
+    cp 12 >>  0x3f & 0x80 | byte cast
+    cp  6 >>  0x3f & 0x80 | byte cast
+    cp        0x3f & 0x80 | byte cast
+    str >> >> >> >> return
+  else
+    ## don't exit on invalid codepoints, only display waring message
+    35 buildString
+    "Codepoint out of range: 0x" <<* cp int cast <<X '\n' << .build eputs
+    str return
+  }
+}
+*>> public proc( ustring mut? StringBuilder => StringBuilder ){
   value =::
   append =::
   value length append .length +  value .ensureCap
@@ -73,13 +93,12 @@ list #include
     i 1 - i =
   }
   value return
-}+#
-#+*>> public proc( string mut? UStringBuilder => UStringBuilder ){
+}
+*>> public proc( string mut? UStringBuilder => UStringBuilder ){
   value  =::
-  append =::
-  value 0 0 [:] append <<* drop
-  value return
-}+#
+  ## addLater? more efficient algorithm?
+  #+append+# codepoints value *>> return
+}
 
 codepointToString public proc( codepoint => string ){
   4 buildString swap << .build return
