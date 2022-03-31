@@ -165,11 +165,13 @@ public class Type {
     final boolean switchable;
     final Mutability mutability;
     /**fields that are attached to this type*/
-    private final HashMap<String,Value> typeFields;
+    private final HashMap<String, Integer> typeFieldNames;
     /**"pseudo-fields" for values of this type,
      * a pseudo field is a procedure that takes this type as last parameter*/
-    private final HashMap<String, Parser.Callable> pseudoFields;
+    private final HashMap<String, Integer> pseudoFieldNames;
+    private final ArrayList<Value> typeFields;
     private boolean typeFieldsInitialized=false;
+    private int nativeFieldCount=-1;
 
     /**cache for the different variants of this type*/
     private final HashMap<Mutability,Type> withMutability;
@@ -192,8 +194,9 @@ public class Type {
         this.switchable = switchable;
         this.mutability=mutability;
 
-        typeFields = new HashMap<>();
-        pseudoFields = new HashMap<>();
+        typeFieldNames = new HashMap<>();
+        pseudoFieldNames = new HashMap<>();
+        typeFields=new ArrayList<>();
         withMutability=new HashMap<>();
         withMutability.put(mutability,this);
     }
@@ -203,9 +206,11 @@ public class Type {
         this.mutability = newMutability;
 
         src.ensureFieldsInitialized();//ensure type fields are initialized
-        typeFields =src.typeFields;
+        typeFieldNames =src.typeFieldNames;
+        typeFields=src.typeFields;
         typeFieldsInitialized=true;//type fields of copied type are already initialized
-        pseudoFields = src.pseudoFields;
+        nativeFieldCount=src.nativeFieldCount;//same number of native fields
+        pseudoFieldNames = src.pseudoFieldNames;
         withMutability= src.withMutability;
         withMutability.put(newMutability,this);
     }
@@ -213,7 +218,7 @@ public class Type {
     FilePosition declaredAt(){
         return Value.InternalProcedure.POSITION;
     }
-    private void ensureFieldsInitialized(){
+    void ensureFieldsInitialized(){
         if(!typeFieldsInitialized){
             typeFieldsInitialized=true;
             try {
@@ -221,6 +226,7 @@ public class Type {
             } catch (SyntaxError e) {
                 throw new RuntimeException(e);
             }
+            nativeFieldCount=typeFields.size();
         }
     }
     void initTypeFields() throws SyntaxError {
@@ -343,11 +349,14 @@ public class Type {
         return Collections.emptyList();
     }
 
-    void addField(String name,Value fieldValue,FilePosition pos) throws SyntaxError {
+    int addField(String name,Value fieldValue,FilePosition pos) throws SyntaxError {
         ensureFieldsInitialized();
-        if(typeFields.put(name, fieldValue)!=null){
+        int id=typeFields.size();
+        if(typeFieldNames.put(name, id)!=null){
             throw new SyntaxError(this.name+" already has a field "+name+" ",pos);
         }
+        typeFields.add(fieldValue);
+        return id;
     }
     void addPseudoField(Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
         addPseudoField(fieldValue.name(),fieldValue,declaredAt);
@@ -359,16 +368,54 @@ public class Type {
             throw new SyntaxError(fieldValue.name()+" (declared at "+fieldValue.declaredAt()+") "+
                     "has an invalid signature for a pseudo-field of "+this+": "+Arrays.toString(in),declaredAt);
         }
-        pseudoFields.put(name,fieldValue);
-        addField(name,(Value)fieldValue, declaredAt);
+        int id=addField(name,(Value)fieldValue, declaredAt);//addLater? don't allow accessing pseudo fields as type fields
+        pseudoFieldNames.put(name,id);
     }
-    HashMap<String,Value> typeFields(){
+    void inheritDeclaredFields(Type extended) {
         ensureFieldsInitialized();
+        if(!extended.typeFieldsInitialized){
+            throw new RuntimeException("extended type has to be initialized");
+        }
+        int initPos=typeFields.size();
+        //addLater remember start position of inherited type fields
+        for(int i=extended.nativeFieldCount;i<extended.typeFields.size();i++){
+            typeFields.add(extended.typeFields.get(i));
+        }
+        //copy field names
+        for(Map.Entry<String, Integer> e:extended.typeFieldNames.entrySet()){
+            if(e.getValue()>=extended.nativeFieldCount){
+                typeFieldNames.put(e.getKey(),e.getValue()- extended.nativeFieldCount+initPos);
+            }
+        }
+        for(Map.Entry<String, Integer> e:extended.pseudoFieldNames.entrySet()){
+            if(e.getValue()>=extended.nativeFieldCount){
+                pseudoFieldNames.put(e.getKey(),e.getValue()- extended.nativeFieldCount+initPos);
+            }
+        }
+    }
+    void overwriteTypeField(int index,Value newValue){
+        //TODO check for correct type
+        typeFields.set(index,newValue);
+    }
+
+
+    List<Value> typeFields(){
         return typeFields;
     }
-    HashMap<String, Parser.Callable> pseudoFields(){
+    int typeFieldId(String name){
         ensureFieldsInitialized();
-        return pseudoFields;
+        Integer id=typeFieldNames.get(name);
+        return id==null?-1:id;
+    }
+    Value getTypeField(String name){
+        ensureFieldsInitialized();
+        Integer id=typeFieldNames.get(name);
+        return id==null?null:typeFields.get(id);
+    }
+    Parser.Callable getPseudoField(String name){
+        ensureFieldsInitialized();
+        Integer id=pseudoFieldNames.get(name);
+        return id==null?null:(Parser.Callable)typeFields.get(id);
     }
 
     /**returns the semi-mutable version of this type
@@ -934,15 +981,36 @@ public class Type {
             indexByName=src.indexByName;
         }
 
-        @Override
-        void addField(String name, Value fieldValue, FilePosition pos) throws SyntaxError {
-            declaredTypeFields.add(name);
-            super.addField(name, fieldValue, pos);
+
+        public void inheritFields(Struct extended) {
+            super.inheritDeclaredFields(extended);
         }
-        @Override
-        void addPseudoField(String name, Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
+
+        void declareTypeField(String name, Value fieldValue, FilePosition pos) throws SyntaxError {
+            ensureFieldsInitialized();
+            if(declaredTypeFields.contains(name)){
+                throw new SyntaxError(baseName+" already has a field "+name,pos);
+            }
             declaredTypeFields.add(name);
-            super.addPseudoField(name, fieldValue, declaredAt);
+            int parent=typeFieldId(name);
+            if(parent==-1){
+                addField(name, fieldValue, pos);
+                return;
+            }
+            overwriteTypeField(parent,fieldValue);
+        }
+        void declarePseudoField(String name, Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
+            ensureFieldsInitialized();
+            if(declaredTypeFields.contains(name)){
+                throw new SyntaxError(baseName+" already has a field "+name,declaredAt);
+            }
+            declaredTypeFields.add(name);
+            int parent=typeFieldId(name);
+            if(parent==-1) {
+                addPseudoField(name, fieldValue, declaredAt);
+                return;
+            }
+            overwriteTypeField(parent,(Value)fieldValue);
         }
 
         @Override

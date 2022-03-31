@@ -650,7 +650,7 @@ public class Parser {
                     }
                 }else if(blockJumps.size()<((Type.Enum) switchType).elementCount()){
                     ioContext.stdErr.println("missing cases in enum switch-case:");
-                    for(Value v:switchType.typeFields().values()){
+                    for(Value v:switchType.typeFields()){
                         if(v instanceof Value.EnumEntry&& !blockJumps.containsKey(v)){
                             ioContext.stdErr.println(" - "+
                                     ((Type.Enum) switchType).entryNames[((Value.EnumEntry)v).index]);
@@ -2735,6 +2735,7 @@ public class Parser {
                 for(int i = 0; i< extended.elementCount(); i++){
                     aStruct.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
+                aStruct.inheritFields(extended);
             }
             TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,globalConstants,new RandomAccessStack<>(8),
                     null,aStruct.endPos,ioContext);
@@ -2754,27 +2755,15 @@ public class Parser {
                 types[i]= structContext.fields.get(i).type;
             }
             aStruct.setFields(fieldNames,types);
+            aStruct.ensureFieldsInitialized();//ensure that all type fields are initialized
             for(PseudoFieldDeclaration e:structContext.pseudoFields){
                 if(!aStruct.declaredTypeFields.contains(e.name)){
-                    aStruct.addPseudoField(e.name,e.called,e.declaredAt);
+                    aStruct.declarePseudoField(e.name,e.called,e.declaredAt);
                 }
             }
             for(TypeFieldDeclaration e:structContext.typeFields){
                 if(!aStruct.declaredTypeFields.contains(e.name)){
-                    aStruct.addField(e.name,e.value,e.declaredAt);
-                }
-            }
-            if(aStruct.extended!=null){
-                Type.Struct extended = aStruct.extended;
-                for(String name: extended.declaredTypeFields){
-                    Callable pseudo = extended.pseudoFields().get(name);//TODO ensure type/pseudo fields have the correct types
-                    if(pseudo!=null&&!aStruct.declaredTypeFields.contains(name)){
-                        aStruct.addPseudoField(name, pseudo,aStruct.declaredAt);
-                    }
-                    Value typeField = extended.typeFields().get(name);
-                    if(typeField!=null&&!aStruct.declaredTypeFields.contains(name)){
-                        aStruct.addField(name, typeField,aStruct.declaredAt);
-                    }
+                    aStruct.declareTypeField(e.name,e.value,e.declaredAt);
                 }
             }
         }
@@ -3521,7 +3510,7 @@ public class Parser {
             for(int p = 0; p < caseValues.size(); p++){
                 Token prev=caseValues.get(p);
                 if(prev instanceof IdentifierToken id&&id.type==IdentifierType.WORD){
-                    Value entry=sType.typeFields().get(id.name);
+                    Value entry=sType.getTypeField(id.name);
                     if(entry instanceof Value.EnumEntry){
                         caseValues.set(p,new ValueToken(entry,id.pos));
                     }
@@ -3819,8 +3808,8 @@ public class Parser {
                             }
                         }catch (NumberFormatException ignored){}
                     }
-                    Callable pseudoField=f.type.pseudoFields().get(identifier.name);
-                    //TODO remember pseudo-fields by their field-id (allow subtypes to overwrite values of pseudo field)
+                    Callable pseudoField=f.type.getPseudoField(identifier.name);
+                    //TODO remember pseudo-fields accesses by their field-id (allow subtypes to overwrite values of pseudo field)
                     if(pseudoField!=null){
                         typeStack.push(f);//push f back onto the type-stack
                         CallMatch match = typeCheckOverloadedCall(pseudoField.name(),new OverloadedProcedure(pseudoField),null,typeStack,
@@ -3835,7 +3824,7 @@ public class Parser {
                             //ensure that struct is initialized
                             typeCheckStruct((Type.Struct) f.value.asType(),globalConstants,ioContext);
                         }
-                        Value typeField=f.value.asType().typeFields().get(identifier.name);
+                        Value typeField=f.value.asType().getTypeField(identifier.name);
                         if(typeField!=null){
                             typeStack.push(new TypeFrame(typeField.type, typeField, t.pos));
                             ValueToken entry = new ValueToken(typeField, t.pos);
