@@ -21,13 +21,13 @@ valueIO #include ## for println
 core #import ## to use println in global scope
 
 fib proc( int => int ){
-   dup 1 >  if{
-   dup 1 - fib swap 2 - fib +
- else 1 == if
-   1
- else
-   0
- }
+  dup 1 >  if{
+    dup 1 - fib swap 2 - fib +
+  else 1 == if
+    1
+  else
+    0
+  }
 }
 
 #+ print 10th Fibonacci Number: +#
@@ -50,7 +50,7 @@ pulling a given number of values, preforming
 an operation on that values and then pushing the result
 ### Comments
 - `##` comments out the rest of the line
-- Inline comments are surrounded by `#+` and `+#`
+- Block comments are surrounded by `#+` and `+#`
 ### Values
 Writing a Value in the source code simply pushes that value
 on the stack, the natively supported value types are
@@ -235,7 +235,7 @@ in the next section.
 Iterators simplify iterating over all elements of an array,
 they are designed to work well with for-each loops.
 Iterators are defined in the standard library and 
-can be included with `iterators include`, iterators 
+can be included with `iterators #include`, iterators 
 also includes [optional](https://github.com/bsoelch/ConcatLang#optionals)
 
 - `^_` created a new iterator at the start of 
