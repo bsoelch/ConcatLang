@@ -292,19 +292,19 @@ public class Parser {
         }
     }
     static class DeclareLambdaToken extends Token{
-        final Type[] inTypes;
-        final Type[] outTypes;
+        final ArrayList<Token> inTypes;
+        final ArrayList<Token> outTypes;
         final ArrayList<Type.GenericParameter> generics;
-        final ArrayList<Token> tokens;
+        final ArrayList<Token> body;
         final ProcedureContext context;
         final FilePosition endPos;
-        DeclareLambdaToken(Type[] inTypes, Type[] outTypes, ArrayList<Type.GenericParameter> generics, ArrayList<Token> tokens,
-                           ProcedureContext context, FilePosition pos, FilePosition endPos) {
+        DeclareLambdaToken(ArrayList<Token> inTypes, ArrayList<Token> outTypes, ArrayList<Type.GenericParameter> generics,
+                           ArrayList<Token> body, ProcedureContext context, FilePosition pos, FilePosition endPos) {
             super(TokenType.DECLARE_LAMBDA, pos);
             this.inTypes = inTypes;
             this.outTypes = outTypes;
             this.generics=generics;
-            this.tokens = tokens;
+            this.body = body;
             this.context = context;
             this.endPos=endPos;
         }
@@ -312,24 +312,29 @@ public class Parser {
         @Override
         public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
             boolean changed=false;
-            Type[] newIn = new Type[inTypes.length];
-            for(int i=0;i<inTypes.length;i++){
-                newIn[i]=inTypes[i].replaceGenerics(genericParams);
-                changed|=newIn[i]!=inTypes[i];
-            }
-            Type[] newOut = new Type[outTypes.length];
-            for(int i=0;i<outTypes.length;i++){
-                newOut[i]=outTypes[i].replaceGenerics(genericParams);
-                changed|=newOut[i]!=outTypes[i];
-            }
-            ArrayList<Token> newTokens=new ArrayList<>(tokens.size());
             Token newT;
-            for(Token t:tokens){
+            ArrayList<Token> newIns=new ArrayList<>(inTypes.size());
+            for(Token t: inTypes){
+                newT=t.replaceGenerics(genericParams);
+                newIns.add(newT);
+                changed|=newT!=t;
+            }
+            ArrayList<Token> newOuts=null;
+            if(outTypes!=null){
+                newOuts=new ArrayList<>(outTypes.size());
+                for(Token t: outTypes){
+                    newT=t.replaceGenerics(genericParams);
+                    newOuts.add(newT);
+                    changed|=newT!=t;
+                }
+            }
+            ArrayList<Token> newTokens=new ArrayList<>(body.size());
+            for(Token t: body){
                 newT=t.replaceGenerics(genericParams);
                 newTokens.add(newT);
                 changed|=newT!=t;
             }
-            return changed?new DeclareLambdaToken(newIn,newOut,generics,newTokens,context,pos,endPos):this;
+            return changed?new DeclareLambdaToken(newIns,newOuts,generics,newTokens,context,pos,endPos):this;
         }
     }
     static class TupleElementAccess extends Token{
@@ -430,6 +435,7 @@ public class Parser {
         final boolean isPublic;
         final ProcedureContext context;
         Type[] inTypes=null,outTypes=null;
+        ArrayList<Token> inTokens,outTokens;
         int state=STATE_IN;
         final boolean isNative;
 
@@ -466,26 +472,18 @@ public class Parser {
             }
             return types;
         }
-        void addIns(List<Token> ins,FilePosition pos) throws SyntaxError {
+        void insSet(FilePosition pos) throws SyntaxError {
             if(state!=STATE_IN){
                 throw new SyntaxError("Procedure already has input arguments",pos);
             }
-            inTypes = getSignature(ins,false);
-            ins.clear();
             state=STATE_OUT;
         }
-        void addOuts(List<Token> outs,FilePosition pos) throws SyntaxError {
+        void outsSet(FilePosition pos) throws SyntaxError {
             if(state==STATE_IN){
-                if(name==null){
-                    inTypes = getSignature(outs,false);
-                    outs.clear();
-                }else{
+                if(name!=null){
                     throw new SyntaxError("named procedures cannot have implicit output arguments",pos);
                 }
-            }else if(state==STATE_OUT){
-                outTypes = getSignature(outs,false);
-                outs.clear();
-            }else{
+            }else if(state!=STATE_OUT){
                 throw new SyntaxError("Procedure already has output arguments",pos);
             }
             state=STATE_BODY;
@@ -2128,8 +2126,13 @@ public class Parser {
                     CodeBlock block = pState.openBlocks.peekLast();
                     if(block instanceof ProcedureBlock proc) {
                         List<Token> ins = tokens.subList(proc.start, tokens.size());
-                        proc.addIns(typeCheck(ins,block.context(),pState.globalConstants,
-                                new RandomAccessStack<>(8),null,pos,ioContext).tokens,pos);
+                        if(proc.name!=null){
+                            proc.inTypes = ProcedureBlock.getSignature(typeCheck(ins,block.context(),pState.globalConstants,
+                                    new RandomAccessStack<>(8),null,pos,ioContext).tokens,false);
+                        }else{
+                            proc.inTokens=new ArrayList<>(ins);
+                        }
+                        proc.insSet(pos);
                         ins.clear();
                         proc.context().lock();
                     }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
@@ -2149,9 +2152,18 @@ public class Parser {
                         if(proc.state==ProcedureBlock.STATE_BODY){
                             throw new SyntaxError("unexpected '"+str+"'",pos);
                         }
-                        List<Token> outs = tokens.subList(proc.start, tokens.size());//addLater check lambda signature in type-check phase
-                        proc.addOuts(typeCheck(outs,block.context(),pState.globalConstants,
-                                new RandomAccessStack<>(8),null,pos,ioContext).tokens,pos);
+                        List<Token> outs = tokens.subList(proc.start, tokens.size());
+                        if(proc.name!=null) {
+                            proc.outTypes = ProcedureBlock.getSignature(typeCheck(outs, block.context(), pState.globalConstants,
+                                    new RandomAccessStack<>(8), null, pos, ioContext).tokens, false);
+                        }else{
+                            if(proc.state==ProcedureBlock.STATE_IN){
+                                proc.inTokens=new ArrayList<>(outs);
+                            }else{
+                                proc.outTokens=new ArrayList<>(outs);
+                            }
+                        }
+                        proc.outsSet(pos);
                         outs.clear();
                     }else{
                         throw new SyntaxError(str+" can only be used in proc- and lambda- blocks", pos);
@@ -2220,56 +2232,57 @@ public class Parser {
                             List<Token> subList = tokens.subList(block.start, tokens.size());
                             ArrayList<Token> content=new ArrayList<>(subList);
                             subList.clear();
-                            ProcedureContext context = ((ProcedureBlock) block).context();
+                            ProcedureBlock procBlock = (ProcedureBlock) block;
+                            ProcedureContext context = procBlock.context();
                             if(context != pState.openedContexts.pollLast()){
                                 throw new RuntimeException("openedContexts is out of sync with openBlocks");
                             }
                             assert context != null;
-                            Type[] ins=((ProcedureBlock) block).inTypes;
-                            Type[] outs=((ProcedureBlock) block).outTypes;
-                            ArrayList<Type.GenericParameter> generics=((ProcedureBlock) block).context.generics;
-                            Type.Procedure procType=null;
-                            if(((ProcedureBlock) block).state==ProcedureBlock.STATE_BODY) {
-                                if (outs != null) {
-                                    procType=(generics.size()>0)?
-                                            Type.GenericProcedureType.create(generics.toArray(Type.GenericParameter[]::new),ins,outs,pos):
-                                            Type.Procedure.create(ins,outs,pos);
-                                }
-                            }else{
-                                if(((ProcedureBlock) block).state==ProcedureBlock.STATE_IN){
+                            Type[] ins= procBlock.inTypes;
+                            Type[] outs= procBlock.outTypes;
+                            ArrayList<Type.GenericParameter> generics= procBlock.context.generics;
+                            if(procBlock.state!=ProcedureBlock.STATE_BODY) {
+                                if(procBlock.state==ProcedureBlock.STATE_IN){
                                     throw new SyntaxError("procedure does not have a signature",block.startPos);
                                 }else{
                                     throw new SyntaxError("procedure does not provide output arguments",block.startPos);
                                 }
                             }
-                            if(((ProcedureBlock) block).isNative){
+                            Type.Procedure procType=null;
+                            if (procBlock.name!=null) {
+                                procType=(generics.size()>0)?
+                                        Type.GenericProcedureType.create(generics.toArray(Type.GenericParameter[]::new),ins,outs,pos):
+                                        Type.Procedure.create(ins,outs,pos);
+                            }
+                            if(procBlock.isNative){
                                 assert procType!=null;
-                                assert ((ProcedureBlock) block).name!=null;
+                                assert procBlock.name!=null;
                                 if(content.size()>0){
                                     throw new SyntaxError("unexpected token: "+subList.get(0)+
                                             " (at "+subList.get(0).pos+") native procedures have to have an empty body",pos);
                                 }
-                                Value.NativeProcedure proc=Value.createExternalProcedure(((ProcedureBlock) block).name,
-                                        ((ProcedureBlock) block).isPublic, procType,block.startPos
+                                Value.NativeProcedure proc=Value.createExternalProcedure(procBlock.name,
+                                        procBlock.isPublic, procType,block.startPos
                                 );
                                 pState.topLevelContext().declareProcedure(proc,ioContext);
                             }else{
-                                if(((ProcedureBlock) block).name!=null){
+                                if(procBlock.name!=null){
                                     assert procType!=null;
                                     if(generics.size()>0){
-                                        GenericProcedure proc=new GenericProcedure(((ProcedureBlock) block).name,
-                                                ((ProcedureBlock) block).isPublic,(Type.GenericProcedureType) procType,
+                                        GenericProcedure proc=new GenericProcedure(procBlock.name,
+                                                procBlock.isPublic,(Type.GenericProcedureType) procType,
                                                 content,block.startPos,pos,context);
                                         assert context.curried.isEmpty();
                                         pState.topLevelContext().declareProcedure(proc,ioContext);
                                     }else{
-                                        Value.Procedure proc=Value.createProcedure(((ProcedureBlock) block).name,
-                                                ((ProcedureBlock) block).isPublic,procType, content,block.startPos,pos,context);
+                                        Value.Procedure proc=Value.createProcedure(procBlock.name,
+                                                procBlock.isPublic,procType, content,block.startPos,pos,context);
                                         assert context.curried.isEmpty();
                                         pState.topLevelContext().declareProcedure(proc,ioContext);
                                     }
                                 }else{
-                                    tokens.add(new DeclareLambdaToken(ins,outs,generics,content,context,block.startPos,pos));
+                                    tokens.add(new DeclareLambdaToken(procBlock.inTokens,procBlock.outTokens,
+                                            generics,content,context,block.startPos,pos));
                                 }
                             }
                         }
@@ -3519,17 +3532,26 @@ public class Parser {
     private void typeCheckLambda(HashMap<VariableId, Value> globalConstants, VariableContext context,
                                  RandomAccessStack<TypeFrame> typeStack
             , IOContext ioContext, ArrayList<Token> ret, DeclareLambdaToken t) throws SyntaxError {
-        RandomAccessStack<TypeFrame> procTypes=new RandomAccessStack<>(8);
-        for(Type in:t.inTypes){
-            procTypes.push(new TypeFrame(in,null, t.pos));
-        }
+
         ProcedureContext newContext=new ProcedureContext(context);
         newContext.generics.addAll(t.generics);//move generics to new context
-        TypeCheckResult res=typeCheck(t.tokens,newContext, globalConstants,procTypes,t.outTypes,t.endPos, ioContext);
+        TypeCheckResult res=typeCheck(t.inTypes,newContext, globalConstants,new RandomAccessStack<>(8),null,
+                t.pos,ioContext);
+        Type[] inTypes=ProcedureBlock.getSignature(res.tokens,false);
+        RandomAccessStack<TypeFrame> procTypes=new RandomAccessStack<>(8);
+        for(Type in:inTypes){
+            procTypes.push(new TypeFrame(in,null, t.pos));
+        }
         Type[] outTypes;
-        if(t.outTypes!=null){
-            outTypes=t.outTypes;
+        if(t.outTypes!=null) {
+            res = typeCheck(t.outTypes, newContext, globalConstants, new RandomAccessStack<>(8), null,
+                    t.pos, ioContext);
+            outTypes = ProcedureBlock.getSignature(res.tokens, false);
         }else{
+            outTypes=null;
+        }
+        res=typeCheck(t.body,newContext, globalConstants,procTypes,outTypes,t.endPos, ioContext);
+        if(t.outTypes==null){
             outTypes=new Type[res.types.size()];
             for(int i= outTypes.length-1;i>=0;i--){
                 try {
@@ -3540,8 +3562,8 @@ public class Parser {
             }
         }
         Type.Procedure procType=t.generics.size()>0?
-                Type.GenericProcedureType.create(t.generics.toArray(new Type.GenericParameter[0]),t.inTypes,outTypes,t.pos):
-                Type.Procedure.create(t.inTypes, outTypes,t.pos);
+                Type.GenericProcedureType.create(t.generics.toArray(new Type.GenericParameter[0]),inTypes,outTypes,t.pos):
+                Type.Procedure.create(inTypes, outTypes,t.pos);
         Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, newContext);
         lambda.typeCheckState = Value.TypeCheckState.CHECKED;//mark lambda as checked
         //push type information
