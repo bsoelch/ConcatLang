@@ -1,6 +1,7 @@
 lib/iterator :
 
 core #namespace
+stack #include
 codeblocks #include
 
 Iterator public struct{ A <>
@@ -115,5 +116,66 @@ MappedIterator.^> private proc( A <> B <> A B MappedIterator => A B MappedIterat
   #+newBase+# itr .map A B MappedIterator new B empty return
 }
 
+ConcatenatedIterator struct{ A <> A Iterator extend
+  A @ConcatenatedIterator.^> :^> pseudo
+
+  A Iterator array :iterators
+}
+concat public proc( A <?> A Iterator A Iterator => A Iterator ){
+  itr2 =::
+  itr1 =::
+  itr1 .type A ConcatenatedIterator == if{
+    itr2 .type A ConcatenatedIterator == if{
+      itr1 A ConcatenatedIterator cast .iterators iterators1 =::
+      itr2 A ConcatenatedIterator cast .iterators iterators2 =::
+      iterators1 .length iterators2 .length + A Iterator memory mut new tmp =::
+      iterators1 0 tmp 0                  iterators1 .length copy
+      iterators2 0 tmp iterators1 .length iterators2 .length copy
+      tmp clone-mut~ A ConcatenatedIterator new return
+    else
+      itr1 A ConcatenatedIterator cast .iterators iterators1 =::
+      iterators1 .length 1 + A Iterator memory mut new tmp =::
+      iterators1 0 tmp 0 iterators1 .length copy
+      tmp itr2 []^=
+      tmp clone-mut~ A ConcatenatedIterator new return
+    }
+  else itr2 .type A ConcatenatedIterator == if
+    itr2 A ConcatenatedIterator cast .iterators iterators2 =::
+    iterators2 .length 1 + A Iterator memory mut new tmp =::
+    tmp itr1 []^=
+    iterators2 0 tmp 1 iterators2 .length copy
+    tmp clone-mut~ A ConcatenatedIterator new return
+  else
+    { itr1 itr2 } A ConcatenatedIterator new return
+  }
+}
+##pseudo-field
+ConcatenatedIterator.^> private proc( A <> A ConcatenatedIterator => A Iterator A optional ){
+  itr =::
+  itr .iterators .length 0 == if{
+    itr A empty return ## no iterator in chain
+  else itr .iterators .length 1 == if
+    itr .iterators 0 [] .^> return ## only one iterator in chain
+  }
+  itr .iterators 0 [] .^> res =::
+  res .hasValue if{
+    itr .iterators clone iterators =::
+    #+newItr+# iterators 0 []=
+    iterators clone-mut~ A ConcatenatedIterator new  res return
+  }
+  drop ## drop empty iterator
+  1 i =::
+  while{ i itr .iterators .length 1 - < do
+    itr .iterators i [] .^> res =
+    res .hasValue if{
+      itr .iterators .length i - A Iterator memory mut new iterators =::
+      itr .iterators i iterators 0 itr .iterators .length i - copy
+      #+newItr+# iterators 0 []=
+      iterators clone-mut~ A ConcatenatedIterator new  res return
+    }
+    drop ## drop empty iterator
+  }
+  itr .iterators itr .iterators .length 1 - [] .^> return
+}
 
 #end ## core

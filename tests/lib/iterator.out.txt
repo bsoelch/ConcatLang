@@ -11,6 +11,19 @@ o
 2.5
 3.5
 4.5
+(int Iterator array mut~:[int ArrayIterator:(int array:[int:1, int:2],int:0), int ArrayIterator:(int array:[int:3, int:4],int:0), int ArrayIterator:(int array:[int:5, int:6],int:0), int ArrayIterator:(int array:[int:7, int:8],int:0), int ArrayIterator:(int array:[int:9, int:10],int:0), int ArrayIterator:(int array:[int:11, int:12],int:0)])
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
 
 Stack:
 []
