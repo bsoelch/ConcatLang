@@ -12,36 +12,36 @@ l debugPrint
 l hashCode debugPrint
 { 1 2 3 4 } hashCode debugPrint
 
-16 int string newHashMap map =::
+16 int string newHashMap hMap =::
 
 "__________________________" debugPrint
 "put:\n" debugPrint
-"one"   map 1 []= debugPrint
-"two"   map 2 []= debugPrint
-"tree"  map 3 []= debugPrint
-"three" map 3 []= debugPrint
-"four"  map 4 []= debugPrint
-"five"  map 5 []= debugPrint
-"six"   map 6 []= debugPrint
+"one"   hMap 1 []= debugPrint
+"two"   hMap 2 []= debugPrint
+"tree"  hMap 3 []= debugPrint
+"three" hMap 3 []= debugPrint
+"four"  hMap 4 []= debugPrint
+"five"  hMap 5 []= debugPrint
+"six"   hMap 6 []= debugPrint
 
 "__________________________" debugPrint
 "contains:\n" debugPrint
-map 0 HashMap.contains debugPrint
-map 2 HashMap.contains debugPrint
-map 4 HashMap.contains debugPrint
+hMap 0 HashMap.contains debugPrint
+hMap 2 HashMap.contains debugPrint
+hMap 4 HashMap.contains debugPrint
 "__________________________" debugPrint
 "get:\n" debugPrint
-map 3 [] debugPrint
-map 6 [] debugPrint
-map 9 [] debugPrint
+hMap 3 [] debugPrint
+hMap 6 [] debugPrint
+hMap 9 [] debugPrint
 "__________________________" debugPrint
 "remove:\n" debugPrint
-map 1 HashMap.remove debugPrint
-map 5 HashMap.remove debugPrint
-map 7 HashMap.remove debugPrint
+hMap 1 HashMap.remove debugPrint
+hMap 5 HashMap.remove debugPrint
+hMap 7 HashMap.remove debugPrint
 "__________________________" debugPrint
 "iterator:\n" debugPrint
-map ^_ for{ e =::
+hMap ^_ for{ e =::
   e .key   debugPrint
   e .value debugPrint
 } 1 $drop

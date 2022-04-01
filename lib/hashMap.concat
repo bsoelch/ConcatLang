@@ -64,11 +64,11 @@ newHashMap public proc( #+keyType+# K <> #+valType+# V <> #+cap+# int => K V Has
 
 HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap mut #+key+# K => #+prevVal+# V optional ){
   K key =:
-  K V HashMap mut map =:
+  K V HashMap mut hMap =:
   V value =:
   key hashCode uint hash =:
-  hash map .data .length % uint i =:
-  map .data i [] if{
+  hash hMap .data .length % uint i =:
+  hMap .data i [] if{
     K V HashMapEntry mut entry mut =:
     while{ entry .next do
       entry .key key == if{ drop ##drop next
@@ -86,12 +86,12 @@ HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap mut #+key+#
       wrap return
     else
       key value K V HashMapEntry mut empty K V HashMapEntry mut new wrap  entry .next =
-      map HashMap.incSize
+      hMap HashMap.incSize
       V empty return
     }
   else
-    key value K V HashMapEntry mut empty K V HashMapEntry mut new wrap   map .data i []=
-    map HashMap.incSize
+    key value K V HashMapEntry mut empty K V HashMapEntry mut new wrap   hMap .data i []=
+    hMap HashMap.incSize
     V empty return
   }
 }
@@ -102,10 +102,10 @@ HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap mut #+key+#
 
 HashMap.contains public proc( K <?> V <?> #+map+# K V HashMap mut? #+key+# K => bool ){
   K key =:
-  K V HashMap mut? map =:
+  K V HashMap mut? hMap =:
   key hashCode uint hash =:
-  hash map .data .length % uint i =:
-  map .data i [] K V HashMapEntry mut optional entry mut =:
+  hash hMap .data .length % uint i =:
+  hMap .data i [] K V HashMapEntry mut optional entry mut =:
   while{ entry do
     K V HashMapEntry mut unwrapped =:
     unwrapped .key key == if{
@@ -118,10 +118,10 @@ HashMap.contains public proc( K <?> V <?> #+map+# K V HashMap mut? #+key+# K => 
 
 HashMap.get public proc( K <?> V <?> #+map+# K V HashMap mut? #+key+# K => #+value+# V optional ){
   K key =:
-  K V HashMap mut? map =:
+  K V HashMap mut? hMap =:
   key hashCode uint hash =:
-  hash map .data .length % uint i =:
-  map .data i [] K V HashMapEntry mut optional entry mut =:
+  hash hMap .data .length % uint i =:
+  hMap .data i [] K V HashMapEntry mut optional entry mut =:
   while{ entry do
     K V HashMapEntry mut unwrapped =:
     unwrapped .key key == if{
@@ -137,21 +137,21 @@ HashMap.get public proc( K <?> V <?> #+map+# K V HashMap mut? #+key+# K => #+val
 
 HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap mut #+key+# K => #+prevVal+# V optional ){
   K key =:
-  K V HashMap mut map =:
+  K V HashMap mut hMap =:
   key hashCode uint hash =:
-  hash map .data .length % uint i =:
-  map .data i [] if{
+  hash hMap .data .length % uint i =:
+  hMap .data i [] if{
     K V HashMapEntry mut entry mut =:
     entry .key key == if{
-      map HashMap.decSize
+      hMap HashMap.decSize
       entry .value ## get previous value
-      entry .next K V HashMapEntry mut optional cast  map .data i []= ## remove entry
+      entry .next K V HashMapEntry mut optional cast  hMap .data i []= ## remove entry
       wrap return
     else
       while{ entry .next do
         K V HashMapEntry mut next =:
         next .key key == if{
-          map HashMap.decSize
+          hMap HashMap.decSize
           next .value ## get previous value
           next .next  entry .next = ## remove entry
           wrap return
