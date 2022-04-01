@@ -398,13 +398,33 @@ public class Type {
             }
         }
     }
-    void overwriteTypeField(int index,Value newValue){
-        //TODO check for correct type
+    /**@return true iff newValue cannot overwrite the type-field at index*/
+    boolean overwriteTypeField(int index,Value newValue){
+        Value prev=typeFields.get(index);
+        if(!newValue.type.canAssignTo(prev.type)){
+            return true;
+        }
         typeFields.set(index,newValue);
+        return false;
     }
-    void overwritePseudoField(int index,Value newValue){
-        //TODO check for correct type
-        typeFields.set(index,newValue);
+    /**@return true iff newValue cannot overwrite the pseudo-field at index*/
+    boolean overwritePseudoField(int index, Parser.Callable newValue){
+        Procedure prevType=(Procedure) typeFields.get(index).type;
+        Procedure newType = newValue.type();
+        //check for correct type
+        if(prevType.inTypes.length!= newType.inTypes.length||
+                prevType.outTypes.length!= newType.outTypes.length)
+            return true;
+        for(int i=0;i<newType.inTypes.length-1;i++){//ignore last parameter (last parameter always has to be the container type)
+            if(!prevType.inTypes[i].canAssignTo(newType.inTypes[i]))
+                return true;
+        }
+        for(int i=0;i<newType.outTypes.length;i++){
+            if(!newType.outTypes[i].canAssignTo(prevType.outTypes[i]))
+                return true;
+        }
+        typeFields.set(index,(Value)newValue);
+        return false;
     }
 
 
@@ -1014,7 +1034,10 @@ public class Type {
                 addField(name, fieldValue, pos);
                 return;
             }
-            overwriteTypeField(prevPos,fieldValue);
+            if(overwriteTypeField(prevPos,fieldValue)){
+                throw new SyntaxError("cannot overwrite type field "+name+": cannot assign "+
+                        fieldValue.type+" to "+typeFields().get(prevPos).type,pos);
+            }
         }
         void declarePseudoField(String name, Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
             ensureFieldsInitialized();
@@ -1027,7 +1050,10 @@ public class Type {
                 addPseudoField(name, fieldValue, declaredAt);
                 return;
             }
-            overwritePseudoField(prevPos,(Value)fieldValue);
+            if(overwritePseudoField(prevPos,fieldValue)){
+                throw new SyntaxError("cannot overwrite pseudo field "+name+": "+typeFields().get(prevPos).type
+                        +" with "+fieldValue.type(),declaredAt);
+            }
         }
 
         @Override
