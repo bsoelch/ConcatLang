@@ -1,6 +1,7 @@
 lib/iterator :
 
 core #namespace
+codeblocks #include
 
 Iterator public struct{ A <>
   A @doNothing :^> pseudo
@@ -51,6 +52,49 @@ ArrayIterator.<^ private proc( A <> A ArrayIterator => A ArrayIterator A optiona
   else
     mItr  A empty return
   }
+}
+
+
+FilteredIterator struct{ A <> A Iterator extend
+  A @FilteredIterator.^> :^> pseudo
+
+  A Iterator          :base
+  ( A => bool ) array :filters
+}
+
+filter public proc( A <?> A Iterator ( A => bool ) => A FilteredIterator ){
+  f =::
+  dup .type A FilteredIterator <= if{ ##filter filtered iterator
+      #+itr+# A FilteredIterator cast f filter return
+  }
+  #+range+# { f } A FilteredIterator new return
+}
+filter public proc( A <?> A FilteredIterator ( A => bool ) => A FilteredIterator ){
+  f =::
+  range =::
+  range .filters .length 1 + ( A => bool ) memory mut new newFilters =::
+  range .filters 0 newFilters 0 range .filters .length copy
+  newFilters f []^=
+  range .base newFilters clone-mut~ A FilteredIterator new return
+}
+
+## pseudo-field
+FilteredIterator.^> private proc( A <> A FilteredIterator => A FilteredIterator int optional ){
+  prev =::
+  false match =::
+  prev .base for{ val =::
+    true match =
+    0 while{ dup prev .filters .length < do
+       val prev .filters 3 $dup [] () ! if{
+          false match =
+       }
+       1 +
+    } drop
+    match if{
+      #+newBase+# prev .filters A FilteredIterator new val wrap return
+    }
+  }
+  #+newBase+# prev .filters A FilteredIterator new int empty return
 }
 
 #end ## core

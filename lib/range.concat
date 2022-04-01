@@ -49,44 +49,4 @@ intRange.^> private proc( intRange => intRange int optional ){
   prev int empty return
 }
 
-filteredRange public struct{ int Iterator extend
-  @filteredRange.^> :^> pseudo
-
-  intRange              :base
-  ( int => bool ) array :filters
-}
-
-filter public proc( intRange ( int => bool ) => filteredRange ){
-  f =::
-  #+range+# { f } filteredRange new return
-}
-filter public proc( filteredRange ( int => bool ) => filteredRange ){
-  f =::
-  range =::
-  range .filters .length 1 + ( int => bool ) memory mut new newFilters =::
-  range .filters 0 newFilters 0 range .filters .length copy
-  newFilters f []^=
-  range .base newFilters clone-mut~ filteredRange new return
-}
-
-## pseudo-field
-filteredRange.^> private proc( filteredRange => filteredRange int optional ){
-  prev =::
-  false match =::
-  prev .base for{ val =::
-    true match =
-    0 while{ dup prev .filters .length < do
-       val prev .filters 3 $dup [] () ! if{
-          false match =
-       }
-       1 +
-    } drop
-    match if{
-      #+newBase+# prev .filters filteredRange new val wrap return
-    }
-  }
-  #+newBase+# prev .filters filteredRange new int empty return
-}
-
-
 #end
