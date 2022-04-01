@@ -41,7 +41,7 @@ map 5 HashMap.remove debugPrint
 map 7 HashMap.remove debugPrint
 "__________________________" debugPrint
 "iterator:\n" debugPrint
-map ^_ while{ ^> do e =::
+map ^_ for{ e =::
   e .key   debugPrint
   e .value debugPrint
 } 1 $drop

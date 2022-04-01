@@ -4,6 +4,7 @@ hashMap #namespace
 
 stack #include
 codeblocks #include
+iterator #include
 core #import
 
 arrayHash public proc( A <?> A array mut? => uint ){
@@ -164,30 +165,31 @@ HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap mut #+key+# K => #+p
   }
 }
 
-HashMapItr public struct{ K <> V <>
-  K V HashMap mut?              :map   private
-  int                           :index private mut
-  K V HashMapEntry mut optional :next  private mut
-}
-HashMapItr.incI  proc( K <?> V <?> K V HashMapItr mut => ){ dup .index 1 + swap .index = }
+HashMapItr public struct{ K <> V <>  K V MapEntry Iterator extend
+  K V @HashMapItr.^> :^> pseudo
 
-^_ public proc( K <?> V <?> K V HashMap mut? => K V HashMapItr mut ){
-  #+map+# -1 K V HashMapEntry mut empty K V HashMapItr mut new return
+  K V HashMap mut?              :map   private
+  int                           :index private
+  K V HashMapEntry mut optional :next  private
 }
-^> public proc( K <?> V <?> K V HashMapItr mut => K V HashMapItr mut K V MapEntry mut? optional ){
-  K V HashMapItr mut itr =:
-  while{ itr .next ! do
-    itr HashMapItr.incI
-    itr .index itr .map .data .length >= if{
-      itr K V MapEntry empty return
+
+^_ public proc( K <?> V <?> K V HashMap mut? => K V HashMapItr ){
+  #+map+# -1 K V HashMapEntry mut empty K V HashMapItr new return
+}
+HashMapItr.^> public proc( K <> V <> K V HashMapItr => K V HashMapItr K V MapEntry optional ){
+  K V HashMapItr itr =:
+  itr .index index =::
+  itr .next  next =::
+  while{ next ! do
+    index 1 + index =
+    index itr .map .data .length >= if{
+      itr .map index next K V HashMapItr new  K V MapEntry empty return
     }
-    itr .map .data itr .index []  itr .next =
+    itr .map .data index []  next =
   }
-  itr .next K V MapEntry mut optional res =:
-  itr .next if{
-    .next itr .next =
-  else unreachable }
-  itr res return
+  next .value K V HashMapEntry mut res =:
+  res .next next =
+  itr .map index next K V HashMapItr new  res .key res .value K V MapEntry new wrap return
 }
 
 ## addLater? HashMap.listEntries
