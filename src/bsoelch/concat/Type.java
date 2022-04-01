@@ -229,7 +229,9 @@ public class Type {
             } catch (SyntaxError e) {
                 throw new RuntimeException(e);
             }
-            nativeFieldCount=typeFields.size();
+            for(Type t:withMutability.values()){//update native field count for all mutabilities
+                t.nativeFieldCount=typeFields.size();
+            }
         }
     }
     void initTypeFields() throws SyntaxError {
@@ -366,7 +368,7 @@ public class Type {
     void addPseudoField(String name,Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
         ensureFieldsInitialized();
         Type[] in=fieldValue.type().inTypes;
-        if(in.length==0||!canAssignTo(in[in.length-1])){
+        if(in.length==0||!canAssignTo(in[in.length-1].maybeMutable())){
             throw new SyntaxError(fieldValue.name()+" (declared at "+fieldValue.declaredAt()+") "+
                     "has an invalid signature for a pseudo-field of "+this+": "+Arrays.toString(in),declaredAt);
         }
@@ -436,11 +438,6 @@ public class Type {
         Integer id=typeFieldNames.get(name);
         return id==null?-1:id;
     }
-    int pseudoFieldId(String name){
-        ensureFieldsInitialized();
-        Integer id=pseudoFieldNames.get(name);
-        return id==null?-1:id;
-    }
     Value getTypeField(String name){
         ensureFieldsInitialized();
         Integer id=typeFieldNames.get(name);
@@ -450,10 +447,19 @@ public class Type {
         ensureFieldsInitialized();
         return typeFields.get(id);
     }
+    private boolean pseudoFieldIncompatible(int id){
+        Procedure t= (Procedure) typeFields.get(id).type;
+        return !canAssignTo(t.inTypes[t.inTypes.length-1]);
+    }
+    int pseudoFieldId(String name){
+        ensureFieldsInitialized();
+        Integer id=pseudoFieldNames.get(name);
+        return id==null||pseudoFieldIncompatible(id)?-1:id;
+    }
     Parser.Callable getPseudoField(String name){
         ensureFieldsInitialized();
         Integer id=pseudoFieldNames.get(name);
-        return id==null?null:(Parser.Callable)typeFields.get(id);
+        return id==null||pseudoFieldIncompatible(id)?null:(Parser.Callable)typeFields.get(id);
     }
     Parser.Callable getPseudoField(int id){
         ensureFieldsInitialized();
