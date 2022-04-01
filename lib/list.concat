@@ -5,6 +5,7 @@ stack #include
 codeblocks #include
 arraySlice #include
 arrayBuilder #include
+valueIO #include
 
 ## TODO better way of reallocating:
 ##   try moving offset to avoid reallocating
@@ -80,8 +81,6 @@ buildString public proc( string mut? => byte List mut ){
 buildUString public proc( uint => codepoint List mut ){
   codepoint newList return
 }
-
-valueIO #include ## include valueIO after buildString is declared
 
 length  public proc( A <?> A List mut? => uint ){
   #+list+# .data .length    return
