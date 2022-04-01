@@ -1179,6 +1179,10 @@ public class Type {
                             }
                             changed=true;
                         }
+                    }else if(e.getValue() instanceof Parser.Constant c){
+                        newContext.putElement(e.getKey(),
+                                new Parser.Constant(e.getKey(),false,c.value.replaceGenerics(generics),
+                                        e.getValue().declaredAt()));
                     }
                 }
                 return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
