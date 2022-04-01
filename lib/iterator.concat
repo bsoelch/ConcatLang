@@ -3,22 +3,36 @@ lib/iterator :
 core #namespace
 
 Iterator public struct{ A <>
+  A @doNothing :^> pseudo
+}
+BiIterator public struct{ A <> A Iterator extend
+  A @doNothing :<^ pseudo
+}
+doNothing private proc( A <> A Iterator mut? => A Iterator mut? A optional ){
+   #+itr+# A empty return
+}
+## addLater? allow iterators to modify the underlying list
+
+ArrayIterator struct{ A <> A BiIterator extend
+  A @ArrayIterator.^> :^> pseudo
+  A @ArrayIterator.<^ :<^ pseudo
+
   A array mut? :array private
   int          :index private mut
 }
-
-^_ public proc( A <?> A array mut? => A Iterator mut ){
+^_ public proc( A <?> A array mut? => A ArrayIterator mut ){
   A array mut? elements =:
-  elements 0 A Iterator mut new
+  elements 0 A ArrayIterator mut new
 }
 
-_^ public proc( A <?> A array mut? => A Iterator mut ){
+_^ public proc( A <?> A array mut? => A ArrayIterator mut ){
   A array mut? elements =:
-  elements elements .length A Iterator mut new
+  elements elements .length A ArrayIterator mut new
 }
 
-^> public proc( A <?> A Iterator mut => A Iterator mut A optional ){
-  A Iterator mut mItr =:
+## pseudo-field
+ArrayIterator.^> private proc( A <> A ArrayIterator mut => A ArrayIterator mut A optional ){
+  A ArrayIterator mut mItr =:
   mItr
   mItr .index mItr .array .length < if{
     mItr .array mItr .index [] wrap ## push element
@@ -27,9 +41,9 @@ _^ public proc( A <?> A array mut? => A Iterator mut ){
     A empty return
   }
 }
-
-<^ public proc( A <?> A Iterator mut => A Iterator mut A optional ){
-  A Iterator mut mItr =:
+## pseudo-field
+ArrayIterator.<^ private proc( A <> A ArrayIterator mut => A ArrayIterator mut A optional ){
+  A ArrayIterator mut mItr =:
   mItr
   mItr .index 0 > if{
     mItr .index 1 - mItr .index = ## decrement iterator
@@ -38,6 +52,5 @@ _^ public proc( A <?> A array mut? => A Iterator mut ){
     A empty return
   }
 }
-## addLater allow iterators to modify the underlying list
 
 #end ## core

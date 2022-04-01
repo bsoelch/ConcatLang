@@ -242,12 +242,12 @@ also includes [optional](https://github.com/bsoelch/ConcatLang#optionals)
 the current element
 - `_^` created a new iterator at the end of
   the current element
-- `^>` moves the iterator to the next element,
+- `.^>` moves the iterator to the next element,
   - there is a next element the iterator pushes
     itself, and an optional wrapping the next element
   - otherwise, the iterator pushes itself,
     followed by an empty optional
-- `<^` moves the iterator to the previous element
+- `.<^` moves the iterator to the previous element
   - there is a previous element the iterator pushes 
     itself, and an optional wrapping the previous element
   - otherwise, the iterator pushes itself,
@@ -257,7 +257,7 @@ Examples:
 template of for-each loop:
 ```
 array ^_ ## create iterator
-while{ ^> do   ## iterate over all elements
+while{ .^> do   ## iterate over all elements
   println ## do something with data
 } 
 drop ## drop the iterator
@@ -282,7 +282,7 @@ reverse proc( string => string ){
   ## create an empty string builder
   toReverse .length buildString res =::
   ## Iterate though the elements in reverse order
-  toReverse _^ while{ <^ do
+  toReverse _^ while{ .<^ do
     byte cast res swap << res =
   } drop
   res .build return
