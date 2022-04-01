@@ -8,7 +8,7 @@ Iterator public struct{ A <>
 BiIterator public struct{ A <> A Iterator extend
   A @doNothing :<^ pseudo
 }
-doNothing private proc( A <> A Iterator mut? => A Iterator mut? A optional ){
+doNothing private proc( A <> A Iterator => A Iterator A optional ){
    #+itr+# A empty return
 }
 ## addLater? allow iterators to modify the underlying list
@@ -18,38 +18,38 @@ ArrayIterator struct{ A <> A BiIterator extend
   A @ArrayIterator.<^ :<^ pseudo
 
   A array mut? :array private
-  int          :index private mut
+  int          :index private
 }
-^_ public proc( A <?> A array mut? => A ArrayIterator mut ){
+^_ public proc( A <?> A array mut? => A ArrayIterator ){
   A array mut? elements =:
-  elements 0 A ArrayIterator mut new
+  elements 0 A ArrayIterator new
 }
 
-_^ public proc( A <?> A array mut? => A ArrayIterator mut ){
+_^ public proc( A <?> A array mut? => A ArrayIterator ){
   A array mut? elements =:
-  elements elements .length A ArrayIterator mut new
+  elements elements .length A ArrayIterator new
 }
 
 ## pseudo-field
-ArrayIterator.^> private proc( A <> A ArrayIterator mut => A ArrayIterator mut A optional ){
-  A ArrayIterator mut mItr =:
-  mItr
+ArrayIterator.^> private proc( A <> A ArrayIterator => A ArrayIterator A optional ){
+  A ArrayIterator mItr =:
   mItr .index mItr .array .length < if{
+    mItr .array mItr .index 1 + A ArrayIterator new ## update iterator
     mItr .array mItr .index [] wrap ## push element
-    mItr .index 1 + mItr .index = ## increment iterator
+    return
   else
-    A empty return
+    mItr  A empty return
   }
 }
 ## pseudo-field
-ArrayIterator.<^ private proc( A <> A ArrayIterator mut => A ArrayIterator mut A optional ){
-  A ArrayIterator mut mItr =:
-  mItr
+ArrayIterator.<^ private proc( A <> A ArrayIterator => A ArrayIterator A optional ){
+  A ArrayIterator mItr =:
   mItr .index 0 > if{
-    mItr .index 1 - mItr .index = ## decrement iterator
-    mItr .array mItr .index [] wrap ## push element
+    mItr .array mItr .index 1 - A ArrayIterator new ## update iterator
+    mItr .array mItr .index 1 - [] wrap ## push element
+    return
   else
-    A empty return
+    mItr  A empty return
   }
 }
 
