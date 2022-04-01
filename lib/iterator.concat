@@ -97,4 +97,23 @@ FilteredIterator.^> private proc( A <> A FilteredIterator => A FilteredIterator 
   #+newBase+# prev .filters A FilteredIterator new A empty return
 }
 
+MappedIterator struct{ A <> B <> B Iterator extend
+  A B @MappedIterator.^> :^> pseudo
+
+  A Iterator :base
+  ( A => B ) :map
+}
+map public proc( A <?> B <?> A Iterator ( A => B ) => A B MappedIterator ){
+  #+base+# #+map+# A B MappedIterator new return
+}
+## pseudo-field
+MappedIterator.^> private proc( A <> B <> A B MappedIterator => A B MappedIterator B optional ){
+  itr =::
+  itr .base .^> if{ val =::
+    #+newBase+# itr .map A B MappedIterator new val itr .map () wrap return
+  }
+  #+newBase+# itr .map A B MappedIterator new B empty return
+}
+
+
 #end ## core
