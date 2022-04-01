@@ -79,7 +79,7 @@ filter public proc( A <?> A FilteredIterator ( A => bool ) => A FilteredIterator
 }
 
 ## pseudo-field
-FilteredIterator.^> private proc( A <> A FilteredIterator => A FilteredIterator int optional ){
+FilteredIterator.^> private proc( A <> A FilteredIterator => A FilteredIterator A optional ){
   prev =::
   false match =::
   prev .base for{ val =::
@@ -94,7 +94,7 @@ FilteredIterator.^> private proc( A <> A FilteredIterator => A FilteredIterator 
       #+newBase+# prev .filters A FilteredIterator new val wrap return
     }
   }
-  #+newBase+# prev .filters A FilteredIterator new int empty return
+  #+newBase+# prev .filters A FilteredIterator new A empty return
 }
 
 #end ## core
