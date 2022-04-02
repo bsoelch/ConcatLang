@@ -448,14 +448,14 @@ public class Parser {
             context=new ProcedureContext(parentContext);
             this.isNative=isNative;
         }
-        static Type[] getSignature(List<Token> tokens,boolean tupleMode) throws SyntaxError {
+        static Type[] getSignature(List<Token> tokens,String blockName) throws SyntaxError {
             RandomAccessStack<ValueToken> stack=new RandomAccessStack<>(tokens.size());
             for(Token t:tokens){
                 if(t instanceof ValueToken){
                     stack.push(((ValueToken) t));
                 }else{//list, optional, tuple, -> are evaluated in parser
-                    throw new SyntaxError("Tokens of type "+t.tokenType+
-                            " are not supported in "+(tupleMode?"tuple":"procedure")+" signatures",t.pos);
+                    throw new SyntaxError("tokens of type "+t.tokenType+
+                            " are not supported in "+blockName+" signatures",t.pos);
                 }
             }
             Type[] types=new Type[stack.size()];
@@ -466,7 +466,8 @@ public class Parser {
                     if(v.value.type.canAssignTo(Type.TYPE)){
                         types[--i]=v.value.asType();
                     }else{
-                        throw new SyntaxError("Elements in "+(tupleMode?"tuple":"procedure")+" signature have to evaluate to types",v.pos);
+                        throw new SyntaxError("elements in "+blockName+
+                                " signature have to evaluate to types",v.pos);
                     }
                 }
             } catch (TypeError|RandomAccessStack.StackUnderflow e) {
@@ -2072,7 +2073,6 @@ public class Parser {
                     pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublicReadable(), 0,pos,pState.topLevelContext()));
                 }
                 case "trait{" -> {
-                    String name;
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("traits can only be declared at root level",pos);
                     }
@@ -2084,14 +2084,13 @@ public class Parser {
                     if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
                         throw new SyntaxError("token before trait has to be an identifier",pos);
                     }
-                    name = ((IdentifierToken) prev).name;
+                    String name = ((IdentifierToken) prev).name;
                     TraitBlock traitBlock = new TraitBlock(name,((IdentifierToken) prev).isPublicReadable(),
                             0, pos, pState.topLevelContext());
                     pState.openBlocks.add(traitBlock);
                     pState.openedContexts.add(traitBlock.context());
                 }
                 case "struct{" -> {
-                    String name;
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("structs can only be declared at root level",pos);
                     }
@@ -2103,7 +2102,7 @@ public class Parser {
                     if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
                         throw new SyntaxError("token before struct has to be an identifier",pos);
                     }
-                    name = ((IdentifierToken) prev).name;
+                    String name = ((IdentifierToken) prev).name;
                     StructBlock structBlock = new StructBlock(name,((IdentifierToken) prev).isPublicReadable(),
                             0, pos, pState.topLevelContext());
                     pState.openBlocks.add(structBlock);
@@ -2117,7 +2116,8 @@ public class Parser {
                     if(((StructBlock) block).extended!=null){
                         throw new SyntaxError("structs can only contain one '"+str+"' statement",pos);
                     }
-                    List<Token> subList = tokens.subList(block.start, tokens.size());//addLater type-check extend in type-check phase
+                    List<Token> subList = tokens.subList(block.start, tokens.size());
+                    //extended struct has to be known before type-checking
                     TypeCheckResult r=typeCheck(subList,pState.getContext(),pState.globalConstants,
                             new RandomAccessStack<>(8),null,pos,ioContext);
                     subList.clear();
@@ -2172,7 +2172,7 @@ public class Parser {
                         List<Token> ins = tokens.subList(proc.start, tokens.size());
                         if(proc.name!=null){
                             proc.inTypes = ProcedureBlock.getSignature(typeCheck(ins,block.context(),pState.globalConstants,
-                                    new RandomAccessStack<>(8),null,pos,ioContext).tokens,false);
+                                    new RandomAccessStack<>(8),null,pos,ioContext).tokens,"procedure");
                         }else{
                             proc.inTokens=new ArrayList<>(ins);
                         }
@@ -2201,7 +2201,8 @@ public class Parser {
                         List<Token> outs = tokens.subList(proc.start, tokens.size());
                         if(proc.name!=null) {
                             proc.outTypes = ProcedureBlock.getSignature(typeCheck(outs, block.context(), pState.globalConstants,
-                                    new RandomAccessStack<>(8), null, pos, ioContext).tokens, false);
+                                    new RandomAccessStack<>(8), null, pos, ioContext).tokens,
+                                    "procedure");
                         }else{
                             if(proc.state==ProcedureBlock.STATE_IN){
                                 proc.inTokens=new ArrayList<>(outs);
@@ -3476,7 +3477,7 @@ public class Parser {
                 switch (open.type){
                     case UNION -> {
                         List<Token> subList=ret.subList(open.start, ret.size());
-                        Type[] elements=ProcedureBlock.getSignature(subList,true);
+                        Type[] elements=ProcedureBlock.getSignature(subList,"union");
                         if(elements.length==0){
                             throw new SyntaxError("union has to contain at least one element",pos);
                         }
@@ -3489,7 +3490,7 @@ public class Parser {
                     }
                     case ANONYMOUS_TUPLE -> {
                         List<Token> subList=ret.subList(open.start, ret.size());
-                        Type[] tupleTypes=ProcedureBlock.getSignature(subList,true);
+                        Type[] tupleTypes=ProcedureBlock.getSignature(subList,"tuple");
                         subList.clear();
                         Value typeValue=Value.ofType(Type.Tuple.create(tupleTypes));
 
@@ -3499,9 +3500,9 @@ public class Parser {
                     }
                     case PROC_TYPE -> {
                         List<Token> subList=ret.subList(open.start, ((ProcTypeBlock)open).separatorPos);
-                        Type[] inTypes=ProcedureBlock.getSignature(subList,false);
+                        Type[] inTypes=ProcedureBlock.getSignature(subList,"procedure");
                         subList=ret.subList(((ProcTypeBlock)open).separatorPos, ret.size());
-                        Type[] outTypes=ProcedureBlock.getSignature(subList,false);
+                        Type[] outTypes=ProcedureBlock.getSignature(subList,"procedure");
                         ret.subList(open.start,ret.size()).clear();
                         Value typeValue =Value.ofType(Type.Procedure.create(inTypes,outTypes,pos));
                         ret.add(new ValueToken(typeValue,pos));
@@ -3657,7 +3658,7 @@ public class Parser {
         newContext.generics.addAll(t.generics);//move generics to new context
         TypeCheckResult res=typeCheck(t.inTypes,newContext, globalConstants,new RandomAccessStack<>(8),null,
                 t.pos,ioContext);
-        Type[] inTypes=ProcedureBlock.getSignature(res.tokens,false);
+        Type[] inTypes=ProcedureBlock.getSignature(res.tokens,"procedure");
         RandomAccessStack<TypeFrame> procTypes=new RandomAccessStack<>(8);
         for(Type in:inTypes){
             procTypes.push(new TypeFrame(in,null, t.pos));
@@ -3666,7 +3667,7 @@ public class Parser {
         if(t.outTypes!=null) {
             res = typeCheck(t.outTypes, newContext, globalConstants, new RandomAccessStack<>(8), null,
                     t.pos, ioContext);
-            outTypes = ProcedureBlock.getSignature(res.tokens, false);
+            outTypes = ProcedureBlock.getSignature(res.tokens, "procedure");
         }else{
             outTypes=null;
         }
