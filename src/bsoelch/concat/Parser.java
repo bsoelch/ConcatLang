@@ -177,7 +177,8 @@ public class Parser {
         }
     }
     enum BlockTokenType{
-        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT, ARRAY, END
+        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT, ARRAY, END,
+        TUPLE_TYPE, PROC_TYPE,ARROW, UNION_TYPE, END_TYPE
     }
     static class BlockToken extends Token{
         final BlockTokenType blockType;
@@ -705,28 +706,19 @@ public class Parser {
     }
     private static class ArrayBlock extends CodeBlock{
         RandomAccessStack<TypeFrame> prevTypes;
-        final VariableContext context;
         ArrayBlock(int start, BlockType type, FilePosition startPos, VariableContext parentContext) {
             super(start, type, startPos, parentContext);
-            this.context=new BlockContext(parentContext);
         }
         @Override
         VariableContext context() {
-            return context;
+            return parentContext;
         }
     }
-    private static class ProcTypeBlock extends CodeBlock{
-        final int separatorPos;
-        final BlockContext context;
-        ProcTypeBlock(ArrayBlock start, int separatorPos) {
-            super(start.start,BlockType.PROC_TYPE,start.startPos, start.parentContext);
-            this.separatorPos=separatorPos;
-            assert start.type==BlockType.ANONYMOUS_TUPLE;
-            context=(BlockContext)start.context;
-        }
-        @Override
-        VariableContext context() {
-            return context;
+    private static class ProcTypeBlock extends ArrayBlock{
+        int separatorPos;
+        ProcTypeBlock(int start,FilePosition startPos,VariableContext parentContext) {
+            super(start,BlockType.PROC_TYPE,startPos, parentContext);
+            this.separatorPos=-1;
         }
     }
     private static class StructBlock extends CodeBlock{
@@ -2189,8 +2181,10 @@ public class Parser {
                         ins.clear();
                         proc.context().lock();
                     }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
-                        pState.openBlocks.removeLast();
-                        pState.openBlocks.addLast(new ProcTypeBlock((ArrayBlock)block,tokens.size()));
+                        Token start=tokens.get(block.start);
+                        assert start instanceof BlockToken&&((BlockToken) start).blockType==BlockTokenType.TUPLE_TYPE;
+                        tokens.set(block.start,new BlockToken(BlockTokenType.PROC_TYPE,start.pos,-1));
+                        tokens.add(new BlockToken(BlockTokenType.ARROW,pos,-1));
                     }else{
                         throw new SyntaxError("'"+str+"' can only be used in proc- or proc-type blocks ",pos);
                     }
@@ -2405,54 +2399,19 @@ public class Parser {
                 case "union(" ->{
                     ArrayBlock block = new ArrayBlock(tokens.size(), BlockType.UNION, pos, pState.getContext());
                     pState.openBlocks.add(block);
-                    pState.openedContexts.add(block.context());
+                    tokens.add(new BlockToken(BlockTokenType.UNION_TYPE,pos,-1));
                 }
                 case "(" ->{
                     ArrayBlock block = new ArrayBlock(tokens.size(), BlockType.ANONYMOUS_TUPLE, pos, pState.getContext());
                     pState.openBlocks.add(block);
-                    pState.openedContexts.add(block.context());
+                    tokens.add(new BlockToken(BlockTokenType.TUPLE_TYPE,pos,-1));
                 }
                 case ")" -> {
                     CodeBlock open=pState.openBlocks.pollLast();
                     if(open==null||(open.type!=BlockType.ANONYMOUS_TUPLE&&open.type!=BlockType.PROC_TYPE&&open.type!=BlockType.UNION)){
                         throw new SyntaxError("unexpected '"+str+"' statement ",pos);
                     }
-                    if(open.context() != pState.openedContexts.pollLast()){
-                        throw new RuntimeException("openedContexts is out of sync with openBlocks");
-                    }
-                    if(open.type==BlockType.PROC_TYPE){//addLater type-check type-blocks in type-check phase
-                        List<Token> subList=tokens.subList(open.start, ((ProcTypeBlock)open).separatorPos);
-                        Type[] inTypes=ProcedureBlock.getSignature(
-                                typeCheck(subList,open.context(),pState.globalConstants,
-                                        new RandomAccessStack<>(8),null,pos,ioContext).tokens,false);
-                        subList=tokens.subList(((ProcTypeBlock)open).separatorPos, tokens.size());
-                        Type[] outTypes=ProcedureBlock.getSignature(
-                                typeCheck(subList,open.context(),pState.globalConstants,
-                                        new RandomAccessStack<>(8),null,pos,ioContext).tokens,false);
-                        subList=tokens.subList(open.start,tokens.size());
-                        subList.clear();
-                        Type.Procedure procType=Type.Procedure.create(inTypes,outTypes,pos);
-                        tokens.add(new ValueToken(Value.ofType(procType),pos));
-                    }else if(open.type==BlockType.ANONYMOUS_TUPLE){
-                        List<Token> subList=tokens.subList(open.start, tokens.size());
-                        Type[] tupleTypes=ProcedureBlock.getSignature(
-                                typeCheck(subList,open.context(),pState.globalConstants,
-                                        new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
-                        subList.clear();
-                        tokens.add(new ValueToken(Value.ofType(Type.Tuple.create(tupleTypes)),
-                                pos));
-                    }else /*if(open.type==BlockType.UNION)*/{
-                        List<Token> subList=tokens.subList(open.start, tokens.size());
-                        Type[] elements=ProcedureBlock.getSignature(
-                                typeCheck(subList,open.context(),pState.globalConstants,
-                                        new RandomAccessStack<>(8),null,pos,ioContext).tokens,true);
-                        if(elements.length==0){
-                            throw new SyntaxError("union has to contain at least one element",pos);
-                        }
-                        subList.clear();
-                        tokens.add(new ValueToken(Value.ofType(Type.UnionType.create(elements)),
-                                pos));
-                    }
+                    tokens.add(new BlockToken(BlockTokenType.END_TYPE,pos,-1));
                 }
 
                 //debug helpers
@@ -3111,7 +3070,7 @@ public class Parser {
     record BlockCheckReturn(boolean finishedBranch,RandomAccessStack<TypeFrame> typeStack,VariableContext context,int i){}
     private BlockCheckReturn typeCheckBlock(BlockToken block, ArrayDeque<CodeBlock> openBlocks, RandomAccessStack<TypeFrame> typeStack,
                                             boolean finishedBranch, HashMap<VariableId,Value> globalConstants,
-                                            ArrayList<Token> ret, int i, List<Token> tokens, VariableContext context,
+                                            ArrayList<Token> ret, int i, List<Token> uncheckedTokens, VariableContext context,
                                             IOContext ioContext, FilePosition pos) throws RandomAccessStack.StackUnderflow, SyntaxError {
         switch (block.blockType){
             case IF ->{
@@ -3239,22 +3198,22 @@ public class Parser {
                 switchBlock.newSection(ret.size(),pos);
                 //find case statement
                 int j=i+1;
-                while(j<tokens.size()&&(!(tokens.get(j) instanceof BlockToken))){
+                while(j<uncheckedTokens.size()&&(!(uncheckedTokens.get(j) instanceof BlockToken))){
                     j++;
                 }
-                if(j>= tokens.size()){
+                if(j>= uncheckedTokens.size()){
                     throw new SyntaxError("found no case-statement for switch at "+pos,
-                            tokens.get(tokens.size()-1).pos);
-                }else if(((BlockToken)tokens.get(j)).blockType!=BlockTokenType.CASE){
+                            uncheckedTokens.get(uncheckedTokens.size()-1).pos);
+                }else if(((BlockToken)uncheckedTokens.get(j)).blockType!=BlockTokenType.CASE){
                     throw new SyntaxError("unexpected statement in switch at "+pos+" "+
-                            tokens.get(j)+" expected 'case' statement",
-                            tokens.get(j).pos);
+                            uncheckedTokens.get(j)+" expected 'case' statement",
+                            uncheckedTokens.get(j).pos);
                 }
-                List<Token> caseValues=tokens.subList(i+1,j);
+                List<Token> caseValues=uncheckedTokens.subList(i+1,j);
                 findEnumFields(switchBlock, caseValues);
                 context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
                                 new RandomAccessStack<>(8),null,pos,ioContext).tokens,
-                        tokens.get(j).pos);
+                        uncheckedTokens.get(j).pos);
                 ret.add(new ContextOpen(context,pos));
                 i=j;
                 if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
@@ -3279,19 +3238,19 @@ public class Parser {
                 switchBlock.newSection(ret.size(),pos);
                 //find case statement
                 int j=i+1;
-                while(j<tokens.size()&&(!(tokens.get(j) instanceof BlockToken))){
+                while(j<uncheckedTokens.size()&&(!(uncheckedTokens.get(j) instanceof BlockToken))){
                     j++;
                 }
-                if(j>= tokens.size()){
+                if(j>= uncheckedTokens.size()){
                     throw new SyntaxError("found no case-statement for switch at "+pos,
-                            tokens.get(tokens.size()-1).pos);
+                            uncheckedTokens.get(uncheckedTokens.size()-1).pos);
                 }
-                Token t=tokens.get(j);
+                Token t=uncheckedTokens.get(j);
                 if(((BlockToken)t).blockType==BlockTokenType.CASE){
-                    List<Token> caseValues=tokens.subList(i+1,j);
+                    List<Token> caseValues=uncheckedTokens.subList(i+1,j);
                     findEnumFields(switchBlock, caseValues);
                     context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
-                            new RandomAccessStack<>(8),null,pos,ioContext).tokens,tokens.get(j).pos);
+                            new RandomAccessStack<>(8),null,pos,ioContext).tokens,uncheckedTokens.get(j).pos);
                     ret.add(new ContextOpen(context,pos));
 
                     if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
@@ -3311,7 +3270,7 @@ public class Parser {
                         merge(typeStack,pos,branch.types,branch.end,"switch");
                     }
                 }else{
-                    throw new SyntaxError("unexpected statement after end-case at "+tokens.get(i).pos+": "+
+                    throw new SyntaxError("unexpected statement after end-case at "+uncheckedTokens.get(i).pos+": "+
                             block+" expected 'case', 'default' or 'end' statement",pos);
                 }
                 i=j;
@@ -3463,7 +3422,84 @@ public class Parser {
                             merge(typeStack,mainEnd,branch.types,branch.end,"switch");
                         }
                     }
-                    case PROCEDURE,PROC_TYPE,ANONYMOUS_TUPLE,ENUM,UNION,STRUCT,TRAIT ->
+                    case UNION,ANONYMOUS_TUPLE,PROC_TYPE ->
+                        throw new SyntaxError("unexpected '}' statement ",pos);
+                    case PROCEDURE,ENUM,STRUCT,TRAIT ->
+                            throw new SyntaxError("blocks of type "+open.type+
+                                    " should not exist at this stage of compilation",pos);
+                }
+            }
+
+            case UNION_TYPE -> {
+                ArrayBlock uBlock = new ArrayBlock(ret.size(), BlockType.UNION, pos, context);
+                uBlock.prevTypes=typeStack;
+                typeStack=new RandomAccessStack<>(8);
+
+                openBlocks.add(uBlock);
+            }
+            case TUPLE_TYPE -> {
+                ArrayBlock tBlock = new ArrayBlock(ret.size(), BlockType.ANONYMOUS_TUPLE, pos, context);
+                tBlock.prevTypes=typeStack;
+                typeStack=new RandomAccessStack<>(8);
+
+                openBlocks.add(tBlock);
+            }
+            case PROC_TYPE -> {
+                ProcTypeBlock pBlock = new ProcTypeBlock(ret.size(), pos, context);
+                pBlock.prevTypes=typeStack;
+                typeStack=new RandomAccessStack<>(8);
+
+                openBlocks.add(pBlock);
+            }
+            case ARROW -> {
+                CodeBlock pBlock=openBlocks.peekLast();
+                assert pBlock instanceof ProcTypeBlock;
+                ((ProcTypeBlock) pBlock).separatorPos=ret.size();
+                typeStack=new RandomAccessStack<>(8);
+            }
+            case END_TYPE -> {
+                CodeBlock open=openBlocks.pollLast();
+                if(open==null){
+                    throw new SyntaxError("unexpected ')' statement ",pos);
+                }
+                switch (open.type){
+                    case UNION -> {
+                        List<Token> subList=ret.subList(open.start, ret.size());
+                        Type[] elements=ProcedureBlock.getSignature(subList,true);
+                        if(elements.length==0){
+                            throw new SyntaxError("union has to contain at least one element",pos);
+                        }
+                        subList.clear();
+                        Value typeValue = Value.ofType(Type.UnionType.create(elements));
+
+                        typeStack=((ArrayBlock)open).prevTypes;
+                        ret.add(new ValueToken(typeValue,pos));
+                        typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
+                    }
+                    case ANONYMOUS_TUPLE -> {
+                        List<Token> subList=ret.subList(open.start, ret.size());
+                        Type[] tupleTypes=ProcedureBlock.getSignature(subList,true);
+                        subList.clear();
+                        Value typeValue=Value.ofType(Type.Tuple.create(tupleTypes));
+
+                        typeStack=((ArrayBlock)open).prevTypes;
+                        ret.add(new ValueToken(typeValue,pos));
+                        typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
+                    }
+                    case PROC_TYPE -> {
+                        List<Token> subList=ret.subList(open.start, ((ProcTypeBlock)open).separatorPos);
+                        Type[] inTypes=ProcedureBlock.getSignature(subList,false);
+                        subList=ret.subList(((ProcTypeBlock)open).separatorPos, ret.size());
+                        Type[] outTypes=ProcedureBlock.getSignature(subList,false);
+                        ret.subList(open.start,ret.size()).clear();
+                        Value typeValue =Value.ofType(Type.Procedure.create(inTypes,outTypes,pos));
+                        ret.add(new ValueToken(typeValue,pos));
+                        typeStack=((ProcTypeBlock)open).prevTypes;
+                        typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
+                    }
+                    case IF,WHILE, SWITCH_CASE,CONST_ARRAY ->
+                        throw new SyntaxError("unexpected ')' statement ",pos);
+                    case PROCEDURE,ENUM,STRUCT,TRAIT ->
                             throw new SyntaxError("blocks of type "+open.type+
                                     " should not exist at this stage of compilation",pos);
                 }
