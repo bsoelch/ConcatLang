@@ -921,9 +921,9 @@ public class Type {
 
         /**initialized types in this Tuple or null if this tuple is not yet initialized*/
         Type[] elements;
-        /**Tokens in the body of this Tuple*/
+        /**Tokens in the body of this Struct*/
         ArrayList<Parser.Token> tokens;
-        /**Context in which this tuple was declared*/
+        /**Context in which this Struct was declared*/
         Parser.StructContext context;
 
         StructField[] fields;
@@ -1269,6 +1269,68 @@ public class Type {
         @Override
         public boolean isPublic() {
             return isPublic;
+        }
+
+        boolean unused=true;
+        @Override
+        public void markAsUsed() {
+            unused=false;
+        }
+        @Override
+        public boolean unused() {
+            return unused;
+        }
+    }
+
+    public static class Trait extends Type implements Parser.NamedDeclareable{
+        final String baseName;
+        final boolean isPublic;
+        final FilePosition declaredAt;
+        final FilePosition endPos;
+        final Type[] genericArgs;
+
+        /**Tokens in the body of this Trait*/
+        ArrayList<Parser.Token> tokens;
+        /**Context in which this trait was declared*/
+        Parser.TraitContext context;
+
+        static Trait create(String baseName,boolean isPublic,
+                            ArrayList<Parser.Token> tokens, Parser.TraitContext context,
+                            FilePosition declaredAt, FilePosition endPos){
+            return new Trait(baseName,baseName,isPublic,Mutability.DEFAULT,new Type[0],tokens,context,declaredAt,endPos);
+        }
+
+        private Trait(String baseName,String name,boolean isPublic,Mutability mutability,
+                      Type[] genericArgs, ArrayList<Parser.Token> tokens, Parser.TraitContext context,
+                      FilePosition declaredAt, FilePosition endPos) {
+            super(name,false,mutability);
+            this.baseName = baseName;
+            this.isPublic = isPublic;
+            this.declaredAt = declaredAt;
+            this.endPos = endPos;
+            this.genericArgs = genericArgs;
+            this.tokens = tokens;
+            this.context = context;
+        }
+
+        //TODO type methods
+
+        @Override
+        public Parser.DeclareableType declarableType() {
+            return Parser.DeclareableType.TRAIT;
+        }
+
+        @Override
+        public FilePosition declaredAt() {
+            return declaredAt;
+        }
+        @Override
+        public boolean isPublic() {
+            return isPublic;
+        }
+        @Override
+        public String name() {
+            return name;
         }
 
         boolean unused=true;
