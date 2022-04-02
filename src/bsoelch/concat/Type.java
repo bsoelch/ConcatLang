@@ -1282,6 +1282,7 @@ public class Type {
         }
     }
 
+    record TraitField(String name,Procedure procType,FilePosition declaredAt){}
     public static class Trait extends Type implements Parser.NamedDeclareable{
         final String baseName;
         final boolean isPublic;
@@ -1293,6 +1294,8 @@ public class Type {
         ArrayList<Parser.Token> tokens;
         /**Context in which this trait was declared*/
         Parser.TraitContext context;
+        /**fields of this trait*/
+        TraitField[] traitFields;
 
         static Trait create(String baseName,boolean isPublic,
                             ArrayList<Parser.Token> tokens, Parser.TraitContext context,
@@ -1313,7 +1316,14 @@ public class Type {
             this.context = context;
         }
 
-        //TODO type methods
+        boolean isTypeChecked(){
+            return traitFields!=null;
+        }
+        void setTraitFields(TraitField[] fields){
+            this.traitFields=fields;
+        }
+
+        //TODO overwrite type methods
 
         @Override
         public Parser.DeclareableType declarableType() {

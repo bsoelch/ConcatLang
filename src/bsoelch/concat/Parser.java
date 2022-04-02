@@ -1565,9 +1565,8 @@ public class Parser {
         }
 
     }
-    record TraitField(String name,Type.Procedure procType,FilePosition declaredAt){}
     static class TraitContext extends GenericContext{
-        final ArrayList<TraitField> fields = new ArrayList<>();
+        final ArrayList<Type.TraitField> fields = new ArrayList<>();
 
         TraitContext(VariableContext parent) {
             super(parent, false);
@@ -2762,6 +2761,18 @@ public class Parser {
             p.typeCheckState = Value.TypeCheckState.CHECKED;
         }
     }
+    private void typeCheckTrait(Type.Trait aTrait, HashMap<Parser.VariableId, Value> globalConstants,
+                                 IOContext ioContext) throws SyntaxError {
+        if(!aTrait.isTypeChecked()){
+            TypeCheckResult res=typeCheck(aTrait.tokens,aTrait.context,globalConstants,new RandomAccessStack<>(8),
+                    null,aTrait.endPos,ioContext);
+            if(res.types.size()>0){
+                TypeFrame tmp=res.types.get(res.types.size());
+                throw new SyntaxError("unexpected value in trait body: "+tmp,tmp.pushedAt);
+            }
+            aTrait.setTraitFields(aTrait.context.fields.toArray(Type.TraitField[]::new));
+        }
+    }
     private void typeCheckStruct(Type.Struct aStruct, HashMap<Parser.VariableId, Value> globalConstants,
                                  IOContext ioContext) throws SyntaxError {
         if(!aStruct.isTypeChecked()){
@@ -2777,7 +2788,7 @@ public class Parser {
                     null,aStruct.endPos,ioContext);
             if(res.types.size()>0){
                 TypeFrame tmp=res.types.get(res.types.size());
-                throw new SyntaxError("Unexpected value in struct body: "+tmp,tmp.pushedAt);
+                throw new SyntaxError("unexpected value in struct body: "+tmp,tmp.pushedAt);
             }
             StructContext structContext=aStruct.context;
             Type.StructField[] fieldNames=new Type.StructField[structContext.fields.size()];
@@ -3937,6 +3948,10 @@ public class Parser {
                             }
                         }catch (NumberFormatException ignored){}
                     }
+                    if(f.type instanceof Type.Trait){
+                        //ensure that trait is initialized
+                        typeCheckTrait((Type.Trait) f.type,globalConstants,ioContext);
+                    }
                     Callable pseudoField=f.type.getPseudoField(identifier.name);
                     if(pseudoField!=null){
                         typeStack.push(f);//push f back onto the type-stack
@@ -3950,6 +3965,9 @@ public class Parser {
                         if(f.value.asType() instanceof Type.Struct){
                             //ensure that struct is initialized
                             typeCheckStruct((Type.Struct) f.value.asType(),globalConstants,ioContext);
+                        }else if(f.value.asType() instanceof Type.Trait){
+                            //ensure that trait is initialized
+                            typeCheckTrait((Type.Trait) f.value.asType(),globalConstants,ioContext);
                         }
                         Value typeField=f.value.asType().getTypeField(identifier.name);
                         if(typeField!=null){
@@ -4091,7 +4109,7 @@ public class Parser {
                     if(!(type instanceof Type.Procedure)){//addLater ensure that trait fields don't have free generics
                         throw new SyntaxError("trait fields have to be procedure types", identifier.pos);
                     }
-                    ((TraitContext)context).fields.add(new TraitField(identifier.name,(Type.Procedure)type,t.pos));
+                    ((TraitContext)context).fields.add(new Type.TraitField(identifier.name,(Type.Procedure)type,t.pos));
                 }else{
                     ((StructContext)context).fields.add(new StructFieldWithType(
                             new Type.StructField(identifier.name, accessibility,
