@@ -410,7 +410,7 @@ public class Parser {
 
     enum BlockType{
         PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,ANONYMOUS_TUPLE,PROC_TYPE, CONST_ARRAY,UNION,STRUCT,
-        TRAIT
+        TRAIT, IMPLEMENT
     }
     static abstract class CodeBlock{
         final int start;
@@ -754,6 +754,36 @@ public class Parser {
 
         @Override
         TraitContext context() {
+            return context;
+        }
+    }
+    private static class ImplementBlock extends CodeBlock{
+        final ImplementContext context;
+
+        Type target;
+        Type.Trait trait;
+
+        ImplementBlock(int start, FilePosition startPos, VariableContext parentContext) {
+            super(start, BlockType.IMPLEMENT, startPos, parentContext);
+            context=new ImplementContext(parentContext);
+        }
+
+        /**@return true if the types are already set*/
+        boolean setTypes(Type.Trait trait, Type target){
+            if(this.target!=null)
+                return true;
+            this.target=target;
+            this.trait=trait;
+            context.trait= trait;
+            context.implementations=new Callable[trait.traitFields.length];
+            for(int i=0;i<trait.traitFields.length;i++){
+                context.fieldIds.put(trait.traitFields[i].name(),i);
+            }
+            return false;
+        }
+
+        @Override
+        GenericContext context() {
             return context;
         }
     }
@@ -1575,7 +1605,15 @@ public class Parser {
         TraitContext emptyCopy(){
             return new TraitContext(parent);
         }
+    }
+    static class ImplementContext extends GenericContext{
+        final HashMap<String,Integer> fieldIds = new HashMap<>();
+        Type.Trait trait;
+        Callable[] implementations;
 
+        ImplementContext(VariableContext parent) {
+            super(parent, false);
+        }
     }
 
     interface CodeSection{
@@ -2090,6 +2128,39 @@ public class Parser {
                     pState.openBlocks.add(traitBlock);
                     pState.openedContexts.add(traitBlock.context());
                 }
+                case "implement{" -> {
+                    if(pState.openBlocks.size()>0){
+                        throw new SyntaxError("implement can only be used at root level",pos);
+                    }
+                    finishParsing(pState, ioContext,pos);
+                    ImplementBlock implBlock = new ImplementBlock(0,pos, pState.topLevelContext());
+                    pState.openBlocks.add(implBlock);
+                    pState.openedContexts.add(implBlock.context());
+                }
+                case "for" -> {
+                    CodeBlock block = pState.openBlocks.peekLast();
+                    if(block instanceof ImplementBlock impl){
+                        List<Token> ins = tokens.subList(block.start, tokens.size());
+                        Type[] args = ProcedureBlock.getSignature(typeCheck(ins,block.context(),pState.globalConstants,
+                                new RandomAccessStack<>(8),null,pos,ioContext).tokens,"implement");
+                        if(args.length!=2){
+                            throw new SyntaxError("implement expects exactly 2 arguments (trait and targetType)",pos);
+                        }
+                        ins.clear();
+                        impl.context.lock();//don't allow declaring generics in body
+                        if(!(args[0] instanceof Type.Trait)){
+                            throw new SyntaxError("cannot implement "+args[0]+" (not a trait)",pos);
+                        }
+                        //ensure trait is type-checked before implementation
+                        typeCheckTrait((Type.Trait) args[0],pState.globalConstants,ioContext);
+                        if(impl.setTypes((Type.Trait) args[0],args[1])){
+                            throw new SyntaxError("duplicate '"+str+"' in implement-block '"+str+"' " +
+                                    "can only appear after 'implement'",pos);
+                        }
+                    }else{
+                        throw new SyntaxError("'"+str+"' can only be used in implement blocks ",pos);
+                    }
+                }
                 case "struct{" -> {
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("structs can only be declared at root level",pos);
@@ -2381,6 +2452,24 @@ public class Parser {
                                         traitTokens,traitContext,block.startPos,pos);
                                 pState.topLevelContext().declareNamedDeclareable(trait,ioContext);
                             }
+                        }
+                        case IMPLEMENT -> {
+                            assert block instanceof ImplementBlock;
+                            GenericContext iContext = ((ImplementBlock) block).context;
+                            assert iContext!=null;
+                            if(iContext != pState.openedContexts.pollLast()){
+                                throw new RuntimeException("openedContexts is out of sync with openBlocks");
+                            }
+                            List<Token> subList = tokens.subList(block.start, tokens.size());
+                            ArrayList<Token> iTokens = typeCheck(subList,iContext,pState.globalConstants,pState.typeStack,null,
+                                    pos,ioContext).tokens;
+                            if(iTokens.size()>0){
+                                Token token = iTokens.get(0);
+                                throw new SyntaxError("unexpected token in implement-block: "+ token,token.pos);
+                            }
+                            subList.clear();
+                            System.out.println("implement "+((ImplementBlock) block).trait+" for "+((ImplementBlock) block).target);
+                            throw new UnsupportedOperationException("unimplemented");
                         }
                         case IF,WHILE,SWITCH_CASE, CONST_ARRAY ->{
                             if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
@@ -3436,7 +3525,7 @@ public class Parser {
                     }
                     case UNION,ANONYMOUS_TUPLE,PROC_TYPE ->
                         throw new SyntaxError("unexpected '}' statement ",pos);
-                    case PROCEDURE,ENUM,STRUCT,TRAIT ->
+                    case PROCEDURE,ENUM,STRUCT,TRAIT,IMPLEMENT ->
                             throw new SyntaxError("blocks of type "+open.type+
                                     " should not exist at this stage of compilation",pos);
                 }
@@ -3511,7 +3600,7 @@ public class Parser {
                     }
                     case IF,WHILE, SWITCH_CASE,CONST_ARRAY ->
                         throw new SyntaxError("unexpected ')' statement ",pos);
-                    case PROCEDURE,ENUM,STRUCT,TRAIT ->
+                    case PROCEDURE,ENUM,STRUCT,TRAIT,IMPLEMENT ->
                             throw new SyntaxError("blocks of type "+open.type+
                                     " should not exist at this stage of compilation",pos);
                 }
@@ -4045,8 +4134,9 @@ public class Parser {
                     throw new SyntaxError(f.type+" does not have a mutable field "+identifier.name,t.pos);
             }
             case DECLARE_FIELD -> {
-                if(!(context instanceof StructContext||context instanceof TraitContext)){
-                    throw new SyntaxError("field declarations are only allowed in structs or traits",t.pos);
+                if(!(context instanceof StructContext||context instanceof TraitContext
+                        ||context instanceof ImplementContext)){
+                    throw new SyntaxError("field declarations are only allowed in struct, trait and implement blocks",t.pos);
                 }
                 boolean isPseudo=(identifier.flags&IdentifierToken.MASK_FIELD_MODIFIER)==IdentifierToken.FIELD_MODIFIER_PSEUDO;
                 if (ret.size() <= 0 || !((prev = ret.remove(ret.size() - 1)) instanceof ValueToken)) {
@@ -4055,20 +4145,35 @@ public class Parser {
                             "field declaration has to be a constant "+(isPseudo?"procedure pointer":"type"),
                             identifier.pos);
                 }
-                if(isPseudo){
-                    if(!(context instanceof StructContext)){
+                if(context instanceof ImplementContext||isPseudo){
+                    if(isPseudo&&!(context instanceof StructContext)){
                         throw new SyntaxError("pseudo field declarations are only allowed in structs",t.pos);
                     }
                     Value proc=((ValueToken) prev).value;
                     if(!(proc.type instanceof Type.Procedure)){
-                        throw new SyntaxError("the token before a pseudo file declaration has to be a procedure pointer",
+                        throw new SyntaxError("the token before "+
+                                (isPseudo?"a pseudo field declaration":"a field implementation")
+                                +" has to be a procedure pointer",
                                 identifier.pos);
                     }
                     if(!typeStack.pop().type.equals(proc.type)){
                         throw new RuntimeException("type stack out of sync with token list");
                     }
-                    ((StructContext)context).pseudoFields.add(new PseudoFieldDeclaration(identifier.name,(Callable)proc,t.pos));
-                    //pseudo field takes one procedure pointer as argument
+                    //pseudo field/field implementation takes one procedure pointer as argument
+                    if(isPseudo){
+                        ((StructContext)context).pseudoFields.add(new PseudoFieldDeclaration(identifier.name,(Callable)proc,t.pos));
+                    }else{
+                        ImplementContext ic=((ImplementContext)context);
+                        Integer id=ic.fieldIds.get(identifier.name);
+                        if(id==null){
+                            throw new SyntaxError("trait "+ic.trait+" does not have a field "+identifier.name,t.pos);
+                        }
+                        if(ic.implementations[id]!=null){
+                            throw new SyntaxError("field "+identifier.name+" already has been implemented",t.pos);
+                        }
+                        //TODO type-check signature
+                        ic.implementations[id]=(Callable)proc;
+                    }
                     break;
                 }
                 Type type;
