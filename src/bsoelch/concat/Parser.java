@@ -2457,7 +2457,8 @@ public class Parser {
                         }
                         case IMPLEMENT -> {
                             assert block instanceof ImplementBlock;
-                            GenericContext iContext = ((ImplementBlock) block).context;
+                            ImplementBlock iBlock = (ImplementBlock) block;
+                            ImplementContext iContext = iBlock.context;
                             assert iContext!=null;
                             if(iContext != pState.openedContexts.pollLast()){
                                 throw new RuntimeException("openedContexts is out of sync with openBlocks");
@@ -2470,8 +2471,12 @@ public class Parser {
                                 throw new SyntaxError("unexpected token in implement-block: "+ token,token.pos);
                             }
                             subList.clear();
-                            System.out.println("implement "+((ImplementBlock) block).trait+" for "+((ImplementBlock) block).target);
-                            throw new UnsupportedOperationException("unimplemented");
+                            if(iContext.generics.size()==0){
+                                iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
+                            }else {
+                                System.out.println("implement " + iBlock.trait + " for " + iBlock.target);
+                                throw new UnsupportedOperationException("generic implementations are currently unimplemented");
+                            }
                         }
                         case IF,WHILE,SWITCH_CASE, CONST_ARRAY ->{
                             if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&

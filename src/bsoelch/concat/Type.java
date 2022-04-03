@@ -173,6 +173,9 @@ public class Type {
     private boolean typeFieldsInitialized=false;
     private int nativeFieldCount=-1;
 
+    record TraitImplementation(int offset,FilePosition implementedAt){}
+    private final HashMap<Trait,TraitImplementation> implementedTraits;
+
     /**cache for the different variants of this type*/
     private final HashMap<Mutability,Type> withMutability;
     Iterable<Type> withMutability(){
@@ -202,6 +205,8 @@ public class Type {
         typeFields=new ArrayList<>();
         withMutability=new HashMap<>();
         withMutability.put(mutability,this);
+
+        implementedTraits=new HashMap<>();
     }
     private Type(String newName,Type src,Mutability newMutability){
         this.name = newName;
@@ -216,6 +221,8 @@ public class Type {
         pseudoFieldNames = src.pseudoFieldNames;
         withMutability= src.withMutability;
         withMutability.put(newMutability,this);
+
+        implementedTraits=src.implementedTraits;
     }
 
     FilePosition declaredAt(){
@@ -434,7 +441,35 @@ public class Type {
         typeFields.set(index,(Value)newValue);
         return false;
     }
-
+    //TODO allow overwriting inherited traits in structs
+    void implementTrait(Trait trait, Parser.Callable[] implementation,FilePosition implementedAt) throws SyntaxError {
+        ensureFieldsInitialized();
+        assert trait.traitFields!=null;
+        if(trait.traitFields.length!=implementation.length){
+            throw new SyntaxError("wrong number of elements in implementation: "+implementation.length+
+                    " expected:"+trait.traitFields.length,implementedAt);
+        }
+        TraitImplementation impl=implementedTraits.get(trait);
+        if(impl!=null){
+            throw new SyntaxError("trait "+trait+" was already implemented for "+this+" (at "+impl.implementedAt+")",
+                    implementedAt);
+        }
+        impl=new TraitImplementation(typeFields.size(),implementedAt);
+        for(int i=0;i<implementation.length;i++){
+            Type[] in=implementation[i].type().inTypes;
+            if(in.length==0||!canAssignTo(in[in.length-1].maybeMutable())){
+                throw new SyntaxError("implementation for trait-field "+trait.traitFields[i].name()+
+                        " (declared at "+trait.traitFields[i].declaredAt()+")  has an invalid signature for a trait-field of "
+                        +this+": "+Arrays.toString(in),implementedAt);
+            }
+            int id=typeFields.size();
+            if(pseudoFieldNames.put(trait.traitFields[i].name(),id)!=null){//addLater give only a warning on shadowed names
+                throw new SyntaxError(name+" already has a field "+trait.traitFields[i].name()+" ",implementedAt);
+            }
+            typeFields.add((Value)implementation[i]);
+        }
+        implementedTraits.put(trait,impl);
+    }
 
     List<Value> typeFields(){
         return typeFields;
@@ -1338,12 +1373,6 @@ public class Type {
         TraitField[] traitFields;
 
         //TODO caching
-        static Trait create(String baseName,boolean isPublic,
-                            ArrayList<Parser.Token> tokens, Parser.TraitContext context,
-                            FilePosition declaredAt, FilePosition endPos){
-            return new Trait(baseName,baseName,isPublic,new Type[0],new GenericParameter[0],
-                   null, tokens,context,Mutability.DEFAULT,declaredAt,endPos);
-        }
         static Trait create(String baseName,boolean isPublic,GenericParameter[] params,
                             ArrayList<Parser.Token> tokens, Parser.TraitContext context,
                             FilePosition declaredAt, FilePosition endPos){
