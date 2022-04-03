@@ -297,6 +297,12 @@ public class Type {
     public String toString() {
         return name;
     }
+    Set<GenericParameter> unboundGenerics(){
+        return recursiveUnboundGenerics(Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+    Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound){
+        return unbound;
+    }
     Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
         return this;
     }
@@ -600,7 +606,11 @@ public class Type {
         void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
             contentType.forEachStruct(action);
         }
-
+        @Override
+        Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
+            unbound=contentType.recursiveUnboundGenerics(unbound);
+            return super.recursiveUnboundGenerics(unbound);
+        }
         @Override
         WrapperType replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             Type newContent = contentType.replaceGenerics(generics);
@@ -800,6 +810,13 @@ public class Type {
                 (values) ->  new Value[]{Value.createArray(arrayOf(ANY),values[0].getElements())}),declaredAt());
         }
 
+        @Override
+        Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
+            for(Type t:elements){
+                unbound=t.recursiveUnboundGenerics(unbound);
+            }
+            return super.recursiveUnboundGenerics(unbound);
+        }
         @Override
         Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             if(elements==null){
@@ -1148,7 +1165,29 @@ public class Type {
             return Arrays.asList(fieldNames);
         }
 
-
+        @Override
+        Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
+            if(elements!=null){
+                for(Type t:elements){
+                    unbound=t.recursiveUnboundGenerics(unbound);
+                }
+            }else{
+                try{
+                for(Map.Entry<String, Parser.Declareable> d:context.elements()){
+                    if(d.getValue() instanceof GenericParameter){
+                        unbound.add((GenericParameter) d.getValue());
+                    }else if(d.getValue() instanceof Parser.Constant&&
+                            ((Parser.Constant) d.getValue()).value.type==TYPE&&
+                            ((Parser.Constant) d.getValue()).value.asType() instanceof GenericParameter){
+                        unbound.add((GenericParameter)((Parser.Constant) d.getValue()).value.asType());
+                    }
+                }
+                }catch (TypeError t){
+                    throw new RuntimeException(t);
+                }
+            }
+            return super.recursiveUnboundGenerics(unbound);
+        }
         @Override
         Struct replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             boolean changed=false;
@@ -1365,6 +1404,29 @@ public class Type {
             assert context==null;
         }
 
+        @Override
+        Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
+            if(traitFields!=null){
+                for(TraitField t:traitFields){
+                    unbound=t.procType.recursiveUnboundGenerics(unbound);
+                }
+            }else{
+                try{
+                    for(Map.Entry<String, Parser.Declareable> d:context.elements()){
+                        if(d.getValue() instanceof GenericParameter){
+                            unbound.add((GenericParameter) d.getValue());
+                        }else if(d.getValue() instanceof Parser.Constant&&
+                                ((Parser.Constant) d.getValue()).value.type==TYPE&&
+                                ((Parser.Constant) d.getValue()).value.asType() instanceof GenericParameter){
+                            unbound.add((GenericParameter)((Parser.Constant) d.getValue()).value.asType());
+                        }
+                    }
+                }catch (TypeError t){
+                    throw new RuntimeException(t);
+                }
+            }
+            return super.recursiveUnboundGenerics(unbound);
+        }
         Trait withArgs(Type[] args){
             IdentityHashMap<GenericParameter,Type> replace=new IdentityHashMap<>();
             for(int i=0;i<args.length;i++){
@@ -1542,6 +1604,16 @@ public class Type {
         }
 
         @Override
+        Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
+            for(Type t:inTypes){
+                unbound=t.recursiveUnboundGenerics(unbound);
+            }
+            for(Type t:outTypes){
+                unbound=t.recursiveUnboundGenerics(unbound);
+            }
+            return super.recursiveUnboundGenerics(unbound);
+        }
+        @Override
         Procedure replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             Type[] newIns=new Type[inTypes.length];
             boolean changed=false;
@@ -1647,6 +1719,19 @@ public class Type {
         @Override
         public List<Type> genericArguments() {
             return Arrays.asList(genericArgs);
+        }
+
+        @Override
+        Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
+            unbound=super.recursiveUnboundGenerics(unbound);
+            //remove bound generics
+            for(GenericParameter g:explicitGenerics){
+                unbound.remove(g);
+            }
+            for(GenericParameter g:implicitGenerics){
+                unbound.remove(g);
+            }
+            return unbound;
         }
 
         @Override
@@ -1798,6 +1883,11 @@ public class Type {
             this.declaredAt=pos;
         }
 
+        @Override
+        Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
+            unbound.add(this);
+            return super.recursiveUnboundGenerics(unbound);
+        }
         @Override
         Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
             Type r=generics.get(this);
@@ -1972,6 +2062,13 @@ public class Type {
             return true;
         }
 
+        @Override
+        Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
+            for(Type t:elements){
+                unbound=t.recursiveUnboundGenerics(unbound);
+            }
+            return super.recursiveUnboundGenerics(unbound);
+        }
         @Override
         Type replaceGenerics(IdentityHashMap<GenericParameter, Type> generics) {
             boolean changed=false;
