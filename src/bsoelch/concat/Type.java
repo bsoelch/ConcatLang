@@ -1094,10 +1094,10 @@ public class Type {
                     ((Struct) t).elements=elements;
                     ((Struct) t).initializeFields(fields);
                     ((Struct) t).context=null;
+                    ((Struct) t).tokens.clear();//tokens are no longer necessary
                 }
             }
-            context=null;
-            tokens.clear();//tokens are no longer necessary
+            assert context==null;
         }
         @Override
         public int elementCount(){
@@ -1356,8 +1356,13 @@ public class Type {
             return traitFields!=null;
         }
         void setTraitFields(TraitField[] fields){
-            this.traitFields=fields;
-            //TODO change for all mutabilities
+            for(Type t:withMutability()){//change for all mutabilities
+                assert t instanceof Trait;
+                ((Trait)t).traitFields=fields;
+                ((Trait)t).tokens=null;
+                ((Trait)t).context=null;
+            }
+            assert context==null;
         }
 
         Trait withArgs(Type[] args){
@@ -1437,7 +1442,6 @@ public class Type {
 
         @Override
         Type copyWithMutability(Mutability newMutability) {
-            //TODO clone relevant fields
             return new Trait(this,mutability);
         }
 
