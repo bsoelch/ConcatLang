@@ -2151,6 +2151,13 @@ public class Parser {
                         if(!(args[0] instanceof Type.Trait)){
                             throw new SyntaxError("cannot implement "+args[0]+" (not a trait)",pos);
                         }
+                        Set<Type.GenericParameter> unboundGenerics=args[1].unboundGenerics();
+                        for(Type.GenericParameter p:impl.context.generics){
+                            if(!unboundGenerics.contains(p)){
+                                throw new SyntaxError("the generic parameter "+p.label+" (declared at "+p.declaredAt+
+                                        ") is not used in the target type",pos);
+                            }
+                        }
                         //ensure trait is type-checked before implementation
                         typeCheckTrait((Type.Trait) args[0],pState.globalConstants,ioContext);
                         if(impl.setTypes((Type.Trait) args[0],args[1])){
