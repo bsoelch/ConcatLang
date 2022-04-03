@@ -1289,6 +1289,7 @@ public class Type {
         final FilePosition declaredAt;
         final FilePosition endPos;
         final Type[] genericArgs;
+        final GenericParameter[] genericParameters;
 
         /**Tokens in the body of this Trait*/
         ArrayList<Parser.Token> tokens;
@@ -1297,23 +1298,58 @@ public class Type {
         /**fields of this trait*/
         TraitField[] traitFields;
 
+        //TODO caching
         static Trait create(String baseName,boolean isPublic,
                             ArrayList<Parser.Token> tokens, Parser.TraitContext context,
                             FilePosition declaredAt, FilePosition endPos){
-            return new Trait(baseName,baseName,isPublic,Mutability.DEFAULT,new Type[0],tokens,context,declaredAt,endPos);
+            return new Trait(baseName,baseName,isPublic,new Type[0],new GenericParameter[0],
+                   null, tokens,context,Mutability.DEFAULT,declaredAt,endPos);
+        }
+        static Trait create(String baseName,boolean isPublic,GenericParameter[] params,
+                            ArrayList<Parser.Token> tokens, Parser.TraitContext context,
+                            FilePosition declaredAt, FilePosition endPos){
+            return new Trait(baseName,baseName,isPublic,params,params,null,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
+        }
+        static Trait create(String baseName,boolean isPublic,Type[] genericArgs,GenericParameter[] params,
+                            ArrayList<Parser.Token> tokens, Parser.TraitContext context,Mutability mutability,
+                            FilePosition declaredAt, FilePosition endPos){
+            return new Trait(baseName,Struct.namePrefix(baseName,genericArgs)+mutabilityPostfix(mutability),isPublic,
+                    params, params,null, tokens,context, mutability, declaredAt, endPos);
+        }
+        static Trait create(String baseName,boolean isPublic,Type[] genericArgs,GenericParameter[] params,
+                            TraitField[] traitFields,Mutability mutability,
+                            FilePosition declaredAt, FilePosition endPos){
+            return new Trait(baseName,Struct.namePrefix(baseName,genericArgs)+mutabilityPostfix(mutability),isPublic,
+                    params, params, traitFields,null,null, mutability, declaredAt, endPos);
         }
 
-        private Trait(String baseName,String name,boolean isPublic,Mutability mutability,
-                      Type[] genericArgs, ArrayList<Parser.Token> tokens, Parser.TraitContext context,
+        private Trait(String baseName,String name,boolean isPublic, Type[] genericArgs,GenericParameter[] genericParameters,
+                      TraitField[] traitFields,ArrayList<Parser.Token> tokens, Parser.TraitContext context, Mutability mutability,
                       FilePosition declaredAt, FilePosition endPos) {
             super(name,false,mutability);
+            assert (traitFields==null)!=(tokens==null);
             this.baseName = baseName;
             this.isPublic = isPublic;
             this.declaredAt = declaredAt;
             this.endPos = endPos;
-            this.genericArgs = genericArgs;
+            this.genericArgs=genericArgs;
+            this.genericParameters = genericParameters;
             this.tokens = tokens;
             this.context = context;
+        }
+        private Trait(Trait src,Mutability newMutability){
+            super(Struct.namePrefix(src.baseName,src.genericArgs)+mutabilityPostfix(newMutability),
+                    src,newMutability);
+            baseName=src.baseName;
+            isPublic=src.isPublic;
+            genericParameters=src.genericParameters;
+            genericArgs=src.genericArgs;
+            declaredAt=src.declaredAt;
+            endPos=src.endPos;
+
+            tokens=src.tokens;
+            context=src.context;
+            traitFields=src.traitFields;
         }
 
         boolean isTypeChecked(){
@@ -1321,6 +1357,88 @@ public class Type {
         }
         void setTraitFields(TraitField[] fields){
             this.traitFields=fields;
+            //TODO change for all mutabilities
+        }
+
+        Trait withArgs(Type[] args){
+            IdentityHashMap<GenericParameter,Type> replace=new IdentityHashMap<>();
+            for(int i=0;i<args.length;i++){
+                replace.put(genericParameters[i],args[i]);
+            }
+            return replaceGenerics(replace);
+        }
+        @Override
+        public Trait replaceGenerics(IdentityHashMap<GenericParameter,Type> replace){
+            boolean changed=false;
+            Type[] newArgs;
+            if(replace.size()>0){
+                newArgs=new Type[this.genericArgs.length];
+                for(int i=0;i<this.genericArgs.length;i++){
+                    newArgs[i]=this.genericArgs[i].replaceGenerics(replace);
+                    if(newArgs[i]!=this.genericArgs[i]){
+                        changed=true;
+                    }
+                }
+            }else{
+                newArgs=genericArgs;
+            }
+            ArrayList<GenericParameter> newParams=new ArrayList<>();
+            for(GenericParameter t:genericParameters){
+                if(!replace.containsKey(t)){
+                    newParams.add(t);
+                }
+            }
+            if(traitFields==null){
+                ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens.size());
+                for(Parser.Token t:tokens){
+                    Parser.Token newToken = t.replaceGenerics(replace);
+                    newTokens.add(newToken);
+                    if(newToken!=t)
+                        changed=true;
+                }
+                Parser.TraitContext newContext=context.emptyCopy();
+                for(Map.Entry<String, Parser.Declareable> e:context.elements()){
+                    if(e.getValue() instanceof GenericParameter){
+                        Type rType=replace.get((GenericParameter)e.getValue());
+                        if(rType!=null){//replace generics in constants
+                            if(rType instanceof Type.GenericParameter){
+                                newContext.putElement(e.getKey(),(Type.GenericParameter) rType);
+                            }else{
+                                newContext.putElement(e.getKey(),
+                                        new Parser.Constant(e.getKey(),false,Value.ofType(rType),e.getValue().declaredAt()));
+                            }
+                            changed=true;
+                        }
+                    }else if(e.getValue() instanceof Parser.Constant c){
+                        newContext.putElement(e.getKey(),
+                                new Parser.Constant(e.getKey(),false,c.value.replaceGenerics(replace),
+                                        e.getValue().declaredAt()));
+                    }
+                }
+                return changed?create(baseName, isPublic,newArgs,newParams.toArray(GenericParameter[]::new),
+                        newTokens,newContext,mutability,declaredAt,endPos):this;
+            }
+            TraitField[] newFields=new TraitField[traitFields.length];
+            for(int i=0;i<traitFields.length;i++){
+                newFields[i]=new TraitField(traitFields[i].name,traitFields[i].procType.replaceGenerics(replace),
+                        traitFields[i].declaredAt);
+                if(newFields[i]!=traitFields[i]){
+                    changed =true;
+                }
+            }
+            return changed?create(baseName, isPublic,newArgs,newParams.toArray(GenericParameter[]::new),
+                    newFields,mutability,declaredAt,endPos):this;
+        }
+
+        @Override
+        public Trait setMutability(Mutability newMutability) {
+            return (Trait) super.setMutability(newMutability);
+        }
+
+        @Override
+        Type copyWithMutability(Mutability newMutability) {
+            //TODO clone relevant fields
+            return new Trait(this,mutability);
         }
 
         //TODO overwrite type methods

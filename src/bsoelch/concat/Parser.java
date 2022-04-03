@@ -2444,14 +2444,9 @@ public class Parser {
                             ArrayList<Token> traitTokens = new ArrayList<>(subList);
                             subList.clear();
                             ArrayList<Type.GenericParameter> generics= traitContext.generics;
-                            if(generics.size()>0){
-                                //TODO parse generic trait
-                                throw new UnsupportedOperationException("parsing generic traits is currently not implemented");
-                            }else{
-                                Type.Trait trait=Type.Trait.create(((TraitBlock) block).name, ((TraitBlock) block).isPublic,
-                                        traitTokens,traitContext,block.startPos,pos);
-                                pState.topLevelContext().declareNamedDeclareable(trait,ioContext);
-                            }
+                            Type.Trait trait=Type.Trait.create(((TraitBlock) block).name, ((TraitBlock) block).isPublic,
+                                    generics.toArray(Type.GenericParameter[]::new),traitTokens,traitContext,block.startPos,pos);
+                            pState.topLevelContext().declareNamedDeclareable(trait,ioContext);
                         }
                         case IMPLEMENT -> {
                             assert block instanceof ImplementBlock;
@@ -3946,7 +3941,7 @@ public class Parser {
                     case MACRO ->
                             throw new SyntaxError("Unable to expand macro \""+((Macro)d).name+
                                     "\", try defining it before its first appearance in a procedure body",t.pos);
-                    case TUPLE, ENUM, GENERIC,STRUCT, TRAIT -> {
+                    case TUPLE, ENUM, GENERIC,STRUCT -> {
                         Type asType=(Type)d;
                         if(isMutabilityMarked){
                             asType=asType.setMutability(identifier.mutability());
@@ -3969,6 +3964,20 @@ public class Parser {
                                         " cannot be marked as mutable",t.pos);
                             }
                         }
+                        typeStack.push(new TypeFrame(e.type,e,t.pos));
+                        ret.add(new ValueToken(e, identifier.pos));
+                    }
+                    case TRAIT -> {
+                        Type.Trait trait = (Type.Trait) d;
+                        if(trait.genericParameters.length>0){
+                            Type[] genArgs=getArguments(trait.baseName,DeclareableType.TRAIT,trait.genericArgs.length,
+                                    typeStack, ret, t.pos);
+                            trait=trait.withArgs(genArgs);
+                        }
+                        if(isMutabilityMarked){
+                            trait=trait.setMutability(identifier.mutability());
+                        }
+                        Value e = Value.ofType(trait);
                         typeStack.push(new TypeFrame(e.type,e,t.pos));
                         ret.add(new ValueToken(e, identifier.pos));
                     }
