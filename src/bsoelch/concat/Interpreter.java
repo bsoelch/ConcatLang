@@ -254,6 +254,20 @@ public class Interpreter {
                             return e;
                         }
                     }
+                    case TRAIT_FIELD_ACCESS -> {
+                        assert next instanceof Parser.TypeFieldAccess;
+                        Value val = stack.pop();
+                        if(!(val instanceof Value.TraitValue)){
+                            throw new RuntimeException("trait field access on non-trait value");
+                        }
+                        Value.TraitValue tv=(Value.TraitValue) val;
+                        Parser.Callable called=tv.wrapped.type.getPseudoField(tv.offset+((Parser.TypeFieldAccess) next).fieldId);
+                        stack.push(tv.wrapped);//call trait on unwrapped value
+                        ExitType e=call(called, next, stack, globalVariables, variables, context);
+                        if(e!=ExitType.NORMAL){
+                            return e;
+                        }
+                    }
                     case TYPE_FIELD_ACCESS -> {
                         assert next instanceof Parser.TypeFieldAccess;
                         Value val = stack.pop();
@@ -310,7 +324,7 @@ public class Interpreter {
                             case WHILE,END_IF -> {
                                 //do nothing
                             }
-                            case SWITCH,CASE,DEFAULT, ARRAY, END ->
+                            case SWITCH,CASE,DEFAULT, ARRAY, END, UNION_TYPE,TUPLE_TYPE,PROC_TYPE,ARROW,END_TYPE ->
                                     throw new RuntimeException("blocks of type "+((Parser.BlockToken)next).blockType+
                                             " should be eliminated at compile time");
                         }

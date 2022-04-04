@@ -294,11 +294,38 @@ public class Type {
         return equals(t)||t==ANY;
     }
 
+
+    /**@return true if this type has the trait t*/
+    public final boolean hasTrait(Trait t){
+        return hasTrait(t,new BoundMaps());
+    }
+    boolean hasTrait(Type trait, BoundMaps bounds) {
+        if(trait instanceof Trait){
+            for(Trait implemented:implementedTraits.keySet()){
+                BoundMaps newBounds=bounds.copy();
+                if(implemented.canAssignTo(trait, newBounds)){
+                    bounds.r.putAll(newBounds.r);
+                    bounds.l.putAll(newBounds.l);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    int getTraitOffset(Trait trait){
+        for(Map.Entry<Trait, TraitImplementation> implemented:implementedTraits.entrySet()){
+            if(implemented.getKey().canAssignTo(trait, new BoundMaps())){
+                return implemented.getValue().offset;
+            }
+        }
+        return -1;
+    }
     /**@return true if values of this type can be cast to type t*/
     public final boolean canCastTo(Type t){
         return canCastTo(t,new BoundMaps());
     }
     protected boolean canCastTo(Type t, BoundMaps bounds){
+        if (hasTrait(t, bounds)) return true;
         return canAssignTo(t,bounds)||t.canAssignTo(this,bounds.swapped());
     }
 
@@ -819,11 +846,12 @@ public class Type {
 
         @Override
         public boolean canCastTo(Type t, BoundMaps bounds) {
+            if (hasTrait(t, bounds)) return true;
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
                 if (mutabilityIncompatible(t)) return false;//incompatible mutability
                 return content().canCastTo(t.content(),bounds);
             }else{
-                return super.canCastTo(t,bounds);
+                return super.canAssignTo(t,bounds);
             }
         }
 
@@ -1420,6 +1448,7 @@ public class Type {
         }
         @Override
         protected boolean canCastTo(Type t, BoundMaps bounds) {
+            if (hasTrait(t, bounds)) return true;
             if(t instanceof Struct) {
                 if(mutabilityIncompatible(t)){
                     return false;
@@ -1546,6 +1575,14 @@ public class Type {
             }
             assert context==null;
         }
+        int fieldIdByName(String name){
+            assert traitFields!=null;
+            for(int i=0;i<traitFields.length;i++){
+                if(traitFields[i].name.equals(name))
+                    return i;
+            }
+            return -1;
+        }
 
         @Override
         Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
@@ -1653,6 +1690,24 @@ public class Type {
         @Override
         Type copyWithMutability(Mutability newMutability) {
             return new Trait(this,mutability);
+        }
+
+        @Override
+        protected boolean canAssignTo(Type t, BoundMaps bounds) {
+            if(t instanceof Trait){
+                if(mutabilityIncompatible(t))
+                    return false;
+                if(!declaredAt.equals(((Trait) t).declaredAt))
+                    return false;
+                for(int i=0;i<genericArgs.length;i++){
+                    if(!(genericArgs[i].canAssignTo(((Trait) t).genericArgs[i],bounds)&&
+                            ((Trait) t).genericArgs[i].canAssignTo(genericArgs[i],bounds.swapped())))
+                        return false;
+                }
+                return true;
+            }else{
+                return super.canAssignTo(t,bounds);
+            }
         }
 
         //TODO overwrite type methods

@@ -25,7 +25,7 @@ public class Parser {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
-        PSEUDO_FIELD_ACCESS,TYPE_FIELD_ACCESS,
+        PSEUDO_FIELD_ACCESS,TYPE_FIELD_ACCESS,TRAIT_FIELD_ACCESS,
         //compile time operations
         ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
         MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifiers
@@ -389,10 +389,11 @@ public class Parser {
             return variableType+"_"+accessType +":" +(variableType==VariableType.CURRIED?id:id.id)+" ("+variableName+")";
         }
     }
+
     static class TypeFieldAccess extends Token{
         final int fieldId;
-        TypeFieldAccess(boolean isPseudo,FilePosition pos, int fieldId) {
-            super(isPseudo?TokenType.PSEUDO_FIELD_ACCESS:TokenType.TYPE_FIELD_ACCESS, pos);
+        TypeFieldAccess(TokenType tokenType,FilePosition pos, int fieldId) {
+            super(tokenType, pos);
             this.fieldId = fieldId;
         }
     }
@@ -3098,7 +3099,7 @@ public class Parser {
                     },ret,typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
                         CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX,
-                        PSEUDO_FIELD_ACCESS,TYPE_FIELD_ACCESS ->
+                        PSEUDO_FIELD_ACCESS,TYPE_FIELD_ACCESS,TRAIT_FIELD_ACCESS ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -4068,6 +4069,16 @@ public class Parser {
                     if(f.type instanceof Type.Trait){
                         //ensure that trait is initialized
                         typeCheckTrait((Type.Trait) f.type,globalConstants,ioContext);
+                        int index=((Type.Trait) f.type).fieldIdByName(identifier.name);
+                        if(index!=-1){
+                            Type.TraitField field=((Type.Trait) f.type).traitFields[index];
+                            typeStack.push(f);//push f back onto the type-stack
+                            typeCheckCall(field.name(),
+                                    typeStack,field.procType(),
+                                    globalConstants,ret,ioContext,t.pos,false, context);
+                            ret.add(new TypeFieldAccess(TokenType.TRAIT_FIELD_ACCESS,identifier.pos,index));
+                            break;
+                        }
                     }
                     Callable pseudoField=f.type.getPseudoField(identifier.name);
                     if(pseudoField!=null){
@@ -4075,7 +4086,7 @@ public class Parser {
                         CallMatch match = typeCheckOverloadedCall(pseudoField.name(),new OverloadedProcedure(pseudoField),null,typeStack,
                                 globalConstants,ret,ioContext,t.pos, context);
                         match.called.markAsUsed();
-                        ret.add(new TypeFieldAccess(true,identifier.pos,f.type.pseudoFieldId(identifier.name)));
+                        ret.add(new TypeFieldAccess(TokenType.PSEUDO_FIELD_ACCESS,identifier.pos,f.type.pseudoFieldId(identifier.name)));
                         break;//found field
                     }
                     if(f.type==Type.TYPE&&f.value!=null){
@@ -4103,7 +4114,7 @@ public class Parser {
                     Value typeField=f.type.getTypeField(identifier.name);
                     if(typeField!=null){
                         typeStack.push(new TypeFrame(typeField.type, typeField, t.pos));
-                        ret.add(new TypeFieldAccess(false,identifier.pos,f.type.typeFieldId(identifier.name)));
+                        ret.add(new TypeFieldAccess(TokenType.TYPE_FIELD_ACCESS,identifier.pos,f.type.typeFieldId(identifier.name)));
                         break;//found field
                     }
                     throw new SyntaxError("values of type "+

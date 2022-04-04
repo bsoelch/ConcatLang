@@ -102,11 +102,13 @@ public abstract class Value {
     public Value clone(boolean deep,Type targetType) {
         return this;
     }
-    public Value castTo(Type type) throws ConcatRuntimeError {
-        if(this.type.canAssignTo(type)){
+    public Value castTo(Type newType) throws ConcatRuntimeError {
+        if(type.canAssignTo(newType)){
             return this;
+        }else if(newType instanceof Type.Trait&&type.hasTrait((Type.Trait) newType)){
+            return new TraitValue((Type.Trait) newType,this,type.getTraitOffset((Type.Trait)newType));
         }else{
-            throw new TypeError("cannot cast from "+this.type+" to "+type);
+            throw new TypeError("cannot cast from "+type+" to "+newType);
         }
     }
     public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
@@ -122,7 +124,6 @@ public abstract class Value {
     public String toString() {
         return type+":"+stringValue();
     }
-
 
 
     private interface NumberValue{}
@@ -194,34 +195,34 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.INT){
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(newType ==Type.INT){
                 if(this.type==Type.INT){
                     return this;
                 }else{
                     return ofInt(intValue,false);
                 }
-            }else if(type==Type.UINT){
+            }else if(newType ==Type.UINT){
                 if(this.type==Type.UINT){
                     return this;
                 }else{
                     return ofInt(intValue,true);
                 }
-            }else if(type==Type.BYTE){
+            }else if(newType ==Type.BYTE){
                 if(intValue<0||intValue>0xff){
                     throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to byte");
                 }
                 return Value.ofByte((byte)intValue);
 
-            }else if(type==Type.CODEPOINT){
+            }else if(newType ==Type.CODEPOINT){
                 if(intValue<0||intValue>Character.MAX_CODE_POINT){
                     throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to char");
                 }
                 return Value.ofChar((int)intValue);
-            }else if(type==Type.FLOAT){
+            }else if(newType ==Type.FLOAT){
                 return ofFloat(intValue);
             }else{
-                return super.castTo(type);
+                return super.castTo(newType);
             }
         }
 
@@ -331,15 +332,15 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.INT){
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(newType ==Type.INT){
                 return ofInt((long)floatValue,false);
-            }else if(type==Type.UINT){
+            }else if(newType ==Type.UINT){
                 return ofInt(floatValue<0 ? 0 :
                             floatValue>=18446744073709551615.0 ? -1 :
                                     ((long)floatValue/2)<<1,true);
             }else{
-                return super.castTo(type);
+                return super.castTo(newType);
             }
         }
 
@@ -440,15 +441,15 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.BYTE){
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(newType ==Type.BYTE){
                 return ofByte((byte)codePoint);
-            }else if(type==Type.INT){
+            }else if(newType ==Type.INT){
                 return ofInt(codePoint,false);
-            }else if(type==Type.UINT){
+            }else if(newType ==Type.UINT){
                 return ofInt(codePoint,true);
             }else{
-                return super.castTo(type);
+                return super.castTo(newType);
             }
         }
 
@@ -502,15 +503,15 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.INT){
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(newType ==Type.INT){
                 return ofInt(byteValue&0xff,false);
-            }else if(type==Type.UINT){
+            }else if(newType ==Type.UINT){
                 return ofInt(byteValue&0xff,true);
-            }else if(type==Type.CODEPOINT){
+            }else if(newType ==Type.CODEPOINT){
                 return ofChar(byteValue);
             }else{
-                return super.castTo(type);
+                return super.castTo(newType);
             }
         }
 
@@ -632,18 +633,18 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if (this.type.canAssignTo(type)) {
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if (this.type.canAssignTo(newType)) {
                 return this;
-            }else if((type.isArray()||type.isMemory())&&this.type.canCastTo(type)){
-                Type newContent=type.content();//addLater keep current capacity?
+            }else if((newType.isArray()|| newType.isMemory())&&this.type.canCastTo(newType)){
+                Type newContent= newType.content();//addLater keep current capacity?
                 Value[] newValues=new Value[length];
                 for(int i=0;i<length;i++){
                     newValues[i]=data[offset+i].castTo(newContent);
                 }
-                return new ArrayValue(type,newValues);
+                return new ArrayValue(newType,newValues);
             }
-            return super.castTo(type);
+            return super.castTo(newType);
         }
         @Override
         public Value clone(boolean deep,Type targetType) {
@@ -1096,12 +1097,12 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type instanceof Type.Procedure&&this.type.canCastTo(type)){
-                return new Procedure(name, isPublic, type, tokens, curriedArgs,
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(newType instanceof Type.Procedure&&this.type.canCastTo(newType)){
+                return new Procedure(name, isPublic, newType, tokens, curriedArgs,
                         context, declaredAt, endPos,typeCheckState);
             }
-            return super.castTo(type);
+            return super.castTo(newType);
         }
 
         @Override
@@ -1201,19 +1202,19 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(this.type.canAssignTo(type)){
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(this.type.canAssignTo(newType)){
                 return this;
-            }else if(type.isOptional()){
+            }else if(newType.isOptional()){
                 if(wrapped==null){
-                    if(this.type.canCastTo(type)){
-                        return new OptionalValue(type.content());
+                    if(this.type.canCastTo(newType)){
+                        return new OptionalValue(newType.content());
                     }
                 }else{
-                    return new OptionalValue(wrapped.castTo(type.content()));
+                    return new OptionalValue(wrapped.castTo(newType.content()));
                 }
             }
-            return super.castTo(type);
+            return super.castTo(newType);
         }
 
         @Override
@@ -1282,13 +1283,13 @@ public abstract class Value {
         }
 
         @Override
-        public Value castTo(Type type) throws ConcatRuntimeError {
-            if(type==Type.INT){
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(newType ==Type.INT){
                 return ofInt(index,false);
-            }else if(type==Type.UINT){
+            }else if(newType ==Type.UINT){
                 return ofInt(index,true);
             }else{
-                return super.castTo(type);
+                return super.castTo(newType);
             }
         }
 
@@ -1880,6 +1881,66 @@ public abstract class Value {
         @Override
         public boolean isPublic() {
             return isPublic;
+        }
+    }
+
+    static class TraitValue extends Value{
+        final int offset;
+        final Value wrapped;
+
+        protected TraitValue(Type.Trait type,Value wrapped, int offset) {
+            super(type);
+            this.offset=offset;
+            this.wrapped=wrapped;
+        }
+
+        //addLater clone,replaceGenerics,isEqualTo, rawData,updateFrom,equals
+        @Override
+        public long id() {
+            return wrapped.id();
+        }
+        @Override
+        public boolean asBool() throws TypeError {
+            return wrapped.asBool();
+        }
+        @Override
+        public byte asByte() throws TypeError {
+            return wrapped.asByte();
+        }
+        @Override
+        public long asLong() throws TypeError {
+            return wrapped.asLong();
+        }
+        @Override
+        public double asDouble() throws TypeError {
+            return wrapped.asDouble();
+        }
+        @Override
+        public Type asType() throws TypeError {
+            return wrapped.asType();
+        }
+        @Override
+        public boolean isString() {
+            return wrapped.isString();
+        }
+
+        @Override
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(type.canCastTo(newType)){
+                return super.castTo(newType);
+            }else{
+                return wrapped.castTo(newType);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return wrapped.type+" as "+type+":"+stringValue();
+        }
+
+        @Override
+        public String stringValue() {
+            return wrapped.stringValue();
         }
     }
 
