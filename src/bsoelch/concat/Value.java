@@ -1079,7 +1079,22 @@ public abstract class Value {
             return declaredAt.hashCode();
         }
 
-        //TODO replace generics
+        @Override
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+            Type.Procedure newType= (Type.Procedure) type.replaceGenerics(genericParams);
+            boolean changed=newType!=type;
+            ArrayList<Parser.Token> newTokens=new ArrayList<>();
+            Parser.Token newT;
+            for(Parser.Token t:tokens){
+                newT=t.replaceGenerics(genericParams);
+                newTokens.add(newT);
+
+                changed|= (newT!=t);
+            }
+            return changed?new Procedure(name,isPublic,newType,newTokens,curriedArgs,
+                    context,declaredAt,endPos,typeCheckState):this;
+        }
+
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type instanceof Type.Procedure&&this.type.canCastTo(type)){
