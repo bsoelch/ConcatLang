@@ -776,7 +776,7 @@ public class Parser {
             this.target=target;
             this.trait=trait;
             context.trait= trait;
-            context.implementations=new Callable[trait.traitFields.length];
+            context.implementations=new Value.Procedure[trait.traitFields.length];
             for(int i=0;i<trait.traitFields.length;i++){
                 context.fieldIds.put(trait.traitFields[i].name(),i);
             }
@@ -1610,7 +1610,7 @@ public class Parser {
     static class ImplementContext extends GenericContext{
         final HashMap<String,Integer> fieldIds = new HashMap<>();
         Type.Trait trait;
-        Callable[] implementations;
+        Value.Procedure[] implementations;
 
         ImplementContext(VariableContext parent) {
             super(parent, false);
@@ -2223,8 +2223,12 @@ public class Parser {
                     }
                 }
                 case "proc(","procedure(" ->{
+                    boolean implement=false;
                     if(pState.openBlocks.size()>0){
-                        throw new SyntaxError("procedures can only be declared at root level",pos);
+                        if(!(pState.openBlocks.peekLast() instanceof ImplementBlock)){
+                            throw new SyntaxError("procedures can only be declared at root level or in implement blocks",pos);
+                        }
+                        implement=true;
                     }
                     if(tokens.size()==0){
                         throw new SyntaxError("missing procedure name",pos);
@@ -2236,13 +2240,26 @@ public class Parser {
                         throw new SyntaxError("token before '"+str+"' has to be an identifier",pos);
                     }else if(((IdentifierToken) prev).isNative()){
                         isNative=true;
+                        if(implement){
+                            throw new SyntaxError("procedures in implement blocks cannot be native",pos);
+                        }
                     }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
                         throw new SyntaxError("token before '"+str+"' has to be an unmodified identifier",pos);
                     }
                     String name = ((IdentifierToken) prev).name;
+                    if(implement){
+                        ImplementBlock iBlock = (ImplementBlock) pState.openBlocks.peekLast();
+                        assert iBlock!=null;
+                        if(!iBlock.context.fieldIds.containsKey(name)){
+                            throw new SyntaxError(iBlock.trait+" does not have a field "+name,pos);
+                        }
+                    }
                     ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublicReadable(), 0,
-                            pos, pState.topLevelContext(), isNative);
+                            pos, pState.getContext(), isNative);
                     pState.openBlocks.add(proc);
+                    if(implement){
+                        proc.context().lock();//procedures in implement blocks cannot have generic arguments
+                    }
                     pState.openedContexts.add(proc.context());
                 }
                 case "lambda(","λ(" -> {
@@ -2410,6 +2427,20 @@ public class Parser {
                                         Value.Procedure proc=Value.createProcedure(procBlock.name,
                                                 procBlock.isPublic,procType, content,block.startPos,pos,context);
                                         assert context.curried.isEmpty();
+                                        if(pState.openBlocks.peekLast() instanceof ImplementBlock iBlock){
+                                            ImplementContext ic=iBlock.context;
+                                            Integer id=ic.fieldIds.get(proc.name);
+                                            if(id==null){
+                                                throw new SyntaxError("trait "+ic.trait+" does not have a field "+
+                                                        proc.name,pos);
+                                            }
+                                            if(ic.implementations[id]!=null){
+                                                throw new SyntaxError("field "+proc.name+" already has been implemented",pos);
+                                            }
+                                            //TODO type-check signature
+                                            ic.implementations[id]=proc;
+                                            break;
+                                        }
                                         pState.topLevelContext().declareProcedure(proc,ioContext);
                                     }
                                 }else{
@@ -2479,10 +2510,14 @@ public class Parser {
                             }
                             subList.clear();
                             if(iContext.generics.size()==0){
+                                for(Value.Procedure c:iContext.implementations){
+                                    typeCheckProcedure(c,pState.globalConstants,ioContext,pState.getContext());
+                                }
                                 iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
                             }else {
+                                //TODO type-check procedures before first use
                                 iBlock.target.implementGenericTrait(iBlock.trait,
-                                        iContext.generics.toArray(Type.GenericParameter[]::new), iContext.implementations,pos);
+                                        iContext.generics.toArray(Type.GenericParameter[]::new),iContext.implementations,pos);
                             }
                         }
                         case IF,WHILE,SWITCH_CASE, CONST_ARRAY ->{
@@ -4172,8 +4207,7 @@ public class Parser {
                     throw new SyntaxError(f.type+" does not have a mutable field "+identifier.name,t.pos);
             }
             case DECLARE_FIELD -> {
-                if(!(context instanceof StructContext||context instanceof TraitContext
-                        ||context instanceof ImplementContext)){
+                if(!(context instanceof StructContext||context instanceof TraitContext)){
                     throw new SyntaxError("field declarations are only allowed in struct, trait and implement blocks",t.pos);
                 }
                 boolean isPseudo=(identifier.flags&IdentifierToken.MASK_FIELD_MODIFIER)==IdentifierToken.FIELD_MODIFIER_PSEUDO;
@@ -4183,35 +4217,20 @@ public class Parser {
                             "field declaration has to be a constant "+(isPseudo?"procedure pointer":"type"),
                             identifier.pos);
                 }
-                if(context instanceof ImplementContext||isPseudo){
-                    if(isPseudo&&!(context instanceof StructContext)){
+                if(isPseudo){
+                    if(!(context instanceof StructContext)){
                         throw new SyntaxError("pseudo field declarations are only allowed in structs",t.pos);
                     }
                     Value proc=((ValueToken) prev).value;
                     if(!(proc.type instanceof Type.Procedure)){
-                        throw new SyntaxError("the token before "+
-                                (isPseudo?"a pseudo field declaration":"a field implementation")
-                                +" has to be a procedure pointer",
+                        throw new SyntaxError("the token before a pseudo field declaration has to be a procedure pointer",
                                 identifier.pos);
                     }
                     if(!typeStack.pop().type.equals(proc.type)){
                         throw new RuntimeException("type stack out of sync with token list");
                     }
                     //pseudo field/field implementation takes one procedure pointer as argument
-                    if(isPseudo){
-                        ((StructContext)context).pseudoFields.add(new PseudoFieldDeclaration(identifier.name,(Callable)proc,t.pos));
-                    }else{
-                        ImplementContext ic=((ImplementContext)context);
-                        Integer id=ic.fieldIds.get(identifier.name);
-                        if(id==null){
-                            throw new SyntaxError("trait "+ic.trait+" does not have a field "+identifier.name,t.pos);
-                        }
-                        if(ic.implementations[id]!=null){
-                            throw new SyntaxError("field "+identifier.name+" already has been implemented",t.pos);
-                        }
-                        //TODO type-check signature
-                        ic.implementations[id]=(Callable)proc;
-                    }
+                    ((StructContext)context).pseudoFields.add(new PseudoFieldDeclaration(identifier.name,(Callable)proc,t.pos));
                     break;
                 }
                 Type type;
