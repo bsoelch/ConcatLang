@@ -1664,6 +1664,7 @@ public class Parser {
 
     record TypeFrame(Type type,Value value,FilePosition pushedAt){}
     static class ParserState {
+        final IOContext ioContext;
         final ArrayList<Token> tokens =new ArrayList<>();
         /**global code after type-check*/
         final ArrayList<Token> globalCode =new ArrayList<>();
@@ -1712,7 +1713,8 @@ public class Parser {
 
         Macro currentMacro;//may be null
 
-        ParserState(RootContext rootContext) {
+        ParserState(IOContext ioContext, RootContext rootContext) {
+            this.ioContext = ioContext;
             this.rootContext = rootContext;
         }
 
@@ -1744,7 +1746,7 @@ public class Parser {
                     reader.currentPos());
         }
         if(pState==null){
-            pState=new ParserState(new RootContext());
+            pState=new ParserState(ioContext, new RootContext());
         }else if(pState.files.contains(fileId)){
             //TODO detect if file was already included through different path
             return new Program(pState.globalCode,pState.files,pState.rootContext);
@@ -1762,7 +1764,7 @@ public class Parser {
                 case ROOT:
                     if(Character.isWhitespace(c)){
                         if(reader.buffer.length()>0){
-                            finishWord(reader.buffer.toString(), pState,reader.currentPos(),ioContext);
+                            finishWord(reader.buffer.toString(), pState,reader.currentPos());
                             reader.nextToken();
                         }
                         reader.updateNextPos();
@@ -1782,12 +1784,12 @@ public class Parser {
                                 c = reader.forceNextChar();
                                 if (c == '#') {
                                     state = WordState.LINE_COMMENT;
-                                    finishWord(reader.buffer.toString(), pState,reader.currentPos(),ioContext);
+                                    finishWord(reader.buffer.toString(), pState,reader.currentPos());
                                     reader.nextToken();
                                 } else if (c == '+') {
                                     state = WordState.COMMENT;
                                     nComments=1;
-                                    finishWord(reader.buffer.toString(), pState,reader.currentPos(),ioContext);
+                                    finishWord(reader.buffer.toString(), pState,reader.currentPos());
                                     reader.nextToken();
                                 } else {
                                     reader.buffer.append('#').append((char) c);
@@ -1799,7 +1801,7 @@ public class Parser {
                     break;
                 case STRING,UNICODE_STRING:
                     if(c==reader.buffer.charAt(state==WordState.STRING?0:1)){
-                        finishWord(reader.buffer.toString(),pState,reader.currentPos(),ioContext);
+                        finishWord(reader.buffer.toString(),pState,reader.currentPos());
                         reader.nextToken();
                         state=WordState.ROOT;
                     }else{
@@ -1856,19 +1858,19 @@ public class Parser {
         }
         switch (state){
             case ROOT->{
-                finishWord(reader.buffer.toString(), pState,reader.currentPos(),ioContext);
+                finishWord(reader.buffer.toString(), pState,reader.currentPos());
                 reader.nextToken();
             }
             case LINE_COMMENT ->{} //do nothing
             case STRING,UNICODE_STRING ->throw new SyntaxError("unfinished string", reader.currentPos());
             case COMMENT -> throw new SyntaxError("unfinished comment", reader.currentPos());
         }
-        finishParsing(pState, ioContext,reader.currentPos());
+        finishParsing(pState, reader.currentPos());
         Declareable main=pState.topLevelContext().getDeclareable("main");
         if(main instanceof Value.Procedure){
-            typeCheckProcedure((Value.Procedure) main,pState.globalConstants,ioContext,pState.getContext());
+            typeCheckProcedure((Value.Procedure) main,pState.globalConstants,pState.ioContext,pState.getContext());
             if(!((Value.Procedure) main).isPublic){
-                ioContext.stdErr.println("Warning: procedure main at "+((Value.Procedure) main).declaredAt+" is private");
+                pState.ioContext.stdErr.println("Warning: procedure main at "+((Value.Procedure) main).declaredAt+" is private");
             }
         }
 
@@ -1876,12 +1878,12 @@ public class Parser {
             throw new SyntaxError("unclosed block: "+pState.openBlocks.getLast(),pState.openBlocks.getLast().startPos);
         }
 
-        pState.endFile(ioContext,reader.currentPos());
+        pState.endFile(pState.ioContext,reader.currentPos());
 
         return new Program(pState.globalCode,pState.files,pState.rootContext);
     }
 
-    private void finishWord(String str, ParserState pState, FilePosition pos, IOContext ioContext) throws SyntaxError {
+    private void finishWord(String str, ParserState pState, FilePosition pos) throws SyntaxError {
         if (str.length() > 0) {
             if(str.startsWith("#compiler:")){
                 String[] commands=str.substring("#compiler:".length()).split(":");
@@ -1950,7 +1952,7 @@ public class Parser {
                     ((IdentifierToken)prev).name:null;
             if(pState.currentMacro!=null){
                 if(str.equals("#end")){
-                    pState.topLevelContext().declareNamedDeclareable(pState.currentMacro,ioContext);
+                    pState.topLevelContext().declareNamedDeclareable(pState.currentMacro,pState.ioContext);
                     pState.currentMacro=null;
                 }else{
                     pState.currentMacro.content.add(new StringWithPos(str,pos));
@@ -2020,7 +2022,7 @@ public class Parser {
                     }
                     if(prevId!=null){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,pos);
+                        finishParsing(pState,pos);
                         pState.currentMacro=new Macro(pos,prevId,((IdentifierToken) prev).isPublicReadable(),new ArrayList<>());
                     }else{
                         throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
@@ -2032,7 +2034,7 @@ public class Parser {
                     }
                     if(prevId != null){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,pos);
+                        finishParsing(pState,pos);
                         pState.startNamespace(prevId,pos);
                     }else{
                         throw new SyntaxError("namespace name has to be an identifier",pos);
@@ -2042,7 +2044,7 @@ public class Parser {
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("namespaces can only be closed at root-level",pos);
                     }else{
-                        finishParsing(pState, ioContext,pos);
+                        finishParsing(pState, pos);
                         pState.endNamespace(pos);
                     }
                 }
@@ -2052,7 +2054,7 @@ public class Parser {
                     }
                     if(prevId != null){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,pos);
+                        finishParsing(pState, pos);
                         pState.topLevelContext().addImport(prevId,pos);
                     }else{
                         throw new SyntaxError("imported namespace name has to be an identifier",pos);
@@ -2064,12 +2066,12 @@ public class Parser {
                     }
                     if(prev instanceof ValueToken){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,pos);
+                        finishParsing(pState, pos);
                         String name=((ValueToken) prev).value.stringValue();
                         File file=new File(name);
                         if(file.exists()){
                             try {
-                                parse(file,pState,ioContext);
+                                parse(file,pState,pState.ioContext);
                             } catch (IOException e) {
                                 throw new SyntaxError(e,pos);
                             }
@@ -2078,12 +2080,12 @@ public class Parser {
                         }
                     }else if(prevId != null){
                         tokens.remove(tokens.size()-1);
-                        finishParsing(pState, ioContext,pos);
+                        finishParsing(pState, pos);
                         String path=libPath+File.separator+ prevId +DEFAULT_FILE_EXTENSION;
                         File file=new File(path);
                         if(file.exists()){
                             try {
-                                parse(file,pState,ioContext);
+                                parse(file,pState,pState.ioContext);
                             } catch (IOException e) {
                                 throw new SyntaxError(e,pos);
                             }
@@ -2102,7 +2104,7 @@ public class Parser {
                         throw new SyntaxError("missing enum name",pos);
                     }
                     prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, ioContext,pos);
+                    finishParsing(pState, pos);
                     if(!(prev instanceof IdentifierToken)){
                         throw new SyntaxError("token before enum has to be an identifier",pos);
                     }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
@@ -2119,7 +2121,7 @@ public class Parser {
                         throw new SyntaxError("missing trait name",pos);
                     }
                     prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, ioContext,pos);
+                    finishParsing(pState, pos);
                     if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
                         throw new SyntaxError("token before trait has to be an identifier",pos);
                     }
@@ -2133,7 +2135,7 @@ public class Parser {
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("implement can only be used at root level",pos);
                     }
-                    finishParsing(pState, ioContext,pos);
+                    finishParsing(pState, pos);
                     ImplementBlock implBlock = new ImplementBlock(0,pos, pState.topLevelContext());
                     pState.openBlocks.add(implBlock);
                     pState.openedContexts.add(implBlock.context());
@@ -2143,7 +2145,7 @@ public class Parser {
                     if(block instanceof ImplementBlock impl){
                         List<Token> ins = tokens.subList(block.start, tokens.size());
                         Type[] args = ProcedureBlock.getSignature(typeCheck(ins,block.context(),pState.globalConstants,
-                                new RandomAccessStack<>(8),null,pos,ioContext).tokens,"implement");
+                                new RandomAccessStack<>(8),null,pos,pState.ioContext).tokens,"implement");
                         if(args.length!=2){
                             throw new SyntaxError("implement expects exactly 2 arguments (trait and targetType)",pos);
                         }
@@ -2166,7 +2168,7 @@ public class Parser {
                                     "or all non-generic",pos);
                         }
                         //ensure trait is type-checked before implementation
-                        typeCheckTrait((Type.Trait) args[0],pState.globalConstants,ioContext);
+                        typeCheckTrait((Type.Trait) args[0],pState.globalConstants,pState.ioContext);
                         if(impl.setTypes((Type.Trait) args[0],args[1])){
                             throw new SyntaxError("duplicate '"+str+"' in implement-block '"+str+"' " +
                                     "can only appear after 'implement'",pos);
@@ -2183,7 +2185,7 @@ public class Parser {
                         throw new SyntaxError("missing struct name",pos);
                     }
                     prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, ioContext,pos);
+                    finishParsing(pState, pos);
                     if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
                         throw new SyntaxError("token before struct has to be an identifier",pos);
                     }
@@ -2204,7 +2206,7 @@ public class Parser {
                     List<Token> subList = tokens.subList(block.start, tokens.size());
                     //extended struct has to be known before type-checking
                     TypeCheckResult r=typeCheck(subList,pState.getContext(),pState.globalConstants,
-                            new RandomAccessStack<>(8),null,pos,ioContext);
+                            new RandomAccessStack<>(8),null,pos,pState.ioContext);
                     subList.clear();
                     if(((StructBlock) block).context.fields.size()>0){
                         throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
@@ -2234,7 +2236,7 @@ public class Parser {
                         throw new SyntaxError("missing procedure name",pos);
                     }
                     prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, ioContext,pos);
+                    finishParsing(pState, pos);
                     boolean isNative=false;
                     if(!(prev instanceof IdentifierToken)){
                         throw new SyntaxError("token before '"+str+"' has to be an identifier",pos);
@@ -2274,7 +2276,7 @@ public class Parser {
                         List<Token> ins = tokens.subList(proc.start, tokens.size());
                         if(proc.name!=null){
                             proc.inTypes = ProcedureBlock.getSignature(typeCheck(ins,block.context(),pState.globalConstants,
-                                    new RandomAccessStack<>(8),null,pos,ioContext).tokens,"procedure");
+                                    new RandomAccessStack<>(8),null,pos,pState.ioContext).tokens,"procedure");
                         }else{
                             proc.inTokens=new ArrayList<>(ins);
                         }
@@ -2303,7 +2305,7 @@ public class Parser {
                         List<Token> outs = tokens.subList(proc.start, tokens.size());
                         if(proc.name!=null) {
                             proc.outTypes = ProcedureBlock.getSignature(typeCheck(outs, block.context(), pState.globalConstants,
-                                    new RandomAccessStack<>(8), null, pos, ioContext).tokens,
+                                    new RandomAccessStack<>(8), null, pos, pState.ioContext).tokens,
                                     "procedure");
                         }else{
                             if(proc.state==ProcedureBlock.STATE_IN){
@@ -2413,7 +2415,7 @@ public class Parser {
                                 Value.NativeProcedure proc=Value.createExternalProcedure(procBlock.name,
                                         procBlock.isPublic, procType,block.startPos
                                 );
-                                pState.topLevelContext().declareProcedure(proc,ioContext);
+                                pState.topLevelContext().declareProcedure(proc,pState.ioContext);
                             }else{
                                 if(procBlock.name!=null){
                                     assert procType!=null;
@@ -2422,7 +2424,7 @@ public class Parser {
                                                 procBlock.isPublic,(Type.GenericProcedureType) procType,
                                                 content,block.startPos,pos,context);
                                         assert context.curried.isEmpty();
-                                        pState.topLevelContext().declareProcedure(proc,ioContext);
+                                        pState.topLevelContext().declareProcedure(proc,pState.ioContext);
                                     }else{
                                         Value.Procedure proc=Value.createProcedure(procBlock.name,
                                                 procBlock.isPublic,procType, content,block.startPos,pos,context);
@@ -2441,7 +2443,7 @@ public class Parser {
                                             ic.implementations[id]=proc;
                                             break;
                                         }
-                                        pState.topLevelContext().declareProcedure(proc,ioContext);
+                                        pState.topLevelContext().declareProcedure(proc,pState.ioContext);
                                     }
                                 }else{
                                     tokens.add(new DeclareLambdaToken(procBlock.inTokens,procBlock.outTokens,
@@ -2454,7 +2456,7 @@ public class Parser {
                                 tmp=tokens.get(block.start);
                                 throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
                             }
-                            pState.topLevelContext().declareEnum(((EnumBlock) block),ioContext);
+                            pState.topLevelContext().declareEnum(((EnumBlock) block),pState.ioContext);
                         }
                         case STRUCT ->{
                             assert block instanceof StructBlock;
@@ -2471,11 +2473,11 @@ public class Parser {
                                 GenericStruct struct=new GenericStruct(((StructBlock) block).name,((StructBlock) block).isPublic,
                                         ((StructBlock) block).extended,structContext,
                                         structTokens,block.startPos,pos);
-                                pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
+                                pState.topLevelContext().declareNamedDeclareable(struct,pState.ioContext);
                             }else{
                                 Type.Struct struct=Type.Struct.create(((StructBlock) block).name, ((StructBlock) block).isPublic,
                                         ((StructBlock) block).extended,structTokens,structContext,block.startPos,pos);
-                                pState.topLevelContext().declareNamedDeclareable(struct,ioContext);
+                                pState.topLevelContext().declareNamedDeclareable(struct,pState.ioContext);
                             }
                         }
                         case TRAIT -> {
@@ -2491,7 +2493,7 @@ public class Parser {
                             ArrayList<Type.GenericParameter> generics= traitContext.generics;
                             Type.Trait trait=Type.Trait.create(((TraitBlock) block).name, ((TraitBlock) block).isPublic,
                                     generics.toArray(Type.GenericParameter[]::new),traitTokens,traitContext,block.startPos,pos);
-                            pState.topLevelContext().declareNamedDeclareable(trait,ioContext);
+                            pState.topLevelContext().declareNamedDeclareable(trait,pState.ioContext);
                         }
                         case IMPLEMENT -> {
                             assert block instanceof ImplementBlock;
@@ -2503,7 +2505,7 @@ public class Parser {
                             }
                             List<Token> subList = tokens.subList(block.start, tokens.size());
                             ArrayList<Token> iTokens = typeCheck(subList,iContext,pState.globalConstants,pState.typeStack,null,
-                                    pos,ioContext).tokens;
+                                    pos,pState.ioContext).tokens;
                             if(iTokens.size()>0){
                                 Token token = iTokens.get(0);
                                 throw new SyntaxError("unexpected token in implement-block: "+ token,token.pos);
@@ -2511,7 +2513,7 @@ public class Parser {
                             subList.clear();
                             if(iContext.generics.size()==0){
                                 for(Value.Procedure c:iContext.implementations){
-                                    typeCheckProcedure(c,pState.globalConstants,ioContext,pState.getContext());
+                                    typeCheckProcedure(c,pState.globalConstants,pState.ioContext,pState.getContext());
                                 }
                                 iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
                             }else {
@@ -2786,7 +2788,7 @@ public class Parser {
                         if(!(context instanceof GenericContext)){
                             throw new SyntaxError("generics can only be declared in tuple and procedure signatures",pos);
                         }
-                        ((GenericContext) context).declareGeneric(prevId, str.equals("<?>"), pos, ioContext);
+                        ((GenericContext) context).declareGeneric(prevId, str.equals("<?>"), pos, pState.ioContext);
                         tokens.remove(tokens.size()-1);
                     }else{
                         throw new SyntaxError("invalid token for '<>' modifier: "+prev,prev.pos);
@@ -2807,7 +2809,7 @@ public class Parser {
                             Declareable d=pState.topLevelContext().getDeclareable(newName);
                             if(d instanceof Macro){
                                 tokens.remove(tokens.size()-1);
-                                expandMacro(pState,(Macro)d,pos,ioContext);
+                                expandMacro(pState,(Macro)d,pos);
                             }else {
                                 tokens.set(tokens.size() - 1, new IdentifierToken(isPtr ? IdentifierType.PROC_ID : IdentifierType.WORD,
                                         newName, 0, pos));
@@ -2822,7 +2824,7 @@ public class Parser {
                     }else{
                         Declareable d=pState.topLevelContext().getDeclareable(str);
                         if(d instanceof Macro){
-                            expandMacro(pState,(Macro)d,pos,ioContext);
+                            expandMacro(pState,(Macro)d,pos);
                         }else{
                             CodeBlock last= pState.openBlocks.peekLast();
                             if(last instanceof EnumBlock){
@@ -2864,15 +2866,15 @@ public class Parser {
         return args;
     }
 
-    private void expandMacro(ParserState pState, Macro m, FilePosition pos, IOContext ioContext) throws SyntaxError {
+    private void expandMacro(ParserState pState, Macro m, FilePosition pos) throws SyntaxError {
         m.markAsUsed();
         for(StringWithPos s:m.content){
-            finishWord(s.str,pState,new FilePosition(s.start, pos),ioContext);
+            finishWord(s.str,pState,new FilePosition(s.start, pos));
         }
     }
-    private void finishParsing(ParserState pState, IOContext ioContext,FilePosition blockEnd) throws SyntaxError {
+    private void finishParsing(ParserState pState, FilePosition blockEnd) throws SyntaxError {
         TypeCheckResult res=typeCheck(pState.tokens, pState.topLevelContext(),pState.globalConstants,
-                pState.typeStack, null,blockEnd,ioContext);
+                pState.typeStack, null,blockEnd,pState.ioContext);
         pState.globalCode.addAll(res.tokens);
         pState.typeStack=res.types;
         pState.tokens.clear();
@@ -2912,19 +2914,18 @@ public class Parser {
             aTrait.setTraitFields(aTrait.context.fields.toArray(Type.TraitField[]::new));
         }
     }
-    private void typeCheckStruct(Type.Struct aStruct, HashMap<Parser.VariableId, Value> globalConstants,
-                                 IOContext ioContext) throws SyntaxError {
+    private void typeCheckStruct(Type.Struct aStruct, TypeCheckState tState) throws SyntaxError {
         if(!aStruct.isTypeChecked()){
             if(aStruct.extended!=null){
                 Type.Struct extended = aStruct.extended;
-                typeCheckStruct(extended, globalConstants, ioContext);
+                typeCheckStruct(extended, tState);
                 for(int i = 0; i< extended.elementCount(); i++){
                     aStruct.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
                 aStruct.inheritDeclaredFields(extended);
             }
-            TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,globalConstants,new RandomAccessStack<>(8),
-                    null,aStruct.endPos,ioContext);
+            TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,tState.globalConstants,new RandomAccessStack<>(8),
+                    null,aStruct.endPos,tState.ioContext);
             if(res.types.size()>0){
                 TypeFrame tmp=res.types.get(res.types.size());
                 throw new SyntaxError("unexpected value in struct body: "+tmp,tmp.pushedAt);
@@ -2952,7 +2953,7 @@ public class Parser {
             while((p=structContext.uncheckedProcedures.pollLast())!=null){
                 if(p.typeCheckState == Value.TypeCheckState.WAITING){
                     p.typeCheckState = Value.TypeCheckState.UNCHECKED;
-                    typeCheckProcedure(p,globalConstants,ioContext,null);
+                    typeCheckProcedure(p,tState.globalConstants,tState.ioContext,null);
                 }
             }
         }
@@ -3012,22 +3013,42 @@ public class Parser {
             }
         }
     }
+    static class TypeCheckState{
+        final HashMap<VariableId,Value> globalConstants;
+        final IOContext ioContext;
+
+        final List<Token> src;
+        final ArrayList<Token> ret;
+        final ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
+        final ArrayDeque<BranchWithEnd> retStacks=new ArrayDeque<>();
+        RandomAccessStack<TypeFrame> typeStack;
+        boolean finishedBranch=false;
+        VariableContext context;
+        int index;
+
+        TypeCheckState(HashMap<VariableId, Value> globalConstants, IOContext ioContext,
+                       List<Token> src,VariableContext context, RandomAccessStack<TypeFrame> typeStack) {
+            this.globalConstants = globalConstants;
+            this.ioContext = ioContext;
+            this.src = src;
+            this.ret = new ArrayList<>(src.size());
+            this.typeStack=typeStack;
+            this.context=context;
+        }
+    }
     record TypeCheckResult(ArrayList<Token> tokens,RandomAccessStack<TypeFrame> types){}
     public TypeCheckResult typeCheck(List<Token> tokens,VariableContext context,HashMap<VariableId,Value> globalConstants,
                                       RandomAccessStack<TypeFrame> typeStack,Type[] expectedReturnTypes,FilePosition blockEnd,
                                      IOContext ioContext) throws SyntaxError {
-        ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
-        ArrayList<Token> ret=new ArrayList<>(tokens.size());
-        ArrayDeque<BranchWithEnd> retStacks=new ArrayDeque<>();
-        boolean finishedBranch=false;
+        TypeCheckState tState=new TypeCheckState(globalConstants,ioContext,tokens,context,typeStack);
         Token prev;
-        for(int i=0;i<tokens.size();i++){
-            Token t=tokens.get(i);
+        for(tState.index=0;tState.index<tokens.size();tState.index++){
+            Token t=tokens.get(tState.index);
             if(t instanceof CompilerToken){
-                processCompilerToken((CompilerToken) t, typeStack, openBlocks, ret,globalConstants,context);
+                processCompilerToken((CompilerToken) t, tState);
                 continue;//don't check t as a normal token
             }
-            if(finishedBranch){
+            if(tState.finishedBranch){
                 if(t.tokenType!=TokenType.UNREACHABLE&&((!(t instanceof BlockToken block))
                         ||(block.blockType!=BlockTokenType.ELSE&&block.blockType!=BlockTokenType.END_CASE
                         &&block.blockType!=BlockTokenType.END))){
@@ -3037,101 +3058,100 @@ public class Parser {
             }
             try {
             switch(t.tokenType){
-                case BLOCK_TOKEN -> {
-                    BlockToken block=(BlockToken)t;
-                    BlockCheckReturn tmp=typeCheckBlock(block,openBlocks,typeStack,finishedBranch,globalConstants,ret,i,
-                            tokens,context,ioContext,t.pos);
-                    finishedBranch=tmp.finishedBranch;
-                    typeStack=tmp.typeStack;
-                    context=tmp.context;
-                    i=tmp.i;
-                }
+                case BLOCK_TOKEN ->
+                    typeCheckBlock((BlockToken)t,t.pos,tState);
                 case IDENTIFIER ->
-                    typeCheckIdentifier(t, ret, context, globalConstants, typeStack, ioContext);
+                    typeCheckIdentifier(t, tState);
                 case ASSERT ->
-                    typeCheckAssert(typeStack, ret, t);
+                    typeCheckAssert(tState.typeStack, tState.ret, t);
                 case UNREACHABLE -> {
-                    ret.add(t);
-                    finishedBranch=true;
+                    tState.ret.add(t);
+                    tState.finishedBranch=true;
                 }
                 case NEW ->
-                    typeCheckNew(typeStack,globalConstants, ret, ioContext,t.pos, context);
+                    typeCheckNew(tState,t.pos);
                 case DECLARE_LAMBDA -> {//parse lambda-procedures
                     assert t instanceof DeclareLambdaToken;
-                    typeCheckLambda(globalConstants,context, typeStack, ioContext, ret, (DeclareLambdaToken)t);
+                    typeCheckLambda((DeclareLambdaToken)t,tState);
                 }
                 case VALUE -> {
                     assert t instanceof ValueToken;
                     //push type information
-                    typeStack.push(new TypeFrame(((ValueToken) t).value.type, ((ValueToken) t).value,t.pos));
-                    ret.add(t);
+                    tState.typeStack.push(new TypeFrame(((ValueToken) t).value.type, ((ValueToken) t).value,t.pos));
+                    tState.ret.add(t);
                 }
                 case DEBUG_PRINT -> {
-                    typeStack.pop();
-                    ret.add(t);
+                    tState.typeStack.pop();
+                    tState.ret.add(t);
                 }
                 case EXIT -> {
-                    Type t1=typeStack.pop().type;
+                    Type t1=tState.typeStack.pop().type;
                     if((t1!=Type.INT)&&(t1!=Type.UINT)){
                         throw new SyntaxError("exit code has to be an integer",t.pos);
                     }
-                    finishedBranch=true;
-                    ret.add(t);
+                    tState.finishedBranch=true;
+                    tState.ret.add(t);
                 }
                 case RETURN -> {
                     if(expectedReturnTypes!=null){
                         //addLater? implicit casting of return values ( int <-> uint -> float )
-                        checkReturnValue(typeStack,expectedReturnTypes,t.pos);
+                        checkReturnValue(tState.typeStack,expectedReturnTypes,t.pos);
                     }else{
-                        retStacks.addLast(new BranchWithEnd(typeStack.clone(),t.pos));
+                        tState.retStacks.addLast(new BranchWithEnd(tState.typeStack.clone(),t.pos));
                     }
-                    finishedBranch=true;
-                    ret.add(t);
+                    tState.finishedBranch=true;
+                    tState.ret.add(t);
                 }
                 case CAST -> {
-                    if(ret.size()==0){
+                    if(tState.ret.size()==0){
                         throw new SyntaxError("missing type parameter for 'cast'",t.pos);
-                    }else if(!((prev=ret.remove(ret.size()-1))instanceof ValueToken)||
+                    }else if(!((prev=tState.ret.remove(tState.ret.size()-1))instanceof ValueToken)||
                             ((ValueToken) prev).value.type!=Type.TYPE){
                         throw new SyntaxError("token before 'cast' has to be a type",prev.pos);
-                    }else if(typeStack.pop().type!=Type.TYPE){
+                    }else if(tState.typeStack.pop().type!=Type.TYPE){
                         throw new SyntaxError("type stack out of sync with tokens",t.pos);
                     }
-                    TypeFrame f=typeStack.pop();
+                    TypeFrame f=tState.typeStack.pop();
                     Type target=((ValueToken) prev).value.asType();
                     if(target.mutability==Mutability.DEFAULT){
                         target=target.setMutability(f.type.mutability);
                     }
-                    typeCheckCast(f.type,1,target,globalConstants, ret,ioContext, t.pos,context);
-                    typeStack.push(new TypeFrame(target,null,t.pos));
+                    typeCheckCast(f.type,1,target, t.pos,tState);
+                    tState.typeStack.push(new TypeFrame(target,null,t.pos));
                 }
-                case STACK_DROP ->
-                    typeCheckDrop((StackModifierToken)t, typeStack, ret);
-                case STACK_DUP ->
-                    typeCheckDup((StackModifierToken)t, typeStack, ret);
-                case STACK_SET ->
-                    typeCheckStackSet((StackModifierToken)t, typeStack, ret);
+                case STACK_DROP -> {
+                    assert t instanceof StackModifierToken;
+                    typeCheckDrop((StackModifierToken)t, tState.typeStack, tState.ret);
+                }
+                case STACK_DUP -> {
+                    assert t instanceof StackModifierToken;
+                    typeCheckDup((StackModifierToken)t, tState.typeStack, tState.ret);
+                }
+                case STACK_SET -> {
+                    assert t instanceof StackModifierToken;
+                    typeCheckStackSet((StackModifierToken)t, tState.typeStack, tState.ret);
+                }
                 case CALL_PTR ->
-                    typeCheckCallPtr(typeStack, ret, globalConstants, ioContext, t.pos, context);
+                    typeCheckCallPtr(tState, t.pos);
                 case MARK_MUTABLE ->
-                    typeCheckTypeModifier("mut",(t1)->Value.ofType(t1.mutable()),ret,typeStack,t.pos);
+                    typeCheckTypeModifier("mut",(t1)->Value.ofType(t1.mutable()),tState.ret,tState.typeStack,t.pos);
                 case MARK_MAYBE_MUTABLE ->
-                    typeCheckTypeModifier("mut?",(t1)->Value.ofType(t1.maybeMutable()),ret,typeStack,t.pos);
+                    typeCheckTypeModifier("mut?",(t1)->Value.ofType(t1.maybeMutable()),tState.ret,tState.typeStack,t.pos);
                 case MARK_IMMUTABLE ->
-                    typeCheckTypeModifier("mut~",(t1)->Value.ofType(t1.immutable()),ret,typeStack,t.pos);
+                    typeCheckTypeModifier("mut~",(t1)->Value.ofType(t1.immutable()),tState.ret,tState.typeStack,t.pos);
                 case MARK_INHERIT_MUTABILITY ->
-                    typeCheckTypeModifier("mut^",(t1)->Value.ofType(t1.setMutability(Mutability.INHERIT)),ret,typeStack,t.pos);
+                    typeCheckTypeModifier("mut^",(t1)->Value.ofType(t1.setMutability(Mutability.INHERIT)),tState.ret,tState.typeStack,t.pos);
                 case ARRAY_OF ->
-                    typeCheckTypeModifier("array",(t1)->Value.ofType(Type.arrayOf(t1)),ret,typeStack,t.pos);
+                    typeCheckTypeModifier("array",(t1)->Value.ofType(Type.arrayOf(t1)),tState.ret,tState.typeStack,t.pos);
                 case MEMORY_OF ->
-                    typeCheckTypeModifier("memory",(t1)->Value.ofType(Type.memoryOf(t1)),ret,typeStack,t.pos);
+                    typeCheckTypeModifier("memory",(t1)->Value.ofType(Type.memoryOf(t1)),tState.ret,tState.typeStack,t.pos);
                 case OPTIONAL_OF ->
-                    typeCheckTypeModifier("optional",(t1)->Value.ofType(Type.optionalOf(t1)),ret,typeStack,t.pos);
+                    typeCheckTypeModifier("optional",(t1)->Value.ofType(Type.optionalOf(t1)),tState.ret,tState.typeStack,t.pos);
                 case EMPTY_OPTIONAL ->
                     typeCheckTypeModifier("empty", t1->{
-                        t1.forEachStruct(t2-> typeCheckStruct(t2,globalConstants,ioContext));
+                        t1.forEachStruct(t2-> typeCheckStruct(t2,tState));
                         return Value.emptyOptional(t1);
-                    },ret,typeStack,t.pos);
+                    },tState.ret,tState.typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
                         CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX,
                         PSEUDO_FIELD_ACCESS,TYPE_FIELD_ACCESS,TRAIT_FIELD_ACCESS ->
@@ -3147,110 +3167,109 @@ public class Parser {
             }
         }
         if(expectedReturnTypes!=null){
-            if(!finishedBranch) {
-                checkReturnValue(typeStack, expectedReturnTypes,blockEnd);
+            if(!tState.finishedBranch) {
+                checkReturnValue(tState.typeStack, expectedReturnTypes,blockEnd);
             }
-            return new TypeCheckResult(ret,null);
-        }else if(finishedBranch){
-            if(retStacks.size()>0){
-                BranchWithEnd bWe=retStacks.removeLast();
-                typeStack=bWe.types;
+            return new TypeCheckResult(tState.ret,null);
+        }else if(tState.finishedBranch){
+            if(tState.retStacks.size()>0){
+                BranchWithEnd bWe=tState.retStacks.removeLast();
+                tState.typeStack=bWe.types;
                 blockEnd=bWe.end;//true block end is not needed after this position
             }else{//procedure exits on every execution path
                 //addLater mark functions that exit on every path of execution
-                return new TypeCheckResult(ret,typeStack);
+                return new TypeCheckResult(tState.ret,tState.typeStack);
             }
         }
-        for(BranchWithEnd branch:retStacks){
-            merge(typeStack,blockEnd,branch.types,branch.end,"return");
+        for(BranchWithEnd branch:tState.retStacks){
+            merge(tState.typeStack,blockEnd,branch.types,branch.end,"return");
         }
-        return new TypeCheckResult(ret,typeStack);
+        return new TypeCheckResult(tState.ret,tState.typeStack);
     }
 
-    private void processCompilerToken(CompilerToken t, RandomAccessStack<TypeFrame> typeStack, ArrayDeque<CodeBlock> openBlocks,
-                                      ArrayList<Token> ret, HashMap<VariableId, Value> globalConstants, VariableContext context) {
+    private void processCompilerToken(CompilerToken t, TypeCheckState tState) {
         switch(t.type){
             case TOKENS -> {
                 int n= t.count;
-                if(n > ret.size()){
-                    System.out.println("n > #tokens ("+ ret.size()+")");
-                    n= ret.size();
+                if(n > tState.ret.size()){
+                    System.out.println("n > #tokens ("+ tState.ret.size()+")");
+                    n= tState.ret.size();
                 }
                 System.out.println("tokens:");
                 for(int k=1;k<=n;k++){
-                    System.out.println("  "+ret.get(ret.size()-k));
+                    System.out.println("  "+tState.ret.get(tState.ret.size()-k));
                 }
             }
             case BLOCKS -> {
                 int n= t.count;
-                if(n > openBlocks.size()){
-                    System.out.println("n > #blocks ("+ openBlocks.size()+")");
-                    n= openBlocks.size();
+                if(n > tState.openBlocks.size()){
+                    System.out.println("n > #blocks ("+ tState.openBlocks.size()+")");
+                    n= tState.openBlocks.size();
                 }
                 System.out.println("openBlocks:");
-                CodeBlock[] blocks= openBlocks.toArray(CodeBlock[]::new);
+                CodeBlock[] blocks= tState.openBlocks.toArray(CodeBlock[]::new);
                 for(int k=1;k<=n;k++){
-                    System.out.println("  "+blocks[openBlocks.size()-k]);
+                    System.out.println("  "+blocks[tState.openBlocks.size()-k]);
                 }
             }
             case GLOBAL_CONSTANTS -> {
                 System.out.println("globalConstants:");
-                for(Map.Entry<VariableId, Value> e:globalConstants.entrySet()){
+                for(Map.Entry<VariableId, Value> e:tState.globalConstants.entrySet()){
                     System.out.println("  "+e.getValue()+"\n  @"+e.getKey());
                 }
             }
             case TYPES -> {
                 int n= t.count;
-                if(n > typeStack.size()){
-                    System.out.println("n > #types ("+ typeStack.size()+")");
-                    n= typeStack.size();
+                if(n > tState.typeStack.size()){
+                    System.out.println("n > #types ("+ tState.typeStack.size()+")");
+                    n= tState.typeStack.size();
                 }
                 System.out.println("types:");
                 for(int k=1;k<=n;k++){
-                    System.out.println("  "+typeStack.get(k));
+                    System.out.println("  "+tState.typeStack.get(k));
                 }
             }
             case CONTEXT -> {
                 System.out.println("context:");
-                System.out.println("  "+context);
+                System.out.println("  "+tState.context);
             }
         }
     }
 
-    record BlockCheckReturn(boolean finishedBranch,RandomAccessStack<TypeFrame> typeStack,VariableContext context,int i){}
-    private BlockCheckReturn typeCheckBlock(BlockToken block, ArrayDeque<CodeBlock> openBlocks, RandomAccessStack<TypeFrame> typeStack,
-                                            boolean finishedBranch, HashMap<VariableId,Value> globalConstants,
-                                            ArrayList<Token> ret, int i, List<Token> uncheckedTokens, VariableContext context,
-                                            IOContext ioContext, FilePosition pos) throws RandomAccessStack.StackUnderflow, SyntaxError {
+    private void typeCheckBlock(BlockToken block,FilePosition pos,TypeCheckState tState) throws RandomAccessStack.StackUnderflow, SyntaxError {
+        final ArrayList<Token> ret=tState.ret;
+        final List<Token> uncheckedTokens=tState.src;
+        final ArrayDeque<CodeBlock> openBlocks=tState.openBlocks;
+
         switch (block.blockType){
             case IF ->{
-                IfBlock ifBlock = new IfBlock(ret.size(), pos, context);
-                TypeFrame f = typeStack.pop();
-                ifBlock.elseTypes = typeStack;
-                typeStack = typeStack.clone();
+                IfBlock ifBlock = new IfBlock(ret.size(), pos, tState.context);
+                TypeFrame f = tState.typeStack.pop();
+                ifBlock.elseTypes = tState.typeStack;
+                tState.typeStack = tState.typeStack.clone();
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
-                        typeStack.push(new TypeFrame(f.type.content(),null,pos));
+                        tState.typeStack.push(new TypeFrame(f.type.content(),null,pos));
                     }else {
                         throw new SyntaxError("argument of 'if' has to be an optional or 'bool' got " + f.type, pos);
                     }
                 }
                 openBlocks.add(ifBlock);
                 ret.add(block);
-                context=ifBlock.context();
-                ret.add(new ContextOpen(context,pos));
+                tState.context=ifBlock.context();
+                ret.add(new ContextOpen(tState.context,pos));
             }
             case ELSE -> {
                 CodeBlock open=openBlocks.peekLast();
                 if(!(open instanceof IfBlock ifBlock)){
                     throw new SyntaxError("'else' can only be used in if-blocks",pos);
                 }
-                if(finishedBranch) {
-                    finishedBranch=false;
+                if(tState.finishedBranch) {
+                    tState.finishedBranch=false;
                 }else{
-                    ifBlock.branchTypes.add(new BranchWithEnd(typeStack,pos));
+                    ifBlock.branchTypes.add(new BranchWithEnd(tState.typeStack,pos));
                 }
-                typeStack = ifBlock.elseTypes;
+                tState.typeStack = ifBlock.elseTypes;
 
                 ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                 if(ifBlock.elsePositions.size()>0){//end else-context
@@ -3259,11 +3278,11 @@ public class Parser {
                 Token tmp=ret.get(ifBlock.forkPos);
                 ((BlockToken)tmp).delta=ret.size()-ifBlock.forkPos+1;
 
-                context=ifBlock.elseBranch(ret.size(),pos);
+                tState.context=ifBlock.elseBranch(ret.size(),pos);
 
                 ret.add(block);
                 if(ifBlock.elsePositions.size()<2){//start else-context after first else
-                    ret.add(new ContextOpen(context,pos));
+                    ret.add(new ContextOpen(tState.context,pos));
                 }
             }
             case _IF -> {
@@ -3271,43 +3290,43 @@ public class Parser {
                 if(!(open instanceof IfBlock ifBlock)){
                     throw new SyntaxError("'_if' can only be used in if-blocks",pos);
                 }
-                TypeFrame f = typeStack.pop();
-                ifBlock.elseTypes = typeStack;
-                typeStack = typeStack.clone();
+                TypeFrame f = tState.typeStack.pop();
+                ifBlock.elseTypes = tState.typeStack;
+                tState.typeStack = tState.typeStack.clone();
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
-                        typeStack.push(new TypeFrame(f.type.content(),null,pos));
+                        tState.typeStack.push(new TypeFrame(f.type.content(),null,pos));
                     }else {
                         throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, pos);
                     }
                 }
-                context=ifBlock.newBranch(ret.size(),pos);
+                tState.context=ifBlock.newBranch(ret.size(),pos);
                 ret.add(block);
-                ret.add(new ContextOpen(context,pos));
+                ret.add(new ContextOpen(tState.context,pos));
             }
             case END_IF,END_WHILE ->
                     throw new RuntimeException("block tokens of type "+block.blockType+
                             " should not exist at this stage of compilation");
             case WHILE -> {
-                WhileBlock whileBlock = new WhileBlock(ret.size(), pos, context);
-                whileBlock.loopTypes=typeStack.clone();
+                WhileBlock whileBlock = new WhileBlock(ret.size(), pos, tState.context);
+                whileBlock.loopTypes=tState.typeStack.clone();
 
                 openBlocks.add(whileBlock);
-                context= whileBlock.context();
+                tState.context= whileBlock.context();
                 ret.add(block);
-                ret.add(new ContextOpen(context,pos));
+                ret.add(new ContextOpen(tState.context,pos));
             }
             case DO -> {
                 CodeBlock open=openBlocks.peekLast();
                 if(!(open instanceof WhileBlock whileBlock)){
                     throw new SyntaxError("do can only be used in while- blocks",pos);
                 }
-                TypeFrame f = typeStack.pop();
-                whileBlock.forkTypes=typeStack;
-                typeStack=typeStack.clone();
+                TypeFrame f = tState.typeStack.pop();
+                whileBlock.forkTypes=tState.typeStack;
+                tState.typeStack=tState.typeStack.clone();
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
-                        typeStack.push(new TypeFrame(f.type.content(),null,pos));
+                        tState.typeStack.push(new TypeFrame(f.type.content(),null,pos));
                     }else {
                         throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, pos);
                     }
@@ -3317,37 +3336,37 @@ public class Parser {
                 int forkPos=ret.size();
                 //context variable will be reset on fork
                 ret.add(block);
-                context= whileBlock.fork(forkPos, pos);
-                ret.add(new ContextOpen(context,pos));
+                tState.context= whileBlock.fork(forkPos, pos);
+                ret.add(new ContextOpen(tState.context,pos));
             }
             case DO_WHILE -> {
                 CodeBlock open=openBlocks.pollLast();
                 if(!(open instanceof WhileBlock whileBlock)){
                     throw new SyntaxError("do can only be used in while- blocks",pos);
                 }
-                TypeFrame f = typeStack.pop();
+                TypeFrame f = tState.typeStack.pop();
                 if(f.type!=Type.BOOL){
                     throw new SyntaxError("argument of 'do end' has to be 'bool' got "+f.type,pos);
                 }//no else
-                if(notAssignable(typeStack, ((WhileBlock) open).loopTypes)){
+                if(notAssignable(tState.typeStack, ((WhileBlock) open).loopTypes)){
                     throw new SyntaxError("do-while body modifies the stack",pos);
                 }
 
                 whileBlock.fork(ret.size(), pos);//whileBlock.end() only checks if fork was called
                 ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                context=((BlockContext)context).parent;
+                tState.context=((BlockContext)tState.context).parent;
                 ret.add(new BlockToken(BlockTokenType.DO_WHILE,pos,open.start - (ret.size()-1)));
             }
             case SWITCH -> {
-                TypeFrame f=typeStack.pop();
-                SwitchCaseBlock switchBlock=new SwitchCaseBlock(f.type,ret.size(), pos,context);
-                switchBlock.defaultTypes=typeStack;
+                TypeFrame f=tState.typeStack.pop();
+                SwitchCaseBlock switchBlock=new SwitchCaseBlock(f.type,ret.size(), pos,tState.context);
+                switchBlock.defaultTypes=tState.typeStack;
 
                 openBlocks.addLast(switchBlock);
                 ret.add(new SwitchToken(switchBlock,pos));
                 switchBlock.newSection(ret.size(),pos);
                 //find case statement
-                int j=i+1;
+                int j=tState.index+1;
                 while(j<uncheckedTokens.size()&&(!(uncheckedTokens.get(j) instanceof BlockToken))){
                     j++;
                 }
@@ -3359,15 +3378,15 @@ public class Parser {
                             uncheckedTokens.get(j)+" expected 'case' statement",
                             uncheckedTokens.get(j).pos);
                 }
-                List<Token> caseValues=uncheckedTokens.subList(i+1,j);
+                List<Token> caseValues=uncheckedTokens.subList(tState.index+1,j);
                 findEnumFields(switchBlock, caseValues);
-                context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
-                                new RandomAccessStack<>(8),null,pos,ioContext).tokens,
+                tState.context=switchBlock.caseBlock(typeCheck(caseValues,tState.context,tState.globalConstants,
+                                new RandomAccessStack<>(8),null,pos,tState.ioContext).tokens,
                         uncheckedTokens.get(j).pos);
-                ret.add(new ContextOpen(context,pos));
-                i=j;
+                ret.add(new ContextOpen(tState.context,pos));
+                tState.index=j;
                 if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
-                    typeStack=typeStack.clone();
+                    tState.typeStack=tState.typeStack.clone();
                 }
             }
             case END_CASE -> {
@@ -3375,19 +3394,19 @@ public class Parser {
                 if(!(open instanceof SwitchCaseBlock switchBlock)){
                     throw new SyntaxError("end-case can only be used in switch-case-blocks",pos);
                 }
-                if(finishedBranch) {
-                    finishedBranch=false;
+                if(tState.finishedBranch) {
+                    tState.finishedBranch=false;
                 }else{
-                    switchBlock.caseTypes.add(new BranchWithEnd(typeStack,pos));
+                    switchBlock.caseTypes.add(new BranchWithEnd(tState.typeStack,pos));
                 }
-                typeStack=switchBlock.defaultTypes;
+                tState.typeStack=switchBlock.defaultTypes;
 
                 ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                context=((BlockContext)context).parent;
+                tState.context=((BlockContext)tState.context).parent;
                 ret.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
                 switchBlock.newSection(ret.size(),pos);
                 //find case statement
-                int j=i+1;
+                int j=tState.index+1;
                 while(j<uncheckedTokens.size()&&(!(uncheckedTokens.get(j) instanceof BlockToken))){
                     j++;
                 }
@@ -3397,42 +3416,44 @@ public class Parser {
                 }
                 Token t=uncheckedTokens.get(j);
                 if(((BlockToken)t).blockType==BlockTokenType.CASE){
-                    List<Token> caseValues=uncheckedTokens.subList(i+1,j);
+                    List<Token> caseValues=uncheckedTokens.subList(tState.index+1,j);
                     findEnumFields(switchBlock, caseValues);
-                    context=switchBlock.caseBlock(typeCheck(caseValues,context,globalConstants,
-                            new RandomAccessStack<>(8),null,pos,ioContext).tokens,uncheckedTokens.get(j).pos);
-                    ret.add(new ContextOpen(context,pos));
+                    tState.context=switchBlock.caseBlock(typeCheck(caseValues,tState.context,tState.globalConstants,
+                            new RandomAccessStack<>(8),null,pos,tState.ioContext).tokens,
+                            uncheckedTokens.get(j).pos);
+                    ret.add(new ContextOpen(tState.context,pos));
 
                     if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
-                        typeStack=typeStack.clone();
+                        tState.typeStack=tState.typeStack.clone();
                     }
                 }else if(((BlockToken)t).blockType==BlockTokenType.DEFAULT){
-                    context=switchBlock.defaultBlock(ret.size(),pos);
-                    ret.add(new ContextOpen(context,pos));
+                    tState.context=switchBlock.defaultBlock(ret.size(),pos);
+                    ret.add(new ContextOpen(tState.context,pos));
                 }else if(((BlockToken)t).blockType==BlockTokenType.END){
-                    switchBlock.end(ret.size(),pos,ioContext);
+                    switchBlock.end(ret.size(),pos,tState.ioContext);
                     openBlocks.removeLast();//remove switch-block form blocks
                     for(Integer p:switchBlock.blockEnds){
                         Token tmp=ret.get(p);
                         ((BlockToken)tmp).delta=ret.size()-p;
                     }
                     for(BranchWithEnd branch:switchBlock.caseTypes){
-                        merge(typeStack,pos,branch.types,branch.end,"switch");
+                        merge(tState.typeStack,pos,branch.types,branch.end,"switch");
                     }
                 }else{
-                    throw new SyntaxError("unexpected statement after end-case at "+uncheckedTokens.get(i).pos+": "+
-                            block+" expected 'case', 'default' or 'end' statement",pos);
+                    throw new SyntaxError("unexpected statement after end-case at "+
+                            uncheckedTokens.get(tState.index).pos+": "+block+
+                            " expected 'case', 'default' or 'end' statement",pos);
                 }
-                i=j;
+                tState.index=j;
             }
             case CASE ->
                     throw new SyntaxError("unexpected 'case' statement",pos);
             case DEFAULT ->
                     throw new SyntaxError("unexpected 'default' statement",pos);
             case ARRAY -> {
-                ArrayBlock arrayBlock = new ArrayBlock(ret.size(), BlockType.CONST_ARRAY, pos, context);
-                arrayBlock.prevTypes=typeStack;
-                typeStack=new RandomAccessStack<>(8);
+                ArrayBlock arrayBlock = new ArrayBlock(ret.size(), BlockType.CONST_ARRAY, pos, tState.context);
+                arrayBlock.prevTypes=tState.typeStack;
+                tState.typeStack=new RandomAccessStack<>(8);
                 openBlocks.add(arrayBlock);
             }
             case END -> {
@@ -3444,7 +3465,7 @@ public class Parser {
                 switch(open.type) {
                     case CONST_ARRAY -> {
                         Type type = null;
-                        for (TypeFrame f : typeStack) {
+                        for (TypeFrame f : tState.typeStack) {
                             Optional<Type> merged = Type.commonSuperType(type, f.type, false);
                             if(merged.isEmpty()){
                                 throw new SyntaxError("cannot merge types "+type+" and "+f.type,pos);
@@ -3454,7 +3475,7 @@ public class Parser {
                         if (type == null) {
                             type = Type.ANY;
                         }
-                        typeStack = ((ArrayBlock) open).prevTypes;
+                        tState.typeStack = ((ArrayBlock) open).prevTypes;
                         List<Token> subList = ret.subList(open.start, ret.size());
                         ArrayList<Value> values = new ArrayList<>(subList.size());
                         boolean constant = true;
@@ -3474,14 +3495,14 @@ public class Parser {
                                     values.set(p, values.get(p).castTo(type));
                                 }
                                 Value list = Value.createArray(Type.arrayOf(type), values.toArray(Value[]::new));
-                                typeStack.push(new TypeFrame(list.type, list, pos));
+                                tState.typeStack.push(new TypeFrame(list.type, list, pos));
 
                                 ret.add(new ValueToken(list, open.startPos));
                             } catch (ConcatRuntimeError e) {
                                 throw new SyntaxError(e, pos);
                             }
                         } else {
-                            typeStack.push(new TypeFrame(Type.arrayOf(type), null, pos));
+                            tState.typeStack.push(new TypeFrame(Type.arrayOf(type), null, pos));
 
                             ArrayList<Token> listTokens = new ArrayList<>(subList);
                             subList.clear();
@@ -3490,25 +3511,25 @@ public class Parser {
                     }
                     case IF -> {
                         if(((IfBlock) open).forkPos!=-1){
-                            if(finishedBranch){
-                                finishedBranch=false;
+                            if(tState.finishedBranch){
+                                tState.finishedBranch=false;
                             }else {
-                                ((IfBlock) open).branchTypes.add(new BranchWithEnd(typeStack,pos));
+                                ((IfBlock) open).branchTypes.add(new BranchWithEnd(tState.typeStack,pos));
                             }
-                            typeStack = ((IfBlock) open).elseTypes;
+                            tState.typeStack = ((IfBlock) open).elseTypes;
 
                             tmp=ret.get(((IfBlock) open).forkPos);
                             ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            context=((BlockContext)context).parent;
+                            tState.context=((BlockContext)tState.context).parent;
                             //when there is no else then the last branch has to jump onto the close operation
                             ((BlockToken)tmp).delta=ret.size()-((IfBlock) open).forkPos;
                             if(((IfBlock) open).elsePositions.size()>0){//close-else context
                                 ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                                context=((BlockContext)context).parent;
+                                tState.context=((BlockContext)tState.context).parent;
                             }
                         }else{//close else context
                             ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            context=((BlockContext)context).parent;
+                            tState.context=((BlockContext)tState.context).parent;
                         }
                         for(Integer branch:((IfBlock) open).elsePositions){
                             tmp=ret.get(branch);
@@ -3516,11 +3537,11 @@ public class Parser {
                         }
                         ret.add(new BlockToken(BlockTokenType.END_IF,pos,-1));
                         FilePosition mainEnd=pos;
-                        if(finishedBranch){
+                        if(tState.finishedBranch){
                             if(((IfBlock) open).branchTypes.size()>0){
-                                finishedBranch=false;
+                                tState.finishedBranch=false;
                                 BranchWithEnd bWe=((IfBlock) open).branchTypes.removeLast();
-                                typeStack=bWe.types;
+                                tState.typeStack=bWe.types;
                                 mainEnd=bWe.end;
                             }else{
                                 break;//exit on all branches of if statement
@@ -3528,20 +3549,20 @@ public class Parser {
                         }
                         //merge Types
                         for(BranchWithEnd branch:((IfBlock) open).branchTypes){
-                            merge(typeStack,mainEnd,branch.types,branch.end,"if");
+                            merge(tState.typeStack,mainEnd,branch.types,branch.end,"if");
                         }
                     }
                     case WHILE -> {
-                        if(finishedBranch){//exit if loop is traversed at least once
-                            finishedBranch=false;
-                        }else if(notAssignable(typeStack, ((WhileBlock) open).loopTypes)){
+                        if(tState.finishedBranch){//exit if loop is traversed at least once
+                            tState.finishedBranch=false;
+                        }else if(notAssignable(tState.typeStack, ((WhileBlock) open).loopTypes)){
                             throw new SyntaxError("while body modifies the stack",pos);
                         }
-                        typeStack=((WhileBlock) open).forkTypes;
+                        tState.typeStack=((WhileBlock) open).forkTypes;
 
                         ((WhileBlock)open).end(pos);
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                        context=((BlockContext)context).parent;
+                        tState.context=((BlockContext)tState.context).parent;
                         tmp=ret.get(((WhileBlock) open).forkPos);
                         ret.add(new BlockToken(BlockTokenType.END_WHILE,pos, open.start - ret.size()));
                         ((BlockToken)tmp).delta=ret.size()-((WhileBlock)open).forkPos;
@@ -3551,25 +3572,25 @@ public class Parser {
                             throw new SyntaxError("missing end-case statement",pos);
                         }
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                        context=((BlockContext)context).parent;
-                        ((SwitchCaseBlock)open).end(ret.size(),pos,ioContext);
+                        tState.context=((BlockContext)tState.context).parent;
+                        ((SwitchCaseBlock)open).end(ret.size(),pos,tState.ioContext);
                         for(Integer p:((SwitchCaseBlock) open).blockEnds){
                             tmp=ret.get(p);
                             ((BlockToken)tmp).delta=ret.size()-p;
                         }
                         FilePosition mainEnd=pos;
-                        if(finishedBranch){
+                        if(tState.finishedBranch){
                             if(((SwitchCaseBlock)open).caseTypes.size()>0){
-                                finishedBranch=false;
+                                tState.finishedBranch=false;
                                 BranchWithEnd bWe=((SwitchCaseBlock)open).caseTypes.removeLast();
-                                typeStack=bWe.types;
+                                tState.typeStack=bWe.types;
                                 mainEnd=bWe.end;
                             }else{
                                 break;//exit on all branches of if statement
                             }
                         }
                         for(BranchWithEnd branch:((SwitchCaseBlock)open).caseTypes){
-                            merge(typeStack,mainEnd,branch.types,branch.end,"switch");
+                            merge(tState.typeStack,mainEnd,branch.types,branch.end,"switch");
                         }
                     }
                     case UNION,ANONYMOUS_TUPLE,PROC_TYPE ->
@@ -3581,23 +3602,23 @@ public class Parser {
             }
 
             case UNION_TYPE -> {
-                ArrayBlock uBlock = new ArrayBlock(ret.size(), BlockType.UNION, pos, context);
-                uBlock.prevTypes=typeStack;
-                typeStack=new RandomAccessStack<>(8);
+                ArrayBlock uBlock = new ArrayBlock(ret.size(), BlockType.UNION, pos, tState.context);
+                uBlock.prevTypes=tState.typeStack;
+                tState.typeStack=new RandomAccessStack<>(8);
 
                 openBlocks.add(uBlock);
             }
             case TUPLE_TYPE -> {
-                ArrayBlock tBlock = new ArrayBlock(ret.size(), BlockType.ANONYMOUS_TUPLE, pos, context);
-                tBlock.prevTypes=typeStack;
-                typeStack=new RandomAccessStack<>(8);
+                ArrayBlock tBlock = new ArrayBlock(ret.size(), BlockType.ANONYMOUS_TUPLE, pos, tState.context);
+                tBlock.prevTypes=tState.typeStack;
+                tState.typeStack=new RandomAccessStack<>(8);
 
                 openBlocks.add(tBlock);
             }
             case PROC_TYPE -> {
-                ProcTypeBlock pBlock = new ProcTypeBlock(ret.size(), pos, context);
-                pBlock.prevTypes=typeStack;
-                typeStack=new RandomAccessStack<>(8);
+                ProcTypeBlock pBlock = new ProcTypeBlock(ret.size(), pos, tState.context);
+                pBlock.prevTypes=tState.typeStack;
+                tState.typeStack=new RandomAccessStack<>(8);
 
                 openBlocks.add(pBlock);
             }
@@ -3605,7 +3626,7 @@ public class Parser {
                 CodeBlock pBlock=openBlocks.peekLast();
                 assert pBlock instanceof ProcTypeBlock;
                 ((ProcTypeBlock) pBlock).separatorPos=ret.size();
-                typeStack=new RandomAccessStack<>(8);
+                tState.typeStack=new RandomAccessStack<>(8);
             }
             case END_TYPE -> {
                 CodeBlock open=openBlocks.pollLast();
@@ -3622,9 +3643,9 @@ public class Parser {
                         subList.clear();
                         Value typeValue = Value.ofType(Type.UnionType.create(elements));
 
-                        typeStack=((ArrayBlock)open).prevTypes;
+                        tState.typeStack=((ArrayBlock)open).prevTypes;
                         ret.add(new ValueToken(typeValue,pos));
-                        typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
+                        tState.typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
                     }
                     case ANONYMOUS_TUPLE -> {
                         List<Token> subList=ret.subList(open.start, ret.size());
@@ -3632,9 +3653,9 @@ public class Parser {
                         subList.clear();
                         Value typeValue=Value.ofType(Type.Tuple.create(tupleTypes));
 
-                        typeStack=((ArrayBlock)open).prevTypes;
+                        tState.typeStack=((ArrayBlock)open).prevTypes;
                         ret.add(new ValueToken(typeValue,pos));
-                        typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
+                        tState.typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
                     }
                     case PROC_TYPE -> {
                         List<Token> subList=ret.subList(open.start, ((ProcTypeBlock)open).separatorPos);
@@ -3644,8 +3665,8 @@ public class Parser {
                         ret.subList(open.start,ret.size()).clear();
                         Value typeValue =Value.ofType(Type.Procedure.create(inTypes,outTypes,pos));
                         ret.add(new ValueToken(typeValue,pos));
-                        typeStack=((ProcTypeBlock)open).prevTypes;
-                        typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
+                        tState.typeStack=((ProcTypeBlock)open).prevTypes;
+                        tState.typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
                     }
                     case IF,WHILE, SWITCH_CASE,CONST_ARRAY ->
                         throw new SyntaxError("unexpected ')' statement ",pos);
@@ -3655,7 +3676,6 @@ public class Parser {
                 }
             }
         }
-        return new BlockCheckReturn(finishedBranch,typeStack,context,i);
     }
 
     private void typeCheckAssert(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, Token t) throws RandomAccessStack.StackUnderflow, SyntaxError, TypeError {
@@ -3744,24 +3764,20 @@ public class Parser {
     }
 
 
-    private void typeCheckCallPtr(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret,
-                                  HashMap<VariableId, Value> globalConstants, IOContext ioContext, FilePosition pos,
-                                  VariableContext callerContext)
+    private void typeCheckCallPtr(TypeCheckState tState, FilePosition pos)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
-        TypeFrame f= typeStack.pop();
+        TypeFrame f= tState.typeStack.pop();
         if(f.type instanceof Type.Procedure){
-            typeCheckCall("call-ptr", typeStack, (Type.Procedure) f.type,globalConstants, ret,ioContext, pos,
-                    true,callerContext);
-            ret.add(new Token(TokenType.CALL_PTR, pos));
+            typeCheckCall("call-ptr",(Type.Procedure) f.type,pos,true,tState);
+            tState.ret.add(new Token(TokenType.CALL_PTR, pos));
         }else if(f.type instanceof Type.OverloadedProcedurePointer){
             CallMatch call = typeCheckOverloadedCall("call-ptr",
                     ((Type.OverloadedProcedurePointer) f.type).proc,
-                    ((Type.OverloadedProcedurePointer) f.type).genArgs,
-                    typeStack, globalConstants, ret, ioContext, pos,callerContext);
+                    ((Type.OverloadedProcedurePointer) f.type).genArgs, pos,tState);
             Callable proc=call.called;
             proc.markAsUsed();
-            setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) f.type), (Value) proc);
-            ret.add(new Token(TokenType.CALL_PTR, pos));
+            setOverloadedProcPtr(tState.ret,((Type.OverloadedProcedurePointer) f.type), (Value) proc);
+            tState.ret.add(new Token(TokenType.CALL_PTR, pos));
         }else{
             throw new SyntaxError("invalid argument for operator '()': "+f.type, pos);
         }
@@ -3788,14 +3804,12 @@ public class Parser {
         }
     }
 
-    private void typeCheckLambda(HashMap<VariableId, Value> globalConstants, VariableContext context,
-                                 RandomAccessStack<TypeFrame> typeStack
-            , IOContext ioContext, ArrayList<Token> ret, DeclareLambdaToken t) throws SyntaxError {
-
-        ProcedureContext newContext=new ProcedureContext(context);
+    private void typeCheckLambda(DeclareLambdaToken t,TypeCheckState tState) throws SyntaxError {
+        ProcedureContext newContext=new ProcedureContext(tState.context);
         newContext.generics.addAll(t.generics);//move generics to new context
-        TypeCheckResult res=typeCheck(t.inTypes,newContext, globalConstants,new RandomAccessStack<>(8),null,
-                t.pos,ioContext);
+        TypeCheckResult res=typeCheck(t.inTypes,newContext, tState.globalConstants,
+                new RandomAccessStack<>(8),null,
+                t.pos,tState.ioContext);
         Type[] inTypes=ProcedureBlock.getSignature(res.tokens,"procedure");
         RandomAccessStack<TypeFrame> procTypes=new RandomAccessStack<>(8);
         for(Type in:inTypes){
@@ -3803,13 +3817,13 @@ public class Parser {
         }
         Type[] outTypes;
         if(t.outTypes!=null) {
-            res = typeCheck(t.outTypes, newContext, globalConstants, new RandomAccessStack<>(8), null,
-                    t.pos, ioContext);
+            res = typeCheck(t.outTypes, newContext, tState.globalConstants, new RandomAccessStack<>(8), null,
+                    t.pos, tState.ioContext);
             outTypes = ProcedureBlock.getSignature(res.tokens, "procedure");
         }else{
             outTypes=null;
         }
-        res=typeCheck(t.body,newContext, globalConstants,procTypes,outTypes,t.endPos, ioContext);
+        res=typeCheck(t.body,newContext, tState.globalConstants,procTypes,outTypes,t.endPos, tState.ioContext);
         if(t.outTypes==null){
             outTypes=new Type[res.types.size()];
             for(int i= outTypes.length-1;i>=0;i--){
@@ -3826,32 +3840,31 @@ public class Parser {
         Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, newContext);
         lambda.typeCheckState = Value.TypeCheckState.CHECKED;//mark lambda as checked
         //push type information
-        typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
+        tState.typeStack.push(new TypeFrame(lambda.type, lambda, t.pos));
         if(newContext.curried.isEmpty()){
-            ret.add(new ValueToken(TokenType.LAMBDA,lambda, t.pos));
+            tState.ret.add(new ValueToken(TokenType.LAMBDA,lambda, t.pos));
         }else{
-            ret.add(new ValueToken(TokenType.CURRIED_LAMBDA,lambda, t.pos));
+            tState.ret.add(new ValueToken(TokenType.CURRIED_LAMBDA,lambda, t.pos));
         }
     }
 
-    private void typeCheckNew(RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants,
-                              ArrayList<Token> ret, IOContext ioContext, FilePosition pos,VariableContext callerContext)
+    private void typeCheckNew(TypeCheckState tState, FilePosition pos)
             throws SyntaxError, RandomAccessStack.StackUnderflow {
         Token prev;
+        final ArrayList<Token> ret=tState.ret;
         if(ret.size()<1||!((prev= ret.remove(ret.size()-1)) instanceof ValueToken)) {
             throw new SyntaxError("token before of new has to be a type", pos);
         }
-        if(typeStack.pop().type!=Type.TYPE){
+        if(tState.typeStack.pop().type!=Type.TYPE){
             throw new RuntimeException("type-stack out of sync with tokens");
         }
         try {
             Type type = ((ValueToken)prev).value.asType();
-            type.forEachStruct(t-> typeCheckStruct(t,globalConstants,ioContext));
+            type.forEachStruct(t-> typeCheckStruct(t,tState));
             if(type instanceof Type.TupleLike){
                 Type[] elements = ((Type.TupleLike) type).getElements();
-                typeCheckCall("new", typeStack,
-                        Type.Procedure.create(elements,new Type[]{type},pos),globalConstants, ret,ioContext, pos,
-                        false, callerContext);
+                typeCheckCall("new",Type.Procedure.create(elements,new Type[]{type},pos),
+                        pos,false, tState);
 
                 int c=((Type.TupleLike) type).elementCount();
                 if(c < 0){
@@ -3875,16 +3888,16 @@ public class Parser {
                     }
                 }
             }else if(type.isMemory()||type.isArray()){
-                TypeFrame f= typeStack.pop();
+                TypeFrame f= tState.typeStack.pop();
                 if(f.type!=Type.UINT&&f.type!=Type.INT){
                     throw new SyntaxError("invalid argument for '"+type+" new': "+f.type+
                             " expected an integer", pos);
                 }//no else
                 if(type.isArray()){
-                    f=typeStack.pop();
-                    typeCheckCast(f.type,2,type.content(),globalConstants, ret,ioContext,pos,callerContext);
+                    f=tState.typeStack.pop();
+                    typeCheckCast(f.type,2,type.content(),pos,tState);
                 }
-                typeStack.push(new TypeFrame(type,null, pos));
+                tState.typeStack.push(new TypeFrame(type,null, pos));
                 //addLater? support new memory/array in pre-evaluation
             }else{
                 throw new SyntaxError("cannot apply 'new' to type "+type, pos);
@@ -3895,10 +3908,13 @@ public class Parser {
         }
     }
 
-    private void typeCheckIdentifier(Token t, ArrayList<Token> ret, VariableContext context, HashMap<VariableId, Value> globalConstants,
-                                     RandomAccessStack<TypeFrame> typeStack, IOContext ioContext) throws SyntaxError, RandomAccessStack.StackUnderflow {
+    private void typeCheckIdentifier(Token t, TypeCheckState tState) throws SyntaxError, RandomAccessStack.StackUnderflow {
         Token prev;
         IdentifierToken identifier=(IdentifierToken) t;
+        final RandomAccessStack<TypeFrame> typeStack=tState.typeStack;
+        final ArrayList<Token> ret=tState.ret;
+        final VariableContext context=tState.context;
+        final HashMap<VariableId, Value> globalConstants=tState.globalConstants;
         switch (identifier.type) {
             case DECLARE, IMPLICIT_DECLARE -> {
                 try {//remember constant declarations
@@ -3918,7 +3934,7 @@ public class Parser {
                     }
                     Mutability mutability=identifier.mutability();
                     VariableId id = context.declareVariable( identifier.name, type, mutability,
-                            identifier.accessibility(), identifier.pos, ioContext);
+                            identifier.accessibility(), identifier.pos, tState.ioContext);
                     //only remember root-level constants
                     if (identifier.isNative()) {
                         if(id.mutability==Mutability.MUTABLE){
@@ -3930,7 +3946,7 @@ public class Parser {
                         break;
                     }
                     TypeFrame val = typeStack.pop();
-                    typeCheckCast(val.type,1, id.type,globalConstants, ret,ioContext, t.pos,context);
+                    typeCheckCast(val.type,1, id.type,t.pos,tState);
                     if (id.mutability==Mutability.IMMUTABLE && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         Value value = ((ValueToken) prev).value;
@@ -3969,8 +3985,7 @@ public class Parser {
                         OverloadedProcedure proc =
                                 d instanceof OverloadedProcedure?(OverloadedProcedure) d:new OverloadedProcedure((Callable) d);
                         CallMatch match = typeCheckOverloadedCall(
-                                "procedure "+identifier.name, new OverloadedProcedure(proc),null,
-                                typeStack,globalConstants,ret,ioContext,t.pos, context);
+                                "procedure "+identifier.name, new OverloadedProcedure(proc),null,t.pos, tState);
                         match.called.markAsUsed();
                         CallToken token = new CallToken( match.called, identifier.pos);
                         ret.add(token);
@@ -4067,17 +4082,17 @@ public class Parser {
                 context.wrapCurried(identifier.name,id,identifier.pos);
                 assert !globalConstants.containsKey(id);
                 TypeFrame f = typeStack.pop();
-                typeCheckCast(f.type,1, id.type,globalConstants, ret, ioContext,t.pos,context);
+                typeCheckCast(f.type,1, id.type, t.pos,tState);
                 ret.add(new VariableToken(identifier.pos,identifier.name,id,
                         AccessType.WRITE, context));
             }
             case PROC_ID ->
-                typeCheckPushProcPointer(identifier, typeStack, ret, globalConstants, context, ioContext, t.pos,context);
+                typeCheckPushProcPointer(identifier, typeStack, ret, globalConstants, context, tState.ioContext, t.pos,context);
             case GET_FIELD -> {
                 TypeFrame f=typeStack.pop();
                 try {
                     if(f.type instanceof Type.Struct){
-                        typeCheckStruct((Type.Struct) f.type,globalConstants,ioContext);//ensure struct is initialized
+                        typeCheckStruct((Type.Struct) f.type,tState);//ensure struct is initialized
                         Integer index=((Type.Struct) f.type).indexByName.get(identifier.name);
                         if(index!=null){
                             Type.StructField field=((Type.Struct) f.type).fields[index];
@@ -4086,7 +4101,7 @@ public class Parser {
                                 ret.add(new TupleElementAccess(index, false, t.pos));
                                 break;//found field
                             }else{
-                                ioContext.stdErr.println("cannot access private field "+field.name()+" (declared at "+
+                                tState.ioContext.stdErr.println("cannot access private field "+field.name()+" (declared at "+
                                         field.declaredAt()+") of struct "+f.type);
                             }
                         }
@@ -4103,14 +4118,12 @@ public class Parser {
                     }
                     if(f.type instanceof Type.Trait){
                         //ensure that trait is initialized
-                        typeCheckTrait((Type.Trait) f.type,globalConstants,ioContext);
+                        typeCheckTrait((Type.Trait) f.type,globalConstants,tState.ioContext);
                         int index=((Type.Trait) f.type).fieldIdByName(identifier.name);
                         if(index!=-1){
                             Type.TraitField field=((Type.Trait) f.type).traitFields[index];
                             typeStack.push(f);//push f back onto the type-stack
-                            typeCheckCall(field.name(),
-                                    typeStack,field.procType(),
-                                    globalConstants,ret,ioContext,t.pos,false, context);
+                            typeCheckCall(field.name(),field.procType(),t.pos,false, tState);
                             ret.add(new TypeFieldAccess(TokenType.TRAIT_FIELD_ACCESS,identifier.pos,index));
                             break;
                         }
@@ -4118,8 +4131,8 @@ public class Parser {
                     Callable pseudoField=f.type.getPseudoField(identifier.name);
                     if(pseudoField!=null){
                         typeStack.push(f);//push f back onto the type-stack
-                        CallMatch match = typeCheckOverloadedCall(pseudoField.name(),new OverloadedProcedure(pseudoField),null,typeStack,
-                                globalConstants,ret,ioContext,t.pos, context);
+                        CallMatch match = typeCheckOverloadedCall(pseudoField.name(),
+                                new OverloadedProcedure(pseudoField),null,t.pos, tState);
                         match.called.markAsUsed();
                         ret.add(new TypeFieldAccess(TokenType.PSEUDO_FIELD_ACCESS,identifier.pos,f.type.pseudoFieldId(identifier.name)));
                         break;//found field
@@ -4127,10 +4140,10 @@ public class Parser {
                     if(f.type==Type.TYPE&&f.value!=null){
                         if(f.value.asType() instanceof Type.Struct){
                             //ensure that struct is initialized
-                            typeCheckStruct((Type.Struct) f.value.asType(),globalConstants,ioContext);
+                            typeCheckStruct((Type.Struct) f.value.asType(),tState);
                         }else if(f.value.asType() instanceof Type.Trait){
                             //ensure that trait is initialized
-                            typeCheckTrait((Type.Trait) f.value.asType(),globalConstants,ioContext);
+                            typeCheckTrait((Type.Trait) f.value.asType(),globalConstants,tState.ioContext);
                         }
                         Value typeField=f.value.asType().getTypeField(identifier.name);
                         if(typeField!=null){
@@ -4164,7 +4177,7 @@ public class Parser {
                 TypeFrame val=typeStack.pop();
                 boolean hasField=false;
                 if(f.type instanceof Type.Struct struct){
-                    typeCheckStruct((Type.Struct) f.type,globalConstants,ioContext);//ensure struct is initialized
+                    typeCheckStruct((Type.Struct) f.type,tState);//ensure struct is initialized
                     Integer index= struct.indexByName.get(identifier.name);
                     if(index!=null){
                         if(!struct.isMutable()){
@@ -4174,7 +4187,7 @@ public class Parser {
                         Type.StructField field = struct.fields[index];
                         if(field.accessibility()==Accessibility.PUBLIC||field.declaredAt().path.equals(t.pos.path)){
                             if(field.mutable()){
-                                typeCheckCast(val.type,2,struct.getElement(index),globalConstants, ret,ioContext, t.pos,context);
+                                typeCheckCast(val.type,2,struct.getElement(index),t.pos,tState);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -4193,7 +4206,7 @@ public class Parser {
                         if(index>=0&&index< tuple.elementCount()){
                             Type fieldType = tuple.getElement(index);
                             if(tuple.isMutable()){
-                                typeCheckCast(val.type,2,fieldType,globalConstants, ret, ioContext,t.pos,context);
+                                typeCheckCast(val.type,2,fieldType,t.pos,tState);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -4382,8 +4395,7 @@ public class Parser {
         return genArgs;
     }
 
-    private void typeCheckCast(Type src, int stackPos, Type target, HashMap<VariableId, Value> globalConstants, ArrayList<Token> ret,
-                               IOContext ioContext, FilePosition pos,VariableContext callerContext) throws SyntaxError {
+    private void typeCheckCast(Type src, int stackPos, Type target,FilePosition pos,TypeCheckState tState) throws SyntaxError {
         Type.BoundMaps bounds=new Type.BoundMaps();
         if(src instanceof Type.OverloadedProcedurePointer){
             if(!(target instanceof Type.Procedure)){
@@ -4411,24 +4423,24 @@ public class Parser {
                         c=((GenericProcedure) c).withPrams(update);
                     }
                     if(c instanceof Value.Procedure){//ensure procedures are type-checked
-                        typeCheckProcedure((Value.Procedure) c, globalConstants, ioContext, callerContext);
+                        typeCheckProcedure((Value.Procedure) c, tState.globalConstants, tState.ioContext, tState.context);
                     }
                     matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,0,new HashMap<>()));
                 }
             }
             if(matches.isEmpty()){
                 for(Callable c:proc.procedures){
-                    ioContext.stdErr.println(" - "+c.name()+":"+c.type()+" at "+c.declaredAt());
+                    tState.ioContext.stdErr.println(" - "+c.name()+":"+c.type()+" at "+c.declaredAt());
                 }
                 throw new SyntaxError("no version of "+proc.name+" matches "+target,pos);
             }else if(matches.size()>1){
                 //addLater resolve best match (if possible)
                 for(CallMatch c:matches){
-                    ioContext.stdErr.println(" - "+c.called.name()+":"+c.type+" at "+c.called.declaredAt());
+                    tState.ioContext.stdErr.println(" - "+c.called.name()+":"+c.type+" at "+c.called.declaredAt());
                 }
                 throw new SyntaxError("more than one version of "+proc.name+" matches "+target,pos);
             }
-            setOverloadedProcPtr(ret,((Type.OverloadedProcedurePointer) src),(Value)matches.get(0).called);
+            setOverloadedProcPtr(tState.ret,((Type.OverloadedProcedurePointer) src),(Value)matches.get(0).called);
         }else{
             if(!src.canAssignTo(target,bounds)){//cast to correct type if necessary
                 bounds=new Type.BoundMaps();
@@ -4436,9 +4448,9 @@ public class Parser {
                     throw new SyntaxError("cannot cast from "+ src+" to "+ target, pos);
                 }
                 if(stackPos==1){
-                    ret.add(new TypedToken(TokenType.CAST, target, pos));
+                    tState.ret.add(new TypedToken(TokenType.CAST, target, pos));
                 }else{
-                    ret.add(new ArgCastToken(stackPos, target, pos));
+                    tState.ret.add(new ArgCastToken(stackPos, target, pos));
                 }
             }
             if(bounds.l.size()>0||bounds.r.size()>0){
@@ -4448,9 +4460,7 @@ public class Parser {
         }
     }
 
-    private void typeCheckCall(String procName, RandomAccessStack<TypeFrame> typeStack, Type.Procedure type,
-                               HashMap<VariableId, Value> globalConstants, ArrayList<Token> tokens,
-                               IOContext ioContext, FilePosition pos, boolean isPtr,VariableContext callerContext)
+    private void typeCheckCall(String procName, Type.Procedure type, FilePosition pos, boolean isPtr,TypeCheckState tState)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         int offset=isPtr?1:0;
         if(type instanceof Type.GenericProcedureType){
@@ -4459,13 +4469,12 @@ public class Parser {
         }
         Type[] inTypes=new Type[type.inTypes.length];
         for(int i=inTypes.length-1;i>=0;i--){
-            inTypes[i]=typeStack.pop().type;
+            inTypes[i]=tState.typeStack.pop().type;
         }
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
             try{
-                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],globalConstants, tokens,ioContext,
-                        pos,callerContext);
+                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],pos,tState);
             }catch (SyntaxError e){
                 throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
                         ": "+Arrays.toString(inTypes),pos);
@@ -4476,7 +4485,7 @@ public class Parser {
             throw new RuntimeException("generics should not exist here");
         }
         for(Type t:type.outTypes){
-            typeStack.push(new TypeFrame(t,null,pos));
+            tState.typeStack.push(new TypeFrame(t,null,pos));
         }
     }
 
@@ -4529,35 +4538,33 @@ public class Parser {
     };
 
     private CallMatch typeCheckOverloadedCall(String procName, OverloadedProcedure proc, Type[] ptrGenArgs,
-                                              RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId, Value> globalConstants,
-                                              ArrayList<Token> tokens, IOContext ioContext, FilePosition pos,
-                                              VariableContext callerContext)  throws RandomAccessStack.StackUnderflow, SyntaxError {
+                                              FilePosition pos,TypeCheckState tState)  throws RandomAccessStack.StackUnderflow, SyntaxError {
         Type[] typeArgs=null;
         if(proc.nGenericParams!=0){
             if(ptrGenArgs!=null){
                 typeArgs=ptrGenArgs;
             }else{
-                typeArgs=getArguments(procName,DeclareableType.GENERIC_PROCEDURE,proc.nGenericParams,typeStack, tokens, pos);
+                typeArgs=getArguments(procName,DeclareableType.GENERIC_PROCEDURE,proc.nGenericParams,tState.typeStack,
+                        tState.ret, pos);
             }
         }
         Type[] inTypes=new Type[proc.nArgs];
         for(int i=inTypes.length-1;i>=0;i--){
-            inTypes[i]=typeStack.pop().type;
+            inTypes[i]=tState.typeStack.pop().type;
         }
         ArrayList<CallMatch> matchingCalls=new ArrayList<>();
         for(Callable p1:proc.procedures){
-            typeCheckPotentialCall(p1, typeArgs, inTypes, matchingCalls,globalConstants,ioContext, pos, callerContext);
+            typeCheckPotentialCall(p1, typeArgs, inTypes, matchingCalls, pos,tState);
         }
-        CallMatch match = findMatchingCall(matchingCalls, proc, inTypes, globalConstants, ioContext, pos,callerContext);
-        updateProcedureArguments(match, inTypes, tokens, ptrGenArgs!=null, pos);
+        CallMatch match = findMatchingCall(matchingCalls, proc, inTypes, pos,tState);
+        updateProcedureArguments(match, inTypes, tState.ret, ptrGenArgs!=null, pos);
         for(Type t:match.type.outTypes){
-            typeStack.push(new TypeFrame(t,null,pos));
+            tState.typeStack.push(new TypeFrame(t,null,pos));
         }
         return match;
     }
     private void typeCheckPotentialCall(Callable potentialCall, Type[] typeArgs, Type[] inTypes,
-                           ArrayList<CallMatch> matchingCalls,HashMap<VariableId, Value> globalConstants,
-                                        IOContext ioContext, FilePosition pos, VariableContext callerContext) throws SyntaxError {
+                           ArrayList<CallMatch> matchingCalls,FilePosition pos,TypeCheckState tState) throws SyntaxError {
         Type.Procedure type= potentialCall.type();
         boolean isMatch=true;
         IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
@@ -4586,7 +4593,7 @@ public class Parser {
             for(int i = 0; i< inTypes.length; i++){
                 if(inTypes[i] instanceof Type.OverloadedProcedurePointer){
                     bounds = resolveOppParam(type.inTypes[i],bounds,(Type.OverloadedProcedurePointer)inTypes[i],
-                            opps,globalConstants,ioContext,pos,callerContext);
+                            opps,pos,tState);
                     if(bounds==null||!isMatch){
                         isMatch=false;
                         break;
@@ -4611,8 +4618,7 @@ public class Parser {
     private Type.BoundMaps resolveOppParam(Type calledType, Type.BoundMaps callBounds,
                                            Type.OverloadedProcedurePointer param,
                                            HashMap<Type.OverloadedProcedurePointer,CallMatch> opps,
-                                           HashMap<VariableId, Value> globalConstants,
-                                           IOContext ioContext,FilePosition pos,VariableContext callerContext) throws SyntaxError {
+                                           FilePosition pos,TypeCheckState tState) throws SyntaxError {
         ArrayList<CallMatch> matches=new ArrayList<>();
         ArrayList<Type.BoundMaps> matchBounds=new ArrayList<>();
         boolean matchesParam;
@@ -4646,7 +4652,7 @@ public class Parser {
                 }
                 if(matchesParam){
                     if(c instanceof Value.Procedure){
-                        typeCheckProcedure((Value.Procedure) c,globalConstants,ioContext,callerContext);
+                        typeCheckProcedure((Value.Procedure) c,tState.globalConstants,tState.ioContext,tState.context);
                     }
                     matches.add(new CallMatch(c,procType,implicitGenerics,0,implicitGenerics.size(),
                             new HashMap<>()));
@@ -4684,16 +4690,15 @@ public class Parser {
         return true;
     }
     private CallMatch findMatchingCall(ArrayList<CallMatch> matchingCalls, OverloadedProcedure proc,
-                                       Type[] inTypes, HashMap<VariableId, Value> globalConstants,
-                                       IOContext ioContext, FilePosition pos,VariableContext callerContext) throws SyntaxError {
+                                       Type[] inTypes,  FilePosition pos,TypeCheckState tState) throws SyntaxError {
         for(int i = 0; i< matchingCalls.size(); i++){
             CallMatch c= matchingCalls.get(i);
             if(c.called instanceof Value.Procedure){
-                typeCheckProcedure((Value.Procedure)c.called, globalConstants, ioContext, callerContext);
+                typeCheckProcedure((Value.Procedure)c.called, tState.globalConstants, tState.ioContext, tState.context);
             }else if(c.called instanceof GenericProcedure){//resolve generic procedure
                 Value.Procedure withPrams = ((GenericProcedure) c.called).withPrams(c.genericParams);
                 try {
-                    typeCheckProcedure(withPrams, globalConstants, ioContext, callerContext);
+                    typeCheckProcedure(withPrams, tState.globalConstants, tState.ioContext, tState.context);
                 }catch (SyntaxError err){
                     throw new SyntaxError(err, pos);
                 }
@@ -4702,7 +4707,7 @@ public class Parser {
         }
         if(matchingCalls.size()==0){
             for(Callable c:proc.procedures){
-                ioContext.stdErr.println(" - "+c.name()+":"+ c.type()+" at "+ c.declaredAt());
+                tState.ioContext.stdErr.println(" - "+c.name()+":"+ c.type()+" at "+ c.declaredAt());
             }
             throw new SyntaxError("no version of "+ proc.name+" matches the given arguments "+Arrays.toString(inTypes), pos);
         }else if(matchingCalls.size()>1){
@@ -4714,9 +4719,9 @@ public class Parser {
                 i++;
             }
             if(i>1){
-                ioContext.stdErr.println("more than one version of "+ proc.name+" matches the given arguments "+Arrays.toString(inTypes));
+                tState.ioContext.stdErr.println("more than one version of "+ proc.name+" matches the given arguments "+Arrays.toString(inTypes));
                 for(int k=0;k<i;k++){
-                    ioContext.stdErr.println(proc.name+":"+ matchingCalls.get(k).type+" at "+ matchingCalls.get(k).called.declaredAt());
+                    tState.ioContext.stdErr.println(proc.name+":"+ matchingCalls.get(k).type+" at "+ matchingCalls.get(k).called.declaredAt());
                 }
                 throw new SyntaxError("cannot resolve procedure call", pos);
             }
