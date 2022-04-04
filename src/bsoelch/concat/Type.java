@@ -101,10 +101,10 @@ public class Type {
     public static final Type ANY = new Type("var", false) {};
 
     public static Type UNICODE_STRING() {
-        return WrapperType.UNICODE_STRING;
+        return WrapperType.create(WrapperType.ARRAY, Type.CODEPOINT, Mutability.IMMUTABLE);
     }
     public static Type RAW_STRING() {
-        return WrapperType.BYTES;
+        return WrapperType.create(WrapperType.ARRAY, Type.BYTE, Mutability.IMMUTABLE);
     }
 
     public static Optional<Type> commonSuperType(Type a, Type b,boolean strict) {
@@ -173,7 +173,9 @@ public class Type {
     private boolean typeFieldsInitialized=false;
     private int nativeFieldCount=-1;
 
-    record TraitImplementation(int offset,FilePosition implementedAt){}
+    //FIXME ensure that all genericTraits are saved before all non-genericTraits
+    record GenericTraitImplementation(Trait trait, GenericParameter[] params, Parser.Callable[] values,FilePosition implementedAt){}
+    record TraitImplementation(int offset, FilePosition implementedAt){}
     private final HashMap<Trait,TraitImplementation> implementedTraits;
 
     /**cache for the different variants of this type*/
@@ -441,7 +443,7 @@ public class Type {
         typeFields.set(index,(Value)newValue);
         return false;
     }
-    //TODO allow overwriting inherited traits in structs
+
     void implementTrait(Trait trait, Parser.Callable[] implementation,FilePosition implementedAt) throws SyntaxError {
         ensureFieldsInitialized();
         assert trait.traitFields!=null;
@@ -469,6 +471,9 @@ public class Type {
             typeFields.add((Value)implementation[i]);
         }
         implementedTraits.put(trait,impl);
+    }
+    void implementGenericTrait(Trait trait,GenericParameter[] params,Parser.Callable[] implementation,FilePosition implementedAt) throws SyntaxError {
+        throw new UnsupportedOperationException("cannot implement generic traits for "+this);
     }
 
     List<Value> typeFields(){
@@ -560,6 +565,11 @@ public class Type {
         static final HashMap<Type,WrapperType> arrays = new HashMap<>();
         static final HashMap<Type,WrapperType> memories = new HashMap<>();
         static final HashMap<Type,WrapperType> optionals = new HashMap<>();
+
+        static final ArrayList<GenericTraitImplementation> arrayTraits    = new ArrayList<>();
+        static final ArrayList<GenericTraitImplementation> memoryTraits   = new ArrayList<>();
+        static final ArrayList<GenericTraitImplementation> optionalTraits = new ArrayList<>();
+
         public static void resetCached(){
             arrays.clear();
             memories.clear();
@@ -569,10 +579,6 @@ public class Type {
         static final String ARRAY = "array";
         static final String MEMORY = "memory";
         static final String OPTIONAL = "optional";
-
-        static final WrapperType BYTES= create(ARRAY,Type.BYTE,Mutability.IMMUTABLE);
-        static final WrapperType UNICODE_STRING= create(ARRAY,Type.CODEPOINT,Mutability.IMMUTABLE);
-
 
         final Type contentType;
         final String wrapperName;
@@ -595,6 +601,7 @@ public class Type {
                 case OPTIONAL -> optionals.put(contentType,cached);
                 default -> throw new IllegalArgumentException("unexpected type-wrapper : "+wrapperName);
             }
+            cached.initGenericTraits();//init generic traits after storing value in cache
             return cached;
         }
         private WrapperType(String wrapperName, Type contentType,Mutability mutability){
@@ -609,6 +616,49 @@ public class Type {
                     src.wrapperName+mutabilityPostfix(mutability), src,mutability);
             this.wrapperName = src.wrapperName;
             this.contentType = src.contentType;
+        }
+        private void initGenericTraits(){
+            IdentityHashMap<GenericParameter,Type> generics=new IdentityHashMap<>();
+            try {
+                switch (wrapperName) {
+                    case ARRAY -> {
+                        for (GenericTraitImplementation t : arrayTraits) {
+                            Parser.Callable[] updated = new Parser.Callable[t.values.length];
+                            generics.clear();
+                            generics.put(t.params[0], contentType);
+                            for (int i = 0; i < t.values.length; i++) {
+                                updated[i] = (Parser.Callable) ((Value) t.values[i]).replaceGenerics(generics);
+                            }
+                            implementTrait(t.trait, updated, t.implementedAt);
+                        }
+                    }
+                    case MEMORY -> {
+                        for (GenericTraitImplementation t : memoryTraits) {
+                            Parser.Callable[] updated = new Parser.Callable[t.values.length];
+                            generics.clear();
+                            generics.put(t.params[0], contentType);
+                            for (int i = 0; i < t.values.length; i++) {
+                                updated[i] = (Parser.Callable) ((Value) t.values[i]).replaceGenerics(generics);
+                            }
+                            implementTrait(t.trait, updated, t.implementedAt);
+                        }
+                    }
+                    case OPTIONAL -> {
+                        for (GenericTraitImplementation t : optionalTraits) {
+                            Parser.Callable[] updated = new Parser.Callable[t.values.length];
+                            generics.clear();
+                            generics.put(t.params[0], contentType);
+                            for (int i = 0; i < t.values.length; i++) {
+                                updated[i] = (Parser.Callable) ((Value) t.values[i]).replaceGenerics(generics);
+                            }
+                            implementTrait(t.trait, updated, t.implementedAt);
+                        }
+                    }
+                    default -> throw new RuntimeException("unexpected wrapper name:" + wrapperName);
+                }
+            }catch (SyntaxError e){
+                throw new RuntimeException(e);//TODO handle syntaxError
+            }
         }
 
         @Override
@@ -642,6 +692,53 @@ public class Type {
             contentType.forEachStruct(action);
         }
 
+        @Override
+        void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
+                                   FilePosition implementedAt) throws SyntaxError {
+            if(params.length!=1){
+                throw new IllegalArgumentException("generic traits of "+wrapperName+" have to have exactly one generic parameter");
+            }
+            IdentityHashMap<GenericParameter,Type> generics=new IdentityHashMap<>();
+            switch(wrapperName){
+                case ARRAY -> {
+                    arrayTraits.add(new GenericTraitImplementation(trait,params,implementation,implementedAt));
+                    for(WrapperType t:arrays.values()){
+                        Parser.Callable[] updated = new Parser.Callable[implementation.length];
+                        generics.clear();
+                        generics.put(params[0], t.contentType);
+                        for (int i = 0; i < implementation.length; i++) {
+                            updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(generics);
+                        }
+                        t.implementTrait(trait,updated,implementedAt);
+                    }
+                }
+                case MEMORY -> {
+                    memoryTraits.add(new GenericTraitImplementation(trait,params,implementation,implementedAt));
+                    for(WrapperType t:memories.values()){
+                        Parser.Callable[] updated = new Parser.Callable[implementation.length];
+                        generics.clear();
+                        generics.put(params[0], t.contentType);
+                        for (int i = 0; i < implementation.length; i++) {
+                            updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(generics);
+                        }
+                        t.implementTrait(trait,updated,implementedAt);
+                    }
+                }
+                case OPTIONAL -> {
+                    optionalTraits.add(new GenericTraitImplementation(trait,params,implementation,implementedAt));
+                    for(WrapperType t:optionals.values()){
+                        Parser.Callable[] updated = new Parser.Callable[implementation.length];
+                        generics.clear();
+                        generics.put(params[0], t.contentType);
+                        for (int i = 0; i < implementation.length; i++) {
+                            updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(generics);
+                        }
+                        t.implementTrait(trait,updated,implementedAt);
+                    }
+                }
+                default -> throw new RuntimeException("unexpected wrapper name:"+wrapperName);
+            }
+        }
         @Override
         public List<Type> genericArguments() {
             return Collections.singletonList(contentType);
@@ -974,6 +1071,7 @@ public class Type {
 
         final String baseName;
         final Type[] genericArgs;
+        final GenericStruct genericVersion;
         final HashSet<String> declaredTypeFields;
 
         /**initialized types in this Tuple or null if this tuple is not yet initialized*/
@@ -991,14 +1089,14 @@ public class Type {
         static Struct create(String name,boolean isPublic,Struct extended,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
                              FilePosition declaredAt,FilePosition endPos){
-            return create(name, isPublic, extended, new Type[0],tokens,context,Mutability.DEFAULT,declaredAt,endPos);
+            return create(name, isPublic, extended, new Type[0],null,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
         }
-        static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,
+        static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,GenericStruct genericVersion,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
                              FilePosition declaredAt,FilePosition endPos){
-           return create(name, isPublic, extended, genericArgs, tokens,context,Mutability.DEFAULT,declaredAt,endPos);
+           return create(name, isPublic, extended, genericArgs,genericVersion,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
         }
-        static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,
+        static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,GenericStruct genericVersion,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
                              Mutability mutability, FilePosition declaredAt, FilePosition endPos){
             StructId id=new StructId(declaredAt,genericArgs);
@@ -1008,11 +1106,11 @@ public class Type {
                 return prev.setMutability(mutability);
             }
             prev=new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
-                    extended, genericArgs,null,null,tokens,context,mutability,declaredAt,endPos);
+                    extended, genericArgs,genericVersion,null,null,tokens,context,mutability,declaredAt,endPos);
             cached.put(id,prev);
             return prev;
         }
-        private static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,
+        private static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,GenericStruct genericVersion,
                                      StructField[] fields, Type[] types, Mutability mutability,
                                      FilePosition declaredAt, FilePosition endPos) {
             if(fields.length!=types.length){
@@ -1025,7 +1123,7 @@ public class Type {
                 return prev.setMutability(mutability);
             }
             prev = new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
-                    extended, genericArgs, types,fields,null, null,mutability, declaredAt,endPos);
+                    extended, genericArgs,genericVersion,types,fields,null, null,mutability, declaredAt,endPos);
             cached.put(id,prev);
             return prev;
         }
@@ -1039,7 +1137,7 @@ public class Type {
         }
 
         private Struct(String name, String baseName, boolean isPublic, Struct extended,
-                       Type[] genArgs, Type[] elements, StructField[] fields,
+                       Type[] genArgs,GenericStruct genericVersion, Type[] elements, StructField[] fields,
                        ArrayList<Parser.Token> tokens, Parser.StructContext context,
                        Mutability mutability, FilePosition declaredAt,FilePosition endPos) {
             super(name,false,mutability);
@@ -1053,6 +1151,7 @@ public class Type {
             this.extended =extended;
             this.baseName=baseName;
             this.genericArgs=genArgs;
+            this.genericVersion=genericVersion;
 
             this.elements = elements;
             this.tokens = tokens;
@@ -1077,6 +1176,7 @@ public class Type {
             this.extended = src.extended==null?null:src.extended.setMutability(mutability);
             this.baseName = src.baseName;
             this.genericArgs = src.genericArgs;
+            this.genericVersion = src.genericVersion;
 
             this.elements = src.elements;
             this.fields=src.fields;
@@ -1117,6 +1217,15 @@ public class Type {
                 throw new SyntaxError("cannot overwrite pseudo field "+name+": "+typeFields().get(prevPos).type
                         +" with "+fieldValue.type(),declaredAt);
             }
+        }
+        //TODO allow overwriting inherited traits in structs
+        @Override
+        void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
+                                   FilePosition implementedAt) throws SyntaxError {
+            if(genericVersion==null){
+                throw new SyntaxError("cannot implement generic trait on non-generic struct",implementedAt);
+            }
+            genericVersion.addGenericTrait(trait,params,implementation,implementedAt);
         }
 
         @Override
@@ -1271,7 +1380,7 @@ public class Type {
                     }
                 }
                 return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                        newArgs,newTokens,newContext,mutability,declaredAt,endPos):this;
+                        newArgs,genericVersion,newTokens,newContext,mutability,declaredAt,endPos):this;
             }
             Type[] newElements=new Type[elements.length];
             for(int i=0;i<elements.length;i++){
@@ -1281,7 +1390,7 @@ public class Type {
                 }
             }
             return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                            newArgs,fields,newElements,mutability,declaredAt,endPos):this;
+                            newArgs,genericVersion,fields,newElements,mutability,declaredAt,endPos):this;
         }
 
         @Override
@@ -1467,6 +1576,11 @@ public class Type {
                 replace.put(genericParameters[i],args[i]);
             }
             return replaceGenerics(replace);
+        }
+
+        @Override
+        public List<Type> genericArguments() {
+            return Arrays.asList(genericArgs);
         }
         @Override
         public Trait replaceGenerics(IdentityHashMap<GenericParameter,Type> replace){

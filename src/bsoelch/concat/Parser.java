@@ -2158,6 +2158,12 @@ public class Parser {
                                         ") is not used in the target type",pos);
                             }
                         }
+                        if(impl.context.generics.size()>0&&
+                                !new HashSet<>(impl.context.generics).equals(new HashSet<>(args[1].genericArguments()))){
+                            throw new SyntaxError("invalid generic arguments for trait target: "+args[1].genericArguments()+
+                                    " The generic parameters of the target type have to be either all generic "+
+                                    "or all non-generic",pos);
+                        }
                         //ensure trait is type-checked before implementation
                         typeCheckTrait((Type.Trait) args[0],pState.globalConstants,ioContext);
                         if(impl.setTypes((Type.Trait) args[0],args[1])){
@@ -2474,8 +2480,8 @@ public class Parser {
                             if(iContext.generics.size()==0){
                                 iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
                             }else {
-                                System.out.println("implement " + iBlock.trait + " for " + iBlock.target);
-                                throw new UnsupportedOperationException("generic implementations are currently unimplemented");
+                                iBlock.target.implementGenericTrait(iBlock.trait,
+                                        iContext.generics.toArray(Type.GenericParameter[]::new), iContext.implementations,pos);
                             }
                         }
                         case IF,WHILE,SWITCH_CASE, CONST_ARRAY ->{

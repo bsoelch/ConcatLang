@@ -17,6 +17,8 @@ public class GenericStruct implements Parser.NamedDeclareable {
     final FilePosition declaredAt;
     final FilePosition endPos;
 
+    final ArrayList<Type.GenericTraitImplementation> genericTraits=new ArrayList<>();
+
     public GenericStruct(String name, boolean isPublic, Type.Struct parent,
                          Parser.StructContext context, ArrayList<Parser.Token> tokens, FilePosition declaredAt, FilePosition endPos) {
         this.name = name;
@@ -51,7 +53,6 @@ public class GenericStruct implements Parser.NamedDeclareable {
     public String name() {
         return name;
     }
-
     /**wrapper for Type[] with correct hashCode computation*/
     record TypeArray(Type[] types){
         @Override
@@ -67,7 +68,7 @@ public class GenericStruct implements Parser.NamedDeclareable {
         }
     }
     private final HashMap<TypeArray, Type.Struct> cached=new HashMap<>();
-    public Type.Struct withPrams(Type[] genericArgs) {
+    public Type.Struct withPrams(Type[] genericArgs) throws SyntaxError {
         IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
         Parser.StructContext newContext=context.emptyCopy();
         for(int i=0;i< genericArgs.length;i++){
@@ -88,11 +89,44 @@ public class GenericStruct implements Parser.NamedDeclareable {
             }
             struct = Type.Struct.create(name,isPublic,
                     parent==null?null:parent.replaceGenerics(update),
-                    genericArgs,newTokens,newContext,declaredAt,endPos);
+                    genericArgs,this,newTokens,newContext,declaredAt,endPos);
             cached.put(new TypeArray(genericArgs),struct);
+            for(Type.GenericTraitImplementation trait:genericTraits){
+                update.clear();
+                for(int i=0;i<trait.params().length;i++){
+                    update.put(trait.params()[i],struct.genericArgs[i]);
+                }
+                Parser.Callable[] updated = new Parser.Callable[trait.values().length];
+                for (int i = 0; i < trait.values().length; i++) {
+                    updated[i] = (Parser.Callable) ((Value)trait.values()[i]).replaceGenerics(update);
+                }
+                struct.implementTrait(trait.trait(), updated, trait.implementedAt());
+            }
         }
         return struct;
     }
+    public void addGenericTrait(Type.Trait trait, Type.GenericParameter[] params, Parser.Callable[] implementation,
+                                FilePosition implementedAt) throws SyntaxError {
+        if(params.length!=argCount()){
+            throw new IllegalArgumentException("wrong number of generic parameters: "+params.length+
+                    " generic traits of "+name+" have to have exactly "+params.length+
+                    " generic parameter");
+        }
+        IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
+        for(Type.Struct s:cached.values()){
+            update.clear();
+            for(int i=0;i<params.length;i++){
+                update.put(params[i],s.genericArgs[i]);
+            }
+            Parser.Callable[] updated = new Parser.Callable[implementation.length];
+            for (int i = 0; i < implementation.length; i++) {
+                updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(update);
+            }
+            s.implementTrait(trait, updated, implementedAt);
+        }
+        genericTraits.add(new Type.GenericTraitImplementation(trait,params,implementation,implementedAt));
+    }
+
 
     @Override
     public boolean unused() {
