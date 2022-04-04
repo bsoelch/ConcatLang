@@ -1044,7 +1044,7 @@ public abstract class Value {
     public static Procedure createProcedure(String name, boolean isPublic, Type.Procedure procType, ArrayList<Parser.Token> tokens, FilePosition declaredAt,
                                             FilePosition endPos, Parser.ProcedureContext variableContext) {
         return new Procedure(name, isPublic, procType, tokens, null,
-                new IdentityHashMap<>(), variableContext, declaredAt, endPos,TypeCheckState.UNCHECKED);
+                variableContext, declaredAt, endPos,TypeCheckState.UNCHECKED);
     }
     enum TypeCheckState{UNCHECKED,CHECKING,CHECKED,WAITING}
     static class Procedure extends Value implements Parser.CodeSection, Parser.Callable {
@@ -1059,16 +1059,14 @@ public abstract class Value {
         TypeCheckState typeCheckState;
 
         final Value[] curriedArgs;
-        final IdentityHashMap<Type.GenericParameter,Type> genericArgs;
 
         private Procedure(String name, boolean isPublic, Type procType, ArrayList<Parser.Token> tokens, Value[] curriedArgs,
-                          IdentityHashMap<Type.GenericParameter, Type> genericArgs, Parser.ProcedureContext context,
+                          Parser.ProcedureContext context,
                           FilePosition declaredAt, FilePosition endPos, TypeCheckState typeCheckState) {
             super(procType);
             this.name = name;
             this.isPublic = isPublic;
             this.curriedArgs = curriedArgs;
-            this.genericArgs = genericArgs;
             this.declaredAt = declaredAt;
             this.tokens=tokens;
             this.context=context;
@@ -1085,7 +1083,7 @@ public abstract class Value {
         @Override
         public Value castTo(Type type) throws ConcatRuntimeError {
             if(type instanceof Type.Procedure&&this.type.canCastTo(type)){
-                return new Procedure(name, isPublic, type, tokens, curriedArgs, genericArgs,
+                return new Procedure(name, isPublic, type, tokens, curriedArgs,
                         context, declaredAt, endPos,typeCheckState);
             }
             return super.castTo(type);
@@ -1097,7 +1095,7 @@ public abstract class Value {
         }
 
         Value.Procedure withCurried(Value[] curried){
-            return new Procedure(name, isPublic, type, tokens, curried, genericArgs, context, declaredAt, endPos,typeCheckState);
+            return new Procedure(name, isPublic, type, tokens, curried,  context, declaredAt, endPos,typeCheckState);
         }
 
         @Override
