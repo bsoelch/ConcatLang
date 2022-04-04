@@ -1665,17 +1665,37 @@ public class Parser {
     record TypeFrame(Type type,Value value,FilePosition pushedAt){}
     static class ParserState {
         final IOContext ioContext;
+        final HashMap<VariableId, Value> globalConstants =new HashMap<>();
+
         final ArrayList<Token> tokens =new ArrayList<>();
         /**global code after type-check*/
         final ArrayList<Token> globalCode =new ArrayList<>();
-
+        RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(64);
         final ArrayDeque<CodeBlock> openBlocks=new ArrayDeque<>();
 
-        RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(64);
-
         final RootContext rootContext;
-        final ArrayDeque<TopLevelContext> openedFiles=new ArrayDeque<>();
         private TopLevelContext topLevelContext;
+        //proc-contexts that are currently open
+        final ArrayDeque<VariableContext> openedContexts =new ArrayDeque<>();
+
+        final HashSet<String> files=new HashSet<>();
+        final ArrayDeque<TopLevelContext> openedFiles=new ArrayDeque<>();
+
+        Macro currentMacro;//may be null
+
+        ParserState(IOContext ioContext, RootContext rootContext) {
+            this.ioContext = ioContext;
+            this.rootContext = rootContext;
+        }
+
+        TopLevelContext topLevelContext(){
+            return topLevelContext==null?rootContext:topLevelContext;
+        }
+        VariableContext getContext(){
+            VariableContext currentProc = openedContexts.peekLast();
+            return currentProc==null?topLevelContext():currentProc;
+        }
+
         void startFile(String name){
             if(topLevelContext!=null){
                 openedFiles.add(topLevelContext);
@@ -1695,7 +1715,7 @@ public class Parser {
                 throw new SyntaxError("unexpected end of namespace",pos);
             }
         }
-        void endFile(IOContext ioContext,FilePosition endOfFile){
+        void endFile(FilePosition endOfFile){
             if(topLevelContext instanceof NamespaceContext){
                 ioContext.stdErr.println("unclosed namespaces at "+endOfFile);
                 do{
@@ -1705,25 +1725,6 @@ public class Parser {
                 }while (topLevelContext instanceof NamespaceContext);
             }
             topLevelContext=openedFiles.pollLast();
-        }
-        final HashSet<String> files=new HashSet<>();
-        public HashMap<VariableId, Value> globalConstants =new HashMap<>();
-        //proc-contexts that are currently open
-        final ArrayDeque<VariableContext> openedContexts =new ArrayDeque<>();
-
-        Macro currentMacro;//may be null
-
-        ParserState(IOContext ioContext, RootContext rootContext) {
-            this.ioContext = ioContext;
-            this.rootContext = rootContext;
-        }
-
-        TopLevelContext topLevelContext(){
-            return topLevelContext==null?rootContext:topLevelContext;
-        }
-        VariableContext getContext(){
-            VariableContext currentProc = openedContexts.peekLast();
-            return currentProc==null?topLevelContext():currentProc;
         }
     }
     public Program parse(File file, ParserState pState, IOContext ioContext) throws IOException, SyntaxError {
@@ -1878,7 +1879,7 @@ public class Parser {
             throw new SyntaxError("unclosed block: "+pState.openBlocks.getLast(),pState.openBlocks.getLast().startPos);
         }
 
-        pState.endFile(pState.ioContext,reader.currentPos());
+        pState.endFile(reader.currentPos());
 
         return new Program(pState.globalCode,pState.files,pState.rootContext);
     }
