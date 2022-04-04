@@ -1667,7 +1667,7 @@ public class Parser {
         final IOContext ioContext;
         final HashMap<VariableId, Value> globalConstants =new HashMap<>();
 
-        final ArrayList<Token> tokens =new ArrayList<>();
+        final ArrayList<Token> uncheckedCode =new ArrayList<>();
         /**global code after type-check*/
         final ArrayList<Token> globalCode =new ArrayList<>();
         RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(64);
@@ -1891,7 +1891,7 @@ public class Parser {
                 switch (commands[0]){
                     case "tokens"->{
                         int n=Integer.parseInt(commands[1]);
-                        ArrayList<Token> tokens = pState.tokens;
+                        ArrayList<Token> tokens = pState.uncheckedCode;
                         if(n>tokens.size()){
                             System.out.println("n > #tokens ("+tokens.size()+")");
                             n=tokens.size();
@@ -1928,26 +1928,26 @@ public class Parser {
                     }
                     case "code"->{
                         int n=Integer.parseInt(commands[1]);
-                        pState.tokens.add(new CompilerToken(CompilerTokenType.TOKENS,n,pos));
+                        pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.TOKENS,n,pos));
                     }
                     case "blocks"->{
                         int n=Integer.parseInt(commands[1]);
-                        pState.tokens.add(new CompilerToken(CompilerTokenType.BLOCKS,n,pos));
+                        pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.BLOCKS,n,pos));
                     }
                     case "types"->{
                         int n=Integer.parseInt(commands[1]);
-                        pState.tokens.add(new CompilerToken(CompilerTokenType.TYPES,n,pos));
+                        pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.TYPES,n,pos));
                     }
                     case "globalConstants"->
-                            pState.tokens.add(new CompilerToken(CompilerTokenType.GLOBAL_CONSTANTS,0,pos));
+                            pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.GLOBAL_CONSTANTS,0,pos));
                     case "context"->
-                            pState.tokens.add(new CompilerToken(CompilerTokenType.CONTEXT,0,pos));
+                            pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.CONTEXT,0,pos));
                     default ->
                         System.out.println("unknown compiler command: "+commands[0]);
                 }
                 return;
             }
-            ArrayList<Token> tokens = pState.tokens;
+            ArrayList<Token> tokens = pState.uncheckedCode;
             Token prev= tokens.size()>0? tokens.get(tokens.size()-1):null;
             String prevId=(prev instanceof IdentifierToken &&((IdentifierToken) prev).type == IdentifierType.WORD)?
                     ((IdentifierToken)prev).name:null;
@@ -2874,11 +2874,11 @@ public class Parser {
         }
     }
     private void finishParsing(ParserState pState, FilePosition blockEnd) throws SyntaxError {
-        TypeCheckResult res=typeCheck(pState.tokens, pState.topLevelContext(),pState.globalConstants,
+        TypeCheckResult res=typeCheck(pState.uncheckedCode, pState.topLevelContext(),pState.globalConstants,
                 pState.typeStack, null,blockEnd,pState.ioContext);
         pState.globalCode.addAll(res.tokens);
         pState.typeStack=res.types;
-        pState.tokens.clear();
+        pState.uncheckedCode.clear();
     }
 
     /**@param callerContext context that contains the first use of this procedure (may be null),
