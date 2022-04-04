@@ -3678,7 +3678,8 @@ public class Parser {
         }
     }
 
-    private void typeCheckAssert(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, Token t) throws RandomAccessStack.StackUnderflow, SyntaxError, TypeError {
+    private void typeCheckAssert(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, Token t)
+            throws RandomAccessStack.StackUnderflow, SyntaxError, TypeError {
         Token prev;
         assert t instanceof AssertToken;
         TypeFrame f= typeStack.pop();
@@ -3699,7 +3700,8 @@ public class Parser {
             ret.add(t);
         }
     }
-    private void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) throws RandomAccessStack.StackUnderflow {
+    private void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret)
+            throws RandomAccessStack.StackUnderflow {
         for(TypeFrame dropped: typeStack.drop(t.args[0])){
             if(dropped.type instanceof Type.OverloadedProcedurePointer opp){
                 if(ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
@@ -3764,8 +3766,7 @@ public class Parser {
     }
 
 
-    private void typeCheckCallPtr(TypeCheckState tState, FilePosition pos)
-            throws RandomAccessStack.StackUnderflow, SyntaxError {
+    private void typeCheckCallPtr(TypeCheckState tState, FilePosition pos) throws RandomAccessStack.StackUnderflow, SyntaxError {
         TypeFrame f= tState.typeStack.pop();
         if(f.type instanceof Type.Procedure){
             typeCheckCall("call-ptr",(Type.Procedure) f.type,pos,true,tState);
@@ -4087,7 +4088,7 @@ public class Parser {
                         AccessType.WRITE, context));
             }
             case PROC_ID ->
-                typeCheckPushProcPointer(identifier, typeStack, ret, globalConstants, context, tState.ioContext, t.pos,context);
+                typeCheckPushProcPointer(identifier, t.pos, tState);
             case GET_FIELD -> {
                 TypeFrame f=typeStack.pop();
                 try {
@@ -4295,18 +4296,17 @@ public class Parser {
         }
     }
 
-    private void typeCheckPushProcPointer(IdentifierToken identifier, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret,
-                                          HashMap<VariableId, Value> globalConstants, VariableContext context, IOContext ioContext,
-                                          FilePosition pos,VariableContext callerContext)
+    private void typeCheckPushProcPointer(IdentifierToken identifier,FilePosition pos,TypeCheckState tState)
             throws SyntaxError, RandomAccessStack.StackUnderflow {
-        Declareable d= context.getDeclareable(identifier.name);
+        Declareable d= tState.context.getDeclareable(identifier.name);
         if(d==null){
             throw new SyntaxError("procedure "+ identifier.name+" does not exist", pos);
         }else if(d instanceof Value.NativeProcedure proc){
             Type.Procedure procType= (Type.Procedure) proc.type;
             if(procType instanceof Type.GenericProcedureType genType &&
                     ((Type.GenericProcedureType)procType).explicitGenerics.length>0) {
-                Type[] genArgs=getArguments(proc.name,DeclareableType.NATIVE_PROC,genType.explicitGenerics.length, typeStack, ret, pos);
+                Type[] genArgs=getArguments(proc.name,DeclareableType.NATIVE_PROC,genType.explicitGenerics.length,
+                        tState.typeStack, tState.ret, pos);
                 IdentityHashMap<Type.GenericParameter, Type> genMap = new IdentityHashMap<>();
                 for (int i = 0; i < genArgs.length; i++) {
                     genMap.put(genType.explicitGenerics[i], genArgs[i]);
@@ -4320,21 +4320,21 @@ public class Parser {
             }
             d.markAsUsed();
             if(procType instanceof Type.GenericProcedureType){
-                typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(new OverloadedProcedure(proc),
-                        new Type[0], ret.size(), pos),null, pos));
-                ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
+                tState.typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(new OverloadedProcedure(proc),
+                        new Type[0], tState.ret.size(), pos),null, pos));
+                tState.ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
             }else{
-                typeStack.push(new TypeFrame(procType,proc, pos));
+                tState.typeStack.push(new TypeFrame(procType,proc, pos));
                 ValueToken token=new ValueToken(proc, pos);
-                ret.add(token);
+                tState.ret.add(token);
             }
         }else if(d instanceof Value.Procedure proc) {
-            pushSimpleProcPointer(proc, typeStack, ret, globalConstants, ioContext, pos,callerContext);
+            pushSimpleProcPointer(proc,pos,tState);
         }else if(d instanceof GenericProcedure proc){
             Type[] genArgs;
             if(proc.procType.explicitGenerics.length>0) {
                 genArgs = getArguments(proc.name,DeclareableType.GENERIC_PROCEDURE,proc.procType.explicitGenerics.length,
-                        typeStack, ret, pos);
+                        tState.typeStack, tState.ret, pos);
             }else{
                 genArgs=new Type[0];
             }
@@ -4344,29 +4344,28 @@ public class Parser {
                     genMap.put(proc.procType.explicitGenerics[i], genArgs[i]);
                 }
                 Value.Procedure non_generic=proc.withPrams(genMap);
-                pushSimpleProcPointer(non_generic, typeStack, ret, globalConstants, ioContext, pos,callerContext);
+                pushSimpleProcPointer(non_generic, pos,tState);
             }else{
-                typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, ret.size(), pos),null, pos));
-                ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
+                tState.typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, tState.ret.size(), pos),null, pos));
+                tState.ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
             }
         }else if(d instanceof OverloadedProcedure proc){
-            Type[] genArgs=getArguments(proc.name,DeclareableType.GENERIC_PROCEDURE,proc.nGenericParams, typeStack, ret, pos);
-            typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, ret.size(), pos),null, pos));
-            ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
+            Type[] genArgs=getArguments(proc.name,DeclareableType.GENERIC_PROCEDURE,proc.nGenericParams, tState.typeStack, tState.ret, pos);
+            tState.typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, tState.ret.size(), pos),null, pos));
+            tState.ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
         }else{
             throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
                     identifier.name+" (declared at "+d.declaredAt()+") is not a procedure", pos);
         }
     }
 
-    private void pushSimpleProcPointer(Value.Procedure procedure, RandomAccessStack<TypeFrame> typeStack,
-                                       ArrayList<Token> ret, HashMap<VariableId, Value> globalConstants,
-                                       IOContext ioContext, FilePosition pos,VariableContext callerContext) throws SyntaxError {
+    private void pushSimpleProcPointer(Value.Procedure procedure, FilePosition pos,TypeCheckState tState) throws SyntaxError {
         procedure.markAsUsed();
-        typeCheckProcedure(procedure, globalConstants, ioContext, callerContext);//type check procedure before it is pushed onto the stack
+        //type check procedure before it is pushed onto the stack
+        typeCheckProcedure(procedure, tState.globalConstants, tState.ioContext,tState.context);
         ValueToken token = new ValueToken(procedure, pos);
-        typeStack.push(new TypeFrame(token.value.type, token.value, pos));
-        ret.add(token);
+        tState.typeStack.push(new TypeFrame(token.value.type, token.value, pos));
+        tState.ret.add(token);
     }
 
     private Type[] getArguments(String name,DeclareableType type,int nArgs, RandomAccessStack<TypeFrame> typeStack,
