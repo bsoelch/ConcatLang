@@ -257,10 +257,9 @@ public class Interpreter {
                     case TRAIT_FIELD_ACCESS -> {
                         assert next instanceof Parser.TypeFieldAccess;
                         Value val = stack.pop();
-                        if(!(val instanceof Value.TraitValue)){
+                        if(!(val instanceof Value.TraitValue tv)){
                             throw new RuntimeException("trait field access on non-trait value");
                         }
-                        Value.TraitValue tv=(Value.TraitValue) val;
                         Parser.Callable called=tv.wrapped.type.getPseudoField(tv.offset+((Parser.TypeFieldAccess) next).fieldId);
                         stack.push(tv.wrapped);//call trait on unwrapped value
                         ExitType e=call(called, next, stack, globalVariables, variables, context);
@@ -413,10 +412,9 @@ public class Interpreter {
 
     static Parser.Program compileAndRun(String path, String[] arguments, IOContext context) throws IOException {
         Type.resetCached();
-        Parser parse = new Parser();
         Parser.Program program;
         try {
-            program = parse.parse(new File(path),null,context);
+            program = Parser.parse(new File(path),null,context);
         }catch (SyntaxError e){
             SyntaxError s = e;
             context.stdErr.println(s.getMessage());

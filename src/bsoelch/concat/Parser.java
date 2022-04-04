@@ -5,6 +5,8 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 public class Parser {
+    private Parser() {}//container class
+
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
     //use ' as separator for namespaces, as it cannot be part of identifiers
     public static final String NAMESPACE_SEPARATOR = " .";
@@ -788,8 +790,6 @@ public class Parser {
             return context;
         }
     }
-
-    Parser() {}
 
     static String libPath=System.getProperty("user.dir")+File.separator+"lib/";
 
@@ -1636,7 +1636,7 @@ public class Parser {
     }
 
     /**@return true if the value was an integer otherwise true*/
-    private boolean tryParseInt(ArrayList<Token> tokens, String str0,FilePosition pos) throws SyntaxError {
+    private static boolean tryParseInt(ArrayList<Token> tokens, String str0,FilePosition pos) throws SyntaxError {
         try {
             String str=str0;
             boolean unsigned=false;
@@ -1656,7 +1656,7 @@ public class Parser {
                 tokens.add(new ValueToken(Value.ofInt(Value.parseInt(str,16,unsigned), unsigned), pos));
                 return true;
             }
-        } catch (ConcatRuntimeError nfeL) {
+        } catch (ConcatRuntimeError e) {
             throw new SyntaxError("Number out of Range: "+str0,pos);
         }
         return false;
@@ -1727,7 +1727,7 @@ public class Parser {
             topLevelContext=openedFiles.pollLast();
         }
     }
-    public Program parse(File file, ParserState pState, IOContext ioContext) throws IOException, SyntaxError {
+    public static Program parse(File file, ParserState pState, IOContext ioContext) throws IOException, SyntaxError {
         ParserReader reader=new ParserReader(file.getAbsolutePath());
         int c;
         String fileId=null;
@@ -1884,7 +1884,7 @@ public class Parser {
         return new Program(pState.globalCode,pState.files,pState.rootContext);
     }
 
-    private void finishWord(String str, ParserState pState, FilePosition pos) throws SyntaxError {
+    private static void finishWord(String str, ParserState pState, FilePosition pos) throws SyntaxError {
         if (str.length() > 0) {
             if(str.startsWith("#compiler:")){
                 String[] commands=str.substring("#compiler:".length()).split(":");
@@ -2840,7 +2840,7 @@ public class Parser {
         }
     }
 
-    private int[] getArgInts(String op, int nArgs, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
+    private static int[] getArgInts(String op, int nArgs, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
         if(tokens.size()<nArgs){
             throw new SyntaxError("not enough arguments for "+op,pos);
         }
@@ -2867,13 +2867,13 @@ public class Parser {
         return args;
     }
 
-    private void expandMacro(ParserState pState, Macro m, FilePosition pos) throws SyntaxError {
+    private static void expandMacro(ParserState pState, Macro m, FilePosition pos) throws SyntaxError {
         m.markAsUsed();
         for(StringWithPos s:m.content){
             finishWord(s.str,pState,new FilePosition(s.start, pos));
         }
     }
-    private void finishParsing(ParserState pState, FilePosition blockEnd) throws SyntaxError {
+    private static void finishParsing(ParserState pState, FilePosition blockEnd) throws SyntaxError {
         TypeCheckResult res=typeCheck(pState.uncheckedCode, pState.topLevelContext(),pState.globalConstants,
                 pState.typeStack, null,blockEnd,pState.ioContext);
         pState.globalCode.addAll(res.tokens);
@@ -2883,7 +2883,7 @@ public class Parser {
 
     /**@param callerContext context that contains the first use of this procedure (may be null),
      *                       if the context is a StructContext the procedure will be type-checked after the struct is finished*/
-    private void typeCheckProcedure(Value.Procedure p, HashMap<Parser.VariableId, Value> globalConstants,
+    private static void typeCheckProcedure(Value.Procedure p, HashMap<Parser.VariableId, Value> globalConstants,
                                     IOContext ioContext,VariableContext callerContext) throws SyntaxError {
         if(p.typeCheckState == Value.TypeCheckState.UNCHECKED){
             if(callerContext instanceof StructContext){
@@ -2903,7 +2903,7 @@ public class Parser {
             p.typeCheckState = Value.TypeCheckState.CHECKED;
         }
     }
-    private void typeCheckTrait(Type.Trait aTrait, HashMap<Parser.VariableId, Value> globalConstants,
+    private static void typeCheckTrait(Type.Trait aTrait, HashMap<Parser.VariableId, Value> globalConstants,
                                  IOContext ioContext) throws SyntaxError {
         if(!aTrait.isTypeChecked()){
             TypeCheckResult res=typeCheck(aTrait.tokens,aTrait.context,globalConstants,new RandomAccessStack<>(8),
@@ -2915,7 +2915,7 @@ public class Parser {
             aTrait.setTraitFields(aTrait.context.fields.toArray(Type.TraitField[]::new));
         }
     }
-    private void typeCheckStruct(Type.Struct aStruct, TypeCheckState tState) throws SyntaxError {
+    private static void typeCheckStruct(Type.Struct aStruct, TypeCheckState tState) throws SyntaxError {
         if(!aStruct.isTypeChecked()){
             if(aStruct.extended!=null){
                 Type.Struct extended = aStruct.extended;
@@ -2960,7 +2960,7 @@ public class Parser {
         }
     }
 
-    private String typesToString(RandomAccessStack<TypeFrame> types){
+    private static String typesToString(RandomAccessStack<TypeFrame> types){
         StringBuilder str=new StringBuilder("[");
         for(TypeFrame f:types){
             if(str.length()>1){
@@ -2970,7 +2970,7 @@ public class Parser {
         }
         return str.append("]").toString();
     }
-    private void checkReturnValue(RandomAccessStack<TypeFrame> typeStack, Type[] outTypes,FilePosition pos) throws SyntaxError {
+    private static void checkReturnValue(RandomAccessStack<TypeFrame> typeStack, Type[] outTypes,FilePosition pos) throws SyntaxError {
         int k = typeStack.size();
         if(typeStack.size() != outTypes.length){
             throw new SyntaxError("return value "+typesToString(typeStack)+" does not match signature "
@@ -2984,7 +2984,7 @@ public class Parser {
         }
     }
 
-    private boolean notAssignable(RandomAccessStack<TypeFrame> a, RandomAccessStack<TypeFrame> b) {
+    private static boolean notAssignable(RandomAccessStack<TypeFrame> a, RandomAccessStack<TypeFrame> b) {
         if(a.size()!=b.size()){
             return true;
         }
@@ -2995,7 +2995,7 @@ public class Parser {
         }
         return false;
     }
-    private void merge(RandomAccessStack<TypeFrame> main,FilePosition endMain,RandomAccessStack<TypeFrame> branch,FilePosition endBranch,
+    private static void merge(RandomAccessStack<TypeFrame> main,FilePosition endMain,RandomAccessStack<TypeFrame> branch,FilePosition endBranch,
                        String name) throws SyntaxError {
         if(branch.size()!= main.size()){
             throw new SyntaxError("branch of "+name+"-statement "+typesToString(branch)+" at "+endBranch+
@@ -3038,7 +3038,7 @@ public class Parser {
         }
     }
     record TypeCheckResult(ArrayList<Token> tokens,RandomAccessStack<TypeFrame> types){}
-    public TypeCheckResult typeCheck(List<Token> tokens,VariableContext context,HashMap<VariableId,Value> globalConstants,
+    public static TypeCheckResult typeCheck(List<Token> tokens,VariableContext context,HashMap<VariableId,Value> globalConstants,
                                       RandomAccessStack<TypeFrame> typeStack,Type[] expectedReturnTypes,FilePosition blockEnd,
                                      IOContext ioContext) throws SyntaxError {
         TypeCheckState tState=new TypeCheckState(globalConstants,ioContext,tokens,context,typeStack);
@@ -3188,7 +3188,7 @@ public class Parser {
         return new TypeCheckResult(tState.ret,tState.typeStack);
     }
 
-    private void processCompilerToken(CompilerToken t, TypeCheckState tState) {
+    private static void processCompilerToken(CompilerToken t, TypeCheckState tState) {
         switch(t.type){
             case TOKENS -> {
                 int n= t.count;
@@ -3237,7 +3237,7 @@ public class Parser {
         }
     }
 
-    private void typeCheckBlock(BlockToken block,FilePosition pos,TypeCheckState tState) throws RandomAccessStack.StackUnderflow, SyntaxError {
+    private static void typeCheckBlock(BlockToken block,FilePosition pos,TypeCheckState tState) throws RandomAccessStack.StackUnderflow, SyntaxError {
         final ArrayList<Token> ret=tState.ret;
         final List<Token> uncheckedTokens=tState.src;
         final ArrayDeque<CodeBlock> openBlocks=tState.openBlocks;
@@ -3679,7 +3679,7 @@ public class Parser {
         }
     }
 
-    private void typeCheckAssert(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, Token t)
+    private static void typeCheckAssert(RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret, Token t)
             throws RandomAccessStack.StackUnderflow, SyntaxError, TypeError {
         Token prev;
         assert t instanceof AssertToken;
@@ -3701,7 +3701,7 @@ public class Parser {
             ret.add(t);
         }
     }
-    private void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret)
+    private static void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret)
             throws RandomAccessStack.StackUnderflow {
         for(TypeFrame dropped: typeStack.drop(t.args[0])){
             if(dropped.type instanceof Type.OverloadedProcedurePointer opp){
@@ -3716,7 +3716,7 @@ public class Parser {
             ret.add(t);
         }
     }
-    private void typeCheckDup(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
+    private static void typeCheckDup(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
         TypeFrame duped= typeStack.get(t.args[0]);
         if(duped.type instanceof Type.OverloadedProcedurePointer opp){
             typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(opp.proc,opp.genArgs, ret.size(),opp.pushedAt),
@@ -3728,7 +3728,7 @@ public class Parser {
             ret.add(t);
         }
     }
-    private void typeCheckStackSet(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
+    private static void typeCheckStackSet(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
         TypeFrame replaced= typeStack.get(t.args[0]);
         if(replaced.type instanceof Type.OverloadedProcedurePointer opp&&
                 ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
@@ -3738,7 +3738,7 @@ public class Parser {
         typeStack.set(t.args[0],typeStack.get(t.args[1]));
         ret.add(t);
     }
-    private void typeCheckTypeModifier(String name, SyntaxError.ThrowingFunction<Type,Value> modifier, ArrayList<Token> ret,
+    private static void typeCheckTypeModifier(String name, SyntaxError.ThrowingFunction<Type,Value> modifier, ArrayList<Token> ret,
                                        RandomAccessStack<TypeFrame> typeStack, FilePosition pos) throws SyntaxError,
             RandomAccessStack.StackUnderflow, TypeError {
         TypeFrame f = typeStack.pop();
@@ -3767,7 +3767,7 @@ public class Parser {
     }
 
 
-    private void typeCheckCallPtr(TypeCheckState tState, FilePosition pos) throws RandomAccessStack.StackUnderflow, SyntaxError {
+    private static void typeCheckCallPtr(TypeCheckState tState, FilePosition pos) throws RandomAccessStack.StackUnderflow, SyntaxError {
         TypeFrame f= tState.typeStack.pop();
         if(f.type instanceof Type.Procedure){
             typeCheckCall("call-ptr",(Type.Procedure) f.type,pos,true,tState);
@@ -3785,14 +3785,14 @@ public class Parser {
         }
     }
 
-    private void setOverloadedProcPtr(ArrayList<Token> ret, Type.OverloadedProcedurePointer opp, Value proc) throws SyntaxError {
+    private static void setOverloadedProcPtr(ArrayList<Token> ret, Type.OverloadedProcedurePointer opp, Value proc) throws SyntaxError {
         Token prev=ret.set(opp.tokenPos,new ValueToken(proc, opp.pushedAt));
         if(prev.tokenType!=TokenType.OVERLOADED_PROC_PTR&&prev.tokenType!=TokenType.NOP){
             throw new SyntaxError("overloaded procedure pointer is resolved more than once ",opp.pushedAt);
         }
     }
 
-    private void findEnumFields(SwitchCaseBlock switchBlock, List<Token> caseValues){
+    private static void findEnumFields(SwitchCaseBlock switchBlock, List<Token> caseValues){
         if(switchBlock.switchType instanceof Type.Enum sType){
             for(int p = 0; p < caseValues.size(); p++){
                 Token prev=caseValues.get(p);
@@ -3806,7 +3806,7 @@ public class Parser {
         }
     }
 
-    private void typeCheckLambda(DeclareLambdaToken t,TypeCheckState tState) throws SyntaxError {
+    private static void typeCheckLambda(DeclareLambdaToken t,TypeCheckState tState) throws SyntaxError {
         ProcedureContext newContext=new ProcedureContext(tState.context);
         newContext.generics.addAll(t.generics);//move generics to new context
         TypeCheckResult res=typeCheck(t.inTypes,newContext, tState.globalConstants,
@@ -3850,7 +3850,7 @@ public class Parser {
         }
     }
 
-    private void typeCheckNew(TypeCheckState tState, FilePosition pos)
+    private static void typeCheckNew(TypeCheckState tState, FilePosition pos)
             throws SyntaxError, RandomAccessStack.StackUnderflow {
         Token prev;
         final ArrayList<Token> ret=tState.ret;
@@ -3910,7 +3910,7 @@ public class Parser {
         }
     }
 
-    private void typeCheckIdentifier(Token t, TypeCheckState tState) throws SyntaxError, RandomAccessStack.StackUnderflow {
+    private static void typeCheckIdentifier(Token t, TypeCheckState tState) throws SyntaxError, RandomAccessStack.StackUnderflow {
         Token prev;
         IdentifierToken identifier=(IdentifierToken) t;
         final RandomAccessStack<TypeFrame> typeStack=tState.typeStack;
@@ -4297,7 +4297,7 @@ public class Parser {
         }
     }
 
-    private void typeCheckPushProcPointer(IdentifierToken identifier,FilePosition pos,TypeCheckState tState)
+    private static void typeCheckPushProcPointer(IdentifierToken identifier,FilePosition pos,TypeCheckState tState)
             throws SyntaxError, RandomAccessStack.StackUnderflow {
         Declareable d= tState.context.getDeclareable(identifier.name);
         if(d==null){
@@ -4360,7 +4360,7 @@ public class Parser {
         }
     }
 
-    private void pushSimpleProcPointer(Value.Procedure procedure, FilePosition pos,TypeCheckState tState) throws SyntaxError {
+    private static void pushSimpleProcPointer(Value.Procedure procedure, FilePosition pos,TypeCheckState tState) throws SyntaxError {
         procedure.markAsUsed();
         //type check procedure before it is pushed onto the stack
         typeCheckProcedure(procedure, tState.globalConstants, tState.ioContext,tState.context);
@@ -4369,7 +4369,7 @@ public class Parser {
         tState.ret.add(token);
     }
 
-    private Type[] getArguments(String name,DeclareableType type,int nArgs, RandomAccessStack<TypeFrame> typeStack,
+    private static Type[] getArguments(String name,DeclareableType type,int nArgs, RandomAccessStack<TypeFrame> typeStack,
                               ArrayList<Token> ret, FilePosition pos) throws SyntaxError, RandomAccessStack.StackUnderflow {
         Type[] genArgs=new Type[nArgs];
         Token prev;
@@ -4395,7 +4395,7 @@ public class Parser {
         return genArgs;
     }
 
-    private void typeCheckCast(Type src, int stackPos, Type target,FilePosition pos,TypeCheckState tState) throws SyntaxError {
+    private static void typeCheckCast(Type src, int stackPos, Type target,FilePosition pos,TypeCheckState tState) throws SyntaxError {
         Type.BoundMaps bounds=new Type.BoundMaps();
         if(src instanceof Type.OverloadedProcedurePointer){
             if(!(target instanceof Type.Procedure)){
@@ -4460,7 +4460,7 @@ public class Parser {
         }
     }
 
-    private void typeCheckCall(String procName, Type.Procedure type, FilePosition pos, boolean isPtr,TypeCheckState tState)
+    private static void typeCheckCall(String procName, Type.Procedure type, FilePosition pos, boolean isPtr,TypeCheckState tState)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
         int offset=isPtr?1:0;
         if(type instanceof Type.GenericProcedureType){
@@ -4537,7 +4537,7 @@ public class Parser {
         return maxDepth1-maxDepth2;
     };
 
-    private CallMatch typeCheckOverloadedCall(String procName, OverloadedProcedure proc, Type[] ptrGenArgs,
+    private static CallMatch typeCheckOverloadedCall(String procName, OverloadedProcedure proc, Type[] ptrGenArgs,
                                               FilePosition pos,TypeCheckState tState)  throws RandomAccessStack.StackUnderflow, SyntaxError {
         Type[] typeArgs=null;
         if(proc.nGenericParams!=0){
@@ -4563,7 +4563,7 @@ public class Parser {
         }
         return match;
     }
-    private void typeCheckPotentialCall(Callable potentialCall, Type[] typeArgs, Type[] inTypes,
+    private static void typeCheckPotentialCall(Callable potentialCall, Type[] typeArgs, Type[] inTypes,
                            ArrayList<CallMatch> matchingCalls,FilePosition pos,TypeCheckState tState) throws SyntaxError {
         Type.Procedure type= potentialCall.type();
         boolean isMatch=true;
@@ -4615,7 +4615,7 @@ public class Parser {
             }
         }
     }
-    private Type.BoundMaps resolveOppParam(Type calledType, Type.BoundMaps callBounds,
+    private static Type.BoundMaps resolveOppParam(Type calledType, Type.BoundMaps callBounds,
                                            Type.OverloadedProcedurePointer param,
                                            HashMap<Type.OverloadedProcedurePointer,CallMatch> opps,
                                            FilePosition pos,TypeCheckState tState) throws SyntaxError {
@@ -4674,7 +4674,7 @@ public class Parser {
         callBounds =matchBounds.get(0);
         return callBounds;
     }
-    private boolean resolveGenericParams(IdentityHashMap<Type.GenericParameter, Type.GenericBound> bounds,
+    private static boolean resolveGenericParams(IdentityHashMap<Type.GenericParameter, Type.GenericBound> bounds,
                                          IdentityHashMap<Type.GenericParameter, Type> implicitGenerics) {
         for(Map.Entry<Type.GenericParameter, Type.GenericBound> e: bounds.entrySet()){
             if(e.getValue().min()!=null){
@@ -4689,7 +4689,7 @@ public class Parser {
         }
         return true;
     }
-    private CallMatch findMatchingCall(ArrayList<CallMatch> matchingCalls, OverloadedProcedure proc,
+    private static CallMatch findMatchingCall(ArrayList<CallMatch> matchingCalls, OverloadedProcedure proc,
                                        Type[] inTypes,  FilePosition pos,TypeCheckState tState) throws SyntaxError {
         for(int i = 0; i< matchingCalls.size(); i++){
             CallMatch c= matchingCalls.get(i);
@@ -4728,7 +4728,7 @@ public class Parser {
         }
         return matchingCalls.get(0);
     }
-    private void updateProcedureArguments(CallMatch match, Type[] inTypes, ArrayList<Token> tokens, boolean isPtr,
+    private static void updateProcedureArguments(CallMatch match, Type[] inTypes, ArrayList<Token> tokens, boolean isPtr,
                                           FilePosition pos) throws SyntaxError {
         for(int i = 0; i< inTypes.length; i++){
             if (inTypes[i] instanceof Type.OverloadedProcedurePointer) {
