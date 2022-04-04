@@ -103,11 +103,11 @@ list #include
       }
       ")" <<*
     else value type cast .isArray if
-      value type cast .content <<s " array" <<*
+      #+content is generic parameter+# "array" <<*
     else value type cast .isMemory if
-      value type cast .content <<s " memory" <<*
+      #+content is generic parameter+# "memory" <<*
     else value type cast .isOptional if
-      value type cast .content <<s " optional" <<*
+      #+content is generic parameter+# "optional" <<*
     else value type cast .isEnum if
       value type cast .name <<* ## return enum-name
     else value type cast .isUnion if

@@ -641,6 +641,11 @@ public class Type {
         void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
             contentType.forEachStruct(action);
         }
+
+        @Override
+        public List<Type> genericArguments() {
+            return Collections.singletonList(contentType);
+        }
         @Override
         Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound) {
             unbound=contentType.recursiveUnboundGenerics(unbound);
