@@ -1707,7 +1707,7 @@ parseFile proc( #+fileName+# string #+program+# Program mut =>  ){
       STATE_WORD case
         byte next mut =:
         next ?WhiteSpace if{
-          reader .word length 0 > if{
+          reader .word .length 0 > if{
             reader .word .build nextWord =::
             nextWord .length 0 > if{
               prevWord .length 0 > if{
@@ -1830,7 +1830,7 @@ parseFile proc( #+fileName+# string #+program+# Program mut =>  ){
               #+chars+# 0 [] Value.ofCodepoint
             else
               reader .word clone
-              dup length 1 != if{
+              dup .length 1 != if{
                 #+str+# " is not a valid unicode character " <<*
                 reader .pos << '\n' <<
                 .build eputs

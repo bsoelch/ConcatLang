@@ -17,8 +17,6 @@ public class GenericStruct implements Parser.NamedDeclareable {
     final FilePosition declaredAt;
     final FilePosition endPos;
 
-    final ArrayList<Type.GenericTraitImplementation> genericTraits=new ArrayList<>();
-
     public GenericStruct(String name, boolean isPublic, Type.Struct parent,
                          Parser.StructContext context, ArrayList<Parser.Token> tokens, FilePosition declaredAt, FilePosition endPos) {
         this.name = name;
@@ -70,17 +68,12 @@ public class GenericStruct implements Parser.NamedDeclareable {
     private final HashMap<TypeArray, Type.Struct> cached=new HashMap<>();
     public Type.Struct withPrams(Type[] genericArgs) throws SyntaxError {
         IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
-        Parser.StructContext newContext=context.emptyCopy();
         for(int i=0;i< genericArgs.length;i++){
             Type.GenericParameter t=context.generics.get(i);
             Type replace=genericArgs[i];
             update.put(t,replace);
-            if(replace instanceof Type.GenericParameter){
-                newContext.putElement(t.label,(Type.GenericParameter) replace);
-            }else{
-                newContext.putElement(t.label,new Parser.Constant(t.name,false,Value.ofType(replace),t.declaredAt));
-            }
         }
+        Parser.StructContext newContext=context.replaceGenerics(update);
         Type.Struct struct=cached.get(new TypeArray(genericArgs));
         if(struct==null){
             ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens.size());
@@ -91,44 +84,8 @@ public class GenericStruct implements Parser.NamedDeclareable {
                     parent==null?null:parent.replaceGenerics(update),
                     genericArgs,this,newTokens,newContext,declaredAt,endPos);
             cached.put(new TypeArray(genericArgs),struct);
-            for(Type.GenericTraitImplementation trait:genericTraits){
-                update.clear();
-                for(int i=0;i<trait.params().length;i++){
-                    update.put(trait.params()[i],struct.genericArgs[i]);
-                }
-                Parser.Callable[] updated = new Parser.Callable[trait.values().length];
-                for (int i = 0; i < trait.values().length; i++) {
-                    updated[i] = (Parser.Callable) ((Value)trait.values()[i]).replaceGenerics(update);
-                    Parser.typeCheckProcedure((Value.Procedure)updated[i],trait.globalConstants(),trait.ioContext(),null);
-                }
-                struct.implementTrait(trait.trait(), updated, trait.implementedAt());
-            }
         }
         return struct;
-    }
-    public void addGenericTrait(Type.Trait trait, Type.GenericParameter[] params, Parser.Callable[] implementation,
-                                FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
-                                IOContext ioContext) throws SyntaxError {
-        if(params.length!=argCount()){
-            throw new IllegalArgumentException("wrong number of generic parameters: "+params.length+
-                    " generic traits of "+name+" have to have exactly "+params.length+
-                    " generic parameter");
-        }
-        IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
-        for(Type.Struct s:cached.values()){
-            update.clear();
-            for(int i=0;i<params.length;i++){
-                update.put(params[i],s.genericArgs[i]);
-            }
-            Parser.Callable[] updated = new Parser.Callable[implementation.length];
-            for (int i = 0; i < implementation.length; i++) {
-                updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(update);
-                Parser.typeCheckProcedure((Value.Procedure) updated[i],globalConstants,ioContext,null);
-            }
-            s.implementTrait(trait, updated, implementedAt);
-        }
-        genericTraits.add(new Type.GenericTraitImplementation(trait,params,implementation,implementedAt,
-                globalConstants,ioContext));
     }
 
 

@@ -3,59 +3,30 @@ lib/consumer:
 core #namespace
 stack #include
 
-ArrayBuilder public struct{ A <>
-  A @missingAppend     :append     pseudo
-  A @missingAppendAll  :appendAll  pseudo
-  A @missingPrepend    :prepend    pseudo
-  A @missingPrependAll :prependAll pseudo
-  A @missingBuild      :build      pseudo
-  A @missingEnsureCap  :ensureCap  pseudo
-  A @missingClear      :clear      pseudo
+ArrayBuilder public trait{ A <>
+  (              A ArrayBuilder mut? => uint )              :length
+  ( A            A ArrayBuilder mut => A ArrayBuilder mut ) :append
+  ( A array mut? A ArrayBuilder mut => A ArrayBuilder mut ) :appendAll
+  ( A            A ArrayBuilder mut => A ArrayBuilder mut ) :prepend
+  ( A array mut? A ArrayBuilder mut => A ArrayBuilder mut ) :prependAll
+  (              A ArrayBuilder mut => A array )            :build
+  ( uint         A ArrayBuilder mut => )                    :ensureCap
+  (              A ArrayBuilder mut => )                    :clear
 }
 byte      ArrayBuilder mut  type  StringBuilder public mut~ =:
 codepoint ArrayBuilder mut  type UStringBuilder public mut~ =:
 
-<< public proc( A <?> A ArrayBuilder mut A => A ArrayBuilder mut ){
+<<  public proc( A <?> A ArrayBuilder mut A => A ArrayBuilder mut ){
   swap .append
 }
 <<* public proc( A <?> A ArrayBuilder mut A array mut? => A ArrayBuilder mut ){
   swap .appendAll
 }
->> public proc( A <?> A A ArrayBuilder mut => A ArrayBuilder mut ){
+>>  public proc( A <?> A A ArrayBuilder mut => A ArrayBuilder mut ){
   .prepend
 }
 *>> public proc( A <?> A array mut? A ArrayBuilder mut  => A ArrayBuilder mut ){
   .prependAll
-}
-
-
-missingAppend proc( A <> A A ArrayBuilder mut => A ArrayBuilder mut ){
-  "missingAppend" debugPrint
-  unreachable
-}
-missingAppendAll proc( A <> A array mut? A ArrayBuilder mut => A ArrayBuilder mut ){
-  "missingAppendAll" debugPrint
-  unreachable
-}
-missingPrepend proc( A <> A A ArrayBuilder mut => A ArrayBuilder mut ){
-  "missingPrepend" debugPrint
-  unreachable
-}
-missingPrependAll proc( A <> A array mut? A ArrayBuilder mut => A ArrayBuilder mut ){
-  "missingPrependAll" debugPrint
-  unreachable
-}
-missingBuild proc( A <> A ArrayBuilder mut => A array ){
-  "missingBuild" debugPrint
-  unreachable
-}
-missingEnsureCap proc( A <> uint A ArrayBuilder mut => ){
-  "missingEnsureCap" debugPrint
-  unreachable
-}
-missingClear proc( A <> A ArrayBuilder mut => ){
-  "missingClear" debugPrint
-  unreachable
 }
 
 #end

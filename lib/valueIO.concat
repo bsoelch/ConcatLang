@@ -179,7 +179,7 @@ byteToString public proc( byte => string ){
 
 byteArrayToString public proc( byte array mut? => string ){
   byte array mut? bytes =:
-  bytes .length 6 * buildString res =::
+  bytes .length 6 * buildString StringBuilder res mut =:
   res "[" <<* res =
   0 int i mut =:
   while{ i bytes .length < do
@@ -249,11 +249,11 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
   format .format  switch{
   'b' case
     5 buildString
-    values format .index [] bool cast if{ "true" else "false" } <<*
+    values format .index [] bool cast if{ "true" else "false" } <<* StringBuilder cast
     end-case
   'B' case
     5 buildString
-    values format .index [] bool cast if{ "TRUE" else "FALSE" } <<*
+    values format .index [] bool cast if{ "TRUE" else "FALSE" } <<* StringBuilder cast
     end-case
   'i' case
     64 buildString
@@ -347,21 +347,21 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
     values format .index [] float cast precision base <<??F
     end-case
   'c' case
-    1 buildString values format .index [] byte cast <<
+    1 buildString values format .index [] byte cast << StringBuilder cast
     end-case
   's' 'S' case
-    0 buildString values format .index [] stringValue <<*
+    0 buildString values format .index [] stringValue <<* StringBuilder cast
     end-case
   '%' case
-    1 buildString '%' <<
+    1 buildString '%' << StringBuilder cast
     end-case
   default
     32 buildString
     format .format << " is no valid format specifier\n" <<* .build eputs
     1 exit
   } res =::
-  res length width < if{
-    width res length - int count =:
+  res .length width < if{
+    width res .length - int count =:
     format .flags IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
     padChar count string new padding =::
     alignLeft if{

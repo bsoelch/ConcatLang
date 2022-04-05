@@ -111,7 +111,7 @@ public abstract class Value {
             throw new TypeError("cannot cast from "+type+" to "+newType);
         }
     }
-    public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+    public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
         return this;
     }
 
@@ -384,7 +384,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type newType=typeValue.replaceGenerics(genericParams);
             if(newType!=typeValue){
                 return new TypeValue(newType);
@@ -621,7 +621,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type newType=type.replaceGenerics(genericParams);
             boolean changed=newType!=type;
             Value[] newData=new Value[data.length];
@@ -962,7 +962,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type.TupleLike newType=(Type.TupleLike)type.replaceGenerics(genericParams);
             boolean changed=newType!=type;
             Value[] newData=new Value[elements.length];
@@ -1081,7 +1081,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type.Procedure newType= (Type.Procedure) type.replaceGenerics(genericParams);
             boolean changed=newType!=type;
             ArrayList<Parser.Token> newTokens=new ArrayList<>();
@@ -1093,7 +1093,7 @@ public abstract class Value {
                 changed|= (newT!=t);
             }
             return changed?new Procedure(name,isPublic,newType,newTokens,curriedArgs,
-                    context,declaredAt,endPos,typeCheckState):this;
+                    context.replaceGenerics(genericParams),declaredAt,endPos,typeCheckState):this;
         }
 
         @Override
@@ -1194,7 +1194,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Value newWrap=wrapped.replaceGenerics(genericParams);
             if(newWrap!=wrapped)
                 return new OptionalValue(newWrap);
@@ -1381,7 +1381,7 @@ public abstract class Value {
         }
 
         @Override
-        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type newType=type.replaceGenerics(genericParams);
             if(newType!=type){
                 return new InternalProcedure((Type.Procedure) newType,name,action);
@@ -1891,10 +1891,19 @@ public abstract class Value {
         protected TraitValue(Type.Trait type,Value wrapped, int offset) {
             super(type);
             this.offset=offset;
+            if(offset<0){
+                throw new IllegalArgumentException("offset has to be >=0");
+            }
             this.wrapped=wrapped;
         }
 
-        //addLater clone,replaceGenerics,isEqualTo, rawData,updateFrom,equals
+        //addLater clone,isEqualTo, rawData,updateFrom,equals
+
+        @Override
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
+            return new TraitValue((Type.Trait) type.replaceGenerics(genericParams),wrapped.replaceGenerics(genericParams),offset);
+        }
+
         @Override
         public long id() {
             return wrapped.id();

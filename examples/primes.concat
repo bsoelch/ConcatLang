@@ -12,7 +12,7 @@ printPrimes proc( int => ){
   nMax 2 < if{
     return
   }
-  128 buildString buff =::
+  128 buildString  StringBuilder buff mut =:
   ##primes > 2
   2 nMax [n:m] int Iterator cast for{ k =::
     buff k <<i ", " <<* buff =

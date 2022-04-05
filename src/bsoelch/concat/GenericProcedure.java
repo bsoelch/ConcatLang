@@ -53,7 +53,7 @@ public class GenericProcedure implements Parser.Callable {
     }
 
     private final HashMap<IdentityHashMap<Type.GenericParameter,Type>, Value.Procedure> cached=new HashMap<>();
-    public Value.Procedure withPrams(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+    public Value.Procedure withPrams(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
         Parser.ProcedureContext newContext=new Parser.ProcedureContext(context.parent);
         for(Type.GenericParameter t:context.generics){
             Type replace=genericParams.get(t);

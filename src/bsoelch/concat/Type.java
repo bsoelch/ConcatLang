@@ -56,7 +56,7 @@ public class Type {
                             values[0].asType().outTypes().stream().map(Value::ofType).toArray(Value[]::new))}),
                     declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{RAW_STRING()},"name",
-                (values) -> new Value[]{Value.ofString(values[0].asType().typeName(),false)}),
+                (values) -> new Value[]{Value.ofString(values[0].asType().name(),false)}),
                     declaredAt());
             addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(RAW_STRING())},"fieldNames",
                 (values) -> new Value[]{Value.createArray(Type.arrayOf(Type.RAW_STRING()),values[0].asType().fields()
@@ -305,7 +305,7 @@ public class Type {
         if(trait instanceof Trait){
             for(Trait implemented:implementedTraits.keySet()){
                 BoundMaps newBounds=bounds.copy();
-                if(implemented.canAssignTo(trait, newBounds)){
+                if(implemented.setMutability(mutability).canAssignTo(trait, newBounds)){
                     bounds.r.putAll(newBounds.r);
                     bounds.l.putAll(newBounds.l);
                     return true;
@@ -316,7 +316,7 @@ public class Type {
     }
     int getTraitOffset(Trait trait){
         for(Map.Entry<Trait, TraitImplementation> implemented:implementedTraits.entrySet()){
-            if(implemented.getKey().canAssignTo(trait, new BoundMaps())){
+            if(implemented.getKey().setMutability(mutability).canAssignTo(trait, new BoundMaps())){
                 return implemented.getValue().offset;
             }
         }
@@ -341,7 +341,7 @@ public class Type {
     Set<GenericParameter> recursiveUnboundGenerics(Set<GenericParameter> unbound){
         return unbound;
     }
-    Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+    Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) throws SyntaxError {
         return this;
     }
 
@@ -379,7 +379,7 @@ public class Type {
     public boolean isUnicodeString(){
         return false;
     }
-    public String typeName(){
+    public String name(){
         throw new UnsupportedOperationException();
     }
     public Type content() {
@@ -667,9 +667,13 @@ public class Type {
                     generics.put(t.params[0], contentType);
                     for (int i = 0; i < t.values.length; i++) {
                         updated[i] = (Parser.Callable) ((Value) t.values[i]).replaceGenerics(generics);
-                        Parser.typeCheckProcedure((Value.Procedure)updated[i],t.globalConstants,t.ioContext,null);
                     }
-                    implementTrait(t.trait, updated, t.implementedAt);
+                    implementTrait(t.trait.replaceGenerics(generics), updated, t.implementedAt);
+                    if (!(contentType instanceof GenericParameter)) {
+                        for (Parser.Callable callable : updated) {
+                            Parser.typeCheckProcedure((Value.Procedure) callable, t.globalConstants, t.ioContext, null);
+                        }
+                    }
                 }
             }catch (SyntaxError e){
                 throw new RuntimeException(e);//TODO handle syntaxError
@@ -739,9 +743,13 @@ public class Type {
                 generics.put(params[0], t.contentType);
                 for (int i = 0; i < implementation.length; i++) {
                     updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(generics);
-                    Parser.typeCheckProcedure((Value.Procedure) updated[i],globalConstants,ioContext,null);
                 }
-                t.implementTrait(trait,updated,implementedAt);
+                t.implementTrait(trait.replaceGenerics(generics),updated,implementedAt);
+                if(!(t.contentType instanceof GenericParameter)){
+                    for (Parser.Callable callable : updated) {
+                        Parser.typeCheckProcedure((Value.Procedure) callable, globalConstants, ioContext, null);
+                    }
+                }
             }
         }
         @Override
@@ -754,7 +762,7 @@ public class Type {
             return super.recursiveUnboundGenerics(unbound);
         }
         @Override
-        WrapperType replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+        WrapperType replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) throws SyntaxError {
             Type newContent = contentType.replaceGenerics(generics);
             return contentType==newContent?this:create(wrapperName, newContent,mutability);
         }
@@ -961,7 +969,7 @@ public class Type {
             return super.recursiveUnboundGenerics(unbound);
         }
         @Override
-        Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+        Type replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) throws SyntaxError {
             if(elements==null){
                 throw new RuntimeException("elements in anonymous tuple should not be null");
             }
@@ -1050,26 +1058,12 @@ public class Type {
 
     }
 
-    record StructId(FilePosition pos,Type[] genericArgs){
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            StructId structId = (StructId) o;
-            return Objects.equals(pos, structId.pos) && Arrays.equals(genericArgs, structId.genericArgs);
-        }
-        @Override
-        public int hashCode() {
-            int result = Objects.hash(pos);
-            result = 31 * result + Arrays.hashCode(genericArgs);
-            return result;
-        }
-    }
+    record CachedStruct(HashMap<List<Type>,Struct> versions,ArrayList<Type.GenericTraitImplementation> genericTraits){}
     record StructField(String name, Parser.Accessibility accessibility, boolean mutable, FilePosition declaredAt){}
     public static class Struct extends TupleLike implements Parser.NamedDeclareable {
-        static final HashMap<StructId,Struct> cached=new HashMap<>();
+        static final HashMap<FilePosition,CachedStruct> cache=new HashMap<>();
         public static void resetCached(){
-            cached.clear();
+            cache.clear();
         }
         final boolean isPublic;
         final FilePosition declaredAt;
@@ -1094,45 +1088,81 @@ public class Type {
 
         static Struct create(String name,boolean isPublic,Struct extended,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
-                             FilePosition declaredAt,FilePosition endPos){
+                             FilePosition declaredAt,FilePosition endPos) throws SyntaxError {
             return create(name, isPublic, extended, new Type[0],null,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
         }
         static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,GenericStruct genericVersion,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
-                             FilePosition declaredAt,FilePosition endPos){
+                             FilePosition declaredAt,FilePosition endPos) throws SyntaxError {
            return create(name, isPublic, extended, genericArgs,genericVersion,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
         }
         static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,GenericStruct genericVersion,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
-                             Mutability mutability, FilePosition declaredAt, FilePosition endPos){
-            StructId id=new StructId(declaredAt,genericArgs);
+                             Mutability mutability, FilePosition declaredAt, FilePosition endPos) throws SyntaxError {
+            CachedStruct cached=cache.get(declaredAt);
             Struct prev;
-            prev=cached.get(id);
+            prev=cached==null?null:cached.versions.get(Arrays.asList(genericArgs));
             if(prev!=null){
                 return prev.setMutability(mutability);
             }
             prev=new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
                     extended, genericArgs,genericVersion,null,null,tokens,context,mutability,declaredAt,endPos);
-            cached.put(id,prev);
+            if(cached==null){
+                cached=new CachedStruct(new HashMap<>(),new ArrayList<>());
+                cache.put(declaredAt,cached);
+            }
+            cached.versions.put(Arrays.asList(genericArgs),prev);
+            prev.implementAll(cached.genericTraits);
             return prev;
         }
         private static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,GenericStruct genericVersion,
                                      StructField[] fields, Type[] types, Mutability mutability,
-                                     FilePosition declaredAt, FilePosition endPos) {
+                                     FilePosition declaredAt, FilePosition endPos) throws SyntaxError {
             if(fields.length!=types.length){
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
-            StructId id=new StructId(declaredAt,genericArgs);
+            CachedStruct cached=cache.get(declaredAt);
             Struct prev;
-            prev=cached.get(id);
+            prev=cached==null?null:cached.versions.get(Arrays.asList(genericArgs));
             if(prev!=null){
                 return prev.setMutability(mutability);
             }
             prev = new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
                     extended, genericArgs,genericVersion,types,fields,null, null,mutability, declaredAt,endPos);
-            cached.put(id,prev);
+            if(cached==null){
+                cached=new CachedStruct(new HashMap<>(),new ArrayList<>());
+                cache.put(declaredAt,cached);
+            }
+            cached.versions.put(Arrays.asList(genericArgs),prev);
+            prev.implementAll(cached.genericTraits);
             return prev;
         }
+        private void implementAll(ArrayList<GenericTraitImplementation> genericTraits) throws SyntaxError {
+            IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
+            boolean nonGeneric;
+            for(Type.GenericTraitImplementation trait:genericTraits){
+                update.clear();
+                nonGeneric=true;
+                for(int i=0;i<trait.params().length;i++){
+                    update.put(trait.params()[i],genericArgs[i]);
+                    if(genericArgs[i] instanceof Type.GenericParameter){
+                        nonGeneric=false;
+                    }
+                }
+                Parser.Callable[] updated = new Parser.Callable[trait.values().length];
+                for (int i = 0; i < trait.values().length; i++) {
+                    updated[i] = (Parser.Callable) ((Value)trait.values()[i]).replaceGenerics(update);
+                }
+                implementTrait(trait.trait().replaceGenerics(update), updated, trait.implementedAt());
+                if(nonGeneric){
+                    for (Parser.Callable callable : updated) {
+                        Parser.typeCheckProcedure((Value.Procedure) callable, trait.globalConstants(),
+                                trait.ioContext(), null);
+                    }
+                }
+            }
+        }
+
         static String namePrefix(String baseName, Type[] genericArgs) {
             StringBuilder sb=new StringBuilder();
             //add generic args to name
@@ -1229,10 +1259,37 @@ public class Type {
         void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
                                    FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
                                    IOContext ioContext) throws SyntaxError {
-            if(genericVersion==null){
-                throw new SyntaxError("cannot implement generic trait on non-generic struct",implementedAt);
+            if(params.length!=genericArgs.length){
+                throw new IllegalArgumentException("wrong number of generic parameters: "+params.length+
+                        " generic traits of "+name+" have to have exactly "+genericArgs.length+
+                        " generic parameter");
             }
-            genericVersion.addGenericTrait(trait,params,implementation,implementedAt,globalConstants,ioContext);
+            CachedStruct cached=cache.get(declaredAt);
+            assert cached!=null;//this struct (or a clone with another mutability) should be an element of cached
+            IdentityHashMap<Type.GenericParameter, Type> update=new IdentityHashMap<>();
+            boolean nonGeneric;
+            for(Type.Struct s:cached.versions.values()){
+                nonGeneric=true;
+                update.clear();
+                for(int i=0;i<params.length;i++){
+                    update.put(params[i],s.genericArgs[i]);
+                    if(s.genericArgs[i] instanceof Type.GenericParameter){
+                        nonGeneric=false;
+                    }
+                }
+                Parser.Callable[] updated = new Parser.Callable[implementation.length];
+                for (int i = 0; i < implementation.length; i++) {
+                    updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(update);
+                }
+                s.implementTrait(trait.replaceGenerics(update), updated, implementedAt);
+                if(nonGeneric){
+                    for (Parser.Callable callable : updated) {
+                        Parser.typeCheckProcedure((Value.Procedure) callable, globalConstants,ioContext, null);
+                    }
+                }
+            }
+            cached.genericTraits.add(new Type.GenericTraitImplementation(trait,params,implementation,implementedAt,
+                    globalConstants,ioContext));
         }
 
         @Override
@@ -1345,7 +1402,7 @@ public class Type {
             return super.recursiveUnboundGenerics(unbound);
         }
         @Override
-        Struct replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+        Struct replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) throws SyntaxError {
             boolean changed=false;
             Type[] newArgs;
             if(generics.size()>0){
@@ -1367,25 +1424,7 @@ public class Type {
                     if(newToken!=t)
                         changed=true;
                 }
-                Parser.StructContext newContext=context.emptyCopy();
-                for(Map.Entry<String, Parser.Declareable> e:context.elements()){
-                    if(e.getValue() instanceof GenericParameter){
-                        Type replace=generics.get((GenericParameter)e.getValue());
-                        if(replace!=null){//replace generics in constants
-                            if(replace instanceof Type.GenericParameter){
-                                newContext.putElement(e.getKey(),(Type.GenericParameter) replace);
-                            }else{
-                                newContext.putElement(e.getKey(),
-                                        new Parser.Constant(e.getKey(),false,Value.ofType(replace),e.getValue().declaredAt()));
-                            }
-                            changed=true;
-                        }
-                    }else if(e.getValue() instanceof Parser.Constant c){
-                        newContext.putElement(e.getKey(),
-                                new Parser.Constant(e.getKey(),false,c.value.replaceGenerics(generics),
-                                        e.getValue().declaredAt()));
-                    }
-                }
+                Parser.StructContext newContext=context.replaceGenerics(generics);
                 return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
                         newArgs,genericVersion,newTokens,newContext,mutability,declaredAt,endPos):this;
             }
@@ -1448,10 +1487,6 @@ public class Type {
 
         @Override
         public String name() {
-            return name;
-        }
-        @Override
-        public String typeName() {
             return baseName;
         }
         @Override
@@ -1498,19 +1533,19 @@ public class Type {
         static Trait create(String baseName,boolean isPublic,GenericParameter[] params,
                             ArrayList<Parser.Token> tokens, Parser.TraitContext context,
                             FilePosition declaredAt, FilePosition endPos){
-            return new Trait(baseName,baseName,isPublic,params,params,null,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
+            return create(baseName,isPublic,params,params,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
         }
         static Trait create(String baseName,boolean isPublic,Type[] genericArgs,GenericParameter[] params,
                             ArrayList<Parser.Token> tokens, Parser.TraitContext context,Mutability mutability,
                             FilePosition declaredAt, FilePosition endPos){
             return new Trait(baseName,Struct.namePrefix(baseName,genericArgs)+mutabilityPostfix(mutability),isPublic,
-                    params, params,null, tokens,context, mutability, declaredAt, endPos);
+                    genericArgs, params,null, tokens,context, mutability, declaredAt, endPos);
         }
         static Trait create(String baseName,boolean isPublic,Type[] genericArgs,GenericParameter[] params,
                             TraitField[] traitFields,Mutability mutability,
                             FilePosition declaredAt, FilePosition endPos){
             return new Trait(baseName,Struct.namePrefix(baseName,genericArgs)+mutabilityPostfix(mutability),isPublic,
-                    params, params, traitFields,null,null, mutability, declaredAt, endPos);
+                    genericArgs, params, traitFields,null,null, mutability, declaredAt, endPos);
         }
 
         private Trait(String baseName,String name,boolean isPublic, Type[] genericArgs,GenericParameter[] genericParameters,
@@ -1524,6 +1559,8 @@ public class Type {
             this.endPos = endPos;
             this.genericArgs=genericArgs;
             this.genericParameters = genericParameters;
+
+            this.traitFields=traitFields;
             this.tokens = tokens;
             this.context = context;
         }
@@ -1537,9 +1574,9 @@ public class Type {
             declaredAt=src.declaredAt;
             endPos=src.endPos;
 
+            traitFields=src.traitFields;
             tokens=src.tokens;
             context=src.context;
-            traitFields=src.traitFields;
         }
 
         boolean isTypeChecked(){
@@ -1586,7 +1623,7 @@ public class Type {
             }
             return super.recursiveUnboundGenerics(unbound);
         }
-        Trait withArgs(Type[] args){
+        Trait withArgs(Type[] args) throws SyntaxError {
             IdentityHashMap<GenericParameter,Type> replace=new IdentityHashMap<>();
             for(int i=0;i<args.length;i++){
                 replace.put(genericParameters[i],args[i]);
@@ -1599,7 +1636,7 @@ public class Type {
             return Arrays.asList(genericArgs);
         }
         @Override
-        public Trait replaceGenerics(IdentityHashMap<GenericParameter,Type> replace){
+        public Trait replaceGenerics(IdentityHashMap<GenericParameter,Type> replace) throws SyntaxError {
             boolean changed=false;
             Type[] newArgs;
             if(replace.size()>0){
@@ -1627,25 +1664,7 @@ public class Type {
                     if(newToken!=t)
                         changed=true;
                 }
-                Parser.TraitContext newContext=context.emptyCopy();
-                for(Map.Entry<String, Parser.Declareable> e:context.elements()){
-                    if(e.getValue() instanceof GenericParameter){
-                        Type rType=replace.get((GenericParameter)e.getValue());
-                        if(rType!=null){//replace generics in constants
-                            if(rType instanceof Type.GenericParameter){
-                                newContext.putElement(e.getKey(),(Type.GenericParameter) rType);
-                            }else{
-                                newContext.putElement(e.getKey(),
-                                        new Parser.Constant(e.getKey(),false,Value.ofType(rType),e.getValue().declaredAt()));
-                            }
-                            changed=true;
-                        }
-                    }else if(e.getValue() instanceof Parser.Constant c){
-                        newContext.putElement(e.getKey(),
-                                new Parser.Constant(e.getKey(),false,c.value.replaceGenerics(replace),
-                                        e.getValue().declaredAt()));
-                    }
-                }
+                Parser.TraitContext newContext=context.replaceGenerics(replace);
                 return changed?create(baseName, isPublic,newArgs,newParams.toArray(GenericParameter[]::new),
                         newTokens,newContext,mutability,declaredAt,endPos):this;
             }
@@ -1668,7 +1687,7 @@ public class Type {
 
         @Override
         Type copyWithMutability(Mutability newMutability) {
-            return new Trait(this,mutability);
+            return new Trait(this,newMutability);
         }
 
         @Override
@@ -1706,7 +1725,7 @@ public class Type {
         }
         @Override
         public String name() {
-            return name;
+            return baseName;
         }
 
         boolean unused=true;
@@ -1796,7 +1815,7 @@ public class Type {
             return super.recursiveUnboundGenerics(unbound);
         }
         @Override
-        Procedure replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+        Procedure replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) throws SyntaxError {
             Type[] newIns=new Type[inTypes.length];
             boolean changed=false;
             for(int i=0;i<inTypes.length;i++){
@@ -1917,7 +1936,7 @@ public class Type {
         }
 
         @Override
-        Procedure replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) {
+        Procedure replaceGenerics(IdentityHashMap<GenericParameter,Type> generics) throws SyntaxError {
             Type[] newIn=new Type[inTypes.length];
             boolean changed=false;
             for(int i=0;i<inTypes.length;i++){
@@ -2007,10 +2026,6 @@ public class Type {
         }
 
         @Override
-        public String typeName() {
-            return name;
-        }
-        @Override
         public List<String> fields() {
             return Arrays.asList(entryNames);
         }
@@ -2046,7 +2061,7 @@ public class Type {
             this.jClass = jClass;
         }
         @Override
-        public String typeName() {
+        public String name() {
             return name;
         }
     }
@@ -2252,7 +2267,7 @@ public class Type {
             return super.recursiveUnboundGenerics(unbound);
         }
         @Override
-        Type replaceGenerics(IdentityHashMap<GenericParameter, Type> generics) {
+        Type replaceGenerics(IdentityHashMap<GenericParameter, Type> generics) throws SyntaxError {
             boolean changed=false;
             Type[] newElements=new Type[elements.length];
             for(int i=0;i<elements.length;i++){

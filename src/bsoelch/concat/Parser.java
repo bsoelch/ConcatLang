@@ -61,7 +61,7 @@ public class Parser {
             return tokenType.toString()+" at "+pos;
         }
 
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             return this;
         }
     }
@@ -164,7 +164,7 @@ public class Parser {
         }
 
         @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Value newValue = value.replaceGenerics(genericParams);
             if(newValue!=value)
                 return new ValueToken(newValue,pos);
@@ -242,7 +242,7 @@ public class Parser {
         }
 
         @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             return new TypedToken(tokenType,target==null?null:target.replaceGenerics(genericParams),pos);
         }
     }
@@ -268,7 +268,7 @@ public class Parser {
         }
 
         @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             boolean changed=false;
             ArrayList<Token> newTokens=new ArrayList<>(tokens.size());
             Token newT;
@@ -290,7 +290,7 @@ public class Parser {
         }
 
         @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             return new ArgCastToken(offset,target.replaceGenerics(genericParams),pos);
         }
     }
@@ -313,7 +313,7 @@ public class Parser {
         }
 
         @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) {
+        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             boolean changed=false;
             Token newT;
             ArrayList<Token> newIns=new ArrayList<>(inTypes.size());
@@ -1443,8 +1443,31 @@ public class Parser {
             this.parent = parent;
             assert parent!=null;
         }
-        BlockContext emptyCopy(){
-            return new BlockContext(parent);
+
+        BlockContext copyWithParent(VariableContext newParent){
+            return new BlockContext(newParent);
+        }
+        BlockContext replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
+            BlockContext copy=copyWithParent(parent instanceof BlockContext?((BlockContext) parent)
+                    .replaceGenerics(genericParams):parent);
+            for(Map.Entry<String, Parser.Declareable> e:elements.entrySet()){
+                if(e.getValue() instanceof Type.GenericParameter){
+                    Type rType=genericParams.get((Type.GenericParameter)e.getValue());
+                    if(rType!=null){//replace generics in constants
+                        if(rType instanceof Type.GenericParameter){
+                            copy.putElement(e.getKey(),(Type.GenericParameter) rType);
+                        }else{
+                            copy.putElement(e.getKey(),
+                                    new Parser.Constant(e.getKey(),false,Value.ofType(rType),e.getValue().declaredAt()));
+                        }
+                    }
+                }else if(e.getValue() instanceof Parser.Constant c){
+                    copy.putElement(e.getKey(),
+                            new Parser.Constant(e.getKey(),false,c.value.replaceGenerics(genericParams),
+                                    e.getValue().declaredAt()));
+                }
+            }
+            return copy;
         }
 
         /**elements declared in this block context as an iterable of key value pairs*/
@@ -1512,8 +1535,23 @@ public class Parser {
             super(parent);
             this.allowImplicit = allowImplicit;
         }
-        GenericContext emptyCopy(){
-            return new GenericContext(parent,allowImplicit);
+
+        GenericContext copyWithParent(VariableContext newParent){
+            return new GenericContext(newParent,allowImplicit);
+        }
+        @Override
+        GenericContext replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
+            GenericContext copy=(GenericContext)super.replaceGenerics(genericParams);
+            copy.generics.ensureCapacity(generics.size());
+            for(Type.GenericParameter oldGeneric:generics){
+                Type newGeneric=genericParams.get(oldGeneric);
+                if(newGeneric==null){
+                    copy.generics.add(oldGeneric);
+                }else if(newGeneric instanceof Type.GenericParameter){
+                    copy.generics.add((Type.GenericParameter) newGeneric);
+                }
+            }
+            return copy;
         }
 
         void declareGeneric(String name, boolean isImplicit, FilePosition pos, IOContext ioContext) throws SyntaxError {
@@ -1548,8 +1586,14 @@ public class Parser {
         }
 
         @Override
-        ProcedureContext emptyCopy() {
-            return new ProcedureContext(parent);
+        ProcedureContext copyWithParent(VariableContext newParent) {
+            return new ProcedureContext(newParent);
+        }
+        @Override
+        ProcedureContext replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
+            ProcedureContext copy=(ProcedureContext) super.replaceGenerics(genericParams);
+            copy.curried.addAll(curried);
+            return copy;
         }
 
         VariableId wrapCurried(String name, VariableId id, FilePosition pos) throws SyntaxError {
@@ -1592,10 +1636,19 @@ public class Parser {
         StructContext(VariableContext parent) {
             super(parent, false);
         }
-        StructContext emptyCopy(){
-            return new StructContext(parent);
-        }
 
+        @Override
+        StructContext copyWithParent(VariableContext newParent) {
+            return new StructContext(newParent);
+        }
+        @Override
+        StructContext replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
+            StructContext copy=(StructContext) super.replaceGenerics(genericParams);
+            copy.fields.addAll(fields);
+            copy.pseudoFields.addAll(pseudoFields);
+            copy.typeFields.addAll(typeFields);
+            return copy;
+        }
     }
     static class TraitContext extends GenericContext{
         final ArrayList<Type.TraitField> fields = new ArrayList<>();
@@ -1603,8 +1656,15 @@ public class Parser {
         TraitContext(VariableContext parent) {
             super(parent, false);
         }
-        TraitContext emptyCopy(){
-            return new TraitContext(parent);
+
+        TraitContext copyWithParent(VariableContext newParent){
+            return new TraitContext(newParent);
+        }
+        @Override
+        TraitContext replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
+            TraitContext copy=(TraitContext)super.replaceGenerics(genericParams);
+            copy.fields.addAll(fields);
+            return copy;
         }
     }
     static class ImplementContext extends GenericContext{
@@ -3007,7 +3067,8 @@ public class Parser {
             if((!t1.equals(t2))){
                 Optional<Type> merged = Type.commonSuperType(t1.type, t2.type, true);
                 if(merged.isEmpty()){
-                    throw new SyntaxError("Cannot merge "+t1.type+" and "+t2.type,endMain);
+                    throw new SyntaxError("Cannot merge "+t1.type+" (pushed at"+t1.pushedAt+") and "+t2.type+
+                            " (pushed at "+t2.pushedAt+")",endMain);
                 }
                 main.set(p,new TypeFrame(merged.get(),null,t1.pushedAt));
                 //addLater? better position reporting for merged positions

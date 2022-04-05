@@ -5,66 +5,20 @@ stack #include
 codeblocks #include
 arraySlice #include
 arrayBuilder #include
-valueIO #include
+io #include
+numbers #include
 
 ## TODO better way of reallocating:
 ##   try moving offset to avoid reallocating
 ##   set growth rate to factor less than 2 ( 9/8 ? )
 
-List public struct{ A <> A ArrayBuilder extend
-  A @List.append     :append     pseudo
-  A @List.appendAll  :appendAll  pseudo
-  A @List.prepend    :prepend    pseudo
-  A @List.prependAll :prependAll pseudo
-  A @List.build      :build      pseudo
-  A @List.ensureCap  :ensureCap  pseudo
-  A @List.clear      :clear      pseudo
-
+List public struct{ A <>
   A memory mut^ :data private mut
 }
-List.append private proc( A <> A A List mut => A List mut ){
-  swap << return
-}
-List.appendAll private proc( A <> A array mut? A List mut => A List mut ){
-  swap <<* return
-}
-List.prepend private proc( A <> A A List mut => A List mut ){
-  >> return
-}
-List.prependAll private proc( A <> A array mut? A List mut => A List mut ){
-  *>> return
-}
-
-ListSlice public struct{ A <> A ArrayBuilder extend
-  A @ListSlice.append     :append    pseudo
-  A @ListSlice.appendAll  :appendAll pseudo
-  A @ListSlice.prepend    :prepend    pseudo
-  A @ListSlice.prependAll :prependAll pseudo
-  A @ListSlice.build      :build     pseudo
-  A @ListSlice.ensureCap  :ensureCap pseudo
-  A @ListSlice.clear      :clear     pseudo
-
+ListSlice public struct{ A <>
   A List mut^ :parent restricted
   uint        :offset restricted
   uint        :length restricted mut
-}
-ListSlice.append private proc( A <> A A ListSlice mut => A ListSlice mut ){
-  swap << return
-}
-ListSlice.appendAll private proc( A <> A array mut? A ListSlice mut => A ListSlice mut ){
-  swap <<* return
-}
-ListSlice.prepend private proc( A <> A A ListSlice mut => A ListSlice mut ){
-  >> return
-}
-ListSlice.prependAll private proc( A <> A array mut? A ListSlice mut => A ListSlice mut ){
-  *>> return
-}
-ListSlice.build private proc( A <> A ListSlice mut? => A array ){
-  slice =::
-  slice .length A memory mut new tmp =::
-  slice .parent .data slice .offset tmp 0 slice .length copy
-  tmp clone-mut~ return
 }
 
 newList public proc( A <> uint => A List mut ){
@@ -88,43 +42,19 @@ length  public proc( A <?> A List mut? => uint ){
 offset  public proc( A <?> A List mut? => uint ){
   #+list+# .data .offset    return
 }
-capacity public proc( A <?> A List mut? => uint ){
+capacity public proc( A <?> A List mut? => uint ){ ##addLater better names for capacity procedure, add procedure for modifying offset
   #+list+# .data .capacity  return
 }
-#+pseudo-field+#
-List.build private proc( A <> A List mut? => A array mut~ ){
-  #+list+# .data clone-mut~ return
-}
 
-##pseudo-field
-List.ensureCap private proc( A <> uint A List mut => ){##addLater better names for capacity procedure, add procedure for offset
-  mList =::
-  newCap =::
-  mList .data .capacity newCap < if{
-    mList .data newCap realloc
-  }
-}
-##pseudo-field
-ListSlice.ensureCap private proc( A <> uint A ListSlice mut => ){
-  slice =::
-  newCap =::
-  slice .parent .data .capacity slice .parent .data .length slice .length - - newCap < if{
-    slice .parent .data  slice .parent .data .length slice .length - newCap + realloc
-  }
-}
 clear public proc( A <?> A List mut => ){
   mList =::
   mList .data 0 mList .data .length clearSlice
 }
-##pseudo-field
-List.clear private proc( A <> A List mut => ){ clear }
 clear public proc( A <?> A ListSlice mut => ){
   slice =::
   slice .parent .data slice .offset slice .offset slice .length + clearSlice
   0 slice .length =
 }
-##pseudo-field
-ListSlice.clear private proc( A <> A List mut => ){ clear }
 
 clearSlice public proc( A <?> A List mut uint uint => ){
   to =::
@@ -658,6 +588,67 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   slice .length toInsert .length to off - - + ## newLength
   toInsert slice .parent slice .offset off + slice .offset to + [:]=
   #+newLength+# slice .length =
+}
+
+
+implement{ A <> A ArrayBuilder A List for
+  length proc( A List mut? => uint ){
+    #+list+# .data .length    return
+  }
+  append proc( A A List mut => A ArrayBuilder mut ){
+    swap <<   A ArrayBuilder mut cast return
+  }
+  appendAll proc( A array mut? A List mut => A ArrayBuilder mut ){
+    swap <<*  A ArrayBuilder mut cast return
+  }
+  prepend proc( A A List mut => A ArrayBuilder mut ){
+    >>   A ArrayBuilder mut cast return
+  }
+  prependAll proc( A array mut? A List mut => A ArrayBuilder mut ){
+    *>>  A ArrayBuilder mut cast return
+  }
+  build proc( A List mut? => A array mut~ ){
+    #+list+# .data clone-mut~ return
+  }
+  ensureCap proc( uint A List mut => ){
+    mList =::
+    newCap =::
+    mList .data .capacity newCap < if{
+      mList .data newCap realloc
+    }
+  }
+  clear proc( A List mut => ){ clear }
+}
+implement{ A <> A ArrayBuilder A ListSlice for
+  length proc( A ListSlice mut? => uint ){
+    #+slice+# .length    return
+  }
+  append proc( A A ListSlice mut => A ArrayBuilder mut ){
+    swap <<   A ArrayBuilder mut cast return
+  }
+  appendAll proc( A array mut? A ListSlice mut => A ArrayBuilder mut ){
+    swap <<*  A ArrayBuilder mut cast return
+  }
+  prepend proc( A A ListSlice mut => A ArrayBuilder mut ){
+    >>   A ArrayBuilder mut cast return
+  }
+  prependAll proc( A array mut? A ListSlice mut => A ArrayBuilder mut ){
+    *>>  A ArrayBuilder mut cast return
+  }
+  build proc( A ListSlice mut? => A array ){
+    slice =::
+    slice .length A memory mut new tmp =::
+    slice .parent .data slice .offset tmp 0 slice .length copy
+    tmp clone-mut~ return
+  }
+  ensureCap proc( uint A ListSlice mut => ){
+    slice =::
+    newCap =::
+    slice .parent .data .capacity slice .parent .data .length slice .length - - newCap < if{
+      slice .parent .data  slice .parent .data .length slice .length - newCap + realloc
+    }
+  }
+  clear proc( A ListSlice mut => ){ clear }
 }
 
 #end ## core
