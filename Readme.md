@@ -354,7 +354,7 @@ Hello!
 These Operations directly manipulate the stack without
 interacting with the specific values
 
-[//]: # (TODO $dup $drop $set)
+[//]: # (TODO $dup $drop $rot)
 
 - `dup`  duplicates the top element on the stack
   (can be included with `stack #include`)
