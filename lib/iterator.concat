@@ -4,21 +4,15 @@ core #namespace
 stack #include
 codeblocks #include
 
-Iterator public struct{ A <>
-  A @doNothing :^> pseudo
+Iterator public trait{ A <>
+  ( A Iterator => A Iterator A optional ) :^>
 }
-BiIterator public struct{ A <> A Iterator extend
-  A @doNothing :<^ pseudo
-}
-doNothing private proc( A <> A Iterator => A Iterator A optional ){
-   #+itr+# A empty return
+ReverseIterator public trait{ A <>
+  ( A ReverseIterator => A ReverseIterator A optional ) :<^
 }
 ## addLater? allow iterators to modify the underlying list
 
-ArrayIterator struct{ A <> A BiIterator extend
-  A @ArrayIterator.^> :^> pseudo
-  A @ArrayIterator.<^ :<^ pseudo
-
+ArrayIterator struct{ A <>
   A array mut? :array private
   int          :index private
 }
@@ -32,93 +26,92 @@ _^ public proc( A <?> A array mut? => A ArrayIterator ){
   elements elements .length A ArrayIterator new
 }
 
-## pseudo-field
-ArrayIterator.^> private proc( A <> A ArrayIterator => A ArrayIterator A optional ){
-  A ArrayIterator mItr =:
-  mItr .index mItr .array .length < if{
-    mItr .array mItr .index 1 + A ArrayIterator new ## update iterator
-    mItr .array mItr .index [] wrap ## push element
-    return
-  else
-    mItr  A empty return
+implement{ A <> A Iterator A ArrayIterator for
+  ^> proc( A ArrayIterator => A Iterator A optional ){
+    A ArrayIterator mItr =:
+    mItr .index mItr .array .length < if{
+      mItr .array mItr .index 1 + A ArrayIterator new  A Iterator cast ## update iterator
+      mItr .array mItr .index [] wrap ## push element
+      return
+    else
+      mItr A Iterator cast  A empty return
+    }
   }
 }
-## pseudo-field
-ArrayIterator.<^ private proc( A <> A ArrayIterator => A ArrayIterator A optional ){
-  A ArrayIterator mItr =:
-  mItr .index 0 > if{
-    mItr .array mItr .index 1 - A ArrayIterator new ## update iterator
-    mItr .array mItr .index 1 - [] wrap ## push element
-    return
-  else
-    mItr  A empty return
+implement{ A <> A ReverseIterator A ArrayIterator for
+  <^ proc( A ArrayIterator => A ReverseIterator A optional ){
+    A ArrayIterator mItr =:
+    mItr .index 0 > if{
+      mItr .array mItr .index 1 - A ArrayIterator new A ReverseIterator cast ## update iterator
+      mItr .array mItr .index 1 - [] wrap ## push element
+      return
+    else
+      mItr A ReverseIterator cast  A empty return
+    }
   }
 }
 
 
-FilteredIterator struct{ A <> A Iterator extend
-  A @FilteredIterator.^> :^> pseudo
-
+FilteredIterator struct{ A <>
   A Iterator          :base
   ( A => bool ) array :filters
 }
 
-filter public proc( A <?> A Iterator ( A => bool ) => A FilteredIterator ){
+filter public proc( A <?> A Iterator ( A => bool ) => A Iterator ){
   f =::
   dup .type A FilteredIterator <= if{ ##filter filtered iterator
       #+itr+# A FilteredIterator cast f filter return
   }
-  #+range+# { f } A FilteredIterator new return
+  #+range+# { f } A FilteredIterator new  A Iterator cast return
 }
-filter public proc( A <?> A FilteredIterator ( A => bool ) => A FilteredIterator ){
+filter public proc( A <?> A FilteredIterator ( A => bool ) => A Iterator ){
   f =::
   range =::
   range .filters .length 1 + ( A => bool ) memory mut new newFilters =::
   range .filters 0 newFilters 0 range .filters .length copy
   newFilters f []^=
-  range .base newFilters clone-mut~ A FilteredIterator new return
+  range .base newFilters clone-mut~ A FilteredIterator new  A Iterator cast return
 }
 
-## pseudo-field
-FilteredIterator.^> private proc( A <> A FilteredIterator => A FilteredIterator A optional ){
-  prev =::
-  false match =::
-  prev .base for{ val =::
-    true match =
-    0 while{ dup prev .filters .length < do
-       val prev .filters 3 $dup [] () ! if{
-          false match =
-       }
-       1 +
-    } drop
-    match if{
-      #+newBase+# prev .filters A FilteredIterator new val wrap return
+implement{ A <> A Iterator A FilteredIterator for
+  ^> proc( A FilteredIterator => A Iterator A optional ){
+    prev =::
+    false match =::
+    prev .base for{ val =::
+      true match =
+      0 while{ dup prev .filters .length < do
+         val prev .filters 3 $dup [] () ! if{
+            false match =
+         }
+         1 +
+      } drop
+      match if{
+        #+newBase+# prev .filters A FilteredIterator new A Iterator cast  val wrap return
+      }
     }
+    #+newBase+# prev .filters A FilteredIterator new A Iterator cast  A empty return
   }
-  #+newBase+# prev .filters A FilteredIterator new A empty return
 }
 
-MappedIterator struct{ A <> B <> B Iterator extend
-  A B @MappedIterator.^> :^> pseudo
-
+MappedIterator struct{ A <> B <>
   A Iterator :base
   ( A => B ) :map
 }
-map public proc( A <?> B <?> A Iterator ( A => B ) => A B MappedIterator ){
-  #+base+# #+map+# A B MappedIterator new return
+map public proc( A <?> B <?> A Iterator ( A => B ) => B Iterator ){
+  #+base+# #+map+# A B MappedIterator new  B Iterator cast return
 }
-## pseudo-field
-MappedIterator.^> private proc( A <> B <> A B MappedIterator => A B MappedIterator B optional ){
-  itr =::
-  itr .base .^> if{ val =::
-    #+newBase+# itr .map A B MappedIterator new val itr .map () wrap return
+
+implement{ A <> B <> B Iterator A B MappedIterator for
+  ^> proc( A B MappedIterator => B Iterator B optional ){
+    itr =::
+    itr .base .^> if{ val =::
+      #+newBase+# itr .map A B MappedIterator new B Iterator cast  val itr .map () wrap return
+    }
+    #+newBase+# itr .map A B MappedIterator new B Iterator cast  B empty return
   }
-  #+newBase+# itr .map A B MappedIterator new B empty return
 }
 
-ConcatenatedIterator struct{ A <> A Iterator extend
-  A @ConcatenatedIterator.^> :^> pseudo
-
+ConcatenatedIterator struct{ A <>
   A Iterator array :iterators
 }
 concat public proc( A <?> A Iterator A Iterator => A Iterator ){
@@ -131,51 +124,52 @@ concat public proc( A <?> A Iterator A Iterator => A Iterator ){
       iterators1 .length iterators2 .length + A Iterator memory mut new tmp =::
       iterators1 0 tmp 0                  iterators1 .length copy
       iterators2 0 tmp iterators1 .length iterators2 .length copy
-      tmp clone-mut~ A ConcatenatedIterator new return
+      tmp clone-mut~ A ConcatenatedIterator new A Iterator cast return
     else
       itr1 A ConcatenatedIterator cast .iterators iterators1 =::
       iterators1 .length 1 + A Iterator memory mut new tmp =::
       iterators1 0 tmp 0 iterators1 .length copy
       tmp itr2 []^=
-      tmp clone-mut~ A ConcatenatedIterator new return
+      tmp clone-mut~ A ConcatenatedIterator new  A Iterator cast return
     }
   else itr2 .type A ConcatenatedIterator == if
     itr2 A ConcatenatedIterator cast .iterators iterators2 =::
     iterators2 .length 1 + A Iterator memory mut new tmp =::
     tmp itr1 []^=
     iterators2 0 tmp 1 iterators2 .length copy
-    tmp clone-mut~ A ConcatenatedIterator new return
+    tmp clone-mut~ A ConcatenatedIterator new  A Iterator cast return
   else
-    { itr1 itr2 } A ConcatenatedIterator new return
+    { itr1 itr2 } A ConcatenatedIterator new  A Iterator cast return
   }
 }
-##pseudo-field
-ConcatenatedIterator.^> private proc( A <> A ConcatenatedIterator => A Iterator A optional ){
-  itr =::
-  itr .iterators .length 0 == if{
-    itr A empty return ## no iterator in chain
-  else itr .iterators .length 1 == if
-    itr .iterators 0 [] .^> return ## only one iterator in chain
-  }
-  itr .iterators 0 [] .^> res =::
-  res .hasValue if{
-    itr .iterators clone iterators =::
-    #+newItr+# iterators 0 []=
-    iterators clone-mut~ A ConcatenatedIterator new  res return
-  }
-  drop ## drop empty iterator
-  1 i =::
-  while{ i itr .iterators .length 1 - < do
-    itr .iterators i [] .^> res =
+implement{ A <> A Iterator A ConcatenatedIterator for
+  ^> proc( A ConcatenatedIterator => A Iterator A optional ){
+    itr =::
+    itr .iterators .length 0 == if{
+      itr A Iterator cast  A empty return ## no iterator in chain
+    else itr .iterators .length 1 == if
+      itr .iterators 0 [] .^> return ## only one iterator in chain
+    }
+    itr .iterators 0 [] .^> res =::
     res .hasValue if{
-      itr .iterators .length i - A Iterator memory mut new iterators =::
-      itr .iterators i iterators 0 itr .iterators .length i - copy
+      itr .iterators clone iterators =::
       #+newItr+# iterators 0 []=
-      iterators clone-mut~ A ConcatenatedIterator new  res return
+      iterators clone-mut~ A ConcatenatedIterator new A Iterator cast  res return
     }
     drop ## drop empty iterator
+    1 i =::
+    while{ i itr .iterators .length 1 - < do
+      itr .iterators i [] .^> res =
+      res .hasValue if{
+        itr .iterators .length i - A Iterator memory mut new iterators =::
+        itr .iterators i iterators 0 itr .iterators .length i - copy
+        #+newItr+# iterators 0 []=
+        iterators clone-mut~ A ConcatenatedIterator new A Iterator cast  res return
+      }
+      drop ## drop empty iterator
+    }
+    itr .iterators itr .iterators .length 1 - [] .^> return
   }
-  itr .iterators itr .iterators .length 1 - [] .^> return
 }
 
 #end ## core

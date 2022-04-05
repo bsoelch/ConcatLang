@@ -6,12 +6,15 @@ codeblocks #include
 list #include
 core #import
 
+##addLater remove Iterator casts once traits can extended other traits
+##         allow to access implementation type at runtime
+
 reverse proc( string => string ){
   string toReverse =:
   ## store type and length of the list
   toReverse .length buildString res =::
   ## Iterate though the elements in reverse order
-  toReverse _^ while{ .<^ do
+  toReverse _^  byte ReverseIterator cast while{ .<^ do
     byte cast res swap << res =
   } drop
   res .build return
@@ -22,7 +25,7 @@ reverse proc( string => string ){
 sum proc( A <?> A array => A ){
   0 A tmp mut =: ## Initialize sum to 0
   ## Iterate though all elements of the list
-  ^_ for{
+  ^_ A Iterator cast for{
     tmp swap + tmp =
   } drop
   tmp ## load the total sum onto the stack
@@ -31,7 +34,7 @@ sum proc( A <?> A array => A ){
 { 1 2 3 4 5 6 7 8 9 } sum debugPrint
 { 1.5 2.5 3.5 4.5   } sum debugPrint
 
-"Hello" ^_ for{
+"Hello" ^_ byte Iterator cast for{
   debugPrint
 } drop ## iterator
 

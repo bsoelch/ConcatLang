@@ -2256,7 +2256,7 @@ public class Parser {
                     pState.openBlocks.add(structBlock);
                     pState.openedContexts.add(structBlock.context());
                 }
-                case "extend" -> {
+                case "extend" -> { // addLater allow extending traits
                     CodeBlock block=pState.openBlocks.peek();
                     if(!(block instanceof StructBlock)){
                         throw new SyntaxError("'"+str+"' can only be used in struct blocks",pos);

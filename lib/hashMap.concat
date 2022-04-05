@@ -165,31 +165,31 @@ HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap mut #+key+# K => #+p
   }
 }
 
-HashMapItr public struct{ K <> V <>  K V MapEntry Iterator extend
-  K V @HashMapItr.^> :^> pseudo
-
+HashMapItr struct{ K <> V <>
   K V HashMap mut?              :map   private
   int                           :index private
   K V HashMapEntry mut optional :next  private
 }
 
-^_ public proc( K <?> V <?> K V HashMap mut? => K V HashMapItr ){
-  #+map+# -1 K V HashMapEntry mut empty K V HashMapItr new return
+^_ public proc( K <?> V <?> K V HashMap mut? => K V MapEntry Iterator ){
+  #+map+# -1 K V HashMapEntry mut empty K V HashMapItr new  K V MapEntry Iterator cast return
 }
-HashMapItr.^> public proc( K <> V <> K V HashMapItr => K V HashMapItr K V MapEntry optional ){
-  K V HashMapItr itr =:
-  itr .index index =::
-  itr .next  next =::
-  while{ next ! do
-    index 1 + index =
-    index itr .map .data .length >= if{
-      itr .map index next K V HashMapItr new  K V MapEntry empty return
+implement{ K <> V <> K V MapEntry Iterator  K V HashMapItr for
+  ^> proc( K V HashMapItr => K V MapEntry Iterator  K V MapEntry optional ){
+    K V HashMapItr itr =:
+    itr .index index =::
+    itr .next  next =::
+    while{ next ! do
+      index 1 + index =
+      index itr .map .data .length >= if{
+        itr .map index next K V HashMapItr new K V MapEntry Iterator cast  K V MapEntry empty return
+      }
+      itr .map .data index []  next =
     }
-    itr .map .data index []  next =
+    next .value K V HashMapEntry mut res =:
+    res .next next =
+    itr .map index next K V HashMapItr new K V MapEntry Iterator cast  res .key res .value K V MapEntry new wrap return
   }
-  next .value K V HashMapEntry mut res =:
-  res .next next =
-  itr .map index next K V HashMapItr new  res .key res .value K V MapEntry new wrap return
 }
 
 ## addLater? HashMap.listEntries

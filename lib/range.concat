@@ -5,48 +5,44 @@ stack #include
 codeblocks #include
 iterator #include
 
-intRange public struct{ int Iterator extend
-  @intRange.^> :^> pseudo
-
+intRange struct{
   int :off  restricted
   int :step restricted
   int :to   restricted
 }
-[n] public proc( int => intRange ){
+[n] public proc( int => int Iterator ){
   n =::
   n 0 > if{
-    0 1 n intRange new return
+    0 1 n intRange new  int Iterator cast return
   else
-    n 1 0 intRange new return
+    n 1 0 intRange new  int Iterator cast return
   }
 }
-[n:m] public proc( int int => intRange ){
+[n:m] public proc( int int => int Iterator ){
   m =::
   n =::
-  n 1 m intRange new return
+  n 1 m intRange new  int Iterator cast return
 }
-[n:k:m] public proc( int int int => intRange ){
-  m =::
-  k =::
-  n =::
-  n k m intRange new return
+[n:k:m] public proc( int int int => int Iterator ){
+  #+n k m+# intRange new  int Iterator cast return
 }
 
 ## pseudo-field
-intRange.^> private proc( intRange => intRange int optional ){
-  prev =::
-  prev .step 0 < if{
-    prev .off prev .to > if{
-      prev .off prev .step + next =::
-      next prev .step prev .to [n:k:m]   prev .off wrap return
+implement{ int Iterator intRange for
+  ^> proc( intRange => int Iterator  int optional ){
+    prev =::
+    prev .step 0 < if{
+      prev .off prev .to > if{
+        prev .off prev .step + next =::
+        next prev .step prev .to [n:k:m]   prev .off wrap return
+      }
+    else
+      prev .off prev .to < if{
+        prev .off prev .step + next =::
+        next prev .step prev .to [n:k:m]   prev .off wrap return
+      }
     }
-  else
-    prev .off prev .to < if{
-      prev .off prev .step + next =::
-      next prev .step prev .to [n:k:m]   prev .off wrap return
-    }
+    prev int Iterator cast  int empty return
   }
-  prev int empty return
 }
-
 #end
