@@ -82,10 +82,6 @@ public class Parser {
         static final int MUTABILITY_DEFAULT=0;
         static final int MUTABILITY_MUTABLE=8;
         static final int MUTABILITY_IMMUTABLE=16;
-        static final int MASK_FIELD_MODIFIER =96;
-        static final int FIELD_MODIFIER_NONE=0;
-        static final int FIELD_MODIFIER_PSEUDO=32;
-        static final int FIELD_MODIFIER_TYPE=64;
 
         final IdentifierType type;
         final int flags;
@@ -101,9 +97,6 @@ public class Parser {
             if(flags!=0&&(type!=IdentifierType.WORD&&type!=IdentifierType.DECLARE &&type!=IdentifierType.IMPLICIT_DECLARE&&
                     type!=IdentifierType.DECLARE_FIELD)){
                 throw new SyntaxError("modifiers can only be used in declarations",pos);
-            }
-            if((flags& MASK_FIELD_MODIFIER)!=FIELD_MODIFIER_NONE&&(type!=IdentifierType.DECLARE_FIELD)){
-                throw new SyntaxError("field modifiers can only be used for field declarations",pos);
             }
             this.flags = flags;
             this.name = name;
@@ -1624,14 +1617,8 @@ public class Parser {
     }
 
     record StructFieldWithType(Type.StructField field, Type type){}
-    record PseudoFieldDeclaration(String name,Callable called,FilePosition declaredAt){}
-    record TypeFieldDeclaration(String name,Value value,FilePosition declaredAt){}
     static class StructContext extends GenericContext{
         final ArrayList<StructFieldWithType> fields = new ArrayList<>();
-        final ArrayList<PseudoFieldDeclaration> pseudoFields = new ArrayList<>();
-        final ArrayList<TypeFieldDeclaration> typeFields = new ArrayList<>();
-
-        final ArrayDeque<Value.Procedure> uncheckedProcedures = new ArrayDeque<>();
 
         StructContext(VariableContext parent) {
             super(parent, false);
@@ -1644,9 +1631,7 @@ public class Parser {
         @Override
         StructContext replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             StructContext copy=(StructContext) super.replaceGenerics(genericParams);
-            copy.fields.addAll(fields);
-            copy.pseudoFields.addAll(pseudoFields);
-            copy.typeFields.addAll(typeFields);
+            copy.fields.addAll(fields);//addLater replace generics in fields
             return copy;
         }
     }
@@ -1929,7 +1914,7 @@ public class Parser {
         finishParsing(pState, reader.currentPos());
         Declareable main=pState.topLevelContext().getDeclareable("main");
         if(main instanceof Value.Procedure){
-            typeCheckProcedure((Value.Procedure) main,pState.globalConstants,pState.ioContext,pState.getContext());
+            typeCheckProcedure((Value.Procedure) main,pState.globalConstants,pState.ioContext);
             if(!((Value.Procedure) main).isPublic){
                 pState.ioContext.stdErr.println("Warning: procedure main at "+((Value.Procedure) main).declaredAt+" is private");
             }
@@ -2575,7 +2560,7 @@ public class Parser {
                             if(iContext.generics.size()==0){
                                 iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
                                 for(Value.Procedure c:iContext.implementations){
-                                    typeCheckProcedure(c,pState.globalConstants,pState.ioContext,pState.getContext());
+                                    typeCheckProcedure(c,pState.globalConstants,pState.ioContext);
                                 }
                             }else {
                                 iBlock.target.implementGenericTrait(iBlock.trait,
@@ -2811,36 +2796,6 @@ public class Parser {
                         tokens.add(new Token(TokenType.MARK_IMMUTABLE, pos));
                     }
                 }
-                case "pseudo" -> {//addLater better name
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD){
-                        if((((IdentifierToken) prev).flags&IdentifierToken.MASK_FIELD_MODIFIER)!=IdentifierToken.FIELD_MODIFIER_NONE){
-                            throw new SyntaxError("multiple field modifiers for identifier "+
-                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
-                        }
-                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
-                                ((IdentifierToken) prev).flags|IdentifierToken.FIELD_MODIFIER_PSEUDO, prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
-                    }
-                    tokens.set(tokens.size()-1,prev);
-                }
-                case "typefield" -> {
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD){
-                        if((((IdentifierToken) prev).flags&IdentifierToken.MASK_FIELD_MODIFIER)!=IdentifierToken.FIELD_MODIFIER_NONE){
-                            throw new SyntaxError("multiple field modifiers for identifier "+
-                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
-                        }
-                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
-                                ((IdentifierToken) prev).flags|IdentifierToken.FIELD_MODIFIER_TYPE, prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
-                    }
-                    tokens.set(tokens.size()-1,prev);
-                }
                 case "<>", "<?>" ->{
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
@@ -2941,23 +2896,16 @@ public class Parser {
         pState.uncheckedCode.clear();
     }
 
-    /**@param callerContext context that contains the first use of this procedure (may be null),
-     *                       if the context is a StructContext the procedure will be type-checked after the struct is finished*/
+    /** */
     static void typeCheckProcedure(Value.Procedure p, HashMap<Parser.VariableId, Value> globalConstants,
-                                    IOContext ioContext,VariableContext callerContext) throws SyntaxError {
+                                   IOContext ioContext) throws SyntaxError {
         if(p.typeCheckState == Value.TypeCheckState.UNCHECKED){
-            if(callerContext instanceof StructContext){
-                p.typeCheckState = Value.TypeCheckState.WAITING;
-                ((StructContext) callerContext).uncheckedProcedures.add(p);
-                return;
-            }
             p.typeCheckState = Value.TypeCheckState.CHECKING;
-            TypeCheckResult res;
             RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(8);
             for(Type t:((Type.Procedure) p.type).inTypes){
                 typeStack.push(new TypeFrame(t,null, p.declaredAt));
             }
-            res=typeCheck(p.tokens, p.context, globalConstants,typeStack,((Type.Procedure) p.type).outTypes,
+            TypeCheckResult res=typeCheck(p.tokens, p.context, globalConstants,typeStack,((Type.Procedure) p.type).outTypes,
                     p.endPos, ioContext);
             p.tokens=res.tokens;
             p.typeCheckState = Value.TypeCheckState.CHECKED;
@@ -2999,24 +2947,6 @@ public class Parser {
                 types[i]= structContext.fields.get(i).type;
             }
             aStruct.setFields(fieldNames,types);
-            aStruct.ensureFieldsInitialized();//ensure that all type fields are initialized
-            for(PseudoFieldDeclaration e:structContext.pseudoFields){
-                if(!aStruct.declaredTypeFields.contains(e.name)){
-                    aStruct.declarePseudoField(e.name,e.called,e.declaredAt);
-                }
-            }
-            for(TypeFieldDeclaration e:structContext.typeFields){
-                if(!aStruct.declaredTypeFields.contains(e.name)){
-                    aStruct.declareTypeField(e.name,e.value,e.declaredAt);
-                }
-            }
-            Value.Procedure p;
-            while((p=structContext.uncheckedProcedures.pollLast())!=null){
-                if(p.typeCheckState == Value.TypeCheckState.WAITING){
-                    p.typeCheckState = Value.TypeCheckState.UNCHECKED;
-                    typeCheckProcedure(p,tState.globalConstants,tState.ioContext,null);
-                }
-            }
         }
     }
 
@@ -4286,28 +4216,9 @@ public class Parser {
                 if(!(context instanceof StructContext||context instanceof TraitContext)){
                     throw new SyntaxError("field declarations are only allowed in struct, trait and implement blocks",t.pos);
                 }
-                boolean isPseudo=(identifier.flags&IdentifierToken.MASK_FIELD_MODIFIER)==IdentifierToken.FIELD_MODIFIER_PSEUDO;
                 if (ret.size() <= 0 || !((prev = ret.remove(ret.size() - 1)) instanceof ValueToken)) {
-                    //TODO better message for implicit procedure pointers
-                    throw new SyntaxError("the token before a "+(isPseudo?" pseudo":"")+
-                            "field declaration has to be a constant "+(isPseudo?"procedure pointer":"type"),
+                    throw new SyntaxError("the token before a field declaration has to be a constant type",
                             identifier.pos);
-                }
-                if(isPseudo){
-                    if(!(context instanceof StructContext)){
-                        throw new SyntaxError("pseudo field declarations are only allowed in structs",t.pos);
-                    }
-                    Value proc=((ValueToken) prev).value;
-                    if(!(proc.type instanceof Type.Procedure)){
-                        throw new SyntaxError("the token before a pseudo field declaration has to be a procedure pointer",
-                                identifier.pos);
-                    }
-                    if(!typeStack.pop().type.equals(proc.type)){
-                        throw new RuntimeException("type stack out of sync with token list");
-                    }
-                    //pseudo field/field implementation takes one procedure pointer as argument
-                    ((StructContext)context).pseudoFields.add(new PseudoFieldDeclaration(identifier.name,(Callable)proc,t.pos));
-                    break;
                 }
                 Type type;
                 try {
@@ -4321,28 +4232,6 @@ public class Parser {
                 Accessibility accessibility = identifier.accessibility();
                 if(accessibility==Accessibility.DEFAULT){
                     accessibility = Accessibility.PUBLIC;//struct fields are public by default
-                }
-                boolean isTypeField=(identifier.flags&IdentifierToken.MASK_FIELD_MODIFIER)==IdentifierToken.FIELD_MODIFIER_TYPE;
-                if(isTypeField){//type fields require value
-                    if(!(context instanceof StructContext)){
-                        throw new SyntaxError("type field declarations are only allowed in structs",t.pos);
-                    }
-                    if(type.isMutable()){
-                        throw new SyntaxError("type fields cannot be mutable",identifier.pos);
-                    }
-                    if (ret.size() <= 0 || !((prev = ret.remove(ret.size() - 1)) instanceof ValueToken)) {
-                        throw new SyntaxError("Token before type-field declaration has to be a constant value",
-                                identifier.pos);
-                    }
-                    Value value=((ValueToken) prev).value;
-                    if(!typeStack.pop().type.equals(value.type)){
-                        throw new RuntimeException("type stack out of sync with token list");
-                    }
-                    if(!value.type.canAssignTo(type)){
-                        throw new RuntimeException("cannot assign "+value.type+" to "+type);
-                    }
-                    ((StructContext)context).typeFields.add(new TypeFieldDeclaration(identifier.name,value,t.pos));
-                    break;
                 }
                 if(context instanceof TraitContext){
                     if(!(type instanceof Type.Procedure)){//addLater ensure that trait fields don't have free generics
@@ -4424,7 +4313,7 @@ public class Parser {
     private static void pushSimpleProcPointer(Value.Procedure procedure, FilePosition pos,TypeCheckState tState) throws SyntaxError {
         procedure.markAsUsed();
         //type check procedure before it is pushed onto the stack
-        typeCheckProcedure(procedure, tState.globalConstants, tState.ioContext,tState.context);
+        typeCheckProcedure(procedure, tState.globalConstants, tState.ioContext);
         ValueToken token = new ValueToken(procedure, pos);
         tState.typeStack.push(new TypeFrame(token.value.type, token.value, pos));
         tState.ret.add(token);
@@ -4484,7 +4373,7 @@ public class Parser {
                         c=((GenericProcedure) c).withPrams(update);
                     }
                     if(c instanceof Value.Procedure){//ensure procedures are type-checked
-                        typeCheckProcedure((Value.Procedure) c, tState.globalConstants, tState.ioContext, tState.context);
+                        typeCheckProcedure((Value.Procedure) c, tState.globalConstants, tState.ioContext);
                     }
                     matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,0,new HashMap<>()));
                 }
@@ -4713,7 +4602,7 @@ public class Parser {
                 }
                 if(matchesParam){
                     if(c instanceof Value.Procedure){
-                        typeCheckProcedure((Value.Procedure) c,tState.globalConstants,tState.ioContext,tState.context);
+                        typeCheckProcedure((Value.Procedure) c,tState.globalConstants,tState.ioContext);
                     }
                     matches.add(new CallMatch(c,procType,implicitGenerics,0,implicitGenerics.size(),
                             new HashMap<>()));
@@ -4755,11 +4644,11 @@ public class Parser {
         for(int i = 0; i< matchingCalls.size(); i++){
             CallMatch c= matchingCalls.get(i);
             if(c.called instanceof Value.Procedure){
-                typeCheckProcedure((Value.Procedure)c.called, tState.globalConstants, tState.ioContext, tState.context);
+                typeCheckProcedure((Value.Procedure)c.called, tState.globalConstants, tState.ioContext);
             }else if(c.called instanceof GenericProcedure){//resolve generic procedure
                 Value.Procedure withPrams = ((GenericProcedure) c.called).withPrams(c.genericParams);
                 try {
-                    typeCheckProcedure(withPrams, tState.globalConstants, tState.ioContext, tState.context);
+                    typeCheckProcedure(withPrams, tState.globalConstants, tState.ioContext);
                 }catch (SyntaxError err){
                     throw new SyntaxError(err, pos);
                 }

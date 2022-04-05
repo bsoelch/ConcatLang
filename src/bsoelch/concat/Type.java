@@ -444,34 +444,6 @@ public class Type {
             }
         }
     }
-    /**@return true iff newValue cannot overwrite the type-field at index*/
-    boolean overwriteTypeField(int index,Value newValue){
-        Value prev=typeFields.get(index);
-        if(!newValue.type.canAssignTo(prev.type)){
-            return true;
-        }
-        typeFields.set(index,newValue);
-        return false;
-    }
-    /**@return true iff newValue cannot overwrite the pseudo-field at index*/
-    boolean overwritePseudoField(int index, Parser.Callable newValue){
-        Procedure prevType=(Procedure) typeFields.get(index).type;
-        Procedure newType = newValue.type();
-        //check for correct type
-        if(prevType.inTypes.length!= newType.inTypes.length||
-                prevType.outTypes.length!= newType.outTypes.length)
-            return true;
-        for(int i=0;i<newType.inTypes.length-1;i++){//ignore last parameter (last parameter always has to be the container type)
-            if(!prevType.inTypes[i].canAssignTo(newType.inTypes[i]))
-                return true;
-        }
-        for(int i=0;i<newType.outTypes.length;i++){
-            if(!newType.outTypes[i].canAssignTo(prevType.outTypes[i]))
-                return true;
-        }
-        typeFields.set(index,(Value)newValue);
-        return false;
-    }
 
     void implementTrait(Trait trait, Parser.Callable[] implementation,FilePosition implementedAt) throws SyntaxError {
         ensureFieldsInitialized();
@@ -671,7 +643,7 @@ public class Type {
                     implementTrait(t.trait.replaceGenerics(generics), updated, t.implementedAt);
                     if (!(contentType instanceof GenericParameter)) {
                         for (Parser.Callable callable : updated) {
-                            Parser.typeCheckProcedure((Value.Procedure) callable, t.globalConstants, t.ioContext, null);
+                            Parser.typeCheckProcedure((Value.Procedure) callable, t.globalConstants, t.ioContext);
                         }
                     }
                 }
@@ -747,7 +719,7 @@ public class Type {
                 t.implementTrait(trait.replaceGenerics(generics),updated,implementedAt);
                 if(!(t.contentType instanceof GenericParameter)){
                     for (Parser.Callable callable : updated) {
-                        Parser.typeCheckProcedure((Value.Procedure) callable, globalConstants, ioContext, null);
+                        Parser.typeCheckProcedure((Value.Procedure) callable, globalConstants, ioContext);
                     }
                 }
             }
@@ -1157,7 +1129,7 @@ public class Type {
                 if(nonGeneric){
                     for (Parser.Callable callable : updated) {
                         Parser.typeCheckProcedure((Value.Procedure) callable, trait.globalConstants(),
-                                trait.ioContext(), null);
+                                trait.ioContext());
                     }
                 }
             }
@@ -1222,38 +1194,6 @@ public class Type {
             indexByName=src.indexByName;
         }
 
-        void declareTypeField(String name, Value fieldValue, FilePosition pos) throws SyntaxError {
-            ensureFieldsInitialized();
-            if(declaredTypeFields.contains(name)){
-                throw new SyntaxError(baseName+" already has a field "+name,pos);
-            }
-            declaredTypeFields.add(name);
-            int prevPos=typeFieldId(name);
-            if(prevPos==-1){
-                addField(name, fieldValue, pos);
-                return;
-            }
-            if(overwriteTypeField(prevPos,fieldValue)){
-                throw new SyntaxError("cannot overwrite type field "+name+": cannot assign "+
-                        fieldValue.type+" to "+typeFields().get(prevPos).type,pos);
-            }
-        }
-        void declarePseudoField(String name, Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
-            ensureFieldsInitialized();
-            if(declaredTypeFields.contains(name)){
-                throw new SyntaxError(baseName+" already has a field "+name,declaredAt);
-            }
-            declaredTypeFields.add(name);
-            int prevPos=pseudoFieldId(name);
-            if(prevPos==-1) {
-                addPseudoField(name, fieldValue, declaredAt);
-                return;
-            }
-            if(overwritePseudoField(prevPos,fieldValue)){
-                throw new SyntaxError("cannot overwrite pseudo field "+name+": "+typeFields().get(prevPos).type
-                        +" with "+fieldValue.type(),declaredAt);
-            }
-        }
         //TODO allow overwriting inherited traits in structs
         @Override
         void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
@@ -1284,7 +1224,7 @@ public class Type {
                 s.implementTrait(trait.replaceGenerics(update), updated, implementedAt);
                 if(nonGeneric){
                     for (Parser.Callable callable : updated) {
-                        Parser.typeCheckProcedure((Value.Procedure) callable, globalConstants,ioContext, null);
+                        Parser.typeCheckProcedure((Value.Procedure) callable, globalConstants,ioContext);
                     }
                 }
             }
