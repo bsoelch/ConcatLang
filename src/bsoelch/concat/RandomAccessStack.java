@@ -97,6 +97,16 @@ public class RandomAccessStack<T> implements Cloneable,Iterable<T>{
         //noinspection unchecked
         return (T) data[size-i];
     }
+    public void rotate(int count,int steps){
+        if(count<1||count>size){
+            throw new IndexOutOfBoundsException("count has to be between 1 and "+size+" got:"+count);
+        }
+        steps=(steps%count+count)%count;
+        Object[] buff=new Object[steps];
+        System.arraycopy(data,size-count,buff,0,steps);
+        System.arraycopy(data,size-(count-steps),data,size-count,count-steps);
+        System.arraycopy(buff,0,data,size-steps,steps);
+    }
     public void set(int i,T val){
         if(i<1||i>size){
             throw new IndexOutOfBoundsException("stack-index has to be between 1 and "+size+" got:"+i);

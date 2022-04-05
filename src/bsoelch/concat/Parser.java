@@ -14,7 +14,7 @@ public class Parser {
 
     enum TokenType {
         VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,CAST,NEW, NEW_ARRAY,
-        STACK_DROP,STACK_DUP,STACK_SET,
+        STACK_DROP,STACK_DUP,STACK_ROT, STACK_SET,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
         CONTEXT_OPEN,CONTEXT_CLOSE,
@@ -2642,17 +2642,22 @@ public class Parser {
                 //stack modifiers
                 //<count> $drop
                 case "$drop" ->{
-                    int[] args = getArgInts(str, 1, tokens, pos);
+                    int[] args = getArgInts(str, new boolean[]{false}, tokens, pos);
                     tokens.add(new StackModifierToken(TokenType.STACK_DROP,args,pos));
                 }
                 //<src> $dup
                 case "$dup" ->{
-                    int[] args = getArgInts(str, 1, tokens, pos);
+                    int[] args = getArgInts(str, new boolean[]{false}, tokens, pos);
                     tokens.add(new StackModifierToken(TokenType.STACK_DUP,args,pos));
+                }
+                //<count> <steps> rot
+                case "$rot" ->{
+                    int[] args = getArgInts(str, new boolean[]{true,false}, tokens, pos);
+                    tokens.add(new StackModifierToken(TokenType.STACK_ROT,args,pos));
                 }
                 //<target> <src> $set
                 case "$set" ->{
-                    int[] args = getArgInts(str, 2, tokens, pos);
+                    int[] args = getArgInts(str, new boolean[]{false,false}, tokens, pos);
                     tokens.add(new StackModifierToken(TokenType.STACK_SET,args,pos));
                 }
 
@@ -2855,21 +2860,20 @@ public class Parser {
         }
     }
 
-    private static int[] getArgInts(String op, int nArgs, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
-        if(tokens.size()<nArgs){
+    private static int[] getArgInts(String op, boolean[] allowSigned, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
+        if(tokens.size()<allowSigned.length){
             throw new SyntaxError("not enough arguments for "+op,pos);
         }
-        int[] args=new int[nArgs];
-        for(int i = 0; i< nArgs; i++){
+        int[] args=new int[allowSigned.length];
+        for(int i = 0; i< allowSigned.length; i++){
             Token arg= tokens.remove(tokens.size()-1);
             if(arg instanceof ValueToken){
                 try {
                     long c=((ValueToken) arg).value.asLong();
-                    if(c<=0){
-                        throw new SyntaxError(op +": count has to be greater than 0",arg.pos);
-                    }else if(c>Integer.MAX_VALUE){
-                        throw new SyntaxError(op +": count has to be less than of equal to "+Integer.MAX_VALUE,
-                                arg.pos);
+                    int minValue = allowSigned[i]?Integer.MIN_VALUE:0;
+                    if(c< minValue ||c>Integer.MAX_VALUE){
+                        throw new SyntaxError( "argument "+c+" for "+op+" out of range, " +
+                                "allowed values: "+ minValue +" to "+Integer.MAX_VALUE, arg.pos);
                     }
                     args[i]=(int)c;
                 } catch (TypeError e) {
@@ -3118,6 +3122,10 @@ public class Parser {
                 case STACK_DUP -> {
                     assert t instanceof StackModifierToken;
                     typeCheckDup((StackModifierToken)t, tState.typeStack, tState.ret);
+                }
+                case STACK_ROT -> {
+                    assert t instanceof StackModifierToken;
+                    typeCheckStackRot((StackModifierToken)t, tState.typeStack, tState.ret);
                 }
                 case STACK_SET -> {
                     assert t instanceof StackModifierToken;
@@ -3718,6 +3726,10 @@ public class Parser {
             typeStack.push(duped);
             ret.add(t);
         }
+    }
+    private static void typeCheckStackRot(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
+        typeStack.rotate(t.args[1],t.args[0]);
+        ret.add(t);
     }
     private static void typeCheckStackSet(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
         TypeFrame replaced= typeStack.get(t.args[0]);
