@@ -14,7 +14,7 @@ public class Parser {
 
     enum TokenType {
         VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,CAST,NEW, NEW_ARRAY,
-        STACK_DROP,STACK_DUP,STACK_ROT, STACK_SET,
+        STACK_DROP,STACK_DUP,STACK_ROT,
         IDENTIFIER,//addLater option to free values/variables
         VARIABLE,
         CONTEXT_OPEN,CONTEXT_CLOSE,
@@ -2655,11 +2655,6 @@ public class Parser {
                     int[] args = getArgInts(str, new boolean[]{true,false}, tokens, pos);
                     tokens.add(new StackModifierToken(TokenType.STACK_ROT,args,pos));
                 }
-                //<target> <src> $set
-                case "$set" ->{
-                    int[] args = getArgInts(str, new boolean[]{false,false}, tokens, pos);
-                    tokens.add(new StackModifierToken(TokenType.STACK_SET,args,pos));
-                }
 
                 case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
 
@@ -3126,10 +3121,6 @@ public class Parser {
                 case STACK_ROT -> {
                     assert t instanceof StackModifierToken;
                     typeCheckStackRot((StackModifierToken)t, tState.typeStack, tState.ret);
-                }
-                case STACK_SET -> {
-                    assert t instanceof StackModifierToken;
-                    typeCheckStackSet((StackModifierToken)t, tState.typeStack, tState.ret);
                 }
                 case CALL_PTR ->
                     typeCheckCallPtr(tState, t.pos);

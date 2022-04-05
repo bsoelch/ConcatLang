@@ -78,12 +78,6 @@ public class RandomAccessStack<T> implements Cloneable,Iterable<T>{
         data[size]=data[size-src];
         size++;
     }
-    public void set(int target,int src) throws StackUnderflow {
-        if(target>size||src>size){
-            throw new StackUnderflow();
-        }
-        data[size-target]=data[size-src];
-    }
 
     public List<T> asList() {
         //noinspection unchecked
