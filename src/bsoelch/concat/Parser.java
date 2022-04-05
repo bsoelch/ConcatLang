@@ -27,7 +27,7 @@ public class Parser {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
-        PSEUDO_FIELD_ACCESS,TYPE_FIELD_ACCESS,TRAIT_FIELD_ACCESS,
+        PSEUDO_FIELD_ACCESS,TRAIT_FIELD_ACCESS,
         //compile time operations
         ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
         MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifiers
@@ -3146,7 +3146,7 @@ public class Parser {
                     },tState.ret,tState.typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
                         CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX,
-                        PSEUDO_FIELD_ACCESS,TYPE_FIELD_ACCESS,TRAIT_FIELD_ACCESS ->
+                        PSEUDO_FIELD_ACCESS,TRAIT_FIELD_ACCESS ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -4151,12 +4151,6 @@ public class Parser {
                             }
                             break;//found field
                         }
-                    }
-                    Value typeField=f.type.getTypeField(identifier.name);
-                    if(typeField!=null){
-                        typeStack.push(new TypeFrame(typeField.type, typeField, t.pos));
-                        ret.add(new TypeFieldAccess(TokenType.TYPE_FIELD_ACCESS,identifier.pos,f.type.typeFieldId(identifier.name)));
-                        break;//found field
                     }
                     throw new SyntaxError("values of type "+
                             f.type+((f.type==Type.TYPE&&f.value!=null)?":"+f.value.asType():"")+

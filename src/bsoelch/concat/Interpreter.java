@@ -267,11 +267,6 @@ public class Interpreter {
                             return e;
                         }
                     }
-                    case TYPE_FIELD_ACCESS -> {
-                        assert next instanceof Parser.TypeFieldAccess;
-                        Value val = stack.pop();
-                        stack.push(val.type.getTypeField(((Parser.TypeFieldAccess) next).fieldId));
-                    }
                     case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
                         Parser.Callable called;
                         if(next.tokenType== Parser.TokenType.CALL_PROC){
