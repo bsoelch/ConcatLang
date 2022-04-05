@@ -1320,7 +1320,6 @@ public abstract class Value {
             this.declaredAt = declaredAt;
         }
 
-        //TODO replace generics
         @Override
         public String name() {
             return name;
@@ -1848,6 +1847,7 @@ public abstract class Value {
             this.isPublic = isPublic;
             this.nativeMethod = nativeMethod;
         }
+        //TODO replace generics
         @Override
         Value[] callWith(Value[] values) throws ConcatRuntimeError {
             Object[] nativeArgs=new Object[values.length];

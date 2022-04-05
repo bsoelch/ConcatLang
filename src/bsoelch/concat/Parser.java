@@ -2485,7 +2485,7 @@ public class Parser {
                                             if(ic.implementations[id]!=null){
                                                 throw new SyntaxError("field "+proc.name+" already has been implemented",pos);
                                             }
-                                            //TODO type-check signature
+                                            //TODO check signature
                                             ic.implementations[id]=proc;
                                             break;
                                         }
@@ -3722,16 +3722,6 @@ public class Parser {
         typeStack.rotate(t.args[1],t.args[0]);
         ret.add(t);
     }
-    private static void typeCheckStackSet(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
-        TypeFrame replaced= typeStack.get(t.args[0]);
-        if(replaced.type instanceof Type.OverloadedProcedurePointer opp&&
-                ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
-            ret.set(opp.tokenPos,new Token(TokenType.NOP,opp.pushedAt));
-        }
-        //addLater? update overloaded procedure pointers
-        typeStack.set(t.args[0],typeStack.get(t.args[1]));
-        ret.add(t);
-    }
     private static void typeCheckTypeModifier(String name, SyntaxError.ThrowingFunction<Type,Value> modifier, ArrayList<Token> ret,
                                        RandomAccessStack<TypeFrame> typeStack, FilePosition pos) throws SyntaxError,
             RandomAccessStack.StackUnderflow, TypeError {
@@ -4231,7 +4221,7 @@ public class Parser {
                     accessibility = Accessibility.PUBLIC;//struct fields are public by default
                 }
                 if(context instanceof TraitContext){
-                    if(!(type instanceof Type.Procedure)){//addLater ensure that trait fields don't have free generics
+                    if(!(type instanceof Type.Procedure)){
                         throw new SyntaxError("trait fields have to be procedure types", identifier.pos);
                     }
                     ((TraitContext)context).fields.add(new Type.TraitField(identifier.name,(Type.Procedure)type,t.pos));

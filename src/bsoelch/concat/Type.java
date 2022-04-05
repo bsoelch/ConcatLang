@@ -173,7 +173,7 @@ public class Type {
     private boolean typeFieldsInitialized=false;
     private int nativeFieldCount=-1;
 
-    //FIXME ensure that all genericTraits are saved before all non-genericTraits
+    //TODO ensure that implementations of genericTraits are saved before all non-genericTraits
     record GenericTraitImplementation(Trait trait, GenericParameter[] params, Parser.Callable[] values,
                                       FilePosition implementedAt,HashMap<Parser.VariableId, Value> globalConstants,
                                       IOContext ioContext){}
@@ -1645,7 +1645,11 @@ public class Type {
                 return true;
             return super.canCastTo(t, bounds);
         }
-        //TODO overwrite type methods
+
+        @Override
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            return t instanceof Trait&&((Trait) t).declaredAt.equals(declaredAt);
+        }
 
         @Override
         public Parser.DeclareableType declarableType() {
