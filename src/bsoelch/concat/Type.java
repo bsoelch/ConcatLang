@@ -174,7 +174,9 @@ public class Type {
     private int nativeFieldCount=-1;
 
     //FIXME ensure that all genericTraits are saved before all non-genericTraits
-    record GenericTraitImplementation(Trait trait, GenericParameter[] params, Parser.Callable[] values,FilePosition implementedAt){}
+    record GenericTraitImplementation(Trait trait, GenericParameter[] params, Parser.Callable[] values,
+                                      FilePosition implementedAt,HashMap<Parser.VariableId, Value> globalConstants,
+                                      IOContext ioContext){}
     record TraitImplementation(int offset, FilePosition implementedAt){}
     private final HashMap<Trait,TraitImplementation> implementedTraits;
 
@@ -499,7 +501,9 @@ public class Type {
         }
         implementedTraits.put(trait,impl);
     }
-    void implementGenericTrait(Trait trait,GenericParameter[] params,Parser.Callable[] implementation,FilePosition implementedAt) throws SyntaxError {
+    void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
+                               FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext)
+            throws SyntaxError {
         throw new UnsupportedOperationException("cannot implement generic traits for "+this);
     }
 
@@ -646,42 +650,26 @@ public class Type {
         }
         private void initGenericTraits(){
             IdentityHashMap<GenericParameter,Type> generics=new IdentityHashMap<>();
+            List<GenericTraitImplementation> traits;
             try {
                 switch (wrapperName) {
-                    case ARRAY -> {
-                        for (GenericTraitImplementation t : arrayTraits) {
-                            Parser.Callable[] updated = new Parser.Callable[t.values.length];
-                            generics.clear();
-                            generics.put(t.params[0], contentType);
-                            for (int i = 0; i < t.values.length; i++) {
-                                updated[i] = (Parser.Callable) ((Value) t.values[i]).replaceGenerics(generics);
-                            }
-                            implementTrait(t.trait, updated, t.implementedAt);
-                        }
-                    }
-                    case MEMORY -> {
-                        for (GenericTraitImplementation t : memoryTraits) {
-                            Parser.Callable[] updated = new Parser.Callable[t.values.length];
-                            generics.clear();
-                            generics.put(t.params[0], contentType);
-                            for (int i = 0; i < t.values.length; i++) {
-                                updated[i] = (Parser.Callable) ((Value) t.values[i]).replaceGenerics(generics);
-                            }
-                            implementTrait(t.trait, updated, t.implementedAt);
-                        }
-                    }
-                    case OPTIONAL -> {
-                        for (GenericTraitImplementation t : optionalTraits) {
-                            Parser.Callable[] updated = new Parser.Callable[t.values.length];
-                            generics.clear();
-                            generics.put(t.params[0], contentType);
-                            for (int i = 0; i < t.values.length; i++) {
-                                updated[i] = (Parser.Callable) ((Value) t.values[i]).replaceGenerics(generics);
-                            }
-                            implementTrait(t.trait, updated, t.implementedAt);
-                        }
-                    }
+                    case ARRAY ->
+                        traits=arrayTraits;
+                    case MEMORY ->
+                        traits=memoryTraits;
+                    case OPTIONAL ->
+                        traits=optionalTraits;
                     default -> throw new RuntimeException("unexpected wrapper name:" + wrapperName);
+                }
+                for (GenericTraitImplementation t : traits) {
+                    Parser.Callable[] updated = new Parser.Callable[t.values.length];
+                    generics.clear();
+                    generics.put(t.params[0], contentType);
+                    for (int i = 0; i < t.values.length; i++) {
+                        updated[i] = (Parser.Callable) ((Value) t.values[i]).replaceGenerics(generics);
+                        Parser.typeCheckProcedure((Value.Procedure)updated[i],t.globalConstants,t.ioContext,null);
+                    }
+                    implementTrait(t.trait, updated, t.implementedAt);
                 }
             }catch (SyntaxError e){
                 throw new RuntimeException(e);//TODO handle syntaxError
@@ -721,49 +709,39 @@ public class Type {
 
         @Override
         void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
-                                   FilePosition implementedAt) throws SyntaxError {
+                                   FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
+                                   IOContext ioContext) throws SyntaxError {
             if(params.length!=1){
                 throw new IllegalArgumentException("generic traits of "+wrapperName+" have to have exactly one generic parameter");
             }
             IdentityHashMap<GenericParameter,Type> generics=new IdentityHashMap<>();
+            Collection<WrapperType> types;
+            final GenericTraitImplementation impl = new GenericTraitImplementation(trait, params, implementation,
+                    implementedAt, globalConstants, ioContext);
             switch(wrapperName){
                 case ARRAY -> {
-                    arrayTraits.add(new GenericTraitImplementation(trait,params,implementation,implementedAt));
-                    for(WrapperType t:arrays.values()){
-                        Parser.Callable[] updated = new Parser.Callable[implementation.length];
-                        generics.clear();
-                        generics.put(params[0], t.contentType);
-                        for (int i = 0; i < implementation.length; i++) {
-                            updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(generics);
-                        }
-                        t.implementTrait(trait,updated,implementedAt);
-                    }
+                    arrayTraits.add(impl);
+                    types=arrays.values();
                 }
                 case MEMORY -> {
-                    memoryTraits.add(new GenericTraitImplementation(trait,params,implementation,implementedAt));
-                    for(WrapperType t:memories.values()){
-                        Parser.Callable[] updated = new Parser.Callable[implementation.length];
-                        generics.clear();
-                        generics.put(params[0], t.contentType);
-                        for (int i = 0; i < implementation.length; i++) {
-                            updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(generics);
-                        }
-                        t.implementTrait(trait,updated,implementedAt);
-                    }
+                    memoryTraits.add(impl);
+                    types=memories.values();
                 }
                 case OPTIONAL -> {
-                    optionalTraits.add(new GenericTraitImplementation(trait,params,implementation,implementedAt));
-                    for(WrapperType t:optionals.values()){
-                        Parser.Callable[] updated = new Parser.Callable[implementation.length];
-                        generics.clear();
-                        generics.put(params[0], t.contentType);
-                        for (int i = 0; i < implementation.length; i++) {
-                            updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(generics);
-                        }
-                        t.implementTrait(trait,updated,implementedAt);
-                    }
+                    optionalTraits.add(impl);
+                    types=optionals.values();
                 }
                 default -> throw new RuntimeException("unexpected wrapper name:"+wrapperName);
+            }
+            for(WrapperType t:types){
+                Parser.Callable[] updated = new Parser.Callable[implementation.length];
+                generics.clear();
+                generics.put(params[0], t.contentType);
+                for (int i = 0; i < implementation.length; i++) {
+                    updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(generics);
+                    Parser.typeCheckProcedure((Value.Procedure) updated[i],globalConstants,ioContext,null);
+                }
+                t.implementTrait(trait,updated,implementedAt);
             }
         }
         @Override
@@ -1249,11 +1227,12 @@ public class Type {
         //TODO allow overwriting inherited traits in structs
         @Override
         void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
-                                   FilePosition implementedAt) throws SyntaxError {
+                                   FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
+                                   IOContext ioContext) throws SyntaxError {
             if(genericVersion==null){
                 throw new SyntaxError("cannot implement generic trait on non-generic struct",implementedAt);
             }
-            genericVersion.addGenericTrait(trait,params,implementation,implementedAt);
+            genericVersion.addGenericTrait(trait,params,implementation,implementedAt,globalConstants,ioContext);
         }
 
         @Override

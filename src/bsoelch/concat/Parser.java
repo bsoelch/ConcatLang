@@ -2518,9 +2518,9 @@ public class Parser {
                                 }
                                 iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
                             }else {
-                                //TODO type-check procedures before first use
                                 iBlock.target.implementGenericTrait(iBlock.trait,
-                                        iContext.generics.toArray(Type.GenericParameter[]::new),iContext.implementations,pos);
+                                        iContext.generics.toArray(Type.GenericParameter[]::new),iContext.implementations,pos,
+                                        pState.globalConstants,pState.ioContext);
                             }
                         }
                         case IF,WHILE,SWITCH_CASE, CONST_ARRAY ->{
@@ -2883,7 +2883,7 @@ public class Parser {
 
     /**@param callerContext context that contains the first use of this procedure (may be null),
      *                       if the context is a StructContext the procedure will be type-checked after the struct is finished*/
-    private static void typeCheckProcedure(Value.Procedure p, HashMap<Parser.VariableId, Value> globalConstants,
+    static void typeCheckProcedure(Value.Procedure p, HashMap<Parser.VariableId, Value> globalConstants,
                                     IOContext ioContext,VariableContext callerContext) throws SyntaxError {
         if(p.typeCheckState == Value.TypeCheckState.UNCHECKED){
             if(callerContext instanceof StructContext){
@@ -2903,7 +2903,7 @@ public class Parser {
             p.typeCheckState = Value.TypeCheckState.CHECKED;
         }
     }
-    private static void typeCheckTrait(Type.Trait aTrait, HashMap<Parser.VariableId, Value> globalConstants,
+    static void typeCheckTrait(Type.Trait aTrait, HashMap<Parser.VariableId, Value> globalConstants,
                                  IOContext ioContext) throws SyntaxError {
         if(!aTrait.isTypeChecked()){
             TypeCheckResult res=typeCheck(aTrait.tokens,aTrait.context,globalConstants,new RandomAccessStack<>(8),
@@ -2915,7 +2915,7 @@ public class Parser {
             aTrait.setTraitFields(aTrait.context.fields.toArray(Type.TraitField[]::new));
         }
     }
-    private static void typeCheckStruct(Type.Struct aStruct, TypeCheckState tState) throws SyntaxError {
+    static void typeCheckStruct(Type.Struct aStruct, TypeCheckState tState) throws SyntaxError {
         if(!aStruct.isTypeChecked()){
             if(aStruct.extended!=null){
                 Type.Struct extended = aStruct.extended;

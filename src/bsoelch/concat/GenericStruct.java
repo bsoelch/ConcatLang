@@ -99,6 +99,7 @@ public class GenericStruct implements Parser.NamedDeclareable {
                 Parser.Callable[] updated = new Parser.Callable[trait.values().length];
                 for (int i = 0; i < trait.values().length; i++) {
                     updated[i] = (Parser.Callable) ((Value)trait.values()[i]).replaceGenerics(update);
+                    Parser.typeCheckProcedure((Value.Procedure)updated[i],trait.globalConstants(),trait.ioContext(),null);
                 }
                 struct.implementTrait(trait.trait(), updated, trait.implementedAt());
             }
@@ -106,7 +107,8 @@ public class GenericStruct implements Parser.NamedDeclareable {
         return struct;
     }
     public void addGenericTrait(Type.Trait trait, Type.GenericParameter[] params, Parser.Callable[] implementation,
-                                FilePosition implementedAt) throws SyntaxError {
+                                FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
+                                IOContext ioContext) throws SyntaxError {
         if(params.length!=argCount()){
             throw new IllegalArgumentException("wrong number of generic parameters: "+params.length+
                     " generic traits of "+name+" have to have exactly "+params.length+
@@ -121,10 +123,12 @@ public class GenericStruct implements Parser.NamedDeclareable {
             Parser.Callable[] updated = new Parser.Callable[implementation.length];
             for (int i = 0; i < implementation.length; i++) {
                 updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(update);
+                Parser.typeCheckProcedure((Value.Procedure) updated[i],globalConstants,ioContext,null);
             }
             s.implementTrait(trait, updated, implementedAt);
         }
-        genericTraits.add(new Type.GenericTraitImplementation(trait,params,implementation,implementedAt));
+        genericTraits.add(new Type.GenericTraitImplementation(trait,params,implementation,implementedAt,
+                globalConstants,ioContext));
     }
 
 
