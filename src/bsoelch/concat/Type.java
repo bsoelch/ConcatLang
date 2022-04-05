@@ -482,19 +482,10 @@ public class Type {
     List<Value> typeFields(){
         return typeFields;
     }
-    int typeFieldId(String name){
-        ensureFieldsInitialized();
-        Integer id=typeFieldNames.get(name);
-        return id==null?-1:id;
-    }
     Value getTypeField(String name){
         ensureFieldsInitialized();
         Integer id=typeFieldNames.get(name);
         return id==null?null:typeFields.get(id);
-    }
-    Value getTypeField(int id){
-        ensureFieldsInitialized();
-        return typeFields.get(id);
     }
     private boolean pseudoFieldIncompatible(int id){
         Procedure t= (Procedure) typeFields.get(id).type;
