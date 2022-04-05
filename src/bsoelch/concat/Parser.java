@@ -2573,10 +2573,10 @@ public class Parser {
                             }
                             subList.clear();
                             if(iContext.generics.size()==0){
+                                iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
                                 for(Value.Procedure c:iContext.implementations){
                                     typeCheckProcedure(c,pState.globalConstants,pState.ioContext,pState.getContext());
                                 }
-                                iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
                             }else {
                                 iBlock.target.implementGenericTrait(iBlock.trait,
                                         iContext.generics.toArray(Type.GenericParameter[]::new),iContext.implementations,pos,

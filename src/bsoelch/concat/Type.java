@@ -1708,6 +1708,12 @@ public class Type {
             }
         }
 
+        @Override
+        protected boolean canCastTo(Type t, BoundMaps bounds) {
+            if(t.hasTrait(this,bounds.swapped()))
+                return true;
+            return super.canCastTo(t, bounds);
+        }
         //TODO overwrite type methods
 
         @Override
