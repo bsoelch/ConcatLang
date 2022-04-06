@@ -245,23 +245,22 @@ public class Interpreter {
                         }
                         variables.remove(variables.size()-1);
                     }
-                    case DIRECT_TRAIT_FIELD_ACCESS -> {
-                        assert next instanceof Parser.TypeFieldAccess;
-                        Value val = stack.peek();
-                        Parser.Callable called=val.type.getTraitField(((Parser.TypeFieldAccess) next).fieldId);
-                        ExitType e=call(called, next, stack, globalVariables, variables, context);
-                        if(e!=ExitType.NORMAL){
-                            return e;
-                        }
-                    }
                     case TRAIT_FIELD_ACCESS -> {
-                        assert next instanceof Parser.TypeFieldAccess;
-                        Value val = stack.pop();
-                        if(!(val instanceof Value.TraitValue tv)){
-                            throw new RuntimeException("trait field access on non-trait value");
+                        assert next instanceof Parser.TraitFieldAccess;
+                        Value val = stack.peek();
+                        Parser.Callable called;
+                        if(((Parser.TraitFieldAccess) next).isDirect) {
+                            called=val.type.getTraitField(((Parser.TraitFieldAccess) next).position);
+                        }else{
+                            if (!(val instanceof Value.TraitValue tv)) {
+                                throw new RuntimeException("trait field access on non-trait value");
+                            }
+                            stack.pop();//call trait on unwrapped value
+                            stack.push(tv.wrapped);
+
+                            called=tv.wrapped.type.getTraitField(new Type.TraitPosition(tv.offset.isGeneric(),
+                                    tv.offset.offset()+((Parser.TraitFieldAccess) next).offset,tv.offset.implementedAt()));
                         }
-                        Parser.Callable called=tv.wrapped.type.getTraitField(tv.offset+((Parser.TypeFieldAccess) next).fieldId);
-                        stack.push(tv.wrapped);//call trait on unwrapped value
                         ExitType e=call(called, next, stack, globalVariables, variables, context);
                         if(e!=ExitType.NORMAL){
                             return e;

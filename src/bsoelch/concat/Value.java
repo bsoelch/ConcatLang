@@ -1885,14 +1885,14 @@ public abstract class Value {
     }
 
     static class TraitValue extends Value{
-        final int offset;
+        final Type.TraitPosition offset;
         final Value wrapped;
 
-        protected TraitValue(Type.Trait type,Value wrapped, int offset) {
+        protected TraitValue(Type.Trait type,Value wrapped, Type.TraitPosition offset) {
             super(type);
             this.offset=offset;
-            if(offset<0){
-                throw new IllegalArgumentException("offset has to be >=0");
+            if(offset==null){
+                throw new IllegalArgumentException("offset has to be non-null");
             }
             this.wrapped=wrapped;
         }

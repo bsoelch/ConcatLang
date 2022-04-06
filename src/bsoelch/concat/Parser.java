@@ -27,7 +27,7 @@ public class Parser {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
-        DIRECT_TRAIT_FIELD_ACCESS,TRAIT_FIELD_ACCESS,
+        TRAIT_FIELD_ACCESS,
         //compile time operations
         ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
         MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifiers
@@ -385,11 +385,23 @@ public class Parser {
         }
     }
 
-    static class TypeFieldAccess extends Token{
-        final int fieldId;
-        TypeFieldAccess(TokenType tokenType,FilePosition pos, int fieldId) {
-            super(tokenType, pos);
-            this.fieldId = fieldId;
+    static class TraitFieldAccess extends Token{
+        final boolean isDirect;
+        final Type.TraitPosition position;
+
+        final int offset;
+
+        TraitFieldAccess(FilePosition pos, int offset) {
+            super(TokenType.TRAIT_FIELD_ACCESS, pos);
+            isDirect=false;
+            this.position = null;
+            this.offset=offset;
+        }
+        TraitFieldAccess(FilePosition pos, Type.TraitPosition fieldId) {
+            super(TokenType.TRAIT_FIELD_ACCESS, pos);
+            isDirect=true;
+            this.position = fieldId;
+            this.offset= fieldId.offset();
         }
     }
 
@@ -2564,7 +2576,7 @@ public class Parser {
                                 }
                             }
                             if(iContext.generics.size()==0){
-                                iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
+                                iBlock.target.implementTrait(false,iBlock.trait,iContext.implementations,pos);
                                 for(Value.Procedure c:iContext.implementations){
                                     typeCheckProcedure(c,pState.globalConstants,pState.ioContext);
                                 }
@@ -3148,7 +3160,7 @@ public class Parser {
                     },tState.ret,tState.typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
                         CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX,
-                        DIRECT_TRAIT_FIELD_ACCESS,TRAIT_FIELD_ACCESS ->
+                        TRAIT_FIELD_ACCESS ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -4113,7 +4125,7 @@ public class Parser {
                             Type.TraitField field=((Type.Trait) f.type).traitFields[index];
                             typeStack.push(f);//push f back onto the type-stack
                             typeCheckCall(field.name(),field.procType(),t.pos,false, tState);
-                            ret.add(new TypeFieldAccess(TokenType.TRAIT_FIELD_ACCESS,identifier.pos,index));
+                            ret.add(new TraitFieldAccess(identifier.pos,index));
                             break;
                         }
                     }
@@ -4123,7 +4135,7 @@ public class Parser {
                         CallMatch match = typeCheckOverloadedCall(traitField.name(),
                                 new OverloadedProcedure(traitField),null,t.pos, tState);
                         match.called.markAsUsed();
-                        ret.add(new TypeFieldAccess(TokenType.DIRECT_TRAIT_FIELD_ACCESS,identifier.pos,
+                        ret.add(new TraitFieldAccess(identifier.pos,
                                 f.type.traitFieldId(identifier.name)));
                         break;//found field
                     }
