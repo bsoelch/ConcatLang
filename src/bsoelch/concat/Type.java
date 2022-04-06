@@ -165,11 +165,11 @@ public class Type {
     final boolean switchable;
     final Mutability mutability;
     /**fields that are attached to this type*/
-    private final HashMap<String, Integer> typeFieldNames;
+    private final HashMap<String, Value> typeFields;
     /**"pseudo-fields" for values of this type,
      * a pseudo field is a procedure that takes this type as last parameter*/
     private final HashMap<String, Integer> pseudoFieldNames;
-    private final ArrayList<Value> typeFields;
+    private final ArrayList<Value> pseudoFieldValues;
     private boolean typeFieldsInitialized=false;
     private int nativeFieldCount=-1;
 
@@ -204,9 +204,9 @@ public class Type {
         this.switchable = switchable;
         this.mutability=mutability;
 
-        typeFieldNames = new HashMap<>();
+        typeFields = new HashMap<>();
         pseudoFieldNames = new HashMap<>();
-        typeFields=new ArrayList<>();
+        pseudoFieldValues =new ArrayList<>();
         withMutability=new HashMap<>();
         withMutability.put(mutability,this);
 
@@ -218,8 +218,8 @@ public class Type {
         this.mutability = newMutability;
 
         src.ensureFieldsInitialized();//ensure type fields are initialized
-        typeFieldNames =src.typeFieldNames;
-        typeFields=src.typeFields;
+        typeFields =src.typeFields;
+        pseudoFieldValues =src.pseudoFieldValues;
         typeFieldsInitialized=true;//type fields of copied type are already initialized
         nativeFieldCount=src.nativeFieldCount;//same number of native fields
         pseudoFieldNames = src.pseudoFieldNames;
@@ -241,7 +241,7 @@ public class Type {
                 throw new RuntimeException(e);
             }
             for(Type t:withMutability.values()){//update native field count for all mutabilities
-                t.nativeFieldCount=typeFields.size();
+                t.nativeFieldCount= pseudoFieldValues.size();
             }
         }
     }
@@ -400,11 +400,9 @@ public class Type {
 
     void addField(String name, Value fieldValue, FilePosition pos) throws SyntaxError {
         ensureFieldsInitialized();
-        int id=typeFields.size();
-        if(typeFieldNames.put(name,id)!=null){
+        if(typeFields.put(name,fieldValue)!=null){
             throw new SyntaxError(this.name+" already has a type field "+name+" ",pos);
         }
-        typeFields.add(fieldValue);
     }
     void addPseudoField(Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
         addPseudoField(fieldValue.name(),fieldValue,declaredAt);
@@ -416,28 +414,23 @@ public class Type {
             throw new SyntaxError(fieldValue.name()+" (declared at "+fieldValue.declaredAt()+") "+
                     "has an invalid signature for a pseudo-field of "+this+": "+Arrays.toString(in),declaredAt);
         }
-        int id=typeFields.size();
+        int id= pseudoFieldValues.size();
         if(pseudoFieldNames.put(name,id)!=null){
             throw new SyntaxError(this.name+" already has a field "+name+" ",declaredAt);
         }
-        typeFields.add((Value) fieldValue);
+        pseudoFieldValues.add((Value) fieldValue);
     }
     void inheritDeclaredFields(Type extended) {
         ensureFieldsInitialized();
         if(!extended.typeFieldsInitialized){
             throw new RuntimeException("extended type has to be initialized");
         }
-        int initPos=typeFields.size();
+        int initPos= pseudoFieldValues.size();
         //addLater remember start position of inherited type fields
-        for(int i=extended.nativeFieldCount;i<extended.typeFields.size();i++){
-            typeFields.add(extended.typeFields.get(i));
+        for(int i = extended.nativeFieldCount; i<extended.pseudoFieldValues.size(); i++){
+            pseudoFieldValues.add(extended.pseudoFieldValues.get(i));
         }
         //copy field names
-        for(Map.Entry<String, Integer> e:extended.typeFieldNames.entrySet()){
-            if(e.getValue()>=extended.nativeFieldCount){
-                typeFieldNames.put(e.getKey(),e.getValue()- extended.nativeFieldCount+initPos);
-            }
-        }
         for(Map.Entry<String, Integer> e:extended.pseudoFieldNames.entrySet()){
             if(e.getValue()>=extended.nativeFieldCount){
                 pseudoFieldNames.put(e.getKey(),e.getValue()- extended.nativeFieldCount+initPos);
@@ -457,7 +450,7 @@ public class Type {
             throw new SyntaxError("trait "+trait+" was already implemented for "+this+" (at "+impl.implementedAt+")",
                     implementedAt);
         }
-        impl=new TraitImplementation(typeFields.size(),implementedAt);
+        impl=new TraitImplementation(pseudoFieldValues.size(),implementedAt);
         for(int i=0;i<implementation.length;i++){
             Type[] in=implementation[i].type().inTypes;
             if(in.length==0||!canAssignTo(in[in.length-1].maybeMutable())){
@@ -465,11 +458,11 @@ public class Type {
                         " (declared at "+trait.traitFields[i].declaredAt()+")  has an invalid signature for a trait-field of "
                         +this+": "+Arrays.toString(in),implementedAt);
             }
-            int id=typeFields.size();
+            int id= pseudoFieldValues.size();
             if(pseudoFieldNames.put(trait.traitFields[i].name(),id)!=null){//addLater give only a warning on shadowed names
                 throw new SyntaxError(name+" already has a field "+trait.traitFields[i].name()+" ",implementedAt);
             }
-            typeFields.add((Value)implementation[i]);
+            pseudoFieldValues.add((Value)implementation[i]);
         }
         implementedTraits.put(trait,impl);
     }
@@ -480,15 +473,14 @@ public class Type {
     }
 
     List<Value> typeFields(){
-        return typeFields;
+        return pseudoFieldValues;
     }
     Value getTypeField(String name){
         ensureFieldsInitialized();
-        Integer id=typeFieldNames.get(name);
-        return id==null?null:typeFields.get(id);
+        return typeFields.get(name);
     }
     private boolean pseudoFieldIncompatible(int id){
-        Procedure t= (Procedure) typeFields.get(id).type;
+        Procedure t= (Procedure) pseudoFieldValues.get(id).type;
         return !canAssignTo(t.inTypes[t.inTypes.length-1]);
     }
     int pseudoFieldId(String name){
@@ -499,11 +491,11 @@ public class Type {
     Parser.Callable getPseudoField(String name){
         ensureFieldsInitialized();
         Integer id=pseudoFieldNames.get(name);
-        return id==null||pseudoFieldIncompatible(id)?null:(Parser.Callable)typeFields.get(id);
+        return id==null||pseudoFieldIncompatible(id)?null:(Parser.Callable) pseudoFieldValues.get(id);
     }
     Parser.Callable getPseudoField(int id){
         ensureFieldsInitialized();
-        return (Parser.Callable)typeFields.get(id);
+        return (Parser.Callable) pseudoFieldValues.get(id);
     }
 
     /**returns the semi-mutable version of this type
