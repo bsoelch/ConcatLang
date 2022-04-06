@@ -172,7 +172,7 @@ HashMapItr struct{ K <> V <>
 }
 
 ^_ public proc( K <?> V <?> K V HashMap mut? => K V MapEntry Iterator ){
-  #+map+# -1 K V HashMapEntry mut empty K V HashMapItr new  K V MapEntry Iterator cast return
+  #+map+# -1 K V HashMapEntry mut empty K V HashMapItr new return
 }
 implement{ K <> V <> K V MapEntry Iterator  K V HashMapItr for
   ^> proc( K V HashMapItr => K V MapEntry Iterator  K V MapEntry optional ){
@@ -182,13 +182,13 @@ implement{ K <> V <> K V MapEntry Iterator  K V HashMapItr for
     while{ next ! do
       index 1 + index =
       index itr .map .data .length >= if{
-        itr .map index next K V HashMapItr new K V MapEntry Iterator cast  K V MapEntry empty return
+        itr .map index next K V HashMapItr new  K V MapEntry empty return
       }
       itr .map .data index []  next =
     }
     next .value K V HashMapEntry mut res =:
     res .next next =
-    itr .map index next K V HashMapItr new K V MapEntry Iterator cast  res .key res .value K V MapEntry new wrap return
+    itr .map index next K V HashMapItr new res .key res .value K V MapEntry new wrap return
   }
 }
 

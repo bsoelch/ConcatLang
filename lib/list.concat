@@ -596,16 +596,16 @@ implement{ A <> A ArrayBuilder A List for
     #+list+# .data .length    return
   }
   append proc( A A List mut => A ArrayBuilder mut ){
-    swap <<   A ArrayBuilder mut cast return
+    swap <<  return
   }
   appendAll proc( A array mut? A List mut => A ArrayBuilder mut ){
-    swap <<*  A ArrayBuilder mut cast return
+    swap <<* return
   }
   prepend proc( A A List mut => A ArrayBuilder mut ){
-    >>   A ArrayBuilder mut cast return
+    >>   return
   }
   prependAll proc( A array mut? A List mut => A ArrayBuilder mut ){
-    *>>  A ArrayBuilder mut cast return
+    *>>  return
   }
   build proc( A List mut? => A array mut~ ){
     #+list+# .data clone-mut~ return
@@ -624,16 +624,16 @@ implement{ A <> A ArrayBuilder A ListSlice for
     #+slice+# .length    return
   }
   append proc( A A ListSlice mut => A ArrayBuilder mut ){
-    swap <<   A ArrayBuilder mut cast return
+    swap <<  return
   }
   appendAll proc( A array mut? A ListSlice mut => A ArrayBuilder mut ){
-    swap <<*  A ArrayBuilder mut cast return
+    swap <<* return
   }
   prepend proc( A A ListSlice mut => A ArrayBuilder mut ){
-    >>   A ArrayBuilder mut cast return
+    >>  return
   }
   prependAll proc( A array mut? A ListSlice mut => A ArrayBuilder mut ){
-    *>>  A ArrayBuilder mut cast return
+    *>> return
   }
   build proc( A ListSlice mut? => A array ){
     slice =::

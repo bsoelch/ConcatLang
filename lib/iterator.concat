@@ -30,11 +30,11 @@ implement{ A <> A Iterator A ArrayIterator for
   ^> proc( A ArrayIterator => A Iterator A optional ){
     A ArrayIterator mItr =:
     mItr .index mItr .array .length < if{
-      mItr .array mItr .index 1 + A ArrayIterator new  A Iterator cast ## update iterator
+      mItr .array mItr .index 1 + A ArrayIterator new ## update iterator
       mItr .array mItr .index [] wrap ## push element
       return
     else
-      mItr A Iterator cast  A empty return
+      mItr A empty return
     }
   }
 }
@@ -42,11 +42,11 @@ implement{ A <> A ReverseIterator A ArrayIterator for
   <^ proc( A ArrayIterator => A ReverseIterator A optional ){
     A ArrayIterator mItr =:
     mItr .index 0 > if{
-      mItr .array mItr .index 1 - A ArrayIterator new A ReverseIterator cast ## update iterator
+      mItr .array mItr .index 1 - A ArrayIterator new ## update iterator
       mItr .array mItr .index 1 - [] wrap ## push element
       return
     else
-      mItr A ReverseIterator cast  A empty return
+      mItr A empty return
     }
   }
 }
@@ -62,7 +62,7 @@ filter public proc( A <?> A Iterator ( A => bool ) => A Iterator ){
   dup .type A FilteredIterator <= if{ ##filter filtered iterator
       #+itr+# A FilteredIterator cast f filter return
   }
-  #+range+# { f } A FilteredIterator new  A Iterator cast return
+  #+range+# { f } A FilteredIterator new return
 }
 filter public proc( A <?> A FilteredIterator ( A => bool ) => A Iterator ){
   f =::
@@ -70,7 +70,7 @@ filter public proc( A <?> A FilteredIterator ( A => bool ) => A Iterator ){
   range .filters .length 1 + ( A => bool ) memory mut new newFilters =::
   range .filters 0 newFilters 0 range .filters .length copy
   newFilters f []^=
-  range .base newFilters clone-mut~ A FilteredIterator new  A Iterator cast return
+  range .base newFilters clone-mut~ A FilteredIterator new return
 }
 
 implement{ A <> A Iterator A FilteredIterator for
@@ -86,10 +86,10 @@ implement{ A <> A Iterator A FilteredIterator for
          1 +
       } drop
       match if{
-        #+newBase+# prev .filters A FilteredIterator new A Iterator cast  val wrap return
+        #+newBase+# prev .filters A FilteredIterator new  val wrap return
       }
     }
-    #+newBase+# prev .filters A FilteredIterator new A Iterator cast  A empty return
+    #+newBase+# prev .filters A FilteredIterator new  A empty return
   }
 }
 
@@ -98,16 +98,16 @@ MappedIterator struct{ A <> B <>
   ( A => B ) :map
 }
 map public proc( A <?> B <?> A Iterator ( A => B ) => B Iterator ){
-  #+base+# #+map+# A B MappedIterator new  B Iterator cast return
+  #+base+# #+map+# A B MappedIterator new return
 }
 
 implement{ A <> B <> B Iterator A B MappedIterator for
   ^> proc( A B MappedIterator => B Iterator B optional ){
     itr =::
     itr .base .^> if{ val =::
-      #+newBase+# itr .map A B MappedIterator new B Iterator cast  val itr .map () wrap return
+      #+newBase+# itr .map A B MappedIterator new  val itr .map () wrap return
     }
-    #+newBase+# itr .map A B MappedIterator new B Iterator cast  B empty return
+    #+newBase+# itr .map A B MappedIterator new  B empty return
   }
 }
 
@@ -124,29 +124,29 @@ concat public proc( A <?> A Iterator A Iterator => A Iterator ){
       iterators1 .length iterators2 .length + A Iterator memory mut new tmp =::
       iterators1 0 tmp 0                  iterators1 .length copy
       iterators2 0 tmp iterators1 .length iterators2 .length copy
-      tmp clone-mut~ A ConcatenatedIterator new A Iterator cast return
+      tmp clone-mut~ A ConcatenatedIterator new return
     else
       itr1 A ConcatenatedIterator cast .iterators iterators1 =::
       iterators1 .length 1 + A Iterator memory mut new tmp =::
       iterators1 0 tmp 0 iterators1 .length copy
       tmp itr2 []^=
-      tmp clone-mut~ A ConcatenatedIterator new  A Iterator cast return
+      tmp clone-mut~ A ConcatenatedIterator new return
     }
   else itr2 .type A ConcatenatedIterator == if
     itr2 A ConcatenatedIterator cast .iterators iterators2 =::
     iterators2 .length 1 + A Iterator memory mut new tmp =::
     tmp itr1 []^=
     iterators2 0 tmp 1 iterators2 .length copy
-    tmp clone-mut~ A ConcatenatedIterator new  A Iterator cast return
+    tmp clone-mut~ A ConcatenatedIterator new return
   else
-    { itr1 itr2 } A ConcatenatedIterator new  A Iterator cast return
+    { itr1 itr2 } A ConcatenatedIterator new return
   }
 }
 implement{ A <> A Iterator A ConcatenatedIterator for
   ^> proc( A ConcatenatedIterator => A Iterator A optional ){
     itr =::
     itr .iterators .length 0 == if{
-      itr A Iterator cast  A empty return ## no iterator in chain
+      itr A empty return ## no iterator in chain
     else itr .iterators .length 1 == if
       itr .iterators 0 [] .^> return ## only one iterator in chain
     }
@@ -154,7 +154,7 @@ implement{ A <> A Iterator A ConcatenatedIterator for
     res .hasValue if{
       itr .iterators clone iterators =::
       #+newItr+# iterators 0 []=
-      iterators clone-mut~ A ConcatenatedIterator new A Iterator cast  res return
+      iterators clone-mut~ A ConcatenatedIterator new res return
     }
     drop ## drop empty iterator
     1 i =::
@@ -164,7 +164,7 @@ implement{ A <> A Iterator A ConcatenatedIterator for
         itr .iterators .length i - A Iterator memory mut new iterators =::
         itr .iterators i iterators 0 itr .iterators .length i - copy
         #+newItr+# iterators 0 []=
-        iterators clone-mut~ A ConcatenatedIterator new A Iterator cast  res return
+        iterators clone-mut~ A ConcatenatedIterator new  res return
       }
       drop ## drop empty iterator
     }

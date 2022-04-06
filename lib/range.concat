@@ -13,18 +13,18 @@ intRange struct{
 [n] public proc( int => int Iterator ){
   n =::
   n 0 > if{
-    0 1 n intRange new  int Iterator cast return
+    0 1 n intRange new return
   else
-    n 1 0 intRange new  int Iterator cast return
+    n 1 0 intRange new return
   }
 }
 [n:m] public proc( int int => int Iterator ){
   m =::
   n =::
-  n 1 m intRange new  int Iterator cast return
+  n 1 m intRange new return
 }
 [n:k:m] public proc( int int int => int Iterator ){
-  #+n k m+# intRange new  int Iterator cast return
+  #+n k m+# intRange new return
 }
 
 ## pseudo-field
@@ -42,7 +42,7 @@ implement{ int Iterator intRange for
         next prev .step prev .to [n:k:m]   prev .off wrap return
       }
     }
-    prev int Iterator cast  int empty return
+    prev int empty return
   }
 }
 #end
