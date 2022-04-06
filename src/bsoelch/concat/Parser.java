@@ -387,21 +387,12 @@ public class Parser {
 
     static class TraitFieldAccess extends Token{
         final boolean isDirect;
-        final Type.TraitPosition position;
+        final Type.TraitFieldPosition id;
 
-        final int offset;
-
-        TraitFieldAccess(FilePosition pos, int offset) {
+        TraitFieldAccess(boolean isDirect,FilePosition pos, Type.TraitFieldPosition id) {
             super(TokenType.TRAIT_FIELD_ACCESS, pos);
-            isDirect=false;
-            this.position = null;
-            this.offset=offset;
-        }
-        TraitFieldAccess(FilePosition pos, Type.TraitPosition fieldId) {
-            super(TokenType.TRAIT_FIELD_ACCESS, pos);
-            isDirect=true;
-            this.position = fieldId;
-            this.offset= fieldId.offset();
+            this.isDirect=isDirect;
+            this.id = id;
         }
     }
 
@@ -2576,7 +2567,7 @@ public class Parser {
                                 }
                             }
                             if(iContext.generics.size()==0){
-                                iBlock.target.implementTrait(false,iBlock.trait,iContext.implementations,pos);
+                                iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
                                 for(Value.Procedure c:iContext.implementations){
                                     typeCheckProcedure(c,pState.globalConstants,pState.ioContext);
                                 }
@@ -2948,7 +2939,6 @@ public class Parser {
                 for(int i = 0; i< extended.elementCount(); i++){
                     aStruct.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
-                aStruct.inheritDeclaredFields(extended);
             }
             TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,tState.globalConstants,new RandomAccessStack<>(8),
                     null,aStruct.endPos,tState.ioContext);
@@ -4125,7 +4115,7 @@ public class Parser {
                             Type.TraitField field=((Type.Trait) f.type).traitFields[index];
                             typeStack.push(f);//push f back onto the type-stack
                             typeCheckCall(field.name(),field.procType(),t.pos,false, tState);
-                            ret.add(new TraitFieldAccess(identifier.pos,index));
+                            ret.add(new TraitFieldAccess(false,identifier.pos,new Type.TraitFieldPosition((Type.Trait)f.type,index)));
                             break;
                         }
                     }
@@ -4135,8 +4125,7 @@ public class Parser {
                         CallMatch match = typeCheckOverloadedCall(traitField.name(),
                                 new OverloadedProcedure(traitField),null,t.pos, tState);
                         match.called.markAsUsed();
-                        ret.add(new TraitFieldAccess(identifier.pos,
-                                f.type.traitFieldId(identifier.name)));
+                        ret.add(new TraitFieldAccess(true,identifier.pos,f.type.traitFieldId(identifier.name)));
                         break;//found field
                     }
                     Callable internalField=f.type.getInternalField(identifier.name);

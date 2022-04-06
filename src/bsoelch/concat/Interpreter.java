@@ -250,7 +250,7 @@ public class Interpreter {
                         Value val = stack.peek();
                         Parser.Callable called;
                         if(((Parser.TraitFieldAccess) next).isDirect) {
-                            called=val.type.getTraitField(((Parser.TraitFieldAccess) next).position);
+                            called=val.type.getTraitField(((Parser.TraitFieldAccess) next).id);
                         }else{
                             if (!(val instanceof Value.TraitValue tv)) {
                                 throw new RuntimeException("trait field access on non-trait value");
@@ -258,8 +258,7 @@ public class Interpreter {
                             stack.pop();//call trait on unwrapped value
                             stack.push(tv.wrapped);
 
-                            called=tv.wrapped.type.getTraitField(new Type.TraitPosition(tv.offset.isGeneric(),
-                                    tv.offset.offset()+((Parser.TraitFieldAccess) next).offset,tv.offset.implementedAt()));
+                            called=tv.wrapped.type.getTraitField(((Parser.TraitFieldAccess) next).id);
                         }
                         ExitType e=call(called, next, stack, globalVariables, variables, context);
                         if(e!=ExitType.NORMAL){

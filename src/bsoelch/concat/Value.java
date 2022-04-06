@@ -106,7 +106,7 @@ public abstract class Value {
         if(type.canAssignTo(newType)){
             return this;
         }else if(newType instanceof Type.Trait&&type.hasTrait((Type.Trait) newType)){
-            return new TraitValue((Type.Trait) newType,this,type.getTraitOffset((Type.Trait)newType));
+            return new TraitValue((Type.Trait) newType,this);
         }else{
             throw new TypeError("cannot cast from "+type+" to "+newType);
         }
@@ -1885,15 +1885,10 @@ public abstract class Value {
     }
 
     static class TraitValue extends Value{
-        final Type.TraitPosition offset;
         final Value wrapped;
 
-        protected TraitValue(Type.Trait type,Value wrapped, Type.TraitPosition offset) {
+        protected TraitValue(Type.Trait type,Value wrapped) {
             super(type);
-            this.offset=offset;
-            if(offset==null){
-                throw new IllegalArgumentException("offset has to be non-null");
-            }
             this.wrapped=wrapped;
         }
 
@@ -1901,7 +1896,7 @@ public abstract class Value {
 
         @Override
         public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
-            return new TraitValue((Type.Trait) type.replaceGenerics(genericParams),wrapped.replaceGenerics(genericParams),offset);
+            return new TraitValue((Type.Trait) type.replaceGenerics(genericParams),wrapped.replaceGenerics(genericParams));
         }
 
         @Override

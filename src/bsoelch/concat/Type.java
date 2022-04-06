@@ -164,7 +164,16 @@ public class Type {
     record GenericTraitImplementation(Trait trait, GenericParameter[] params, Value.Procedure[] values,
                                       FilePosition implementedAt,HashMap<Parser.VariableId, Value> globalConstants,
                                       IOContext ioContext){}
-    record TraitPosition(boolean isGeneric,int offset, FilePosition implementedAt){}
+    record TraitFieldPosition(Trait trait, int offset){}
+    interface TraitImplementation{
+        FilePosition implementedAt();
+        Value.Procedure get(int offset);
+    }
+    record DirectTraitImplementation(Value.Procedure[] values,FilePosition implementedAt) implements TraitImplementation{
+        public Value.Procedure get(int offset){
+            return values[offset];
+        }
+    }
 
     final String name;
     final boolean switchable;
@@ -174,12 +183,9 @@ public class Type {
     private final HashMap<String, Parser.Callable> internalFields;
     private boolean typeFieldsInitialized=false;
 
-    private final HashMap<String, TraitPosition> traitFieldNames;
-    //store generic and non-generic traits separately to ensure that at runtime all generic traits come before non-generic traits
-    private final ArrayList<Value.Procedure> genericTraitFieldValues;
-    private final ArrayList<Value.Procedure> traitFieldValues;
-
-    private final HashMap<Trait, TraitPosition> implementedTraits;
+    private final HashMap<String, TraitFieldPosition> traitFieldNames;
+    //store traits by traitId, final trait offsets will be calculated in code generation phase
+    private final HashMap<Trait, TraitImplementation> implementedTraits;
 
     /**cache for the different variants of this type*/
     private final HashMap<Mutability,Type> withMutability;
@@ -208,8 +214,6 @@ public class Type {
         typeFields = new HashMap<>();
         internalFields = new HashMap<>();
         traitFieldNames = new HashMap<>();
-        traitFieldValues =new ArrayList<>();
-        genericTraitFieldValues=new ArrayList<>();
         withMutability=new HashMap<>();
         withMutability.put(mutability,this);
 
@@ -223,8 +227,6 @@ public class Type {
         src.ensureFieldsInitialized();//ensure type fields are initialized
         typeFields =src.typeFields;
         internalFields=src.internalFields;
-        genericTraitFieldValues =src.genericTraitFieldValues;
-        traitFieldValues =src.traitFieldValues;
         typeFieldsInitialized=true;//type fields of copied type are already initialized
         traitFieldNames = src.traitFieldNames;
         withMutability= src.withMutability;
@@ -314,14 +316,6 @@ public class Type {
             }
         }
         return false;
-    }
-    Type.TraitPosition getTraitOffset(Trait trait){
-        for(Map.Entry<Trait, TraitPosition> implemented:implementedTraits.entrySet()){
-            if(implemented.getKey().setMutability(mutability).canAssignTo(trait, new BoundMaps())){
-                return implemented.getValue();
-            }
-        }
-        return null;
     }
     /**@return true if values of this type can be cast to type t*/
     public final boolean canCastTo(Type t){
@@ -416,37 +410,20 @@ public class Type {
             throw new SyntaxError(name+" already has a field "+fieldValue.name()+" ",declaredAt);
         }
     }
-    void inheritDeclaredFields(Type extended) {
-        ensureFieldsInitialized();
-        if(!extended.typeFieldsInitialized){
-            throw new RuntimeException("extended type has to be initialized");
-        }
-        int initPos= traitFieldValues.size();
-        traitFieldValues.addAll(extended.traitFieldValues);
-        int genInitPos= genericTraitFieldValues.size();
-        genericTraitFieldValues.addAll(extended.genericTraitFieldValues);
-        //copy field names
-        for(Map.Entry<String, TraitPosition> e:extended.traitFieldNames.entrySet()){
-            traitFieldNames.put(e.getKey(),new TraitPosition(e.getValue().isGeneric,e.getValue().offset-
-                    (e.getValue().isGeneric?genInitPos:initPos),
-                    e.getValue().implementedAt()));
-        }
-    }
 
-    void implementTrait(boolean isGeneric,Trait trait, Value.Procedure[] implementation,FilePosition implementedAt) throws SyntaxError {
+    void implementTrait(Trait trait, Value.Procedure[] implementation, FilePosition implementedAt) throws SyntaxError {
         ensureFieldsInitialized();
         assert trait.traitFields!=null;
         if(trait.traitFields.length!=implementation.length){
             throw new SyntaxError("wrong number of elements in implementation: "+implementation.length+
                     " expected:"+trait.traitFields.length,implementedAt);
         }
-        TraitPosition impl=implementedTraits.get(trait);
+        TraitImplementation impl=implementedTraits.get(trait);
         if(impl!=null){
-            throw new SyntaxError("trait "+trait+" was already implemented for "+this+" (at "+impl.implementedAt+")",
+            throw new SyntaxError("trait "+trait+" was already implemented for "+this+" (at "+impl.implementedAt()+")",
                     implementedAt);
         }
-        ArrayList<Value.Procedure> values = isGeneric?genericTraitFieldValues:traitFieldValues;
-        impl=new TraitPosition(isGeneric, values.size(),implementedAt);
+        impl=new DirectTraitImplementation(implementation,implementedAt);
         for(int i=0;i<implementation.length;i++){
             Type[] in=implementation[i].type().inTypes;
             if(in.length==0||!canAssignTo(in[in.length-1].maybeMutable())){
@@ -454,11 +431,10 @@ public class Type {
                         " (declared at "+trait.traitFields[i].declaredAt()+")  has an invalid signature for a trait-field of "
                         +this+": "+Arrays.toString(in),implementedAt);
             }
-            TraitPosition id= new TraitPosition(isGeneric,values.size(),implementedAt);
+            TraitFieldPosition id= new TraitFieldPosition(trait,i);
             if(traitFieldNames.put(trait.traitFields[i].name(),id)!=null){//addLater give only a warning on shadowed names
                 throw new SyntaxError(name+" already has a field "+trait.traitFields[i].name()+" ",implementedAt);
             }
-            values.add(implementation[i]);
         }
         implementedTraits.put(trait,impl);
     }
@@ -479,21 +455,21 @@ public class Type {
         ensureFieldsInitialized();
         return internalFields.get(name);
     }
-    private boolean traitFieldIncompatible(TraitPosition id){
-        Procedure t= (Procedure) (id.isGeneric?genericTraitFieldValues:traitFieldValues).get(id.offset).type;
+    private boolean traitFieldIncompatible(TraitFieldPosition id){
+        Procedure t= (Procedure) getTraitField(id).type;
         return !canAssignTo(t.inTypes[t.inTypes.length-1]);
     }
-    TraitPosition traitFieldId(String name){
-        TraitPosition id= traitFieldNames.get(name);
+    TraitFieldPosition traitFieldId(String name){
+        TraitFieldPosition id= traitFieldNames.get(name);
         return id==null|| traitFieldIncompatible(id)?null:id;
     }
     Value.Procedure getTraitField(String name){
-        TraitPosition id= traitFieldNames.get(name);
-        return id==null|| traitFieldIncompatible(id)?null:
-                (id.isGeneric?genericTraitFieldValues:traitFieldValues).get(id.offset);
+        TraitFieldPosition id=traitFieldId(name);
+        return id==null?null:getTraitField(id);
     }
-    Value.Procedure getTraitField(TraitPosition id){
-        return (id.isGeneric?genericTraitFieldValues:traitFieldValues).get(id.offset);
+    Value.Procedure getTraitField(TraitFieldPosition id){
+        TraitImplementation impl=implementedTraits.get(id.trait);
+        return impl==null?null:impl.get(id.offset);
     }
 
     /**returns the semi-mutable version of this type
@@ -621,7 +597,7 @@ public class Type {
                     for (int i = 0; i < t.values.length; i++) {
                         updated[i] = (Value.Procedure)t.values[i].replaceGenerics(generics);
                     }
-                    implementTrait(true,t.trait.replaceGenerics(generics), updated, t.implementedAt);
+                    implementTrait(t.trait.replaceGenerics(generics), updated, t.implementedAt);
                     if (!(contentType instanceof GenericParameter)) {
                         for (Value.Procedure callable : updated) {
                             Parser.typeCheckProcedure(callable, t.globalConstants, t.ioContext);
@@ -697,7 +673,7 @@ public class Type {
                 for (int i = 0; i < implementation.length; i++) {
                     updated[i] = (Value.Procedure) implementation[i].replaceGenerics(generics);
                 }
-                t.implementTrait(true,trait.replaceGenerics(generics),updated,implementedAt);
+                t.implementTrait(trait.replaceGenerics(generics),updated,implementedAt);
                 if(!(t.contentType instanceof GenericParameter)){
                     for (Value.Procedure callable : updated) {
                         Parser.typeCheckProcedure(callable, globalConstants, ioContext);
@@ -1106,7 +1082,7 @@ public class Type {
                 for (int i = 0; i < trait.values().length; i++) {
                     updated[i] = (Value.Procedure) trait.values[i].replaceGenerics(update);
                 }
-                implementTrait(true,trait.trait().replaceGenerics(update), updated, trait.implementedAt());
+                implementTrait(trait.trait().replaceGenerics(update), updated, trait.implementedAt());
                 if(nonGeneric){
                     for (Value.Procedure callable : updated) {
                         Parser.typeCheckProcedure(callable, trait.globalConstants(),
@@ -1202,7 +1178,7 @@ public class Type {
                 for (int i = 0; i < implementation.length; i++) {
                     updated[i] = (Value.Procedure) implementation[i].replaceGenerics(update);
                 }
-                s.implementTrait(true,trait.replaceGenerics(update), updated, implementedAt);
+                s.implementTrait(trait.replaceGenerics(update), updated, implementedAt);
                 if(nonGeneric){
                     for (Value.Procedure callable : updated) {
                         Parser.typeCheckProcedure(callable, globalConstants,ioContext);
@@ -1655,6 +1631,10 @@ public class Type {
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             return t instanceof Trait&&((Trait) t).declaredAt.equals(declaredAt);
+        }
+        @Override
+        public int hashCode() {
+            return declaredAt.hashCode();
         }
 
         @Override
