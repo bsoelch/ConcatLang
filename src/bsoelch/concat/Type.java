@@ -463,13 +463,13 @@ public class Type {
         TraitFieldPosition id= traitFieldNames.get(name);
         return id==null|| traitFieldIncompatible(id)?null:id;
     }
-    Value.Procedure getTraitField(String name){
-        TraitFieldPosition id=traitFieldId(name);
-        return id==null?null:getTraitField(id);
-    }
     Value.Procedure getTraitField(TraitFieldPosition id){
         TraitImplementation impl=implementedTraits.get(id.trait);
         return impl==null?null:impl.get(id.offset);
+    }
+    final Value.Procedure getTraitField(String name){
+        TraitFieldPosition id=traitFieldId(name);
+        return id==null?null:getTraitField(id);
     }
 
     /**returns the semi-mutable version of this type
@@ -1151,7 +1151,17 @@ public class Type {
             indexByName=src.indexByName;
         }
 
-        //TODO allow overwriting inherited traits in structs
+        @Override
+        TraitFieldPosition traitFieldId(String name) {
+            TraitFieldPosition pos=super.traitFieldId(name);
+            return pos!=null||extended==null?pos:extended.traitFieldId(name);
+        }
+        @Override
+        Value.Procedure getTraitField(TraitFieldPosition id) {
+            Value.Procedure res=super.getTraitField(id);
+            return res!=null||extended==null?res:extended.getTraitField(id);
+        }
+
         @Override
         void implementGenericTrait(Trait trait, GenericParameter[] params, Value.Procedure[] implementation,
                                    FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
