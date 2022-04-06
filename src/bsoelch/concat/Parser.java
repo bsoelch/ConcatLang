@@ -2959,17 +2959,15 @@ public class Parser {
         }
         return str.append("]").toString();
     }
-    private static void checkReturnValue(RandomAccessStack<TypeFrame> typeStack, Type[] outTypes,FilePosition pos) throws SyntaxError {
-        int k = typeStack.size();
-        if(typeStack.size() != outTypes.length){
-            throw new SyntaxError("return value "+typesToString(typeStack)+" does not match signature "
+    private static void checkReturnValue(Type[] outTypes,FilePosition pos,TypeCheckState tState) throws SyntaxError {
+        int k = tState.typeStack.size();
+        if(tState.typeStack.size() != outTypes.length){
+            throw new SyntaxError("return value "+typesToString(tState.typeStack)+" does not match signature "
                     +Arrays.toString(outTypes), pos);
         }
         for(Type t: outTypes){
-            if(!typeStack.get(k--).type().canAssignTo(t)){
-                throw new SyntaxError("return value "+typesToString(typeStack)+" does not match signature "
-                        +Arrays.toString(outTypes), pos);
-            }
+            typeCheckCast(tState.typeStack.get(k).type(),k,t,pos,tState);
+            k--;
         }
     }
 
@@ -3085,8 +3083,7 @@ public class Parser {
                 }
                 case RETURN -> {
                     if(expectedReturnTypes!=null){
-                        //addLater? implicit casting of return values ( int <-> uint -> float )
-                        checkReturnValue(tState.typeStack,expectedReturnTypes,t.pos);
+                        checkReturnValue(expectedReturnTypes,t.pos,tState);
                     }else{
                         tState.retStacks.addLast(new BranchWithEnd(tState.typeStack.clone(),t.pos));
                     }
@@ -3159,7 +3156,7 @@ public class Parser {
         }
         if(expectedReturnTypes!=null){
             if(!tState.finishedBranch) {
-                checkReturnValue(tState.typeStack, expectedReturnTypes,blockEnd);
+                checkReturnValue(expectedReturnTypes,blockEnd,tState);
             }
             return new TypeCheckResult(tState.ret,null);
         }else if(tState.finishedBranch){
