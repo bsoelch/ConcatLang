@@ -161,24 +161,23 @@ public class Type {
         Struct.resetCached();
     }
 
+    //TODO ensure that implementations of genericTraits are saved before all non-genericTraits
+    record GenericTraitImplementation(Trait trait, GenericParameter[] params, Value.Procedure[] values,
+                                      FilePosition implementedAt,HashMap<Parser.VariableId, Value> globalConstants,
+                                      IOContext ioContext){}
+    record TraitImplementation(int offset, FilePosition implementedAt){}
+
     final String name;
     final boolean switchable;
     final Mutability mutability;
     /**fields that are attached to this type*/
     private final HashMap<String, Value> typeFields;
     private final HashMap<String, Parser.Callable> internalFields;
-    /**"pseudo-fields" for values of this type,
-     * a pseudo field is a procedure that takes this type as last parameter*/
+    private boolean typeFieldsInitialized=false;
+
     private final HashMap<String, Integer> traitFieldNames;
     private final ArrayList<Value.Procedure> traitFieldValues;
-    private boolean typeFieldsInitialized=false;
-    private int nativeFieldCount=-1;
 
-    //TODO ensure that implementations of genericTraits are saved before all non-genericTraits
-    record GenericTraitImplementation(Trait trait, GenericParameter[] params, Value.Procedure[] values,
-                                      FilePosition implementedAt,HashMap<Parser.VariableId, Value> globalConstants,
-                                      IOContext ioContext){}
-    record TraitImplementation(int offset, FilePosition implementedAt){}
     private final HashMap<Trait,TraitImplementation> implementedTraits;
 
     /**cache for the different variants of this type*/
@@ -224,7 +223,6 @@ public class Type {
         internalFields=src.internalFields;
         traitFieldValues =src.traitFieldValues;
         typeFieldsInitialized=true;//type fields of copied type are already initialized
-        nativeFieldCount=src.nativeFieldCount;//same number of native fields
         traitFieldNames = src.traitFieldNames;
         withMutability= src.withMutability;
         withMutability.put(newMutability,this);
@@ -242,9 +240,6 @@ public class Type {
                 initTypeFields();
             } catch (SyntaxError e) {
                 throw new RuntimeException(e);
-            }
-            for(Type t:withMutability.values()){//update native field count for all mutabilities
-                t.nativeFieldCount= traitFieldValues.size();
             }
         }
     }
@@ -425,14 +420,10 @@ public class Type {
         }
         int initPos= traitFieldValues.size();
         //addLater remember start position of inherited type fields
-        for(int i = extended.nativeFieldCount; i<extended.traitFieldValues.size(); i++){
-            traitFieldValues.add(extended.traitFieldValues.get(i));
-        }
+        traitFieldValues.addAll(extended.traitFieldValues);
         //copy field names
         for(Map.Entry<String, Integer> e:extended.traitFieldNames.entrySet()){
-            if(e.getValue()>=extended.nativeFieldCount){
-                traitFieldNames.put(e.getKey(),e.getValue()- extended.nativeFieldCount+initPos);
-            }
+            traitFieldNames.put(e.getKey(),e.getValue()-initPos);
         }
     }
 
