@@ -338,7 +338,7 @@ public abstract class Value {
             }else if(newType ==Type.UINT){
                 return ofInt(floatValue<0 ? 0 :
                             floatValue>=18446744073709551615.0 ? -1 :
-                                    ((long)floatValue/2)<<1,true);
+                                    ((long)(floatValue/2))<<1,true);
             }else{
                 return super.castTo(newType);
             }
