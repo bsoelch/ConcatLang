@@ -174,6 +174,15 @@ public class Type {
             return values[offset];
         }
     }
+    record IndirectTraitImplementation(TraitImplementation base, int offset) implements TraitImplementation{
+        public Value.Procedure get(int offset){
+            return base.get(this.offset+offset);
+        }
+        @Override
+        public FilePosition implementedAt() {
+            return base.implementedAt();
+        }
+    }
 
     final String name;
     final boolean switchable;
@@ -412,7 +421,6 @@ public class Type {
     }
 
     void implementTrait(Trait trait, Value.Procedure[] implementation, FilePosition implementedAt) throws SyntaxError {
-        ensureFieldsInitialized();
         assert trait.traitFields!=null;
         if(trait.traitFields.length!=implementation.length){
             throw new SyntaxError("wrong number of elements in implementation: "+implementation.length+
@@ -437,7 +445,16 @@ public class Type {
             }
         }
         implementedTraits.put(trait,impl);
+        addInheritedTraits(impl, trait, 0);
     }
+    private void addInheritedTraits(TraitImplementation baseImpl, Trait trait, int off) {
+        for(Trait parent: trait.extended){
+            implementedTraits.put(parent,new IndirectTraitImplementation(baseImpl, off));
+            addInheritedTraits(baseImpl,parent,off);
+            off +=parent.traitFields.length;
+        }
+    }
+
     void implementGenericTrait(Trait trait, GenericParameter[] params, Value.Procedure[] implementation,
                                FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext)
             throws SyntaxError {
@@ -1428,6 +1445,7 @@ public class Type {
         final FilePosition endPos;
         final Type[] genericArgs;
         final GenericParameter[] genericParameters;
+        final Trait[] extended;
 
         /**Tokens in the body of this Trait*/
         ArrayList<Parser.Token> tokens;
@@ -1437,28 +1455,30 @@ public class Type {
         TraitField[] traitFields;
 
         //TODO caching
-        static Trait create(String baseName,boolean isPublic,GenericParameter[] params,
+        static Trait create(String baseName,boolean isPublic,Trait[] extended,GenericParameter[] params,
                             ArrayList<Parser.Token> tokens, Parser.TraitContext context,
                             FilePosition declaredAt, FilePosition endPos){
-            return create(baseName,isPublic,params,params,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
+            return create(baseName,isPublic,extended,params,params,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
         }
-        static Trait create(String baseName,boolean isPublic,Type[] genericArgs,GenericParameter[] params,
+        static Trait create(String baseName,boolean isPublic,Trait[] extended,Type[] genericArgs,GenericParameter[] params,
                             ArrayList<Parser.Token> tokens, Parser.TraitContext context,Mutability mutability,
                             FilePosition declaredAt, FilePosition endPos){
             return new Trait(baseName,Struct.namePrefix(baseName,genericArgs)+mutabilityPostfix(mutability),isPublic,
-                    genericArgs, params,null, tokens,context, mutability, declaredAt, endPos);
+                    extended,genericArgs, params, null, tokens,context, mutability, declaredAt, endPos);
         }
-        static Trait create(String baseName,boolean isPublic,Type[] genericArgs,GenericParameter[] params,
+        static Trait create(String baseName,boolean isPublic,Trait[] extended,Type[] genericArgs,GenericParameter[] params,
                             TraitField[] traitFields,Mutability mutability,
                             FilePosition declaredAt, FilePosition endPos){
             return new Trait(baseName,Struct.namePrefix(baseName,genericArgs)+mutabilityPostfix(mutability),isPublic,
-                    genericArgs, params, traitFields,null,null, mutability, declaredAt, endPos);
+                    extended,genericArgs, params, traitFields,null,null, mutability, declaredAt, endPos);
         }
 
-        private Trait(String baseName,String name,boolean isPublic, Type[] genericArgs,GenericParameter[] genericParameters,
-                      TraitField[] traitFields,ArrayList<Parser.Token> tokens, Parser.TraitContext context, Mutability mutability,
+        private Trait(String baseName, String name, boolean isPublic, Trait[] extended,
+                      Type[] genericArgs, GenericParameter[] genericParameters, TraitField[] traitFields,
+                      ArrayList<Parser.Token> tokens, Parser.TraitContext context, Mutability mutability,
                       FilePosition declaredAt, FilePosition endPos) {
             super(name,false,mutability);
+            this.extended = extended;
             assert (traitFields==null)!=(tokens==null);
             this.baseName = baseName;
             this.isPublic = isPublic;
@@ -1467,7 +1487,7 @@ public class Type {
             this.genericArgs=genericArgs;
             this.genericParameters = genericParameters;
 
-            this.traitFields=traitFields;
+            this.traitFields=traitFields!=null?withExtended(traitFields):null;
             this.tokens = tokens;
             this.context = context;
         }
@@ -1476,6 +1496,7 @@ public class Type {
                     src,newMutability);
             baseName=src.baseName;
             isPublic=src.isPublic;
+            extended=src.extended;
             genericParameters=src.genericParameters;
             genericArgs=src.genericArgs;
             declaredAt=src.declaredAt;
@@ -1486,13 +1507,21 @@ public class Type {
             context=src.context;
         }
 
+        TraitField[] withExtended(TraitField[] declaredFields){
+            ArrayList<TraitField> fields=new ArrayList<>();
+            for(Trait t:extended){
+                fields.addAll(Arrays.asList(t.traitFields));
+            }
+            fields.addAll(Arrays.asList(declaredFields));
+            return fields.toArray(TraitField[]::new);
+        }
         boolean isTypeChecked(){
             return traitFields!=null;
         }
         void setTraitFields(TraitField[] fields){
             for(Type t:withMutability()){//change for all mutabilities
                 assert t instanceof Trait;
-                ((Trait)t).traitFields=fields;
+                ((Trait)t).traitFields=withExtended(fields);
                 ((Trait)t).tokens=null;
                 ((Trait)t).context=null;
             }
@@ -1557,6 +1586,10 @@ public class Type {
             }else{
                 newArgs=genericArgs;
             }
+            Trait[] newExtended=new Trait[extended.length];
+            for(int i=0;i<extended.length;i++){
+                newExtended[i]=extended[i].replaceGenerics(replace);
+            }
             ArrayList<GenericParameter> newParams=new ArrayList<>();
             for(GenericParameter t:genericParameters){
                 if(!replace.containsKey(t)){
@@ -1572,7 +1605,7 @@ public class Type {
                         changed=true;
                 }
                 Parser.TraitContext newContext=context.replaceGenerics(replace);
-                return changed?create(baseName, isPublic,newArgs,newParams.toArray(GenericParameter[]::new),
+                return changed?create(baseName, isPublic,newExtended,newArgs,newParams.toArray(GenericParameter[]::new),
                         newTokens,newContext,mutability,declaredAt,endPos):this;
             }
             TraitField[] newFields=new TraitField[traitFields.length];
@@ -1583,7 +1616,7 @@ public class Type {
                     changed =true;
                 }
             }
-            return changed?create(baseName, isPublic,newArgs,newParams.toArray(GenericParameter[]::new),
+            return changed?create(baseName, isPublic,newExtended,newArgs,newParams.toArray(GenericParameter[]::new),
                     newFields,mutability,declaredAt,endPos):this;
         }
 

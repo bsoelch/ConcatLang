@@ -1639,6 +1639,8 @@ public class Parser {
         }
     }
     static class TraitContext extends GenericContext{
+        final ArrayList<Type.Trait> extended=new ArrayList<>();
+
         final ArrayList<Type.TraitField> fields = new ArrayList<>();
 
         TraitContext(VariableContext parent) {
@@ -1653,6 +1655,26 @@ public class Parser {
             TraitContext copy=(TraitContext)super.replaceGenerics(genericParams);
             copy.fields.addAll(fields);
             return copy;
+        }
+
+
+        public void checkName(Type.TraitField traitField, FilePosition pos) throws SyntaxError {
+            for(Type.TraitField f:fields){
+                if(f.name().equals(traitField.name()))
+                    throw new SyntaxError("trait field: "+traitField.name()+" (declared at "+
+                            traitField.declaredAt()+") shadows existing trait field at "+f.declaredAt(),pos);
+            }
+            for(Type.Trait t:extended){
+                for(Type.TraitField f:t.traitFields) {
+                    if (f.name().equals(traitField.name()))
+                        throw new SyntaxError("trait field: "+traitField.name()+" (declared at "+
+                                traitField.declaredAt() + ") shadows existing trait field at "+f.declaredAt(),pos);
+                }
+            }
+        }
+        public void addField(Type.TraitField traitField) throws SyntaxError {
+            checkName(traitField,traitField.declaredAt());
+            fields.add(traitField);
         }
     }
     static class ImplementContext extends GenericContext{
@@ -2246,31 +2268,51 @@ public class Parser {
                 }
                 case "extend" -> { // addLater allow extending traits
                     CodeBlock block=pState.openBlocks.peek();
-                    if(!(block instanceof StructBlock)){
-                        throw new SyntaxError("'"+str+"' can only be used in struct blocks",pos);
-                    }
-                    if(((StructBlock) block).extended!=null){
-                        throw new SyntaxError("structs can only contain one '"+str+"' statement",pos);
+                    if(!(block instanceof StructBlock||block instanceof TraitBlock)){
+                        throw new SyntaxError("'"+str+"' can only be used in struct or trait blocks",pos);
                     }
                     List<Token> subList = tokens.subList(block.start, tokens.size());
                     //extended struct has to be known before type-checking
                     TypeCheckResult r=typeCheck(subList,pState.getContext(),pState.globalConstants,
                             new RandomAccessStack<>(8),null,pos,pState.ioContext);
                     subList.clear();
-                    if(((StructBlock) block).context.fields.size()>0){
-                        throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
-                    }
-                    if(r.types.size()!=1||r.types.get(1).type!=Type.TYPE||r.types.get(1).value==null){
-                        throw new SyntaxError("value before '"+str+"' has to be one constant type",pos);
-                    }
-                    try {
-                        Type extended=r.types.get(1).value.asType();
-                        if(!(extended instanceof Type.Struct)){
-                            throw new SyntaxError("extended type has to be a struct got: "+extended,pos);
+                    if(block instanceof StructBlock){
+                        if(((StructBlock) block).context.fields.size()>0){
+                            throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
                         }
-                        ((StructBlock) block).extended=(Type.Struct) extended;
-                    } catch (TypeError e) {
-                        throw new SyntaxError(e,pos);
+                        if(((StructBlock) block).extended!=null){
+                            throw new SyntaxError("structs can only contain one '"+str+"' statement",pos);
+                        }
+                        if(r.types.size()!=1||r.types.get(1).type!=Type.TYPE||r.types.get(1).value==null){
+                            throw new SyntaxError("value before '"+str+"' has to be one constant type",pos);
+                        }
+                        try {
+                            Type extended=r.types.get(1).value.asType();
+                            if(!(extended instanceof Type.Struct)){
+                                throw new SyntaxError("extended type has to be a struct got: "+extended,pos);
+                            }
+                            ((StructBlock) block).extended=(Type.Struct) extended;
+                        } catch (TypeError e) {
+                            throw new SyntaxError(e,pos);
+                        }
+                    }else /*if(block instanceof TraitBlock)*/{
+                        TraitContext context = ((TraitBlock) block).context;
+                        if(context.fields.size()>0){
+                            throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
+                        }
+                        try {
+                            for(TypeFrame f:r.types){
+                                if(f.type!=Type.TYPE||(!(f.value.asType() instanceof Type.Trait trait))){
+                                    throw new SyntaxError("values before '"+str+"' have to be constant trait-types",pos);
+                                }
+                                for(Type.TraitField inherited:trait.traitFields){
+                                    context.checkName(inherited,f.pushedAt);
+                                }
+                                context.extended.add(trait);
+                            }
+                        } catch (TypeError e) {
+                            throw new SyntaxError(e,pos);
+                        }
                     }
                 }
                 case "proc(","procedure(" ->{
@@ -2541,6 +2583,7 @@ public class Parser {
                             subList.clear();
                             ArrayList<Type.GenericParameter> generics= traitContext.generics;
                             Type.Trait trait=Type.Trait.create(((TraitBlock) block).name, ((TraitBlock) block).isPublic,
+                                    ((TraitBlock) block).context.extended.toArray(Type.Trait[]::new),
                                     generics.toArray(Type.GenericParameter[]::new),traitTokens,traitContext,block.startPos,pos);
                             pState.topLevelContext().declareNamedDeclareable(trait,pState.ioContext);
                         }
@@ -4238,7 +4281,7 @@ public class Parser {
                     if(!(type instanceof Type.Procedure)){
                         throw new SyntaxError("trait fields have to be procedure types", identifier.pos);
                     }
-                    ((TraitContext)context).fields.add(new Type.TraitField(identifier.name,(Type.Procedure)type,t.pos));
+                    ((TraitContext)context).addField(new Type.TraitField(identifier.name,(Type.Procedure)type,t.pos));
                 }else{
                     ((StructContext)context).fields.add(new StructFieldWithType(
                             new Type.StructField(identifier.name, accessibility,
