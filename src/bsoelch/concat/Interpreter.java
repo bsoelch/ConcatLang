@@ -245,10 +245,10 @@ public class Interpreter {
                         }
                         variables.remove(variables.size()-1);
                     }
-                    case PSEUDO_FIELD_ACCESS -> {
+                    case DIRECT_TRAIT_FIELD_ACCESS -> {
                         assert next instanceof Parser.TypeFieldAccess;
                         Value val = stack.peek();
-                        Parser.Callable called=val.type.getPseudoField(((Parser.TypeFieldAccess) next).fieldId);
+                        Parser.Callable called=val.type.getTraitField(((Parser.TypeFieldAccess) next).fieldId);
                         ExitType e=call(called, next, stack, globalVariables, variables, context);
                         if(e!=ExitType.NORMAL){
                             return e;
@@ -260,7 +260,7 @@ public class Interpreter {
                         if(!(val instanceof Value.TraitValue tv)){
                             throw new RuntimeException("trait field access on non-trait value");
                         }
-                        Parser.Callable called=tv.wrapped.type.getPseudoField(tv.offset+((Parser.TypeFieldAccess) next).fieldId);
+                        Parser.Callable called=tv.wrapped.type.getTraitField(tv.offset+((Parser.TypeFieldAccess) next).fieldId);
                         stack.push(tv.wrapped);//call trait on unwrapped value
                         ExitType e=call(called, next, stack, globalVariables, variables, context);
                         if(e!=ExitType.NORMAL){

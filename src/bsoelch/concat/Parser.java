@@ -27,7 +27,7 @@ public class Parser {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
-        PSEUDO_FIELD_ACCESS,TRAIT_FIELD_ACCESS,
+        DIRECT_TRAIT_FIELD_ACCESS,TRAIT_FIELD_ACCESS,
         //compile time operations
         ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
         MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifiers
@@ -3148,7 +3148,7 @@ public class Parser {
                     },tState.ret,tState.typeStack,t.pos);
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
                         CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX,
-                        PSEUDO_FIELD_ACCESS,TRAIT_FIELD_ACCESS ->
+                        DIRECT_TRAIT_FIELD_ACCESS,TRAIT_FIELD_ACCESS ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -4117,13 +4117,23 @@ public class Parser {
                             break;
                         }
                     }
-                    Callable pseudoField=f.type.getPseudoField(identifier.name);
-                    if(pseudoField!=null){
+                    Callable traitField=f.type.getTraitField(identifier.name);
+                    if(traitField!=null){
                         typeStack.push(f);//push f back onto the type-stack
-                        CallMatch match = typeCheckOverloadedCall(pseudoField.name(),
-                                new OverloadedProcedure(pseudoField),null,t.pos, tState);
+                        CallMatch match = typeCheckOverloadedCall(traitField.name(),
+                                new OverloadedProcedure(traitField),null,t.pos, tState);
                         match.called.markAsUsed();
-                        ret.add(new TypeFieldAccess(TokenType.PSEUDO_FIELD_ACCESS,identifier.pos,f.type.pseudoFieldId(identifier.name)));
+                        ret.add(new TypeFieldAccess(TokenType.DIRECT_TRAIT_FIELD_ACCESS,identifier.pos,
+                                f.type.traitFieldId(identifier.name)));
+                        break;//found field
+                    }
+                    Callable internalField=f.type.getInternalField(identifier.name);
+                    if(internalField!=null){
+                        typeStack.push(f);//push f back onto the type-stack
+                        CallMatch match = typeCheckOverloadedCall(internalField.name(),
+                                new OverloadedProcedure(internalField),null,t.pos, tState);
+                        match.called.markAsUsed();
+                        ret.add(new CallToken(match.called(), t.pos));
                         break;//found field
                     }
                     if(f.type==Type.TYPE&&f.value!=null){

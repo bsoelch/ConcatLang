@@ -37,32 +37,32 @@ public class Type {
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();//addLater? make type-data getters return optional
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{TYPE},"content",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{TYPE},"content",
                     (values) ->
                             new Value[]{Value.ofType(values[0].asType().content())}), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"genericArguments",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"genericArguments",
                 (values) ->
                         new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
                             values[0].asType().genericArguments().stream().map(Value::ofType).toArray(Value[]::new))}),
                     declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"inTypes",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"inTypes",
                 (values) ->
                         new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
                             values[0].asType().inTypes().stream().map(Value::ofType).toArray(Value[]::new))}),
                     declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"outTypes",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"outTypes",
                 (values) ->
                         new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
                             values[0].asType().outTypes().stream().map(Value::ofType).toArray(Value[]::new))}),
                     declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{RAW_STRING()},"name",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{RAW_STRING()},"name",
                 (values) -> new Value[]{Value.ofString(values[0].asType().name(),false)}),
                     declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(RAW_STRING())},"fieldNames",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(RAW_STRING())},"fieldNames",
                 (values) -> new Value[]{Value.createArray(Type.arrayOf(Type.RAW_STRING()),values[0].asType().fields()
                             .stream().map(s->Value.ofString(s,false)).toArray(Value[]::new))}),
                     declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{ANY,UINT,TYPE},new Type[]{ANY},"getField",
+            addInternalField(new Value.InternalProcedure(new Type[]{ANY,UINT,TYPE},new Type[]{ANY},"getField",
                 (values) ->  {
                     Value instance = values[0];
                     long index     = values[1].asLong();
@@ -72,26 +72,26 @@ public class Type {
                     }
                     return new Value[]{instance.getField(index)};
                 }), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isEnum",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isEnum",
                 (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Enum)}), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isArray",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isArray",
                 (values) -> new Value[]{Value.ofBool(values[0].asType().isArray())}), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMemory",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMemory",
                 (values) -> new Value[]{Value.ofBool(values[0].asType().isMemory())}), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isProc",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isProc",
                 (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Type.Procedure)}), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isOptional",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isOptional",
                 (values) -> new Value[]{Value.ofBool(values[0].asType().isOptional())}), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isTuple",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isTuple",
                 (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Tuple)}), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isStruct",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isStruct",
                 (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Struct)}), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isUnion",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isUnion",
                 (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof UnionType)}), declaredAt());
 
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMutable",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMutable",
                 (values) -> new Value[]{Value.ofBool(values[0].asType().isMutable())}), declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMaybeMutable",
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMaybeMutable",
                 (values) -> new Value[]{Value.ofBool(values[0].asType().isMaybeMutable())}), declaredAt());
         }
     };
@@ -166,15 +166,16 @@ public class Type {
     final Mutability mutability;
     /**fields that are attached to this type*/
     private final HashMap<String, Value> typeFields;
+    private final HashMap<String, Parser.Callable> internalFields;
     /**"pseudo-fields" for values of this type,
      * a pseudo field is a procedure that takes this type as last parameter*/
-    private final HashMap<String, Integer> pseudoFieldNames;
-    private final ArrayList<Value> pseudoFieldValues;
+    private final HashMap<String, Integer> traitFieldNames;
+    private final ArrayList<Value.Procedure> traitFieldValues;
     private boolean typeFieldsInitialized=false;
     private int nativeFieldCount=-1;
 
     //TODO ensure that implementations of genericTraits are saved before all non-genericTraits
-    record GenericTraitImplementation(Trait trait, GenericParameter[] params, Parser.Callable[] values,
+    record GenericTraitImplementation(Trait trait, GenericParameter[] params, Value.Procedure[] values,
                                       FilePosition implementedAt,HashMap<Parser.VariableId, Value> globalConstants,
                                       IOContext ioContext){}
     record TraitImplementation(int offset, FilePosition implementedAt){}
@@ -205,8 +206,9 @@ public class Type {
         this.mutability=mutability;
 
         typeFields = new HashMap<>();
-        pseudoFieldNames = new HashMap<>();
-        pseudoFieldValues =new ArrayList<>();
+        internalFields = new HashMap<>();
+        traitFieldNames = new HashMap<>();
+        traitFieldValues =new ArrayList<>();
         withMutability=new HashMap<>();
         withMutability.put(mutability,this);
 
@@ -219,10 +221,11 @@ public class Type {
 
         src.ensureFieldsInitialized();//ensure type fields are initialized
         typeFields =src.typeFields;
-        pseudoFieldValues =src.pseudoFieldValues;
+        internalFields=src.internalFields;
+        traitFieldValues =src.traitFieldValues;
         typeFieldsInitialized=true;//type fields of copied type are already initialized
         nativeFieldCount=src.nativeFieldCount;//same number of native fields
-        pseudoFieldNames = src.pseudoFieldNames;
+        traitFieldNames = src.traitFieldNames;
         withMutability= src.withMutability;
         withMutability.put(newMutability,this);
 
@@ -241,12 +244,12 @@ public class Type {
                 throw new RuntimeException(e);
             }
             for(Type t:withMutability.values()){//update native field count for all mutabilities
-                t.nativeFieldCount= pseudoFieldValues.size();
+                t.nativeFieldCount= traitFieldValues.size();
             }
         }
     }
     void initTypeFields() throws SyntaxError {
-        addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{TYPE},"type",
+        addInternalField(new Value.InternalProcedure(new Type[]{this},new Type[]{TYPE},"type",
                 (values) ->  new Value[]{Value.ofType(values[0].type)}),declaredAt());
     }
     void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError{ }
@@ -404,41 +407,36 @@ public class Type {
             throw new SyntaxError(this.name+" already has a type field "+name+" ",pos);
         }
     }
-    void addPseudoField(Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
-        addPseudoField(fieldValue.name(),fieldValue,declaredAt);
-    }
-    void addPseudoField(String name,Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
+    void addInternalField(Parser.Callable fieldValue, FilePosition declaredAt) throws SyntaxError {
         ensureFieldsInitialized();
         Type[] in=fieldValue.type().inTypes;
         if(in.length==0||!canAssignTo(in[in.length-1].maybeMutable())){
             throw new SyntaxError(fieldValue.name()+" (declared at "+fieldValue.declaredAt()+") "+
-                    "has an invalid signature for a pseudo-field of "+this+": "+Arrays.toString(in),declaredAt);
+                    "has an invalid signature for an internal-field of "+this+": "+Arrays.toString(in),declaredAt);
         }
-        int id= pseudoFieldValues.size();
-        if(pseudoFieldNames.put(name,id)!=null){
-            throw new SyntaxError(this.name+" already has a field "+name+" ",declaredAt);
+        if(internalFields.put(fieldValue.name(),fieldValue)!=null){
+            throw new SyntaxError(name+" already has a field "+fieldValue.name()+" ",declaredAt);
         }
-        pseudoFieldValues.add((Value) fieldValue);
     }
     void inheritDeclaredFields(Type extended) {
         ensureFieldsInitialized();
         if(!extended.typeFieldsInitialized){
             throw new RuntimeException("extended type has to be initialized");
         }
-        int initPos= pseudoFieldValues.size();
+        int initPos= traitFieldValues.size();
         //addLater remember start position of inherited type fields
-        for(int i = extended.nativeFieldCount; i<extended.pseudoFieldValues.size(); i++){
-            pseudoFieldValues.add(extended.pseudoFieldValues.get(i));
+        for(int i = extended.nativeFieldCount; i<extended.traitFieldValues.size(); i++){
+            traitFieldValues.add(extended.traitFieldValues.get(i));
         }
         //copy field names
-        for(Map.Entry<String, Integer> e:extended.pseudoFieldNames.entrySet()){
+        for(Map.Entry<String, Integer> e:extended.traitFieldNames.entrySet()){
             if(e.getValue()>=extended.nativeFieldCount){
-                pseudoFieldNames.put(e.getKey(),e.getValue()- extended.nativeFieldCount+initPos);
+                traitFieldNames.put(e.getKey(),e.getValue()- extended.nativeFieldCount+initPos);
             }
         }
     }
 
-    void implementTrait(Trait trait, Parser.Callable[] implementation,FilePosition implementedAt) throws SyntaxError {
+    void implementTrait(Trait trait, Value.Procedure[] implementation,FilePosition implementedAt) throws SyntaxError {
         ensureFieldsInitialized();
         assert trait.traitFields!=null;
         if(trait.traitFields.length!=implementation.length){
@@ -450,7 +448,7 @@ public class Type {
             throw new SyntaxError("trait "+trait+" was already implemented for "+this+" (at "+impl.implementedAt+")",
                     implementedAt);
         }
-        impl=new TraitImplementation(pseudoFieldValues.size(),implementedAt);
+        impl=new TraitImplementation(traitFieldValues.size(),implementedAt);
         for(int i=0;i<implementation.length;i++){
             Type[] in=implementation[i].type().inTypes;
             if(in.length==0||!canAssignTo(in[in.length-1].maybeMutable())){
@@ -458,44 +456,48 @@ public class Type {
                         " (declared at "+trait.traitFields[i].declaredAt()+")  has an invalid signature for a trait-field of "
                         +this+": "+Arrays.toString(in),implementedAt);
             }
-            int id= pseudoFieldValues.size();
-            if(pseudoFieldNames.put(trait.traitFields[i].name(),id)!=null){//addLater give only a warning on shadowed names
+            int id= traitFieldValues.size();
+            if(traitFieldNames.put(trait.traitFields[i].name(),id)!=null){//addLater give only a warning on shadowed names
                 throw new SyntaxError(name+" already has a field "+trait.traitFields[i].name()+" ",implementedAt);
             }
-            pseudoFieldValues.add((Value)implementation[i]);
+            traitFieldValues.add(implementation[i]);
         }
         implementedTraits.put(trait,impl);
     }
-    void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
+    void implementGenericTrait(Trait trait, GenericParameter[] params, Value.Procedure[] implementation,
                                FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext)
             throws SyntaxError {
         throw new UnsupportedOperationException("cannot implement generic traits for "+this);
     }
 
-    List<Value> typeFields(){
-        return pseudoFieldValues;
+    Iterable<Value> typeFields(){
+        return typeFields.values();
     }
     Value getTypeField(String name){
         ensureFieldsInitialized();
         return typeFields.get(name);
     }
-    private boolean pseudoFieldIncompatible(int id){
-        Procedure t= (Procedure) pseudoFieldValues.get(id).type;
+    Parser.Callable getInternalField(String name){
+        ensureFieldsInitialized();
+        return internalFields.get(name);
+    }
+    private boolean traitFieldIncompatible(int id){
+        Procedure t= (Procedure) traitFieldValues.get(id).type;
         return !canAssignTo(t.inTypes[t.inTypes.length-1]);
     }
-    int pseudoFieldId(String name){
+    int traitFieldId(String name){
         ensureFieldsInitialized();
-        Integer id=pseudoFieldNames.get(name);
-        return id==null||pseudoFieldIncompatible(id)?-1:id;
+        Integer id= traitFieldNames.get(name);
+        return id==null|| traitFieldIncompatible(id)?-1:id;
     }
-    Parser.Callable getPseudoField(String name){
+    Value.Procedure getTraitField(String name){
         ensureFieldsInitialized();
-        Integer id=pseudoFieldNames.get(name);
-        return id==null||pseudoFieldIncompatible(id)?null:(Parser.Callable) pseudoFieldValues.get(id);
+        Integer id= traitFieldNames.get(name);
+        return id==null|| traitFieldIncompatible(id)?null:traitFieldValues.get(id);
     }
-    Parser.Callable getPseudoField(int id){
+    Value.Procedure getTraitField(int id){
         ensureFieldsInitialized();
-        return (Parser.Callable) pseudoFieldValues.get(id);
+        return traitFieldValues.get(id);
     }
 
     /**returns the semi-mutable version of this type
@@ -617,16 +619,16 @@ public class Type {
                     default -> throw new RuntimeException("unexpected wrapper name:" + wrapperName);
                 }
                 for (GenericTraitImplementation t : traits) {
-                    Parser.Callable[] updated = new Parser.Callable[t.values.length];
+                    Value.Procedure[] updated = new Value.Procedure[t.values.length];
                     generics.clear();
                     generics.put(t.params[0], contentType);
                     for (int i = 0; i < t.values.length; i++) {
-                        updated[i] = (Parser.Callable) ((Value) t.values[i]).replaceGenerics(generics);
+                        updated[i] = (Value.Procedure)t.values[i].replaceGenerics(generics);
                     }
                     implementTrait(t.trait.replaceGenerics(generics), updated, t.implementedAt);
                     if (!(contentType instanceof GenericParameter)) {
-                        for (Parser.Callable callable : updated) {
-                            Parser.typeCheckProcedure((Value.Procedure) callable, t.globalConstants, t.ioContext);
+                        for (Value.Procedure callable : updated) {
+                            Parser.typeCheckProcedure(callable, t.globalConstants, t.ioContext);
                         }
                     }
                 }
@@ -640,24 +642,24 @@ public class Type {
             super.initTypeFields();
             switch (wrapperName) {
                 case OPTIONAL -> {
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{BOOL}, "hasValue",
+                    addInternalField(new Value.InternalProcedure(new Type[]{this},new Type[]{BOOL}, "hasValue",
                             (values) -> new Value[]{Value.ofBool(values[0].hasValue())}), declaredAt());
                     //addLater static check if optional is nonempty
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this},new Type[]{contentType}, "value",
+                    addInternalField(new Value.InternalProcedure(new Type[]{this},new Type[]{contentType}, "value",
                             (values) -> new Value[]{values[0].unwrap()}), declaredAt());
                 }
                 case MEMORY -> {
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
+                    addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
                             new Type[]{UINT}, "length", (values) ->
                             new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)}), declaredAt());
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
+                    addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
                             new Type[]{UINT}, "capacity", (values) ->
                             new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).capacity(), true)}), declaredAt());
-                    addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
+                    addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
                             new Type[]{UINT}, "offset", (values) ->
                             new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).offset(), true)}), declaredAt());
                 }
-                case ARRAY -> addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
+                case ARRAY -> addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
                         new Type[]{UINT}, "length", (values) ->
                         new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)}), declaredAt());
             }
@@ -667,7 +669,7 @@ public class Type {
         }
 
         @Override
-        void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
+        void implementGenericTrait(Trait trait, GenericParameter[] params, Value.Procedure[] implementation,
                                    FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
                                    IOContext ioContext) throws SyntaxError {
             if(params.length!=1){
@@ -693,16 +695,16 @@ public class Type {
                 default -> throw new RuntimeException("unexpected wrapper name:"+wrapperName);
             }
             for(WrapperType t:types){
-                Parser.Callable[] updated = new Parser.Callable[implementation.length];
+                Value.Procedure[] updated = new Value.Procedure[implementation.length];
                 generics.clear();
                 generics.put(params[0], t.contentType);
                 for (int i = 0; i < implementation.length; i++) {
-                    updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(generics);
+                    updated[i] = (Value.Procedure) implementation[i].replaceGenerics(generics);
                 }
                 t.implementTrait(trait.replaceGenerics(generics),updated,implementedAt);
                 if(!(t.contentType instanceof GenericParameter)){
-                    for (Parser.Callable callable : updated) {
-                        Parser.typeCheckProcedure((Value.Procedure) callable, globalConstants, ioContext);
+                    for (Value.Procedure callable : updated) {
+                        Parser.typeCheckProcedure(callable, globalConstants, ioContext);
                     }
                 }
             }
@@ -909,10 +911,10 @@ public class Type {
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();
-            addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{UINT},"length",
+            addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{UINT},"length",
                 (values) -> //addLater? remember declaration position of tuples
                         new Value[]{Value.ofInt(values[0].length(),true)}),declaredAt());
-            addPseudoField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{arrayOf(ANY)},"elements",
+            addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{arrayOf(ANY)},"elements",
                 (values) ->  new Value[]{Value.createArray(arrayOf(ANY),values[0].getElements())}),declaredAt());
         }
 
@@ -1104,14 +1106,14 @@ public class Type {
                         nonGeneric=false;
                     }
                 }
-                Parser.Callable[] updated = new Parser.Callable[trait.values().length];
+                Value.Procedure[] updated = new Value.Procedure[trait.values().length];
                 for (int i = 0; i < trait.values().length; i++) {
-                    updated[i] = (Parser.Callable) ((Value)trait.values()[i]).replaceGenerics(update);
+                    updated[i] = (Value.Procedure) trait.values[i].replaceGenerics(update);
                 }
                 implementTrait(trait.trait().replaceGenerics(update), updated, trait.implementedAt());
                 if(nonGeneric){
-                    for (Parser.Callable callable : updated) {
-                        Parser.typeCheckProcedure((Value.Procedure) callable, trait.globalConstants(),
+                    for (Value.Procedure callable : updated) {
+                        Parser.typeCheckProcedure(callable, trait.globalConstants(),
                                 trait.ioContext());
                     }
                 }
@@ -1179,7 +1181,7 @@ public class Type {
 
         //TODO allow overwriting inherited traits in structs
         @Override
-        void implementGenericTrait(Trait trait, GenericParameter[] params, Parser.Callable[] implementation,
+        void implementGenericTrait(Trait trait, GenericParameter[] params, Value.Procedure[] implementation,
                                    FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
                                    IOContext ioContext) throws SyntaxError {
             if(params.length!=genericArgs.length){
@@ -1200,14 +1202,14 @@ public class Type {
                         nonGeneric=false;
                     }
                 }
-                Parser.Callable[] updated = new Parser.Callable[implementation.length];
+                Value.Procedure[] updated = new Value.Procedure[implementation.length];
                 for (int i = 0; i < implementation.length; i++) {
-                    updated[i] = (Parser.Callable) ((Value)implementation[i]).replaceGenerics(update);
+                    updated[i] = (Value.Procedure) implementation[i].replaceGenerics(update);
                 }
                 s.implementTrait(trait.replaceGenerics(update), updated, implementedAt);
                 if(nonGeneric){
-                    for (Parser.Callable callable : updated) {
-                        Parser.typeCheckProcedure((Value.Procedure) callable, globalConstants,ioContext);
+                    for (Value.Procedure callable : updated) {
+                        Parser.typeCheckProcedure(callable, globalConstants,ioContext);
                     }
                 }
             }
