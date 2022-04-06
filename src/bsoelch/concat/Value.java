@@ -1047,7 +1047,7 @@ public abstract class Value {
         return new Procedure(name, isPublic, procType, tokens, null,
                 variableContext, declaredAt, endPos,TypeCheckState.UNCHECKED);
     }
-    enum TypeCheckState{UNCHECKED,CHECKING,CHECKED,WAITING}
+    enum TypeCheckState{UNCHECKED,CHECKING,CHECKED}
     static class Procedure extends Value implements Parser.CodeSection, Parser.Callable {
         final String name;
         final boolean isPublic;
