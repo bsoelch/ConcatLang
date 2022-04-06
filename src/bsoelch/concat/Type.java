@@ -1643,7 +1643,23 @@ public class Type {
         protected boolean canCastTo(Type t, BoundMaps bounds) {
             if(t.hasTrait(this,bounds.swapped()))
                 return true;
-            return super.canCastTo(t, bounds);
+            if (hasTrait(t, bounds))
+                return true;
+            if(t instanceof Trait) {
+                if(mutabilityIncompatible(t)){
+                    return false;
+                }
+                if(!declaredAt.equals(((Trait) t).declaredAt)){
+                    return false;
+                }
+                for(int i=0;i<genericArgs.length;i++){
+                    if(!(genericArgs[i].canAssignTo(((Trait)t).genericArgs[i],bounds)&&
+                            ((Trait) t).genericArgs[i].canAssignTo(genericArgs[i],bounds.swapped())))
+                        return false;
+                }
+                return true;
+            }
+            return super.canAssignTo(t, bounds);
         }
 
         @Override
