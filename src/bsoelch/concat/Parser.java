@@ -2557,6 +2557,12 @@ public class Parser {
                                 throw new SyntaxError("unexpected token in implement-block: "+ token,token.pos);
                             }
                             subList.clear();
+                            for(Map.Entry<String, Integer> e:iContext.fieldIds.entrySet()){
+                                if(iContext.implementations[e.getValue()]==null){
+                                    throw new SyntaxError("the implementation for "+e.getKey()+" (declared at"+
+                                            iBlock.trait.traitFields[e.getValue()].declaredAt()+") in "+iBlock.trait+" is missing",pos);
+                                }
+                            }
                             if(iContext.generics.size()==0){
                                 iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
                                 for(Value.Procedure c:iContext.implementations){
