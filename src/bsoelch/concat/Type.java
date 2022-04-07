@@ -872,13 +872,14 @@ public class Type {
     public static class Tuple extends TupleLike{
         /**initialized types in this Tuple or null if this tuple is not yet initialized*/
         final Type[] elements;
+        final FilePosition declaredAt;
 
-        public static Tuple create(Type[] elements){
-            return create(elements, Mutability.DEFAULT);
+        public static Tuple create(Type[] elements,FilePosition declaredAt){
+            return create(elements, Mutability.DEFAULT,declaredAt);
         }
-        private static Tuple create(Type[] elements,Mutability mutability) {
+        private static Tuple create(Type[] elements,Mutability mutability,FilePosition declaredAt) {
             String typeName = getTypeName(elements);
-            return new Tuple(typeName+mutabilityPostfix(mutability),elements, mutability);//addLater? caching
+            return new Tuple(typeName+mutabilityPostfix(mutability),elements, mutability, declaredAt);//addLater? caching
         }
         private static String getTypeName(Type[] elements) {
             StringBuilder sb = new StringBuilder("( ");
@@ -888,20 +889,27 @@ public class Type {
             return sb.append(")").toString();
         }
 
-        private Tuple(String name,  Type[] elements,Mutability mutability){
+        private Tuple(String name, Type[] elements, Mutability mutability, FilePosition declaredAt){
             super(name, false,mutability);
             this.elements=elements;
+            this.declaredAt = declaredAt;
         }
         private Tuple(Tuple src,Mutability mutability){
             super(src.name, src,mutability);
             this.elements=src.elements;
+            this.declaredAt=src.declaredAt;
+        }
+
+        @Override
+        FilePosition declaredAt() {
+            return declaredAt;
         }
 
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();
             addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{UINT},"length",
-                (values) -> //addLater? remember declaration position of tuples
+                (values) ->
                         new Value[]{Value.ofInt(values[0].length(),true)}),declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{arrayOf(ANY)},"elements",
                 (values) ->  new Value[]{Value.createArray(arrayOf(ANY),values[0].getElements())}),declaredAt());
@@ -927,7 +935,7 @@ public class Type {
                     changed =true;
                 }
             }
-            return changed ? create(newElements,mutability) : this;
+            return changed ? create(newElements,mutability,declaredAt) : this;
         }
 
         @Override

@@ -3636,7 +3636,7 @@ public class Parser {
                         List<Token> subList=ret.subList(open.start, ret.size());
                         Type[] tupleTypes=ProcedureBlock.getSignature(subList,"tuple");
                         subList.clear();
-                        Value typeValue=Value.ofType(Type.Tuple.create(tupleTypes));
+                        Value typeValue=Value.ofType(Type.Tuple.create(tupleTypes,pos));
 
                         tState.typeStack=((ArrayBlock)open).prevTypes;
                         ret.add(new ValueToken(typeValue,pos));
