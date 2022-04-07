@@ -1577,7 +1577,7 @@ public class Parser {
         @Override
         StructContext replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             StructContext copy=(StructContext) super.replaceGenerics(genericParams);
-            copy.fields.addAll(fields);//addLater replace generics in fields
+            assert fields.isEmpty();//when replace generics is called there shoudl not be any fields
             return copy;
         }
     }
@@ -2209,7 +2209,7 @@ public class Parser {
                     pState.openBlocks.add(structBlock);
                     pState.openedContexts.add(structBlock.context());
                 }
-                case "extend" -> { // addLater allow extending traits
+                case "extend" -> {
                     CodeBlock block=pState.openBlocks.peek();
                     if(!(block instanceof StructBlock||block instanceof TraitBlock)){
                         throw new SyntaxError("'"+str+"' can only be used in struct or trait blocks",pos);
