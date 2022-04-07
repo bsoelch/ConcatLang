@@ -1840,7 +1840,13 @@ public abstract class Value {
             this.isPublic = isPublic;
             this.nativeMethod = nativeMethod;
         }
-        //TODO replace generics
+
+        @Override
+        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
+            Type.Procedure newType = (Type.Procedure) type.replaceGenerics(genericParams);
+            return newType!=type?new ExternalProcedure(name,isPublic, newType,nativeMethod,declaredAt):this;
+        }
+
         @Override
         Value[] callWith(Value[] values) throws ConcatRuntimeError {
             Object[] nativeArgs=new Object[values.length];
