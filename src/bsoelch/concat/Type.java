@@ -2121,8 +2121,7 @@ public class Type {
                     }
                 }else{
                     if(mBound==null){
-                        //TODO handle comparison with empty parameter
-                        throw new UnsupportedOperationException("unimplemented");
+                        throw new RuntimeException("comparison of two unbound generics");
                     }else{
                         bounds.r.put((GenericParameter)t,mBound);
                     }
