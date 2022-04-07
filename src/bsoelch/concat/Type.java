@@ -260,6 +260,7 @@ public class Type {
     void initTypeFields() throws SyntaxError {
         addInternalField(new Value.InternalProcedure(new Type[]{this},new Type[]{TYPE},"type",
                 (values) ->  new Value[]{Value.ofType(values[0].valueType())}),declaredAt());
+        //addLater allow accessing current trait-interface at runtime
     }
     void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError{ }
 
