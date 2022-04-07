@@ -55,7 +55,6 @@ FilteredIterator struct{ A <>
   ( A => bool ) array :filters
 }
 
-##addLater allow to access implementation type at runtime
 filter public proc( A <?> A Iterator ( A => bool ) => A Iterator ){
   f =::
   dup .type A FilteredIterator <= if{ ##filter filtered iterator

@@ -52,6 +52,11 @@ public abstract class Value {
         return System.identityHashCode(this);
     }
 
+    /**type of this value, ignoring wrapping in traits*/
+    public Type valueType() {
+        return type;
+    }
+
     /*raw data of this Value as a standard java Object*/
     Object rawData(Type argType) throws TypeError {
         throw new TypeError("Cannot convert "+type+" to native value");
@@ -124,6 +129,7 @@ public abstract class Value {
     public String toString() {
         return type+":"+stringValue();
     }
+
 
 
     private interface NumberValue{}
@@ -1891,7 +1897,17 @@ public abstract class Value {
             this.wrapped=wrapped;
         }
 
-        //addLater clone,isEqualTo, rawData,updateFrom,equals
+        @Override
+        public Type valueType() {
+            return wrapped.valueType();
+        }
+
+        //addLater isEqualTo, rawData,updateFrom,equals
+
+        @Override
+        public Value clone(boolean deep, Type targetType) {//addLater handle targetType
+            return new TraitValue((Type.Trait)type,wrapped.clone(deep, targetType));
+        }
 
         @Override
         public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {

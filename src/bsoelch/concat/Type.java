@@ -259,7 +259,7 @@ public class Type {
     }
     void initTypeFields() throws SyntaxError {
         addInternalField(new Value.InternalProcedure(new Type[]{this},new Type[]{TYPE},"type",
-                (values) ->  new Value[]{Value.ofType(values[0].type)}),declaredAt());
+                (values) ->  new Value[]{Value.ofType(values[0].valueType())}),declaredAt());
     }
     void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError{ }
 
