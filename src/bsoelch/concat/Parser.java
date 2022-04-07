@@ -61,9 +61,6 @@ public class Parser {
             return tokenType.toString()+" at "+pos;
         }
 
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
-            return this;
-        }
     }
     enum Accessibility {
         DEFAULT,PUBLIC,READ_ONLY,PRIVATE
@@ -156,13 +153,6 @@ public class Parser {
             return tokenType.toString()+": "+value;
         }
 
-        @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
-            Value newValue = value.replaceGenerics(genericParams);
-            if(newValue!=value)
-                return new ValueToken(newValue,pos);
-            return this;
-        }
     }
     static class StackModifierToken extends Token{
         final int[] args;
@@ -234,10 +224,6 @@ public class Parser {
             return tokenType.toString()+": "+target;
         }
 
-        @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
-            return new TypedToken(tokenType,target==null?null:target.replaceGenerics(genericParams),pos);
-        }
     }
     static class ArrayCreatorToken extends Token implements CodeSection {
         final ArrayList<Token> tokens;
@@ -260,18 +246,6 @@ public class Parser {
             return null;
         }
 
-        @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
-            boolean changed=false;
-            ArrayList<Token> newTokens=new ArrayList<>(tokens.size());
-            Token newT;
-            for(Token t:tokens){
-                newT=t.replaceGenerics(genericParams);
-                newTokens.add(newT);
-                changed|=newT!=t;
-            }
-            return changed?new ArrayCreatorToken(newTokens,pos):this;
-        }
     }
     static class ArgCastToken extends Token{
         final int offset;
@@ -282,10 +256,6 @@ public class Parser {
             this.target=target;
         }
 
-        @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
-            return new ArgCastToken(offset,target.replaceGenerics(genericParams),pos);
-        }
     }
     static class DeclareLambdaToken extends Token{
         final ArrayList<Token> inTypes;
@@ -305,33 +275,6 @@ public class Parser {
             this.endPos=endPos;
         }
 
-        @Override
-        public Token replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
-            boolean changed=false;
-            Token newT;
-            ArrayList<Token> newIns=new ArrayList<>(inTypes.size());
-            for(Token t: inTypes){
-                newT=t.replaceGenerics(genericParams);
-                newIns.add(newT);
-                changed|=newT!=t;
-            }
-            ArrayList<Token> newOuts=null;
-            if(outTypes!=null){
-                newOuts=new ArrayList<>(outTypes.size());
-                for(Token t: outTypes){
-                    newT=t.replaceGenerics(genericParams);
-                    newOuts.add(newT);
-                    changed|=newT!=t;
-                }
-            }
-            ArrayList<Token> newTokens=new ArrayList<>(body.size());
-            for(Token t: body){
-                newT=t.replaceGenerics(genericParams);
-                newTokens.add(newT);
-                changed|=newT!=t;
-            }
-            return changed?new DeclareLambdaToken(newIns,newOuts,generics,newTokens,context,pos,endPos):this;
-        }
     }
     static class TupleElementAccess extends Token{
         final int index;

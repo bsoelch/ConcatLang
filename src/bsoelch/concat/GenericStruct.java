@@ -76,10 +76,7 @@ public class GenericStruct implements Parser.NamedDeclareable {
         Parser.StructContext newContext=context.replaceGenerics(update);
         Type.Struct struct=cached.get(new TypeArray(genericArgs));
         if(struct==null){
-            ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens.size());
-            for(Parser.Token t:tokens){
-                newTokens.add(t.replaceGenerics(update));
-            }
+            ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens);
             struct = Type.Struct.create(name,isPublic,
                     parent==null?null:parent.replaceGenerics(update),
                     genericArgs,this,newTokens,newContext,declaredAt,endPos);

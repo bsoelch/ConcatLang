@@ -1084,14 +1084,7 @@ public abstract class Value {
         public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type.Procedure newType= (Type.Procedure) type.replaceGenerics(genericParams);
             boolean changed=newType!=type;
-            ArrayList<Parser.Token> newTokens=new ArrayList<>();
-            Parser.Token newT;
-            for(Parser.Token t:tokens){
-                newT=t.replaceGenerics(genericParams);
-                newTokens.add(newT);
-
-                changed|= (newT!=t);
-            }
+            ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens);
             return changed?new Procedure(name,isPublic,newType,newTokens,curriedArgs,
                     context.replaceGenerics(genericParams),declaredAt,endPos,typeCheckState):this;
         }

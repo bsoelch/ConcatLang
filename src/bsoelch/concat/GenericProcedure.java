@@ -66,10 +66,7 @@ public class GenericProcedure implements Parser.Callable {
         }
         Value.Procedure proc=cached.get(genericParams);
         if(proc==null){
-            ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens.size());
-            for(Parser.Token t:tokens){
-                newTokens.add(t.replaceGenerics(genericParams));
-            }
+            ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens);
             //TODO merge procedures with equivalent bodies
             proc=Value.createProcedure(name,isPublic,procType.replaceGenerics(genericParams),newTokens,declaredAt,endPos,newContext);
             cached.put(genericParams,proc);

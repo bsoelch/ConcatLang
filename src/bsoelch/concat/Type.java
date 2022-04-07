@@ -1341,13 +1341,7 @@ public class Type {
                 newArgs=genericArgs;
             }
             if(elements==null){
-                ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens.size());
-                for(Parser.Token t:tokens){
-                    Parser.Token newToken = t.replaceGenerics(generics);
-                    newTokens.add(newToken);
-                    if(newToken!=t)
-                        changed=true;
-                }
+                ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens);
                 Parser.StructContext newContext=context.replaceGenerics(generics);
                 return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
                         newArgs,genericVersion,newTokens,newContext,mutability,declaredAt,endPos):this;
@@ -1597,13 +1591,7 @@ public class Type {
                 }
             }
             if(traitFields==null){
-                ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens.size());
-                for(Parser.Token t:tokens){
-                    Parser.Token newToken = t.replaceGenerics(replace);
-                    newTokens.add(newToken);
-                    if(newToken!=t)
-                        changed=true;
-                }
+                ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens);
                 Parser.TraitContext newContext=context.replaceGenerics(replace);
                 return changed?create(baseName, isPublic,newExtended,newArgs,newParams.toArray(GenericParameter[]::new),
                         newTokens,newContext,mutability,declaredAt,endPos):this;
