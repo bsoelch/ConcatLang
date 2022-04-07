@@ -327,6 +327,10 @@ public class Type {
         }
         return false;
     }
+    FilePosition implementationPosition(Trait t){
+        TraitImplementation implementation = implementedTraits.get(t);
+        return implementation==null?null:implementation.implementedAt();
+    }
     /**@return true if values of this type can be cast to type t*/
     public final boolean canCastTo(Type t){
         return canCastTo(t,new BoundMaps());
@@ -1537,6 +1541,23 @@ public class Type {
                     return i;
             }
             return -1;
+        }
+        public static TraitFieldPosition rootVersion(TraitFieldPosition itrNext) {
+            Trait trait = itrNext.trait;
+            int off = itrNext.offset;
+            Trait[] extended = trait.extended;
+            if(extended.length==0)
+                return itrNext;
+            for(int i = 0; i< extended.length&&off>=0; i++){
+                if(off< extended[i].traitFields.length){
+                    trait=extended[i];
+                    extended=trait.extended;
+                    i=0;
+                }else{
+                    off-= extended[i].traitFields.length;
+                }
+            }
+            return new TraitFieldPosition(trait,off);
         }
 
         @Override

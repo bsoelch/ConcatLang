@@ -309,7 +309,7 @@ public class Interpreter {
                                     incIp = false;
                                 }
                             }
-                            case ELSE,END_WHILE,END_CASE -> {
+                            case ELSE,END_WHILE,END_CASE,FOR_ITERATOR_END -> {
                                 ip+=((Parser.BlockToken) next).delta;
                                 incIp = false;
                             }
@@ -335,6 +335,23 @@ public class Interpreter {
                                 stack.push(Value.ofInt(index+1,true));
                                 ip+=((Parser.BlockToken) next).delta;
                                 incIp = false;
+                            }
+                            case FOR_ITERATOR_LOOP -> {
+                                Value.TraitValue itr=(Value.TraitValue)stack.pop();
+                                stack.push(itr.wrapped);//call trait on unwrapped value
+                                Parser.Callable called=itr.wrapped.type.getTraitField(((Parser.ForIteratorLoop) next).itrNext);
+                                ExitType e=call(called, next, stack, globalVariables, variables, ioContext);
+                                if(e!=ExitType.NORMAL){
+                                    return e;
+                                }
+                                Value nextValue=stack.pop();
+                                if(nextValue.hasValue()){
+                                    stack.push(nextValue.unwrap());
+                                }else{
+                                    stack.pop();//iterator
+                                    ip+=((Parser.BlockToken) next).delta;
+                                    incIp = false;
+                                }
                             }
                             case FOR,SWITCH,CASE,DEFAULT, ARRAY, END, UNION_TYPE,TUPLE_TYPE,PROC_TYPE,ARROW,END_TYPE ->
                                     throw new RuntimeException("blocks of type "+((Parser.BlockToken)next).blockType+

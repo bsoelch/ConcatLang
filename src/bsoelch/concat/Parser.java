@@ -5,6 +5,9 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 public class Parser {
+
+    public static final String ITERATOR_NEXT = "^>";
+
     private Parser() {}//container class
 
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
@@ -164,7 +167,7 @@ public class Parser {
     enum BlockTokenType{
         IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT, ARRAY, END,
         TUPLE_TYPE, PROC_TYPE,ARROW, UNION_TYPE, END_TYPE,
-        FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END
+        FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END,FOR_ITERATOR_LOOP,FOR_ITERATOR_END
     }
     static class BlockToken extends Token{
         final BlockTokenType blockType;
@@ -177,6 +180,13 @@ public class Parser {
         @Override
         public String toString() {
             return blockType.toString()+": "+(delta>0?"+":"")+delta;
+        }
+    }
+    static class ForIteratorLoop extends BlockToken{
+        final Type.TraitFieldPosition itrNext;
+        ForIteratorLoop(Type.TraitFieldPosition itrNext,FilePosition pos) {
+            super(BlockTokenType.FOR_ITERATOR_LOOP, pos,-1);
+            this.itrNext = itrNext;
         }
     }
     static class ContextOpen extends Token{
@@ -732,13 +742,15 @@ public class Parser {
     }
 
     static class ForBlock extends CodeBlock{
-        VariableContext context;
+        final boolean isArray;
+        final VariableContext context;
 
         Type iterableType;
         RandomAccessStack<TypeFrame> prevTypes;
 
-        ForBlock(int startToken,FilePosition pos, VariableContext parentContext) {
+        ForBlock(boolean isArray, int startToken, FilePosition pos, VariableContext parentContext) {
             super(startToken, BlockType.FOR,pos, parentContext);
+            this.isArray = isArray;
             context=new BlockContext(parentContext);
         }
 
@@ -2385,7 +2397,7 @@ public class Parser {
                 }
                 case "_for{" -> {
                     tokens.add(new BlockToken(BlockTokenType.FOR, pos, -1));
-                    pState.openBlocks.add(new ForBlock(tokens.size(),pos, pState.getContext()));
+                    pState.openBlocks.add(new ForBlock(true, tokens.size(),pos, pState.getContext()));
                 }
                 case "switch{" -> {
                     tokens.add(new BlockToken(BlockTokenType.SWITCH, pos, -1));
@@ -3311,7 +3323,8 @@ public class Parser {
                 ret.add(block);
                 ret.add(new ContextOpen(tState.context,pos));
             }
-            case END_IF,END_WHILE,FOR_ARRAY_PREPARE, FOR_ARRAY_LOOP,FOR_ARRAY_END ->
+            case END_IF,END_WHILE,FOR_ARRAY_PREPARE, FOR_ARRAY_LOOP,FOR_ARRAY_END,
+                    FOR_ITERATOR_LOOP,FOR_ITERATOR_END->
                     throw new RuntimeException("block tokens of type "+block.blockType+
                             " should not exist at this stage of compilation");
             case WHILE -> {
@@ -3368,7 +3381,7 @@ public class Parser {
                 Type iterableType=tState.typeStack.pop().type;
                 if(iterableType.isArray()||iterableType.isMemory()){
                     ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_PREPARE, pos, -1));
-                    ForBlock forBlock = new ForBlock(ret.size(), pos, tState.context);
+                    ForBlock forBlock = new ForBlock(true, ret.size(), pos, tState.context);
                     forBlock.iterableType=iterableType;
                     forBlock.prevTypes =tState.typeStack.clone();
                     tState.typeStack=new RandomAccessStack<>(8);
@@ -3378,9 +3391,50 @@ public class Parser {
                     tState.context= forBlock.context();
                     ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_LOOP, pos, -1));
                     ret.add(new ContextOpen(tState.context,pos));
-                }else{
-                    throw new SyntaxError("currently for is only supported for arrays",pos);
+                    break;
                 }
+                Type.TraitFieldPosition itrNext=iterableType.traitFieldId(ITERATOR_NEXT);
+                if(itrNext==null&&iterableType instanceof Type.Trait){
+                    //ensure trait is initialized
+                    typeCheckTrait((Type.Trait) iterableType,tState.globalConstants,tState.ioContext);
+                    for(int i=0;i<((Type.Trait) iterableType).traitFields.length;i++){
+                        if(((Type.Trait) iterableType).traitFields[i].name().equals(ITERATOR_NEXT)){
+                            itrNext=new Type.TraitFieldPosition((Type.Trait) iterableType,i);
+                            break;
+                        }
+                    }
+                }
+                //addLater support "iterable"-types ( has trait with ^_ procedure that returns an iterator )
+                if(itrNext!=null){
+                    itrNext=Type.Trait.rootVersion(itrNext);
+                    //ensure trait is initialized
+                    typeCheckTrait(itrNext.trait(),tState.globalConstants,tState.ioContext);
+                    typeCheckCast(iterableType,1,itrNext.trait(),pos,tState);
+
+                    iterableType=itrNext.trait();
+                    Type.Procedure procType=itrNext.trait().traitFields[itrNext.offset()].procType();
+                    if(procType.inTypes.length!=1||!iterableType.canAssignTo(procType.inTypes[0])||
+                        procType.outTypes.length!=2||!procType.outTypes[0].canAssignTo(iterableType)||
+                        !procType.outTypes[1].isOptional()) {
+                        throw new SyntaxError(ITERATOR_NEXT +
+                                " (declared at " +iterableType.implementationPosition(itrNext.trait())+ ") " +
+                                "does not have the required signature " +
+                                "( " + iterableType + " => " + iterableType + " ? optional )", pos);
+                    }
+
+                    ForBlock forBlock = new ForBlock(false, ret.size(), pos, tState.context);
+                    forBlock.iterableType=iterableType;
+                    forBlock.prevTypes =tState.typeStack.clone();
+                    tState.typeStack=new RandomAccessStack<>(8);
+                    tState.typeStack.push(new TypeFrame(procType.outTypes[1].content(),null,pos));
+
+                    openBlocks.add(forBlock);
+                    tState.context= forBlock.context();
+                    ret.add(new ForIteratorLoop(itrNext,pos));
+                    ret.add(new ContextOpen(tState.context,pos));
+                    break;
+                }
+                throw new SyntaxError("currently for is only supported for arrays and iterators",pos);
             }
             case SWITCH -> {
                 TypeFrame f=tState.typeStack.pop();
@@ -3601,7 +3655,8 @@ public class Parser {
                         tState.typeStack=((ForBlock)open).prevTypes;
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                         tState.context=((BlockContext)tState.context).parent;
-                        ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_END,pos, open.start - ret.size()));
+                        ret.add(new BlockToken(((ForBlock) open).isArray?BlockTokenType.FOR_ARRAY_END:BlockTokenType.FOR_ITERATOR_END,
+                                pos, open.start - ret.size()));
                         tmp=ret.get(open.start);
                         ((BlockToken)tmp).delta=ret.size()- open.start;
                     }
