@@ -163,7 +163,8 @@ public class Parser {
     }
     enum BlockTokenType{
         IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT, ARRAY, END,
-        TUPLE_TYPE, PROC_TYPE,ARROW, UNION_TYPE, END_TYPE
+        TUPLE_TYPE, PROC_TYPE,ARROW, UNION_TYPE, END_TYPE,
+        FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END
     }
     static class BlockToken extends Token{
         final BlockTokenType blockType;
@@ -351,7 +352,7 @@ public class Parser {
     }
 
     enum BlockType{
-        PROCEDURE,IF,WHILE,SWITCH_CASE,ENUM,ANONYMOUS_TUPLE,PROC_TYPE, CONST_ARRAY,UNION,STRUCT,
+        PROCEDURE,IF,WHILE,FOR,SWITCH_CASE,ENUM,ANONYMOUS_TUPLE,PROC_TYPE, CONST_ARRAY,UNION,STRUCT,
         TRAIT, IMPLEMENT
     }
     static abstract class CodeBlock{
@@ -726,6 +727,23 @@ public class Parser {
 
         @Override
         GenericContext context() {
+            return context;
+        }
+    }
+
+    static class ForBlock extends CodeBlock{
+        VariableContext context;
+
+        Type iterableType;
+        RandomAccessStack<TypeFrame> prevTypes;
+
+        ForBlock(int startToken,FilePosition pos, VariableContext parentContext) {
+            super(startToken, BlockType.FOR,pos, parentContext);
+            context=new BlockContext(parentContext);
+        }
+
+        @Override
+        VariableContext context() {
             return context;
         }
     }
@@ -2365,6 +2383,10 @@ public class Parser {
                     tokens.add(new BlockToken(BlockTokenType.WHILE, pos, -1));
                     pState.openBlocks.add(new WhileBlock(tokens.size(),pos, pState.getContext()));
                 }
+                case "_for{" -> {
+                    tokens.add(new BlockToken(BlockTokenType.FOR, pos, -1));
+                    pState.openBlocks.add(new ForBlock(tokens.size(),pos, pState.getContext()));
+                }
                 case "switch{" -> {
                     tokens.add(new BlockToken(BlockTokenType.SWITCH, pos, -1));
                     pState.openBlocks.add(new SwitchCaseBlock(Type.INT,tokens.size(),pos, pState.getContext()));
@@ -2566,7 +2588,7 @@ public class Parser {
                                         pState.globalConstants,pState.ioContext);
                             }
                         }
-                        case IF,WHILE,SWITCH_CASE, CONST_ARRAY ->{
+                        case IF,WHILE,FOR,SWITCH_CASE, CONST_ARRAY ->{
                             if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
                                     b.blockType==BlockTokenType.DO){//merge do-end
                                 tokens.set(tokens.size()-1,new BlockToken(BlockTokenType.DO_WHILE, pos, -1));
@@ -3289,7 +3311,7 @@ public class Parser {
                 ret.add(block);
                 ret.add(new ContextOpen(tState.context,pos));
             }
-            case END_IF,END_WHILE ->
+            case END_IF,END_WHILE,FOR_ARRAY_PREPARE, FOR_ARRAY_LOOP,FOR_ARRAY_END ->
                     throw new RuntimeException("block tokens of type "+block.blockType+
                             " should not exist at this stage of compilation");
             case WHILE -> {
@@ -3341,6 +3363,24 @@ public class Parser {
                 ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                 tState.context=((BlockContext)tState.context).parent;
                 ret.add(new BlockToken(BlockTokenType.DO_WHILE,pos,open.start - (ret.size()-1)));
+            }
+            case FOR -> {
+                Type iterableType=tState.typeStack.pop().type;
+                if(iterableType.isArray()||iterableType.isMemory()){
+                    ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_PREPARE, pos, -1));
+                    ForBlock forBlock = new ForBlock(ret.size(), pos, tState.context);
+                    forBlock.iterableType=iterableType;
+                    forBlock.prevTypes =tState.typeStack.clone();
+                    tState.typeStack=new RandomAccessStack<>(8);
+                    tState.typeStack.push(new TypeFrame(iterableType.content(),null,pos));
+
+                    openBlocks.add(forBlock);
+                    tState.context= forBlock.context();
+                    ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_LOOP, pos, -1));
+                    ret.add(new ContextOpen(tState.context,pos));
+                }else{
+                    throw new SyntaxError("currently for is only supported for arrays",pos);
+                }
             }
             case SWITCH -> {
                 TypeFrame f=tState.typeStack.pop();
@@ -3552,6 +3592,19 @@ public class Parser {
                         ret.add(new BlockToken(BlockTokenType.END_WHILE,pos, open.start - ret.size()));
                         ((BlockToken)tmp).delta=ret.size()-((WhileBlock)open).forkPos;
                     }
+                    case FOR -> {
+                        if(tState.finishedBranch){//exit if loop is traversed at least once
+                            tState.finishedBranch=false;
+                        }else if(tState.typeStack.size()>0){
+                            throw new SyntaxError("for body modifies the stack",pos);
+                        }
+                        tState.typeStack=((ForBlock)open).prevTypes;
+                        ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
+                        tState.context=((BlockContext)tState.context).parent;
+                        ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_END,pos, open.start - ret.size()));
+                        tmp=ret.get(open.start);
+                        ((BlockToken)tmp).delta=ret.size()- open.start;
+                    }
                     case SWITCH_CASE -> {//end switch with default
                         if(((SwitchCaseBlock)open).defaultJump==-1){
                             throw new SyntaxError("missing end-case statement",pos);
@@ -3653,7 +3706,7 @@ public class Parser {
                         tState.typeStack=((ProcTypeBlock)open).prevTypes;
                         tState.typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos));
                     }
-                    case IF,WHILE, SWITCH_CASE,CONST_ARRAY ->
+                    case IF,WHILE,FOR,SWITCH_CASE,CONST_ARRAY ->
                         throw new SyntaxError("unexpected ')' statement ",pos);
                     case PROCEDURE,ENUM,STRUCT,TRAIT,IMPLEMENT ->
                             throw new SyntaxError("blocks of type "+open.type+

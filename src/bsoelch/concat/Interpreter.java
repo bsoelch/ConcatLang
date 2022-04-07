@@ -53,7 +53,7 @@ public class Interpreter {
     }
 
     private ExitType recursiveRun(RandomAccessStack<Value> stack, Parser.CodeSection program, ArrayList<Value[]> globalVariables,
-                                  ArrayList<Value[]> variables, Value[] curried, IOContext context){
+                                  ArrayList<Value[]> variables, Value[] curried, IOContext ioContext){
         if(variables==null){
             variables=new ArrayList<>();
             variables.add(new Value[program.context().varCount()]);
@@ -92,10 +92,10 @@ public class Interpreter {
                     case NEW_ARRAY -> {//{ e1 e2 ... eN }
                         assert next instanceof Parser.ArrayCreatorToken;
                         RandomAccessStack<Value> listStack=new RandomAccessStack<>(((Parser.ArrayCreatorToken)next).tokens.size());
-                        ExitType res=recursiveRun(listStack,((Parser.ArrayCreatorToken)next),globalVariables,variables,curried,context);
+                        ExitType res=recursiveRun(listStack,((Parser.ArrayCreatorToken)next),globalVariables,variables,curried,ioContext);
                         if(res!=ExitType.NORMAL){
                             if(res==ExitType.ERROR) {
-                                context.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
+                                ioContext.stdErr.printf("   while executing %-20s\n   at %s\n", next, next.pos);
                             }
                             return res;
                         }
@@ -146,7 +146,7 @@ public class Interpreter {
                             throw new ConcatRuntimeError("new only supports arrays, memories, lists and tuples");
                         }
                     }
-                    case DEBUG_PRINT -> context.stdOut.println(stack.pop().stringValue());
+                    case DEBUG_PRINT -> ioContext.stdOut.println(stack.pop().stringValue());
                     case STACK_DROP ->{
                         assert next instanceof Parser.StackModifierToken;
                         stack.drop(((Parser.StackModifierToken)next).args[0]);
@@ -224,11 +224,11 @@ public class Interpreter {
                         }
                     }
                     case UNREACHABLE -> {
-                        context.stdErr.println("reached unreachable statement: "+next.pos);
+                        ioContext.stdErr.println("reached unreachable statement: "+next.pos);
                         return ExitType.ERROR;
                     }
                     case OVERLOADED_PROC_PTR -> {
-                        context.stdErr.println("unresolved overloaded procedure pointer: "+next.pos);
+                        ioContext.stdErr.println("unresolved overloaded procedure pointer: "+next.pos);
                         return ExitType.ERROR;
                     }
                     case DECLARE_LAMBDA, IDENTIFIER,OPTIONAL_OF,EMPTY_OPTIONAL,
@@ -260,7 +260,7 @@ public class Interpreter {
 
                             called=tv.wrapped.type.getTraitField(((Parser.TraitFieldAccess) next).id);
                         }
-                        ExitType e=call(called, next, stack, globalVariables, variables, context);
+                        ExitType e=call(called, next, stack, globalVariables, variables, ioContext);
                         if(e!=ExitType.NORMAL){
                             return e;
                         }
@@ -277,7 +277,7 @@ public class Interpreter {
                             }
                             called=(Parser.Callable) ptr;
                         }
-                        ExitType e=call(called, next, stack, globalVariables, variables, context);
+                        ExitType e=call(called, next, stack, globalVariables, variables, ioContext);
                         if(e!=ExitType.NORMAL){
                             return e;
                         }
@@ -316,7 +316,27 @@ public class Interpreter {
                             case WHILE,END_IF -> {
                                 //do nothing
                             }
-                            case SWITCH,CASE,DEFAULT, ARRAY, END, UNION_TYPE,TUPLE_TYPE,PROC_TYPE,ARROW,END_TYPE ->
+                            case FOR_ARRAY_PREPARE ->
+                                stack.push(Value.ofInt(0,true));
+                            case FOR_ARRAY_LOOP ->{
+                                long index=stack.pop().asLong();
+                                Value.ArrayLike array=(Value.ArrayLike) stack.peek();
+                                if(index<array.length()){
+                                    stack.push(Value.ofInt(index,true));
+                                    stack.push(array.get(index));
+                                }else{
+                                    stack.pop();//array
+                                    ip+=((Parser.BlockToken) next).delta;
+                                    incIp = false;
+                                }
+                            }
+                            case FOR_ARRAY_END ->{
+                                long index=stack.pop().asLong();
+                                stack.push(Value.ofInt(index+1,true));
+                                ip+=((Parser.BlockToken) next).delta;
+                                incIp = false;
+                            }
+                            case FOR,SWITCH,CASE,DEFAULT, ARRAY, END, UNION_TYPE,TUPLE_TYPE,PROC_TYPE,ARROW,END_TYPE ->
                                     throw new RuntimeException("blocks of type "+((Parser.BlockToken)next).blockType+
                                             " should be eliminated at compile time");
                         }
@@ -334,7 +354,7 @@ public class Interpreter {
                     }
                     case EXIT -> {
                         long exitCode=stack.pop().asLong();
-                        context.stdErr.println("exited with exit code:"+exitCode);
+                        ioContext.stdErr.println("exited with exit code:"+exitCode);
                         return ExitType.FORCED;
                     }
                     case CAST_ARG -> {
@@ -355,14 +375,14 @@ public class Interpreter {
                     }
                 }
             }catch(ConcatRuntimeError|RandomAccessStack.StackUnderflow  e){
-                context.stdErr.println(e.getMessage());
+                ioContext.stdErr.println(e.getMessage());
                 Parser.Token token = tokens.get(ip);
-                context.stdErr.printf("  while executing %-20s\n   at %s\n",token,token.pos);
+                ioContext.stdErr.printf("  while executing %-20s\n   at %s\n",token,token.pos);
                 return ExitType.ERROR;
             }catch(Throwable  t){//show expression in source code that crashed the interpreter
                 Parser.Token token = tokens.get(ip);
                 try {
-                    context.stdErr.printf("  while executing %-20s\n   at %s\n", token, token.pos);
+                    ioContext.stdErr.printf("  while executing %-20s\n   at %s\n", token, token.pos);
                 }catch (Throwable ignored){}//ignore exceptions while printing
                 throw t;
             }
