@@ -2305,6 +2305,9 @@ public class Parser {
                                 if(f.type!=Type.TYPE||(!(f.value.asType() instanceof Type.Trait trait))){
                                     throw new SyntaxError("values before '"+str+"' have to be constant trait-types",pos);
                                 }
+                                //ensure trait is initialized
+                                typeCheckTrait(trait,pState.globalConstants,pState.ioContext);
+
                                 for(Type.TraitField inherited:trait.traitFields){
                                     context.checkName(inherited,f.pushedAt);
                                 }

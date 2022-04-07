@@ -1460,13 +1460,13 @@ public class Type {
                             FilePosition declaredAt, FilePosition endPos){
             return create(baseName,isPublic,extended,params,params,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
         }
-        static Trait create(String baseName,boolean isPublic,Trait[] extended,Type[] genericArgs,GenericParameter[] params,
+        private static Trait create(String baseName,boolean isPublic,Trait[] extended,Type[] genericArgs,GenericParameter[] params,
                             ArrayList<Parser.Token> tokens, Parser.TraitContext context,Mutability mutability,
                             FilePosition declaredAt, FilePosition endPos){
             return new Trait(baseName,Struct.namePrefix(baseName,genericArgs)+mutabilityPostfix(mutability),isPublic,
                     extended,genericArgs, params, null, tokens,context, mutability, declaredAt, endPos);
         }
-        static Trait create(String baseName,boolean isPublic,Trait[] extended,Type[] genericArgs,GenericParameter[] params,
+        private static Trait create(String baseName,boolean isPublic,Trait[] extended,Type[] genericArgs,GenericParameter[] params,
                             TraitField[] traitFields,Mutability mutability,
                             FilePosition declaredAt, FilePosition endPos){
             return new Trait(baseName,Struct.namePrefix(baseName,genericArgs)+mutabilityPostfix(mutability),isPublic,
@@ -1487,7 +1487,7 @@ public class Type {
             this.genericArgs=genericArgs;
             this.genericParameters = genericParameters;
 
-            this.traitFields=traitFields!=null?withExtended(traitFields):null;
+            this.traitFields=traitFields;
             this.tokens = tokens;
             this.context = context;
         }
@@ -1660,11 +1660,18 @@ public class Type {
                 }
                 if(!declaredAt.equals(((Trait) t).declaredAt)){
                     for(Trait ext:extended){
-                        if(ext.canCastTo(t,bounds.copy()))
+                        BoundMaps tmp = bounds.copy();
+                        if(ext.canCastTo(t, tmp)){
+                            bounds.l.putAll(tmp.l);
+                            bounds.r.putAll(tmp.r);
                             return true;
+                        }
                     }
                     for(Trait ext:((Trait) t).extended){
-                        if(canCastTo(ext,bounds.copy().swapped()))
+                        BoundMaps tmp = bounds.copy();
+                        if(canCastTo(ext,tmp.swapped()))
+                            bounds.l.putAll(tmp.l);
+                            bounds.r.putAll(tmp.r);
                             return true;
                     }
                     return false;
