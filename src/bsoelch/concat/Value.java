@@ -1930,8 +1930,8 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type newType) throws ConcatRuntimeError {
-            if(type.canCastTo(newType)){
-                return super.castTo(newType);
+            if(type.canAssignTo(newType)){
+                return this;
             }else{
                 return wrapped.castTo(newType);
             }

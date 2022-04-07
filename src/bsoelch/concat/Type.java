@@ -1659,6 +1659,14 @@ public class Type {
                     return false;
                 }
                 if(!declaredAt.equals(((Trait) t).declaredAt)){
+                    for(Trait ext:extended){
+                        if(ext.canCastTo(t,bounds.copy()))
+                            return true;
+                    }
+                    for(Trait ext:((Trait) t).extended){
+                        if(canCastTo(ext,bounds.copy().swapped()))
+                            return true;
+                    }
                     return false;
                 }
                 for(int i=0;i<genericArgs.length;i++){
