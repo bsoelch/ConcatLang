@@ -7,7 +7,7 @@ codeblocks #include
 Iterator public trait{ A <>
   ( A Iterator => A Iterator A optional ) :^>
 }
-ReverseIterator public trait{ A <>
+ReverseIterator public trait{ A <> A Iterator extend
   ( A ReverseIterator => A ReverseIterator A optional ) :<^
 }
 ## addLater? allow iterators to modify the underlying list
@@ -16,17 +16,17 @@ ArrayIterator struct{ A <>
   A array mut? :array private
   int          :index private
 }
-^_ public proc( A <?> A array mut? => A ArrayIterator ){
+^_ public proc( A <?> A array mut? => A ReverseIterator ){
   A array mut? elements =:
   elements 0 A ArrayIterator new
 }
 
-_^ public proc( A <?> A array mut? => A ArrayIterator ){
+_^ public proc( A <?> A array mut? => A ReverseIterator ){
   A array mut? elements =:
   elements elements .length A ArrayIterator new
 }
 
-implement{ A <> A Iterator A ArrayIterator for
+implement{ A <> A ReverseIterator A ArrayIterator for
   ^> proc( A ArrayIterator => A Iterator A optional ){
     A ArrayIterator mItr =:
     mItr .index mItr .array .length < if{
@@ -37,8 +37,6 @@ implement{ A <> A Iterator A ArrayIterator for
       mItr A empty return
     }
   }
-}
-implement{ A <> A ReverseIterator A ArrayIterator for
   <^ proc( A ArrayIterator => A ReverseIterator A optional ){
     A ArrayIterator mItr =:
     mItr .index 0 > if{
@@ -57,6 +55,7 @@ FilteredIterator struct{ A <>
   ( A => bool ) array :filters
 }
 
+##addLater allow to access implementation type at runtime
 filter public proc( A <?> A Iterator ( A => bool ) => A Iterator ){
   f =::
   dup .type A FilteredIterator <= if{ ##filter filtered iterator

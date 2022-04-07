@@ -6,15 +6,12 @@ codeblocks #include
 list #include
 core #import
 
-##addLater remove Iterator casts once traits can extended other traits
-##         allow to access implementation type at runtime
-
 reverse proc( string => string ){
   string toReverse =:
   ## store type and length of the list
   toReverse .length buildString res =::
   ## Iterate though the elements in reverse order
-  toReverse _^  byte ReverseIterator cast while{ .<^ do
+  toReverse _^ while{ .<^ do
     byte cast res swap << res =
   } drop
   res .build return
