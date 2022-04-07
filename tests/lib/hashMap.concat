@@ -44,4 +44,4 @@ hMap 7 HashMap.remove debugPrint
 hMap ^_ for{ e =::
   e .key   debugPrint
   e .value debugPrint
-} 1 $drop
+}

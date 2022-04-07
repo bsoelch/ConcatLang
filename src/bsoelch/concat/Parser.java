@@ -2395,7 +2395,7 @@ public class Parser {
                     tokens.add(new BlockToken(BlockTokenType.WHILE, pos, -1));
                     pState.openBlocks.add(new WhileBlock(tokens.size(),pos, pState.getContext()));
                 }
-                case "_for{" -> {
+                case "for{" -> {
                     tokens.add(new BlockToken(BlockTokenType.FOR, pos, -1));
                     pState.openBlocks.add(new ForBlock(true, tokens.size(),pos, pState.getContext()));
                 }

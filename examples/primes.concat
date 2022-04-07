@@ -14,7 +14,7 @@ printPrimes proc( int => ){
   }
   128 buildString  StringBuilder buff mut =:
   ##primes > 2
-  2 nMax [n:m] int Iterator cast for{ k =::
+  2 nMax [n:m] int Iterator cast while{ .^> do k =:: ##no for since value of iterator is needed
     buff k <<i ", " <<* buff =
     lambda( int ){ k % 0 != } filter ##filter out all multiples of k
   } drop

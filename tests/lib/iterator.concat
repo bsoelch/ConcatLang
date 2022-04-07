@@ -2,7 +2,6 @@ test/iterator :
 
 stack #include
 iterator #include
-codeblocks #include
 list #include
 core #import
 
@@ -24,7 +23,7 @@ sum proc( A <?> A array => A ){
   ## Iterate though all elements of the list
   ^_ A Iterator cast for{
     tmp swap + tmp =
-  } drop
+  }
   tmp ## load the total sum onto the stack
 }
 
@@ -33,14 +32,14 @@ sum proc( A <?> A array => A ){
 
 "Hello" ^_ byte Iterator cast for{
   debugPrint
-} drop ## iterator
+}
 
 { 0 1 2 3 4 5 6 7 8 9 } ^_ lambda( int ){ 2.0 / } map lambda( float ){ 1.0 % 0 != } filter for{
   debugPrint
-} drop ## iterator
+}
 
 { 1 2 } ^_  { 3 4 } ^_ { 5 6 } ^_ concat concat { 7 8 } ^_ { 9 10 } ^_ concat  { 11 12 } ^_ concat concat
 dup debugPrint
 for{
   debugPrint
-} drop ## iterator
+}

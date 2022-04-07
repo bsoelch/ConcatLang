@@ -627,7 +627,7 @@ RootContext.endModule proc( RootContext mut? FilePosition mut? => ){
     removed .predeclared ^_ for{
        string PredeclaredProc MapEntry mut? e =:
        message "\n- " <<* e .key string cast <<* " (at " <<* e .value .pos << ')' << drop
-    } drop
+    }
     message fPos << '\n' << .build eputs
     1 exit
   }
@@ -647,7 +647,7 @@ RootContext.endFile proc( RootContext mut? FilePosition mut? => ){
         removed .predeclared ^_ for{
            string PredeclaredProc MapEntry mut? e =:
            message "\n- " <<* e .key string cast <<* " (at " <<* e .value .pos << ')' << drop
-        } drop
+        }
         message fPos << '\n' << .build eputs
         1 exit
       }
@@ -661,7 +661,7 @@ RootContext.endFile proc( RootContext mut? FilePosition mut? => ){
     closed .globalPredeclared ^_ for{
        string PredeclaredProc MapEntry mut? e =:
        message "\n- " <<* e .key string cast <<* " (at " <<* e .value .pos << ')' << drop
-    } drop
+    }
     message fPos << '\n' << .build eputs
     1 exit
   }
@@ -1991,5 +1991,5 @@ main public proc( string array => ){
   context .elements ^_ for{
       string Declareable mut? MapEntry mut? e =:
       64 buildString e .key <<s ": " <<* e .value << .build println
-   } drop
+   }
 }

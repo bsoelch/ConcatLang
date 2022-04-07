@@ -17,4 +17,4 @@ core #import
 "_____________________" debugPrint
 range #include
 stack #include
-5 [n] for{ debugPrint } drop
+5 [n] for{ debugPrint }

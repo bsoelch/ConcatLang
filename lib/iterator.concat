@@ -2,7 +2,6 @@ lib/iterator :
 
 core #namespace
 stack #include
-codeblocks #include
 
 Iterator public trait{ A <>
   ( A Iterator => A Iterator A optional ) :^>
@@ -75,7 +74,7 @@ implement{ A <> A Iterator A FilteredIterator for
   ^> proc( A FilteredIterator => A Iterator A optional ){
     prev =::
     false match =::
-    prev .base for{ val =::
+    prev .base while{ .^> do val =:: ## no-for loop since value of iterator is needed
       true match =
       0 while{ dup prev .filters .length < do
          val prev .filters 3 $dup [] () ! if{
