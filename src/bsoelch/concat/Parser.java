@@ -18,7 +18,7 @@ public class Parser {
     enum TokenType {
         VALUE, DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,CAST,NEW, NEW_ARRAY,
         STACK_DROP,STACK_DUP,STACK_ROT,
-        IDENTIFIER,//addLater option to free values/variables
+        IDENTIFIER,
         VARIABLE,
         CONTEXT_OPEN,CONTEXT_CLOSE,
         CALL_PROC, CALL_PTR,
@@ -1119,8 +1119,9 @@ public class Parser {
                 OverloadedProcedure merged=new OverloadedProcedure((Callable) main);
                 if(shadowed instanceof Callable){
                     try {
-                        if(!merged.addProcedure((Callable) shadowed,true)){//TODO better error messages
-                            System.err.println("cannot merge "+shadowed+" into "+merged);
+                        if(!merged.addProcedure((Callable) shadowed,true)){
+                            System.err.println("overloaded procedure "+merged.name+"(at "+merged.declaredAt+
+                                    ") cannot be merged into "+((Callable) shadowed).name()+" (at "+shadowed.declaredAt()+")");
                         }
                     } catch (SyntaxError e) {throw new RuntimeException(e);}
                     return merged;
@@ -2437,7 +2438,7 @@ public class Parser {
                     }
                     tokens.add(new BlockToken(BlockTokenType.DEFAULT, pos, -1));
                 }
-                case "end-case" -> {//addLater better name
+                case "end-case" -> {
                     if(!(pState.openBlocks.peekLast() instanceof SwitchCaseBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
@@ -2762,7 +2763,7 @@ public class Parser {
                     }
                     tokens.set(tokens.size()-1,prev);
                 }
-                case "restricted" -> { //addLater better name
+                case "restricted" -> {
                     if(prev==null){
                         throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
                     }else if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
