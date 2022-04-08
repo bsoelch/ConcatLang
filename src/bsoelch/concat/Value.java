@@ -108,7 +108,7 @@ public abstract class Value {
         return this;
     }
     public Value castTo(Type newType) throws ConcatRuntimeError {
-        if(type.canAssignTo(newType)){
+        if(type.canAssignTo(newType)||newType==Type.ANY){
             return this;
         }else if(newType instanceof Type.Trait&&type.hasTrait((Type.Trait) newType)){
             return new TraitValue((Type.Trait) newType,this);

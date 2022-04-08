@@ -2677,6 +2677,15 @@ public class Parser {
                 case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos));
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos));
 
+                case "bits8"      -> tokens.add(new ValueToken(Value.ofType(Type.BITS8),             pos));
+                case "bits16"     -> tokens.add(new ValueToken(Value.ofType(Type.BITS16),            pos));
+                case "bits32"     -> tokens.add(new ValueToken(Value.ofType(Type.BITS32),            pos));
+                case "bits64"     -> tokens.add(new ValueToken(Value.ofType(Type.BITS64),            pos));
+                case "bits128"    -> tokens.add(new ValueToken(Value.ofType(Type.MULTIBLOCK2),       pos));
+                case "bits192"    -> tokens.add(new ValueToken(Value.ofType(Type.MULTIBLOCK3),       pos));
+                case "bits256"    -> tokens.add(new ValueToken(Value.ofType(Type.MULTIBLOCK4),       pos));
+                case "bitsPtr"    -> tokens.add(new ValueToken(Value.ofType(Type.PTR),               pos));
+
                 case "mut?"     -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
                 case "mut^"     -> tokens.add(new Token(TokenType.MARK_INHERIT_MUTABILITY, pos));
                 case "array"    -> tokens.add(new Token(TokenType.ARRAY_OF,       pos));
@@ -4025,7 +4034,7 @@ public class Parser {
                     Type type;
                     if(identifier.type==IdentifierType.IMPLICIT_DECLARE){
                         type=typeStack.peek().type;
-                        if(!type.canAssignTo(Type.ANY)){
+                        if(!type.isValid()){
                             throw new SyntaxError("cannot create variable of type "+type,t.pos);
                         }
                     }else if (ret.size() > 0 && (prev = ret.remove(ret.size() - 1)) instanceof ValueToken) {
@@ -4512,7 +4521,16 @@ public class Parser {
                     throw new SyntaxError("cannot cast from "+ src+" to "+ target, pos);
                 }
                 if(stackPos==1){
-                    tState.ret.add(new TypedToken(TokenType.CAST, target, pos));
+                    if(tState.ret.size()>0&& tState.ret.get(tState.ret.size() - 1) instanceof ValueToken prev){
+                        try {//pre-evaluate cast
+                            tState.ret.set(tState.ret.size()-1,
+                                    new ValueToken(prev.value.castTo(target),prev.pos));
+                        } catch (ConcatRuntimeError e) {
+                            throw new SyntaxError(e,pos);
+                        }
+                    }else{
+                        tState.ret.add(new TypedToken(TokenType.CAST, target, pos));
+                    }
                 }else{
                     tState.ret.add(new ArgCastToken(stackPos, target, pos));
                 }
@@ -4777,7 +4795,7 @@ public class Parser {
         }else if(matchingCalls.size()>1){
             Comparator<CallMatch> matchSort= Comparator.comparingInt((CallMatch m) -> m.nCasts)
                     .thenComparing(compareBySignature).thenComparingInt(m -> m.nImplicit).thenComparing(compareByTypeArgs);
-            matchingCalls.sort(matchSort);
+            matchingCalls.sort(matchSort);//FIXME sort always picks smallest type, even if argument type is larger that content type
             int i=1;
             while(i< matchingCalls.size()&&matchSort.compare(matchingCalls.get(0), matchingCalls.get(i))==0){
                 i++;
@@ -4785,6 +4803,10 @@ public class Parser {
             if(i>1){
                 tState.ioContext.stdErr.println("more than one version of "+ proc.name+" matches the given arguments "+Arrays.toString(inTypes));
                 for(int k=0;k<i;k++){
+                    tState.ioContext.stdErr.println(proc.name+":"+ matchingCalls.get(k).type+" at "+ matchingCalls.get(k).called.declaredAt());
+                }
+                tState.ioContext.stdErr.println("other possible matches:");
+                for(int k=i;k<matchingCalls.size();k++){
                     tState.ioContext.stdErr.println(proc.name+":"+ matchingCalls.get(k).type+" at "+ matchingCalls.get(k).called.declaredAt());
                 }
                 throw new SyntaxError("cannot resolve procedure call", pos);
