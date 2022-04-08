@@ -3028,7 +3028,8 @@ public class Parser {
         }
         return false;
     }
-    private static void merge(RandomAccessStack<TypeFrame> main,FilePosition endMain,RandomAccessStack<TypeFrame> branch,FilePosition endBranch,
+    private static void merge(RandomAccessStack<TypeFrame> main,FilePosition endMain,
+                              RandomAccessStack<TypeFrame> branch,FilePosition endBranch,
                        String name) throws SyntaxError {
         if(branch.size()!= main.size()){
             throw new SyntaxError("branch of "+name+"-statement "+typesToString(branch)+" at "+endBranch+

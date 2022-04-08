@@ -1436,7 +1436,7 @@ public abstract class Value {
         {//cloning an immutable copy of a mutable array
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable()},
-                    new Type[]{Type.arrayOf(a)},"clone-mut~",//addLater better name
+                    new Type[]{Type.arrayOf(a)},"clone-mut~",
                     (values) -> new Value[]{values[0].clone(false,values[0].type.asArray().immutable())}));
         }
         {
