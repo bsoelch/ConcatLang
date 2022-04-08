@@ -627,6 +627,11 @@ public abstract class Value {
         }
 
         @Override
+        boolean isEqualTo(Value v) {
+            return this==v;
+        }
+
+        @Override
         public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type newType=type.replaceGenerics(genericParams);
             boolean changed=newType!=type;
