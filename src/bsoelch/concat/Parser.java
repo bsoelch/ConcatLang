@@ -2511,7 +2511,21 @@ public class Parser {
                                             if(ic.implementations[id]!=null){
                                                 throw new SyntaxError("field "+proc.name+" already has been implemented",pos);
                                             }
-                                            //TODO check signature
+                                            Type.Procedure expectedType = ic.trait.traitFields[id].procType();
+                                            for(int i=0;i<proc.type().inTypes.length-1;i++){
+                                                if(!expectedType.inTypes[i].canAssignTo(proc.type().inTypes[i])){
+                                                   throw new SyntaxError("invalid signature for "+
+                                                           ic.trait.traitFields[id].name()+": "+proc.type()
+                                                           +" expected: "+expectedType,pos) ;
+                                                }
+                                            }
+                                            for(int i=0;i<proc.type().outTypes.length;i++){
+                                                if(!proc.type().outTypes[i].canAssignTo(expectedType.outTypes[i])){
+                                                    throw new SyntaxError("invalid signature for "+
+                                                            ic.trait.traitFields[id].name()+": "+proc.type()
+                                                            +" expected: "+expectedType,pos) ;
+                                                }
+                                            }
                                             ic.implementations[id]=proc;
                                             break;
                                         }
