@@ -159,6 +159,7 @@ public class Type {
     public static void resetCached() {
         WrapperType.resetCached();
         Struct.resetCached();
+        Tuple.resetCached();
     }
 
     record GenericTraitImplementation(Trait trait, GenericParameter[] params, Value.Procedure[] values,
@@ -875,6 +876,10 @@ public class Type {
         }
     }
     public static class Tuple extends TupleLike{
+        static final HashMap<List<Type>,Tuple> tupleCache=new HashMap<>();
+        public static void resetCached(){
+            tupleCache.clear();
+        }
         /**initialized types in this Tuple or null if this tuple is not yet initialized*/
         final Type[] elements;
         final FilePosition declaredAt;
@@ -883,8 +888,14 @@ public class Type {
             return create(elements, Mutability.DEFAULT,declaredAt);
         }
         private static Tuple create(Type[] elements,Mutability mutability,FilePosition declaredAt) {
+            Tuple cached=tupleCache.get(Arrays.asList(elements));
+            if(cached!=null){
+                return cached.setMutability(mutability);
+            }
             String typeName = getTypeName(elements);
-            return new Tuple(typeName+mutabilityPostfix(mutability),elements, mutability, declaredAt);//addLater? caching
+            Tuple tuple=new Tuple(typeName+mutabilityPostfix(mutability),elements, mutability, declaredAt);
+            tupleCache.put(Arrays.asList(elements),tuple);
+            return tuple;
         }
         private static String getTypeName(Type[] elements) {
             StringBuilder sb = new StringBuilder("( ");
