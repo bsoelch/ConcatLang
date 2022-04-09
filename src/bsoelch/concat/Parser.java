@@ -1608,7 +1608,7 @@ public class Parser {
         @Override
         StructContext replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             StructContext copy=(StructContext) super.replaceGenerics(genericParams);
-            assert fields.isEmpty();//when replace generics is called there shoudl not be any fields
+            assert fields.isEmpty();//when replace generics is called there should not be any fields
             return copy;
         }
     }
@@ -4498,7 +4498,9 @@ public class Parser {
                     if(c instanceof Value.Procedure){//ensure procedures are type-checked
                         typeCheckProcedure((Value.Procedure) c, tState.globalConstants, tState.ioContext);
                     }
-                    matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,0,new HashMap<>()));
+                    ParamMatchType[] castDirections=new ParamMatchType[c.type().inTypes.length];
+                    Arrays.fill(castDirections, ParamMatchType.ASSIGN);
+                    matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,castDirections,0,new HashMap<>()));
                 }
             }
             if(matches.isEmpty()){
@@ -4571,34 +4573,76 @@ public class Parser {
         }
     }
 
+    enum ParamMatchType {ASSIGN,CAST, DOWN_CAST}
     record CallMatch(Callable called, Type.Procedure type, IdentityHashMap<Type.GenericParameter,Type> genericParams,
-                     int nCasts, int nImplicit,
+                     int nCasts, ParamMatchType[] paramMatchTypes, int nImplicit,
                     /*overloaded procedure pointers in the arguments of this call match*/
                      HashMap<Type.OverloadedProcedurePointer,CallMatch> opps){}
 
     private static final Comparator<CallMatch> compareBySignature = (m1, m2) -> {
         int c = 0;
+        int f;//factor with which comparisons are multiplied in this iteration
         for (int i = 0; i < m1.type.inTypes.length; i++) {
-            if (c == 0) {
-                if (m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])) {
-                    if (!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])) {
-                        c = -1;
+            f=1;
+            switch (m1.paramMatchTypes[i]){
+                case ASSIGN -> {
+                    if(m2.paramMatchTypes[i]!= ParamMatchType.ASSIGN){
+                        if(c>0) {
+                            return 0;
+                        }
+                        c=-1;
+                    }
+                }
+                case CAST -> {
+                    if(m2.paramMatchTypes[i]== ParamMatchType.ASSIGN){
+                        if(c<0) {
+                            return 0;
+                        }
+                        c=1;
+                    }else if(m2.paramMatchTypes[i]== ParamMatchType.DOWN_CAST){
+                        if(c>0) {
+                            return 0;
+                        }
+                        c=-1;
+                    }else if(!m1.type.inTypes[i].equals(m2.type.inTypes[i])){
+                        return 0;
+                    }
+                    f=0;
+                }
+                case DOWN_CAST -> {
+                    if(m2.paramMatchTypes[i]!= ParamMatchType.DOWN_CAST){
+                        if(c<0) {
+                            return 0;
+                        }
+                        c=1;
+                    }
+                    f=-1;
+                }
+            }
+            if(f!=0){
+                c*=f;
+                if (c == 0) {
+                    if (m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])) {
+                        if (!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])) {
+                            c = -1;
+                        }
+                    } else {
+                        if (m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])) {
+                            c = 1;
+                        } else {
+                            return 0;
+                        }
+                    }
+                } else if (c < 0) {
+                    if (!m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])) {
+                        return 0;
                     }
                 } else {
-                    if (m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])) {
-                        c = 1;
-                    } else {
+                    if (!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])) {
                         return 0;
                     }
                 }
-            } else if (c < 0) {
-                if (!m1.type.inTypes[i].canAssignTo(m2.type.inTypes[i])) {
-                    return 0;
-                }
-            } else {
-                if (!m2.type.inTypes[i].canAssignTo(m1.type.inTypes[i])) {
-                    return 0;
-                }
+                c*=f;
             }
         }
         return c;
@@ -4651,6 +4695,8 @@ public class Parser {
         boolean isMatch=true;
         IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
         int nCasts=0,nImplicit=0;
+        ParamMatchType[] paramMatchTypes =new ParamMatchType[inTypes.length];
+        Arrays.fill(paramMatchTypes, ParamMatchType.ASSIGN);
         HashMap<Type.OverloadedProcedurePointer,CallMatch> opps=new HashMap<>();
         if(typeArgs !=null) {//update type signature
             for (int i = 0; i < typeArgs.length; i++) {
@@ -4664,6 +4710,8 @@ public class Parser {
             if(inTypes[i] instanceof Type.OverloadedProcedurePointer){
                 hasOpp=true;
             }else if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
+                paramMatchTypes[i]=type.inTypes[i].canAssignTo(inTypes[i],bounds.copy().swapped())? ParamMatchType.DOWN_CAST :
+                        ParamMatchType.CAST;
                 nCasts++;
                 if(!inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
                     isMatch=false;
@@ -4693,7 +4741,7 @@ public class Parser {
                 generics.putAll(implicitGenerics);
             }//no else
             if(isMatch){
-                matchingCalls.add(new CallMatch(potentialCall,type,generics,nCasts,nImplicit,opps));
+                matchingCalls.add(new CallMatch(potentialCall,type,generics,nCasts, paramMatchTypes,nImplicit,opps));
             }
         }
     }
@@ -4736,7 +4784,9 @@ public class Parser {
                     if(c instanceof Value.Procedure){
                         typeCheckProcedure((Value.Procedure) c,tState.globalConstants,tState.ioContext);
                     }
-                    matches.add(new CallMatch(c,procType,implicitGenerics,0,implicitGenerics.size(),
+                    ParamMatchType[] paramMatchTypes =new ParamMatchType[procType.inTypes.length];
+                    Arrays.fill(paramMatchTypes, ParamMatchType.ASSIGN);
+                    matches.add(new CallMatch(c,procType,implicitGenerics,0, paramMatchTypes,implicitGenerics.size(),
                             new HashMap<>()));
                     matchBounds.add(test);
                 }
@@ -4784,7 +4834,7 @@ public class Parser {
                 }catch (SyntaxError err){
                     throw new SyntaxError(err, pos);
                 }
-                matchingCalls.set(i,new CallMatch(withPrams,withPrams.type(),c.genericParams,c.nCasts,c.nImplicit,c.opps));
+                matchingCalls.set(i,new CallMatch(withPrams,withPrams.type(),c.genericParams,c.nCasts,c.paramMatchTypes,c.nImplicit,c.opps));
             }
         }
         if(matchingCalls.size()==0){
@@ -4795,7 +4845,7 @@ public class Parser {
         }else if(matchingCalls.size()>1){
             Comparator<CallMatch> matchSort= Comparator.comparingInt((CallMatch m) -> m.nCasts)
                     .thenComparing(compareBySignature).thenComparingInt(m -> m.nImplicit).thenComparing(compareByTypeArgs);
-            matchingCalls.sort(matchSort);//FIXME sort always picks smallest type, even if argument type is larger that content type
+            matchingCalls.sort(matchSort);
             int i=1;
             while(i< matchingCalls.size()&&matchSort.compare(matchingCalls.get(0), matchingCalls.get(i))==0){
                 i++;
