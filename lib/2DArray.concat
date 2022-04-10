@@ -15,6 +15,45 @@ newMatrix public proc( A <> A uint uint => A Matrix mut ){
   w =::
   #+initVal+# w h * A array mut new w h A Matrix mut new
 }
+asMatrix public proc( A <?> A array mut? array mut? => A Matrix mut ){
+  a =::
+  a .length h =::
+  a 0 [] .length w =::
+  w h * A memory mut new data =::
+  0 while{ dup h < do
+    a over [] .length w == "fixed width" assert
+    a over [] 0 data  #+i+#4 $dup w *  w copy
+    1 +
+  } drop
+  data w h A Matrix mut new return
+}
+rows public proc( A <?> A Matrix mut => A array mut array mut~ ){
+  mat =::
+  mat .height A array mut memory mut new arrays =::
+  0 while{ dup mat .height < do
+    mat .width A memory mut new row =::
+    mat .data over mat .width * row 0 mat .width copy
+    arrays row []^=
+    1 +
+  } drop
+  arrays clone-mut~ return
+}
+columns public proc( A <?> A Matrix mut => A array mut array mut~ ){
+  mat =::
+  mat .width A array mut memory mut new arrays =::
+  0 while{ dup mat .width < do
+    mat .height A memory mut new column =::
+    0 while{ dup mat .height < do
+      column mat .data #+x+#4 $dup #+y+#4 $dup mat .width * + [] []^=
+      1 +
+    } drop
+    arrays column []^=
+    1 +
+  } drop
+  arrays clone-mut~ return
+}
+
+
 [,] public proc( A <?> A Matrix mut? uint uint => A ){
   y =::
   x =::

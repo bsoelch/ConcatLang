@@ -7,25 +7,37 @@ io #include
 
 core #import
 
-0  3 4 int newMatrix matrix =::
+0  3 4 int newMatrix matrix1 =::
 
-0 while{ dup matrix .width < do
+0 while{ dup matrix1 .width < do
+  0 while{ dup matrix1 .height < do
+    2 $dup  2 $dup 10 * + matrix1 4 $dup 4 $dup [,]=
+    1 +
+  } drop
+  1 +
+} drop
+
+matrix1 debugPrint
+
+printIntMatrix proc( int Matrix mut? => ){
+  matrix =::
+  64 buildString sb =::
   0 while{ dup matrix .height < do
-    2 $dup  2 $dup 10 * + matrix 4 $dup 4 $dup [,]=
+    0 while{ dup matrix .width < do
+      sb matrix 3 $dup 5 $dup [,] <<i ' ' << drop
+      1 +
+    } drop
+    sb '\n' << drop
     1 +
   } drop
-  1 +
-} drop
+  sb .build puts
+}
 
-matrix
+matrix1 printIntMatrix
 
-64 buildString sb =::
-0 while{ dup matrix .height < do
-  0 while{ dup matrix .width < do
-    sb matrix 3 $dup 5 $dup [,] <<i ' ' << drop
-    1 +
-  } drop
-  sb '\n' << drop
-  1 +
-} drop
-sb .build puts
+{ { 1 2 3 } { 4 5 6 } } asMatrix matrix1 =
+
+matrix1 debugPrint
+matrix1 printIntMatrix
+matrix1 rows debugPrint
+matrix1 columns debugPrint
