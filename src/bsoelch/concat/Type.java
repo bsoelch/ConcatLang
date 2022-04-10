@@ -268,6 +268,9 @@ public class Type {
     boolean isValid(){
         return true;
     }
+    boolean isPrimitive(){
+        return baseType!=PTR;
+    }
 
     FilePosition declaredAt(){
         return Value.InternalProcedure.POSITION;
@@ -626,10 +629,8 @@ public class Type {
 
         private static Type getBaseType(String wrapperName, Type contentBase) {
             switch (wrapperName) {
-                case ARRAY:
-                    return MULTIBLOCK2;// data,len
-                case MEMORY:
-                    return MULTIBLOCK4;// off,data,len,cap
+                case ARRAY,MEMORY:
+                    return PTR;// data,len
                 case OPTIONAL:
                     if (contentBase == BITS8) {
                         return BITS16;
@@ -716,6 +717,7 @@ public class Type {
                         new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)}), declaredAt());
             }
         }
+
         void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
             contentType.forEachStruct(action);
         }
