@@ -1,0 +1,35 @@
+lib/2DArray:
+
+core #namespace
+codeblocks #include
+stack #include
+
+Matrix public struct{ A <>
+  A array mut^ :data   private
+  uint         :width  restricted
+  uint         :height restricted
+}
+
+newMatrix public proc( A <> A uint uint => A Matrix mut ){
+  h =::
+  w =::
+  #+initVal+# w h * A array mut new w h A Matrix mut new
+}
+[,] public proc( A <?> A Matrix mut? uint uint => A ){
+  y =::
+  x =::
+  mat =::
+  x mat .width < &&{ y mat .height < } "matrix index in bounds" assert
+  mat .data x y mat .width * + [] return
+}
+[,]= public proc( A <?> A A Matrix mut uint uint => ){
+  y =::
+  x =::
+  mat =::
+  x mat .width < &&{ y mat .height < } "matrix index in bounds" assert
+  #+val+# mat .data x y mat .width * + []=
+}
+
+
+
+#end

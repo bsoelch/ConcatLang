@@ -1,0 +1,31 @@
+tests/lib/2DArray:
+
+2DArray #include
+
+numbers #include
+io #include
+
+core #import
+
+0  3 4 int newMatrix matrix =::
+
+0 while{ dup matrix .width < do
+  0 while{ dup matrix .height < do
+    2 $dup  2 $dup 10 * + matrix 4 $dup 4 $dup [,]=
+    1 +
+  } drop
+  1 +
+} drop
+
+matrix
+
+64 buildString sb =::
+0 while{ dup matrix .height < do
+  0 while{ dup matrix .width < do
+    sb matrix 3 $dup 5 $dup [,] <<i ' ' << drop
+    1 +
+  } drop
+  sb '\n' << drop
+  1 +
+} drop
+sb .build puts
