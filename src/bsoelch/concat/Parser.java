@@ -1017,6 +1017,7 @@ public class Parser {
         final int id;
         Mutability mutability;
         final FilePosition declaredAt;
+        OwnershipInfo contentOwner;
         VariableId(VariableContext context, int level, int id, Type type, Mutability mutability,
                    Accessibility accessibility, FilePosition declaredAt){
             this.context=context;
@@ -1066,10 +1067,12 @@ public class Parser {
             super(context,0, id, source.type, Mutability.IMMUTABLE, Accessibility.READ_ONLY, declaredAt);
             assert source.mutability==Mutability.IMMUTABLE;
             this.source = source;
+            contentOwner=source.contentOwner;//TODO require ownership of curried variable
         }
         @Override
         public String toString() {
-            return "@"+context+".curried"+id;
+            return "CurriedVariable{id="+id+", type="+type+", accessibility="+accessibility+", mutability="+
+                    mutability+", declaredAt="+declaredAt+", context="+context+"}";
         }
 
         @Override
@@ -4119,6 +4122,8 @@ public class Parser {
                         break;
                     }
                     TypeFrame val = typeStack.pop();
+                    val.ownerInfo.variableReferences.add(id);
+                    id.contentOwner=val.ownerInfo;
                     typeCheckCast(val.type,1, id.type,t.pos,tState);
                     if (id.mutability==Mutability.IMMUTABLE && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
@@ -4170,12 +4175,13 @@ public class Parser {
                         }
                         VariableId id = (VariableId) d;
                         id = context.wrapCurried(identifier.name, id, identifier.pos);
+                        assert id.contentOwner!=null;
                         Value constValue = globalConstants.get(id);
                         if (constValue != null) {
-                            typeStack.push(new TypeFrame(constValue.type,constValue,t.pos,new OwnershipInfo(OwnerInfo.STACK)));
+                            typeStack.push(new TypeFrame(constValue.type,constValue,t.pos,id.contentOwner));
                             ret.add(new ValueToken(constValue, identifier.pos));
                         } else {
-                            typeStack.push(new TypeFrame(id.type,null,t.pos,new OwnershipInfo(OwnerInfo.STACK)));
+                            typeStack.push(new TypeFrame(id.type,null,t.pos,id.contentOwner));
                             ret.add(new VariableToken(identifier.pos, identifier.name, id,
                                     AccessType.READ, context));
                         }
@@ -4255,6 +4261,10 @@ public class Parser {
                 context.wrapCurried(identifier.name,id,identifier.pos);
                 assert !globalConstants.containsKey(id);
                 TypeFrame f = typeStack.pop();
+                assert id.contentOwner!=null;
+                //TODO remove id only on current branch
+                id.contentOwner.variableReferences.remove(id);
+                f.ownerInfo.variableReferences.add(id);
                 typeCheckCast(f.type,1, id.type, t.pos,tState);
                 ret.add(new VariableToken(identifier.pos,identifier.name,id,
                         AccessType.WRITE, context));
@@ -4271,7 +4281,7 @@ public class Parser {
                             Type.StructField field=((Type.Struct) f.type).fields[index];
                             if((field.accessibility()!=Accessibility.PRIVATE||field.declaredAt().path.equals(t.pos.path))){
                                 typeStack.push(new TypeFrame(((Type.Struct) f.type).getElement(index),null, t.pos,
-                                        new OwnershipInfo(OwnerInfo.STACK)));
+                                        new OwnershipInfo(new OwnerInfo.Container(f.ownerInfo))));
                                 ret.add(new TupleElementAccess(index, false, t.pos));
                                 break;//found field
                             }else{
@@ -4285,7 +4295,7 @@ public class Parser {
                             int index = Integer.parseInt(identifier.name);
                             if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
                                 typeStack.push(new TypeFrame(((Type.Tuple) f.type).getElement(index),null, t.pos,
-                                        new OwnershipInfo(OwnerInfo.STACK)));
+                                        new OwnershipInfo(new OwnerInfo.Container(f.ownerInfo))));
                                 ret.add(new TupleElementAccess(index, false, t.pos));
                                 break;//found field
                             }
@@ -4332,7 +4342,7 @@ public class Parser {
                         Value typeField=f.value.asType().getTypeField(identifier.name);
                         if(typeField!=null){
                             typeStack.push(new TypeFrame(typeField.type, typeField, t.pos,
-                                    new OwnershipInfo(OwnerInfo.STACK)));
+                                    new OwnershipInfo(new OwnerInfo.Container(f.ownerInfo))));
                             ValueToken entry = new ValueToken(typeField, t.pos);
                             prev = ret.get(ret.size() - 1);
                             if (prev instanceof ValueToken && ((ValueToken) prev).value.equals(f.value)) {
