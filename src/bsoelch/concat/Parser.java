@@ -1017,7 +1017,7 @@ public class Parser {
         final int id;
         Mutability mutability;
         final FilePosition declaredAt;
-        OwnershipInfo contentOwner;
+        ValueInfo contentOwner;
         VariableId(VariableContext context, int level, int id, Type type, Mutability mutability,
                    Accessibility accessibility, FilePosition declaredAt){
             this.context=context;
@@ -1722,36 +1722,56 @@ public class Parser {
             }
         }
         static class Container extends OwnerInfo{
-            final OwnershipInfo ownerId;
-            Container(OwnershipInfo ownerId) {
+            final ValueInfo ownerId;
+            Container(ValueInfo ownerId) {
                 this.ownerId = ownerId;
             }
         }
     }
-    static class OwnershipInfo{
+    static class ValueInfo {
         OwnerInfo owner;
         int stackReferences=0;
         final ArrayList<VariableId> variableReferences=new ArrayList<>();
-        final ArrayList<OwnershipInfo> containers=new ArrayList<>();
-        OwnershipInfo(OwnerInfo initialOwner){
+        final ArrayList<ValueInfo> containers=new ArrayList<>();
+
+        Value trueValue;
+        Type trueType;
+        ValueInfo(Value initialValue){
+            this(OwnerInfo.STACK,initialValue);
+        }
+        ValueInfo(OwnerInfo initialOwner,Value initialValue){
+            this.trueValue=initialValue;
+            this.trueType=initialValue.type;
+            this.owner=trueType.isPrimitive()?OwnerInfo.PRIMITIVE:initialOwner;
+        }
+        ValueInfo(OwnerInfo initialOwner){
             this.owner=initialOwner;
+        }
+
+        @Override
+        public String toString() {
+            return "Value{" +"owner=" + owner +'}';
         }
     }
 
-    record TypeFrame(Type type, Value value, FilePosition pushedAt,
-                     OwnershipInfo ownerInfo) {
-        TypeFrame(Type type, Value value, FilePosition pushedAt, OwnershipInfo ownerInfo) {
+    record TypeFrame(Type type, ValueInfo valueInfo, FilePosition pushedAt) {
+        TypeFrame(Type type, ValueInfo valueInfo, FilePosition pushedAt) {
             this.type = type;
-            this.value = value;
             this.pushedAt = pushedAt;
-            this.ownerInfo = type.isPrimitive() ? new OwnershipInfo(OwnerInfo.PRIMITIVE) : ownerInfo;
+            this.valueInfo = valueInfo;
+            if(type.isPrimitive())
+                valueInfo.owner=OwnerInfo.PRIMITIVE;
+        }
+
+        public Value value() {
+            return valueInfo.trueValue;
         }
 
         @Override
         public String toString() {
             return "TypeFrame[" +
                     "type=" + type + ", " +
-                    "value=" + value + ", " +
+                    "value=" + valueInfo + ", " +
                     "pushedAt=" + pushedAt + ']';
         }
     }
@@ -2305,11 +2325,11 @@ public class Parser {
                         if(((StructBlock) block).extended!=null){
                             throw new SyntaxError("structs can only contain one '"+str+"' statement",pos);
                         }
-                        if(r.types.size()!=1||r.types.get(1).type!=Type.TYPE||r.types.get(1).value==null){
+                        if(r.types.size()!=1||r.types.get(1).type!=Type.TYPE||r.types.get(1).value()==null){
                             throw new SyntaxError("value before '"+str+"' has to be one constant type",pos);
                         }
                         try {
-                            Type extended=r.types.get(1).value.asType();
+                            Type extended=r.types.get(1).value().asType();
                             if(!(extended instanceof Type.Struct)){
                                 throw new SyntaxError("extended type has to be a struct got: "+extended,pos);
                             }
@@ -2324,7 +2344,7 @@ public class Parser {
                         }
                         try {
                             for(TypeFrame f:r.types){
-                                if(f.type!=Type.TYPE||(!(f.value.asType() instanceof Type.Trait trait))){
+                                if(f.type!=Type.TYPE||(!(f.value().asType() instanceof Type.Trait trait))){
                                     throw new SyntaxError("values before '"+str+"' have to be constant trait-types",pos);
                                 }
                                 //ensure trait is initialized
@@ -3006,7 +3026,7 @@ public class Parser {
             p.typeCheckState = Value.TypeCheckState.CHECKING;
             RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(8);
             for(Type t:((Type.Procedure) p.type).inTypes){
-                typeStack.push(new TypeFrame(t,null, p.declaredAt,new OwnershipInfo(OwnerInfo.OUT_OF_SCOPE)));
+                typeStack.push(new TypeFrame(t,new ValueInfo(OwnerInfo.OUT_OF_SCOPE),p.declaredAt));
             }
             TypeCheckResult res=typeCheck(p.tokens, p.context, globalConstants,typeStack,((Type.Procedure) p.type).outTypes,
                     p.endPos, ioContext);
@@ -3101,8 +3121,8 @@ public class Parser {
                     throw new SyntaxError("Cannot merge "+t1.type+" (pushed at"+t1.pushedAt+") and "+t2.type+
                             " (pushed at "+t2.pushedAt+")",endMain);
                 }
-                main.set(p,new TypeFrame(merged.get(),null,t1.pushedAt,t1.ownerInfo));
-                //addLater? better position reporting for merged positions, check ownerInfo
+                main.set(p,new TypeFrame(merged.get(),t1.valueInfo,t1.pushedAt));
+                //addLater? better position reporting for merged positions, check valueInfo
             }
         }
     }
@@ -3170,8 +3190,9 @@ public class Parser {
                 case GLOBAL_VALUE,VALUE -> {
                     assert t instanceof ValueToken;
                     //push type information
-                    tState.typeStack.push(new TypeFrame(((ValueToken) t).value.type, ((ValueToken) t).value,t.pos,
-                            new OwnershipInfo(t.tokenType==TokenType.GLOBAL_VALUE?OwnerInfo.OUT_OF_SCOPE:OwnerInfo.STACK)));
+                    tState.typeStack.push(new TypeFrame(((ValueToken) t).value.type,
+                            new ValueInfo(t.tokenType==TokenType.GLOBAL_VALUE?OwnerInfo.OUT_OF_SCOPE:OwnerInfo.STACK,((ValueToken) t).value),t.pos
+                            ));
                     tState.ret.add(t);
                 }
                 case DEBUG_PRINT -> {
@@ -3210,7 +3231,7 @@ public class Parser {
                         target=target.setMutability(f.type.mutability);
                     }
                     typeCheckCast(f.type,1,target, t.pos,tState);
-                    tState.typeStack.push(new TypeFrame(target,null,t.pos,new OwnershipInfo(OwnerInfo.STACK)));
+                    tState.typeStack.push(new TypeFrame(target,new ValueInfo(OwnerInfo.STACK),t.pos));
                 }
                 case STACK_DROP -> {
                     assert t instanceof StackModifierToken;
@@ -3342,8 +3363,8 @@ public class Parser {
                 tState.typeStack = tState.typeStack.clone();
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
-                        tState.typeStack.push(new TypeFrame(f.type.content(),null,pos,
-                                new OwnershipInfo(new OwnerInfo.Container(f.ownerInfo))));
+                        tState.typeStack.push(new TypeFrame(f.type.content(),
+                                new ValueInfo(new OwnerInfo.Container(f.valueInfo)),pos));
                     }else {
                         throw new SyntaxError("argument of 'if' has to be an optional or 'bool' got " + f.type, pos);
                     }
@@ -3389,8 +3410,8 @@ public class Parser {
                 tState.typeStack = tState.typeStack.clone();
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
-                        tState.typeStack.push(new TypeFrame(f.type.content(),null,pos,
-                                new OwnershipInfo(new OwnerInfo.Container(f.ownerInfo))));
+                        tState.typeStack.push(new TypeFrame(f.type.content(),
+                                new ValueInfo(new OwnerInfo.Container(f.valueInfo)),pos));
                     }else {
                         throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, pos);
                     }
@@ -3422,8 +3443,8 @@ public class Parser {
                 tState.typeStack=tState.typeStack.clone();
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
-                        tState.typeStack.push(new TypeFrame(f.type.content(),null,pos,
-                                new OwnershipInfo(new OwnerInfo.Container(f.ownerInfo))));
+                        tState.typeStack.push(new TypeFrame(f.type.content(),
+                                new ValueInfo(new OwnerInfo.Container(f.valueInfo)),pos));
                     }else {
                         throw new SyntaxError("argument of '_if' has to be an optional or 'bool' got " + f.type, pos);
                     }
@@ -3463,8 +3484,8 @@ public class Parser {
                     forBlock.iterableType=iterableType;
                     forBlock.prevTypes =tState.typeStack.clone();
                     tState.typeStack=new RandomAccessStack<>(8);
-                    tState.typeStack.push(new TypeFrame(iterableType.content(),null,pos,
-                            new OwnershipInfo(new OwnerInfo.Container(iterable.ownerInfo))));
+                    tState.typeStack.push(new TypeFrame(iterableType.content(),
+                            new ValueInfo(new OwnerInfo.Container(iterable.valueInfo)),pos));
 
                     openBlocks.add(forBlock);
                     tState.context= forBlock.context();
@@ -3505,8 +3526,8 @@ public class Parser {
                     forBlock.iterableType=iterableType;
                     forBlock.prevTypes =tState.typeStack.clone();
                     tState.typeStack=new RandomAccessStack<>(8);
-                    tState.typeStack.push(new TypeFrame(procType.outTypes[1].content(),null,pos,
-                            new OwnershipInfo(new OwnerInfo.Container(iterable.ownerInfo))));
+                    tState.typeStack.push(new TypeFrame(procType.outTypes[1].content(),
+                            new ValueInfo(new OwnerInfo.Container(iterable.valueInfo)),pos));
 
                     openBlocks.add(forBlock);
                     tState.context= forBlock.context();
@@ -3654,16 +3675,14 @@ public class Parser {
                                     values.set(p, values.get(p).castTo(type));
                                 }
                                 Value array = Value.createArray(Type.arrayOf(type), values.toArray(Value[]::new));
-                                tState.typeStack.push(new TypeFrame(array.type, array, pos,
-                                        new OwnershipInfo(OwnerInfo.OUT_OF_SCOPE)));
+                                tState.typeStack.push(new TypeFrame(array.type,new ValueInfo(OwnerInfo.OUT_OF_SCOPE, array),pos));
 
                                 ret.add(new ValueToken(array, open.startPos));
                             } catch (ConcatRuntimeError e) {
                                 throw new SyntaxError(e, pos);
                             }
                         } else {
-                            tState.typeStack.push(new TypeFrame(Type.arrayOf(type), null, pos,
-                                    new OwnershipInfo(OwnerInfo.STACK)));
+                            tState.typeStack.push(new TypeFrame(Type.arrayOf(type), new ValueInfo(OwnerInfo.STACK), pos));
 
                             ArrayList<Token> listTokens = new ArrayList<>(subList);
                             subList.clear();
@@ -3820,7 +3839,7 @@ public class Parser {
 
                         tState.typeStack=((ArrayBlock)open).prevTypes;
                         ret.add(new ValueToken(typeValue,pos));
-                        tState.typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                        tState.typeStack.push(new TypeFrame(Type.TYPE,new ValueInfo(typeValue),pos));
                     }
                     case ANONYMOUS_TUPLE -> {
                         List<Token> subList=ret.subList(open.start, ret.size());
@@ -3830,7 +3849,7 @@ public class Parser {
 
                         tState.typeStack=((ArrayBlock)open).prevTypes;
                         ret.add(new ValueToken(typeValue,pos));
-                        tState.typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                        tState.typeStack.push(new TypeFrame(Type.TYPE,new ValueInfo(typeValue),pos));
                     }
                     case PROC_TYPE -> {
                         List<Token> subList=ret.subList(open.start, ((ProcTypeBlock)open).separatorPos);
@@ -3841,7 +3860,7 @@ public class Parser {
                         Value typeValue =Value.ofType(Type.Procedure.create(inTypes,outTypes,pos));
                         ret.add(new ValueToken(typeValue,pos));
                         tState.typeStack=((ProcTypeBlock)open).prevTypes;
-                        tState.typeStack.push(new TypeFrame(Type.TYPE,typeValue,pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                        tState.typeStack.push(new TypeFrame(Type.TYPE,new ValueInfo(typeValue),pos));
                     }
                     case IF,WHILE,FOR,SWITCH_CASE,CONST_ARRAY ->
                         throw new SyntaxError("unexpected ')' statement ",pos);
@@ -3860,7 +3879,7 @@ public class Parser {
         TypeFrame f= typeStack.pop();
         if(f.type!=Type.BOOL){
             throw new SyntaxError("parameter of assertion has to be a bool got "+f.type, t.pos);
-        }else if(f.value!=null&&!f.value.asBool()){//addLater? replace assert with drop if condition is always true
+        }else if(f.value()!=null&&!f.value().asBool()){//addLater? replace assert with drop if condition is always true
             throw new SyntaxError("assertion failed: "+ ((AssertToken) t).message, t.pos);
         }
         if((prev= ret.get(ret.size()-1)) instanceof ValueToken){
@@ -3878,7 +3897,7 @@ public class Parser {
     private static void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret)
             throws RandomAccessStack.StackUnderflow {
         for(TypeFrame dropped: typeStack.drop(t.args[0])){
-            dropped.ownerInfo.stackReferences--;
+            dropped.valueInfo.stackReferences--;
             if(dropped.type instanceof Type.OverloadedProcedurePointer opp){
                 if(ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
                     //delete unresolved procedure pointers
@@ -3886,7 +3905,7 @@ public class Parser {
                     t.args[0]--;
                 }
             }
-            if(dropped.ownerInfo.stackReferences==0&&dropped.ownerInfo.owner==OwnerInfo.STACK){
+            if(dropped.valueInfo.stackReferences==0&&dropped.valueInfo.owner==OwnerInfo.STACK){
                 //TODO check for remaining references
                 System.out.println("Debug: "+dropped+" went out of scope");
             }
@@ -3897,13 +3916,13 @@ public class Parser {
     }
     private static void typeCheckDup(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
         TypeFrame duped= typeStack.get(t.args[0]);
-        duped.ownerInfo.stackReferences++;
+        duped.valueInfo.stackReferences++;
         if(duped.type instanceof Type.OverloadedProcedurePointer opp){
             typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(opp.proc,opp.genArgs, ret.size(),opp.pushedAt),
-                    null, t.pos,duped.ownerInfo));
+                    duped.valueInfo, t.pos));
             ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, t.pos));
         }else{
-            duped=new TypeFrame(duped.type,duped.value, t.pos,duped.ownerInfo);
+            duped=new TypeFrame(duped.type,duped.valueInfo, t.pos);
             typeStack.push(duped);
             ret.add(t);
         }
@@ -3917,11 +3936,11 @@ public class Parser {
             RandomAccessStack.StackUnderflow, TypeError {
         TypeFrame f = typeStack.pop();
         if(f.type==Type.TYPE) {
-            if (f.value == null) {
+            if (f.value() == null) {
                 throw new SyntaxError("type argument of '"+name+"' has to be a constant",pos);
             }
-            Value modified = modifier.apply(f.value.asType());
-            f = new TypeFrame(modified.type, modified, pos,f.ownerInfo);
+            Value modified = modifier.apply(f.value().asType());
+            f = new TypeFrame(modified.type, new ValueInfo(modified), pos);
             typeStack.push(f);
             Token prev;
             if (ret.size() > 0 && (prev = ret.get(ret.size() - 1)) instanceof ValueToken) {
@@ -3989,7 +4008,7 @@ public class Parser {
         Type[] inTypes=ProcedureBlock.getSignature(res.tokens,"procedure");
         RandomAccessStack<TypeFrame> procTypes=new RandomAccessStack<>(8);
         for(Type in:inTypes){
-            procTypes.push(new TypeFrame(in,null, t.pos,new OwnershipInfo(OwnerInfo.OUT_OF_SCOPE)));
+            procTypes.push(new TypeFrame(in,new ValueInfo(OwnerInfo.OUT_OF_SCOPE), t.pos));
         }
         Type[] outTypes;
         if(t.outTypes!=null) {
@@ -4016,7 +4035,7 @@ public class Parser {
         Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, newContext);
         lambda.typeCheckState = Value.TypeCheckState.CHECKED;//mark lambda as checked
         //push type information
-        tState.typeStack.push(new TypeFrame(lambda.type, lambda, t.pos,new OwnershipInfo(OwnerInfo.STACK)));
+        tState.typeStack.push(new TypeFrame(lambda.type, new ValueInfo(lambda), t.pos));
         if(newContext.curried.isEmpty()){
             tState.ret.add(new ValueToken(TokenType.LAMBDA,lambda, t.pos));
         }else{
@@ -4073,7 +4092,7 @@ public class Parser {
                     f=tState.typeStack.pop();
                     typeCheckCast(f.type,2,type.content(),pos,tState);
                 }
-                tState.typeStack.push(new TypeFrame(type,null, pos,new OwnershipInfo(OwnerInfo.STACK)));
+                tState.typeStack.push(new TypeFrame(type,new ValueInfo(OwnerInfo.STACK), pos));
                 //addLater? support new memory/array in pre-evaluation
             }else{
                 throw new SyntaxError("cannot apply 'new' to type "+type, pos);
@@ -4122,8 +4141,8 @@ public class Parser {
                         break;
                     }
                     TypeFrame val = typeStack.pop();
-                    val.ownerInfo.variableReferences.add(id);
-                    id.contentOwner=val.ownerInfo;
+                    val.valueInfo.variableReferences.add(id);
+                    id.contentOwner=val.valueInfo;
                     typeCheckCast(val.type,1, id.type,t.pos,tState);
                     if (id.mutability==Mutability.IMMUTABLE && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
@@ -4178,10 +4197,10 @@ public class Parser {
                         assert id.contentOwner!=null;
                         Value constValue = globalConstants.get(id);
                         if (constValue != null) {
-                            typeStack.push(new TypeFrame(constValue.type,constValue,t.pos,id.contentOwner));
+                            typeStack.push(new TypeFrame(constValue.type,new ValueInfo(OwnerInfo.OUT_OF_SCOPE,constValue),t.pos));
                             ret.add(new ValueToken(constValue, identifier.pos));
                         } else {
-                            typeStack.push(new TypeFrame(id.type,null,t.pos,id.contentOwner));
+                            typeStack.push(new TypeFrame(id.type,id.contentOwner,t.pos));
                             ret.add(new VariableToken(identifier.pos, identifier.name, id,
                                     AccessType.READ, context));
                         }
@@ -4195,7 +4214,7 @@ public class Parser {
                             asType=asType.setMutability(identifier.mutability());
                         }
                         Value e = Value.ofType(asType);
-                        typeStack.push(new TypeFrame(e.type,e,t.pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                        typeStack.push(new TypeFrame(e.type,new ValueInfo(e),t.pos));
                         ret.add(new ValueToken(e, identifier.pos));
                     }
                     case CONSTANT -> {
@@ -4212,7 +4231,7 @@ public class Parser {
                                         " cannot be marked as mutable",t.pos);
                             }
                         }
-                        typeStack.push(new TypeFrame(e.type,e,t.pos,new OwnershipInfo(OwnerInfo.OUT_OF_SCOPE)));
+                        typeStack.push(new TypeFrame(e.type,new ValueInfo(OwnerInfo.OUT_OF_SCOPE,e),t.pos));
                         ret.add(new ValueToken(e, identifier.pos));
                     }
                     case TRAIT -> {
@@ -4226,7 +4245,7 @@ public class Parser {
                             trait=trait.setMutability(identifier.mutability());
                         }
                         Value e = Value.ofType(trait);
-                        typeStack.push(new TypeFrame(e.type,e,t.pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                        typeStack.push(new TypeFrame(e.type,new ValueInfo(e),t.pos));
                         ret.add(new ValueToken(e, identifier.pos));
                     }
                     case GENERIC_STRUCT -> {
@@ -4238,7 +4257,7 @@ public class Parser {
                             typeValue=typeValue.setMutability(identifier.mutability());
                         }
                         Value tupleType = Value.ofType(typeValue);
-                        typeStack.push(new TypeFrame(Type.TYPE,tupleType,identifier.pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                        typeStack.push(new TypeFrame(Type.TYPE,new ValueInfo(tupleType),identifier.pos));
                         ret.add(new ValueToken(tupleType,identifier.pos));
                     }
                 }
@@ -4264,7 +4283,7 @@ public class Parser {
                 assert id.contentOwner!=null;
                 //TODO remove id only on current branch
                 id.contentOwner.variableReferences.remove(id);
-                f.ownerInfo.variableReferences.add(id);
+                f.valueInfo.variableReferences.add(id);
                 typeCheckCast(f.type,1, id.type, t.pos,tState);
                 ret.add(new VariableToken(identifier.pos,identifier.name,id,
                         AccessType.WRITE, context));
@@ -4280,8 +4299,8 @@ public class Parser {
                         if(index!=null){
                             Type.StructField field=((Type.Struct) f.type).fields[index];
                             if((field.accessibility()!=Accessibility.PRIVATE||field.declaredAt().path.equals(t.pos.path))){
-                                typeStack.push(new TypeFrame(((Type.Struct) f.type).getElement(index),null, t.pos,
-                                        new OwnershipInfo(new OwnerInfo.Container(f.ownerInfo))));
+                                typeStack.push(new TypeFrame(((Type.Struct) f.type).getElement(index),
+                                        new ValueInfo(new OwnerInfo.Container(f.valueInfo)), t.pos));
                                 ret.add(new TupleElementAccess(index, false, t.pos));
                                 break;//found field
                             }else{
@@ -4294,8 +4313,8 @@ public class Parser {
                         try {
                             int index = Integer.parseInt(identifier.name);
                             if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
-                                typeStack.push(new TypeFrame(((Type.Tuple) f.type).getElement(index),null, t.pos,
-                                        new OwnershipInfo(new OwnerInfo.Container(f.ownerInfo))));
+                                typeStack.push(new TypeFrame(((Type.Tuple) f.type).getElement(index),
+                                        new ValueInfo(new OwnerInfo.Container(f.valueInfo)), t.pos));
                                 ret.add(new TupleElementAccess(index, false, t.pos));
                                 break;//found field
                             }
@@ -4331,21 +4350,21 @@ public class Parser {
                         ret.add(new CallToken(match.called(), t.pos));
                         break;//found field
                     }
-                    if(f.type==Type.TYPE&&f.value!=null){
-                        if(f.value.asType() instanceof Type.Struct){
+                    if(f.type==Type.TYPE&&f.value()!=null){
+                        if(f.value().asType() instanceof Type.Struct){
                             //ensure that struct is initialized
-                            typeCheckStruct((Type.Struct) f.value.asType(),tState);
-                        }else if(f.value.asType() instanceof Type.Trait){
+                            typeCheckStruct((Type.Struct) f.value().asType(),tState);
+                        }else if(f.value().asType() instanceof Type.Trait){
                             //ensure that trait is initialized
-                            typeCheckTrait((Type.Trait) f.value.asType(),globalConstants,tState.ioContext);
+                            typeCheckTrait((Type.Trait) f.value().asType(),globalConstants,tState.ioContext);
                         }
-                        Value typeField=f.value.asType().getTypeField(identifier.name);
+                        Value typeField=f.value().asType().getTypeField(identifier.name);
                         if(typeField!=null){
-                            typeStack.push(new TypeFrame(typeField.type, typeField, t.pos,
-                                    new OwnershipInfo(new OwnerInfo.Container(f.ownerInfo))));
+                            typeStack.push(new TypeFrame(typeField.type,
+                                    new ValueInfo(new OwnerInfo.Container(f.valueInfo),typeField), t.pos));
                             ValueToken entry = new ValueToken(typeField, t.pos);
                             prev = ret.get(ret.size() - 1);
-                            if (prev instanceof ValueToken && ((ValueToken) prev).value.equals(f.value)) {
+                            if (prev instanceof ValueToken && ((ValueToken) prev).value.equals(f.value())) {
                                 ret.set(ret.size() - 1, entry);
                             } else {//addLater? better way to replace previous value
                                 ret.add(new StackModifierToken(TokenType.STACK_DROP, new int[]{1}, t.pos));
@@ -4355,7 +4374,7 @@ public class Parser {
                         }
                     }
                     throw new SyntaxError("values of type "+
-                            f.type+((f.type==Type.TYPE&&f.value!=null)?":"+f.value.asType():"")+
+                            f.type+((f.type==Type.TYPE&&f.value()!=null)?":"+f.value().asType():"")+
                             " do not have a field "+identifier.name,t.pos);
                 } catch (TypeError e) {
                     throw new SyntaxError(e,t.pos);
@@ -4468,10 +4487,10 @@ public class Parser {
             d.markAsUsed();
             if(procType instanceof Type.GenericProcedureType){
                 tState.typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(new OverloadedProcedure(proc),
-                        new Type[0], tState.ret.size(), pos),null, pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                        new Type[0], tState.ret.size(), pos),new ValueInfo(OwnerInfo.PRIMITIVE), pos));
                 tState.ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
             }else{
-                tState.typeStack.push(new TypeFrame(procType,proc, pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                tState.typeStack.push(new TypeFrame(procType,new ValueInfo(proc), pos));
                 ValueToken token=new ValueToken(proc, pos);
                 tState.ret.add(token);
             }
@@ -4494,13 +4513,13 @@ public class Parser {
                 pushSimpleProcPointer(non_generic, pos,tState);
             }else{
                 tState.typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, tState.ret.size(), pos),
-                        null, pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                        new ValueInfo(OwnerInfo.PRIMITIVE), pos));
                 tState.ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
             }
         }else if(d instanceof OverloadedProcedure proc){
             Type[] genArgs=getArguments(proc.name,DeclareableType.GENERIC_PROCEDURE,proc.nGenericParams, tState.typeStack, tState.ret, pos);
             tState.typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(proc,genArgs, tState.ret.size(), pos),
-                    null, pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+                    new ValueInfo(OwnerInfo.PRIMITIVE), pos));
             tState.ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, pos));//push placeholder token
         }else{
             throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
@@ -4513,7 +4532,7 @@ public class Parser {
         //type check procedure before it is pushed onto the stack
         typeCheckProcedure(procedure, tState.globalConstants, tState.ioContext);
         ValueToken token = new ValueToken(procedure, pos);
-        tState.typeStack.push(new TypeFrame(token.value.type, token.value, pos,new OwnershipInfo(OwnerInfo.PRIMITIVE)));
+        tState.typeStack.push(new TypeFrame(token.value.type, new ValueInfo(token.value), pos));
         tState.ret.add(token);
     }
 
@@ -4532,7 +4551,7 @@ public class Parser {
             }
             try {
                 genArgs[j] = ((ValueToken) prev).value.asType();
-                Value value = typeStack.pop().value;
+                Value value = typeStack.pop().value();
                 if(value==null||value.type!=Type.TYPE||!value.asType().equals(genArgs[j])){
                     throw new RuntimeException("type-stack out of sync with tokens");
                 }
@@ -4644,7 +4663,7 @@ public class Parser {
             throw new RuntimeException("generics should not exist here");
         }
         for(Type t:type.outTypes){
-            tState.typeStack.push(new TypeFrame(t,null,pos,new OwnershipInfo(OwnerInfo.STACK)));
+            tState.typeStack.push(new TypeFrame(t,new ValueInfo(OwnerInfo.STACK),pos));
         }
     }
 
@@ -4760,7 +4779,7 @@ public class Parser {
         CallMatch match = findMatchingCall(matchingCalls, proc, inTypes, pos,tState);
         updateProcedureArguments(match, inTypes, tState.ret, ptrGenArgs!=null, pos);
         for(Type t:match.type.outTypes){
-            tState.typeStack.push(new TypeFrame(t,null,pos,new OwnershipInfo(OwnerInfo.STACK)));
+            tState.typeStack.push(new TypeFrame(t,new ValueInfo(OwnerInfo.STACK),pos));
         }
         return match;
     }
