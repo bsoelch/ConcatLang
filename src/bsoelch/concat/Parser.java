@@ -3030,6 +3030,7 @@ public class Parser {
             TypeCheckResult res=typeCheck(p.tokens, p.context, globalConstants,typeData,((Type.Procedure) p.type).outTypes,
                     p.endPos, ioContext);
             p.tokens=res.tokens;
+            TypeCheckState.closedContext(p.context,res.typeData);
             p.typeCheckState = Value.TypeCheckState.CHECKED;
         }
     }
@@ -3168,6 +3169,51 @@ public class Parser {
             this.ret = new ArrayList<>(src.size());
             this.typeData=typeData;
             this.context=context;
+        }
+
+        void closeContext(){
+            assert context instanceof BlockContext;
+            closedContext(context,typeData);
+            context=((BlockContext)context).parent;
+        }
+        static boolean outOfScope(ValueInfo valueInfo){
+            return valueInfo.owner==null||
+                    (valueInfo.owner instanceof OwnerInfo.Container&&outOfScope(((OwnerInfo.Container) valueInfo.owner).ownerId));
+        }
+        static void closedContext(VariableContext closed,TypeData typeData){
+            ArrayList<VariableId> remove=new ArrayList<>();
+            //remove owner info
+            HashMap<VariableId, ValueInfo> currentVars = typeData.currentVariables;
+            for(Map.Entry<VariableId, ValueInfo> var: currentVars.entrySet()){
+                if(var.getKey().context==closed){
+                    remove.add(var.getKey());
+                    var.getValue().variableReferences.removeIf(v->v.context==closed);
+                    if(var.getValue().owner instanceof OwnerInfo.Variable &&
+                            ((OwnerInfo.Variable) var.getValue().owner).varId.context==closed){
+                        var.getValue().owner=var.getValue().stackReferences>0?OwnerInfo.STACK:null;
+                    }
+                }
+            }
+            //check ownership of containers
+            for(Map.Entry<VariableId, ValueInfo> var: currentVars.entrySet()){
+                if(var.getValue().owner instanceof OwnerInfo.Container &&
+                        outOfScope(((OwnerInfo.Container) var.getValue().owner).ownerId)){
+                    var.getValue().owner=var.getValue().stackReferences>0?OwnerInfo.STACK:null;
+                    remove.add(var.getKey());
+                }
+            }
+            for(Map.Entry<VariableId, ValueInfo> var: currentVars.entrySet()){
+                var.getValue().containers.removeIf(TypeCheckState::outOfScope);
+                if(var.getValue().containers.size()>0&&outOfScope(var.getValue())){
+                    System.err.println("local variable is contained in non-local container");//TODO throw exception
+                }
+            }
+            for(VariableId id:remove){
+                ValueInfo removed = currentVars.remove(id);
+                if(removed.owner==null){
+                    System.err.println("Debug: free "+id);
+                }
+            }
         }
     }
     record TypeCheckResult(ArrayList<Token> tokens,TypeData typeData){
@@ -3497,7 +3543,7 @@ public class Parser {
 
                 whileBlock.fork(ret.size(), pos);//whileBlock.end() only checks if fork was called
                 ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                tState.context=((BlockContext)tState.context).parent;
+                tState.closeContext();
                 ret.add(new BlockToken(BlockTokenType.DO_WHILE,pos,open.start - (ret.size()-1)));
             }
             case FOR -> {
@@ -3607,7 +3653,7 @@ public class Parser {
                 tState.typeData=switchBlock.defaultTypes;
 
                 ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                tState.context=((BlockContext)tState.context).parent;
+                tState.closeContext();
                 ret.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
                 switchBlock.newSection(ret.size(),pos);
                 //find case statement
@@ -3725,16 +3771,16 @@ public class Parser {
 
                             tmp=ret.get(((IfBlock) open).forkPos);
                             ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            tState.context=((BlockContext)tState.context).parent;
+                            tState.closeContext();
                             //when there is no else then the last branch has to jump onto the close operation
                             ((BlockToken)tmp).delta=ret.size()-((IfBlock) open).forkPos;
                             if(((IfBlock) open).elsePositions.size()>0){//close-else context
                                 ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                                tState.context=((BlockContext)tState.context).parent;
+                                tState.closeContext();
                             }
                         }else{//close else context
                             ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                            tState.context=((BlockContext)tState.context).parent;
+                            tState.closeContext();
                         }
                         for(Integer branch:((IfBlock) open).elsePositions){
                             tmp=ret.get(branch);
@@ -3767,7 +3813,7 @@ public class Parser {
 
                         ((WhileBlock)open).end(pos);
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                        tState.context=((BlockContext)tState.context).parent;
+                        tState.closeContext();
                         tmp=ret.get(((WhileBlock) open).forkPos);
                         ret.add(new BlockToken(BlockTokenType.END_WHILE,pos, open.start - ret.size()));
                         ((BlockToken)tmp).delta=ret.size()-((WhileBlock)open).forkPos;
@@ -3780,7 +3826,7 @@ public class Parser {
                         }//TODO compare variable owners
                         tState.typeData=((ForBlock)open).prevTypes;
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                        tState.context=((BlockContext)tState.context).parent;
+                        tState.closeContext();
                         ret.add(new BlockToken(((ForBlock) open).isArray?BlockTokenType.FOR_ARRAY_END:BlockTokenType.FOR_ITERATOR_END,
                                 pos, open.start - ret.size()));
                         tmp=ret.get(open.start);
@@ -3791,7 +3837,7 @@ public class Parser {
                             throw new SyntaxError("missing end-case statement",pos);
                         }
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                        tState.context=((BlockContext)tState.context).parent;
+                        tState.closeContext();
                         ((SwitchCaseBlock)open).end(ret.size(),pos,tState.ioContext);
                         for(Integer p:((SwitchCaseBlock) open).blockEnds){
                             tmp=ret.get(p);
@@ -4045,6 +4091,7 @@ public class Parser {
         res=typeCheck(t.body,newContext, tState.globalConstants,
                 new TypeData(procTypes,new HashMap<>(tState.currentVariables()))
                 ,outTypes,t.endPos, tState.ioContext);
+        TypeCheckState.closedContext(newContext,res.typeData);
         if(t.outTypes==null){
             outTypes=new Type[res.types().size()];
             for(int i= outTypes.length-1;i>=0;i--){
