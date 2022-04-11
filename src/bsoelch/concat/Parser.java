@@ -4042,7 +4042,8 @@ public class Parser {
         }else{
             outTypes=null;
         }
-        res=typeCheck(t.body,newContext, tState.globalConstants,new TypeData(procTypes,tState.currentVariables())
+        res=typeCheck(t.body,newContext, tState.globalConstants,
+                new TypeData(procTypes,new HashMap<>(tState.currentVariables()))
                 ,outTypes,t.endPos, tState.ioContext);
         if(t.outTypes==null){
             outTypes=new Type[res.types().size()];
@@ -4060,9 +4061,18 @@ public class Parser {
         Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, newContext);
         lambda.typeCheckState = Value.TypeCheckState.CHECKED;//mark lambda as checked
         //push type information
-        tState.typeStack().push(new TypeFrame(lambda.type, new ValueInfo(lambda), t.pos));
-        //TODO make lambda owner of curried variables
-        tState.currentVariables().putAll(res.typeData().currentVariables());
+        ValueInfo lambdaOwner = new ValueInfo(lambda);
+        tState.typeStack().push(new TypeFrame(lambda.type, lambdaOwner, t.pos));
+        for(Map.Entry<VariableId, ValueInfo> id:res.typeData().currentVariables().entrySet()){
+            if(id.getKey().context.procedureContext()!=newContext){//filter out local variables
+                tState.currentVariables().put(id.getKey(), id.getValue());
+            }else if(id.getKey() instanceof CurriedVariable&&id.getValue().owner!=OwnerInfo.PRIMITIVE&&
+                    newContext.curried.contains(id.getKey())) {
+                ValueInfo curriedVar=tState.currentVariables().get(((CurriedVariable) id.getKey()).source);
+                if(curriedVar!=null)
+                    curriedVar.containers.add(lambdaOwner);
+            }
+        }
         if(newContext.curried.isEmpty()){
             tState.ret.add(new ValueToken(TokenType.LAMBDA,lambda, t.pos));
         }else{
@@ -4224,7 +4234,7 @@ public class Parser {
                         id = context.wrapCurried(identifier.name, id, identifier.pos);
                         ValueInfo contentOwner;
                         if(prevId!=id){
-                            contentOwner = tState.currentVariables().get(prevId);
+                            contentOwner = new ValueInfo(new OwnerInfo.Variable(id));
                             tState.currentVariables().put(id,contentOwner);
                         }else{
                             contentOwner=tState.currentVariables().get(id);
