@@ -361,6 +361,7 @@ public class Type {
         return canCastTo(t,new BoundMaps());
     }
 
+    //TODO distinguish different cast-types (convert (i.e. ... -> var),transform (i.e. int -> float),restrict (i.e. bits8 -> byte) )
     protected boolean canCastTo0(Type t, BoundMaps bounds){
         if (hasTrait(t, bounds)) return true;
         return t==ANY;
@@ -1754,10 +1755,11 @@ public class Type {
                     }
                     for(Trait ext:((Trait) t).extended){
                         BoundMaps tmp = bounds.copy();
-                        if(canCastTo(ext,tmp.swapped()))
+                        if(canCastTo(ext,tmp.swapped())) {
                             bounds.l.putAll(tmp.l);
                             bounds.r.putAll(tmp.r);
                             return true;
+                        }
                     }
                     return false;
                 }
@@ -2319,6 +2321,15 @@ public class Type {
                     name.append(t).append(" ");
                 }
                 base=commonBase(base,t.baseType);
+            }
+            if(baseLevel(base)<=64){
+                base=MULTIBLOCK2;//type, content
+            }else if(base==MULTIBLOCK2){
+                base=MULTIBLOCK3;
+            }else if(base==MULTIBLOCK3){
+                base=MULTIBLOCK4;
+            }else if(base!=PTR){
+                throw new RuntimeException("unexpected base type:"+base);
             }
             if(types.size()==1){
                 return types.get(0);
