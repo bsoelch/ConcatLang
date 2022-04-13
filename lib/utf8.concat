@@ -7,8 +7,9 @@ io #include
 numbers  #include
 list #include
 
+##addLater remove wrappers
 
-<< public proc( StringBuilder codepoint => StringBuilder ){
+<<codepoint public proc( StringBuilder codepoint => StringBuilder ){
   uint cp =:
   str =::
        cp 0x80    < if{   ## ascii - character
@@ -32,8 +33,11 @@ list #include
     str return
   }
 }
+<< public proc( StringBuilder codepoint => StringBuilder ){
+  <<codepoint return
+}
 
-<<* public proc( StringBuilder ustring mut? => StringBuilder ){
+<<ustring public proc( StringBuilder ustring mut? => StringBuilder ){
   append =::
   value  =::
   value .length append .length +  value .ensureCap
@@ -43,6 +47,9 @@ list #include
     i 1 + i =
   }
   #+value+# return
+}
+<<* public proc( StringBuilder ustring mut? => StringBuilder ){
+  <<ustring return
 }
 
 <<* public proc( UStringBuilder string mut? => UStringBuilder ){

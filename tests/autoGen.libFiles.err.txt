@@ -17,3 +17,4 @@ stack:
 strings:
 utf8:
 valueIO:
+valueIO2:

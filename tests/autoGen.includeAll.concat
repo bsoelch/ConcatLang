@@ -18,4 +18,5 @@ stack #include
 strings #include
 utf8 #include
 valueIO #include
+valueIO2 #include
 main public proc( => ){ }

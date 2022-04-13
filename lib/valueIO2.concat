@@ -1,0 +1,284 @@
+lib/valueIO: ##addLater replace valueIO (once implementation is finished)
+
+core #namespace
+stack #include
+codeblocks #include
+arrayBuilder #include
+numbers #include
+utf8 #include
+
+<<ln public proc( StringBuilder => StringBuilder ){
+  '\n' <<
+}
+
+<<bool public proc( StringBuilder bool => StringBuilder ){
+  if{ "true" else "false" } <<* return
+}
+<<Bool public proc( StringBuilder bool => StringBuilder ){
+  if{ "True" else "False" } <<* return
+}
+<<BOOL public proc( StringBuilder bool => StringBuilder ){
+  if{ "TRUE" else "FALSE" } <<* return
+}
+<<< public proc( StringBuilder bool => StringBuilder ){
+  <<bool return
+}
+
+<<byte public proc( StringBuilder byte => StringBuilder ){
+  byte value =:
+  "0x" <<* value int cast  <<x return
+}
+<<char public proc( StringBuilder byte => StringBuilder ){
+  << return
+}
+<<< public proc( StringBuilder byte => StringBuilder ){
+  dup  0x80 < if{
+    #+val+# << return ## print valid ascii-characters as character
+  else  ##addLater support \x in compiler (once merged with memory management branch)
+    byte value =:
+    "\\x" <<* value int cast <<x return ## print all other bytes as their byte-code
+  }
+}
+
+## <<codepoint in UTF8
+<<< public proc( StringBuilder codepoint => StringBuilder ){
+  <<codepoint return
+}
+
+<<int public proc( StringBuilder int => StringBuilder ){
+  <<i return
+}
+<<< public proc( StringBuilder int => StringBuilder ){
+  <<int return
+}
+<<uint public proc( StringBuilder uint => StringBuilder ){
+  <<u return
+}
+<<< public proc( StringBuilder uint => StringBuilder ){
+  <<uint return
+}
+<<float public proc( StringBuilder float => StringBuilder ){
+  <<f return
+}
+<<< public proc( StringBuilder float => StringBuilder ){
+  <<float return
+}
+
+<<type public proc( StringBuilder type => StringBuilder ){
+    t =::
+    t .genericArguments args =::
+    0 i =::
+    while{ i args .length < do
+        args i [] <<type " " <<*
+        i 1 + i =
+    }
+    t .isStruct if{
+      t .name <<*
+    else t .isTuple if
+      t .outTypes args =
+      0 i =
+      "( " <<*
+      while{ i args .length < do
+        args i [] <<type " " <<*
+        i 1 + i =
+      }
+      ")" <<*
+    else t .isProc if
+      t .inTypes args =
+      0 i =
+      "( " <<*
+      while{ i args .length < do
+        args i [] <<type " " <<*
+        i 1 + i =
+      }
+      "=> " <<*
+      t .outTypes args =
+      0 i =
+      while{ i args .length < do
+        args i [] <<type " " <<*
+        i 1 + i =
+      }
+      ")" <<*
+    else t .isArray if
+      #+content is generic parameter+# "array" <<*
+    else t .isMemory if
+      #+content is generic parameter+# "memory" <<*
+    else t .isOptional if
+      #+content is generic parameter+# "optional" <<*
+    else t .isEnum if
+      t .name <<* ## return enum-name
+    else t .isUnion if
+      t .inTypes args =
+      0 i =
+      "union( " <<*
+      while{ i args .length < do
+        args i [] <<type " " <<*
+        i 1 + i =
+      }
+      ')' <<
+    else t type == if
+      "type"  <<*
+    else t bool == if
+      "bool"  <<*
+    else t byte == if
+      "byte"  <<*
+    else t  int == if
+      "int"   <<*
+    else t uint == if
+      "uint"  <<*
+    else t float == if
+      "float" <<*
+    else t codepoint == if
+      "codepoint" <<*
+    else t bits8 == if
+      "bits8" <<*
+    else t bits16 == if
+      "bits16" <<*
+    else t bits32 == if
+      "bits32" <<*
+    else t bits64 == if
+      "bits64" <<*
+    else t bits128 == if
+      "bits128" <<*
+    else t bits192 == if
+      "bits192" <<*
+    else t bits256 == if
+      "bits256" <<*
+    else t bitsPtr == if
+      "bitsPtr" <<*
+    else t var == if
+      "var" <<*
+    else unreachable }
+    ##append mutability postfix
+    t .isMutable if{
+      " mut" <<* return
+    else t .isMaybeMutable if
+      " mut?" <<* return
+    }
+}
+<<< public proc( StringBuilder type => StringBuilder ){
+  <<type return
+}
+
+<<string public proc( StringBuilder string mut? => StringBuilder ){
+  <<* return
+}
+<<< public proc( StringBuilder string mut? => StringBuilder ){
+  <<* return
+}
+## <<ustring in UTF8
+<<< public proc( StringBuilder ustring mut? => StringBuilder ){
+  <<ustring return
+}
+
+<<array public proc( A <?> StringBuilder A array mut? => StringBuilder ){
+  A array mut? value =:
+  0 i =::
+  '[' << while{ i value .length < do
+    i 0 > if{
+      ", " <<*
+    }
+    value i [] <<<
+    i 1 + i =
+  }
+  ']' << return
+}
+<<< public proc( A <?> StringBuilder A array mut? => StringBuilder ){
+  <<array return
+}
+
+<<optional public proc( A <?> StringBuilder A optional => StringBuilder ){
+  A optional value =:
+  value if{
+    #+value+# <<< " wrap" <<* return
+  else
+    value .type .content <<type " empty" <<* return
+  }
+}
+<<< public proc( A <?> StringBuilder A optional => StringBuilder ){
+  <<optional return
+}
+
+<<tuple public proc( StringBuilder ( ) => StringBuilder ){
+    #+tuple+# .elements elements =::
+    0 i =::
+    '(' <<
+    while{ i elements .length < do
+      i 0 > if{
+        ", " <<*
+      }
+      elements i [] <<<
+      i 1 + i =
+    }
+    ')' << return
+}
+<<< public proc( StringBuilder ( ) => StringBuilder ){
+  <<tuple return
+}
+
+<<<* public proc( A <?> StringBuilder A array mut? ( StringBuilder A => StringBuilder ) => StringBuilder ){
+  f =::
+  A array mut? value =:
+  0 i =::
+  '[' << while{ i value .length < do
+    i 0 > if{
+      ", " <<*
+    }
+    value i [] f ()
+    i 1 + i =
+  }
+  ']' << return
+}
+
+## dynamically typed version of <<<
+<<< public proc( StringBuilder var => StringBuilder ){
+  value =::
+
+  value .type .isEnum if{ ##addLater allow detecting enums, structs and procedures in static type checking
+    value .type .name <<* " ." << value .type .fieldNames value uint cast [] <<* return
+  else value .type .isStruct if
+    value .type sType =::
+    sType .fieldNames fields =::
+    0 i =::
+    '(' <<
+    while{ i fields .length < do
+      i 0 > if{
+        ", " <<*
+      }
+      fields i [] <<* ':' << value i sType .getField <<<
+      i 1 + i =
+    }
+    ')' << return
+  else value .type .isProc if
+    ## procedure
+    value .type <<type "@" <<* value refId <<X return
+  else value .type .isArray ||{ value .type .isMemory } &&{ value .type .content byte == } if
+    value <<string return
+  else value .type .isArray ||{ value .type .isMemory } &&{ value .type .content codepoint == }  if
+    value <<ustring return
+  else value .type .isOptional if
+    value <<optional return
+  else value .type .isArray ||{ value .type .isMemory } if
+    value <<array return
+  else value .type .isTuple if
+    value <<tuple return
+  else value .type type == if
+    value <<type return
+  else value .type bool == if
+    value <<bool return
+  else value .type byte == if
+    value <<char return
+  else value .type  int == if
+    value <<i return
+  else value .type uint == if
+    value  <<u return
+  else value .type float == if
+    value <<f return
+  else value .type codepoint == if
+    value <<codepoint return
+  else unreachable }
+}
+
+
+#end
+
