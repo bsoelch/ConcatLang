@@ -34,7 +34,7 @@ utf8 #include
 <<< public proc( StringBuilder byte => StringBuilder ){
   dup  0x80 < if{
     #+val+# << return ## print valid ascii-characters as character
-  else  ##addLater support \x in compiler (once merged with memory management branch)
+  else
     byte value =:
     "\\x" <<* value int cast <<x return ## print all other bytes as their byte-code
   }
