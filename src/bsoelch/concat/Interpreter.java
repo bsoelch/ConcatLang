@@ -66,7 +66,7 @@ public class Interpreter {
             try {
                 switch (next.tokenType) {
                     case NOP -> {}
-                    case LAMBDA, VALUE -> {
+                    case LAMBDA, VALUE, GLOBAL_VALUE -> {
                         assert next instanceof Parser.ValueToken;
                         Parser.ValueToken value = (Parser.ValueToken) next;
                         if(!value.value.type.isDeeplyImmutable()){
