@@ -1,0 +1,35 @@
+lib/exception:
+
+core #namespace
+list #include
+
+Location public struct{
+  string :file      restricted
+  uint   :line      restricted
+  uint   :posInLine restricted
+}
+Exception public struct{
+  string            :message restricted
+  Location List mut :trace   restricted
+}
+
+createException public proc( string Location => Exception ){
+  loc =::
+  8 Location newList loc << locations =::
+  #+message+# locations Exception new return
+}
+
+
+$loc public #define #loc core .Location new #end
+
+## creates an exception at the current location, requires a string (the message) as parameter
+$throw public #define #+message+# $loc createException return #end
+
+addToTrace public proc( Exception Location => Exception ){
+  loc =::
+  dup .trace loc << drop
+}
+$rethrow public #define dup .type core .Exception == if{ $loc core .addToTrace return } #end
+
+
+#end
