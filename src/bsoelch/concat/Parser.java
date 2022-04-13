@@ -2213,6 +2213,11 @@ public class Parser {
                         throw new SyntaxError("include path has to be a string literal or identifier",pos);
                     }
                 }
+                case "#loc" ->{ // pushies the current location on the stack
+                    tokens.add(new ValueToken(Value.ofString(pos.path,false),pos));
+                    tokens.add(new ValueToken(Value.ofInt(pos.line,true),pos));
+                    tokens.add(new ValueToken(Value.ofInt(pos.posInLine,true),pos));
+                }
                 case "enum{" ->{
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("enums can only be declared at root level",pos);
