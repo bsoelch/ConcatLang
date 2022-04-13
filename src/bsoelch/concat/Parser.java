@@ -1860,6 +1860,11 @@ public class Parser {
                                 case 'b' -> reader.buffer.append('\b');
                                 case 'f' -> reader.buffer.append('\f');
                                 case '0' -> reader.buffer.append('\0');
+                                case 'x' -> {
+                                    String tmp = String.valueOf((char) reader.forceNextChar()) +
+                                            (char) reader.forceNextChar();
+                                    reader.buffer.append(Character.toChars(Integer.parseInt(tmp, 16)));
+                                }
                                 case 'u', 'U' -> {
                                     int l = c == 'u' ? 4 : 6;
                                     StringBuilder tmp = new StringBuilder(l);
