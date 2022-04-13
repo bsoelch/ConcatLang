@@ -235,7 +235,7 @@ utf8 #include
   value =::
 
   value .type .isEnum if{ ##addLater allow detecting enums, structs and procedures in static type checking
-    value .type .name <<* " ." << value .type .fieldNames value uint cast [] <<* return
+    value .type .name <<* " ." <<* value .type .fieldNames value uint cast [] <<* return
   else value .type .isStruct if
     value .type sType =::
     sType .fieldNames fields =::
