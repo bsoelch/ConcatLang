@@ -89,8 +89,8 @@ public class Parser {
         final String name;
         IdentifierToken(IdentifierType type, String name, int flags, FilePosition pos) throws SyntaxError {
             super(TokenType.IDENTIFIER, pos);
-            if(name.startsWith(".")||name.startsWith(":")||name.startsWith("@")){
-                throw new SyntaxError("Identifiers cannot start with '.' ':' or '@'",pos);
+            if(name.startsWith(".")||name.startsWith(":")||name.startsWith("@")||name.startsWith("#")){
+                throw new SyntaxError("Identifiers cannot start with '.' ':' '@' or '#'",pos);
             }else if(name.isEmpty()){
                 throw new SyntaxError("Identifiers have to be nonempty",pos);
             }//no else
