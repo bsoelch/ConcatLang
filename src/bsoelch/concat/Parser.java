@@ -762,9 +762,9 @@ public class Parser {
 
     static String libPath=System.getProperty("user.dir")+File.separator+"lib/";
 
-    static final String DEC_DIGIT = "[0-9]";
+    static final String DEC_DIGIT = "\\d";
     static final String BIN_DIGIT = "[01]";
-    static final String HEX_DIGIT = "[0-9a-fA-F]";
+    static final String HEX_DIGIT = "[\\da-fA-F]";
     static final String UNSIGNED_POSTFIX = "[u|U]?";
     static final String BIN_PREFIX = "0b";
     static final String HEX_PREFIX = "0x";
@@ -3202,17 +3202,19 @@ public class Parser {
                     remove.add(var.getKey());
                 }
             }
+            /*  TODO detect out of scope variables in containers
             for(Map.Entry<VariableId, ValueInfo> var: currentVars.entrySet()){
                 var.getValue().containers.removeIf(TypeCheckState::outOfScope);
                 if(var.getValue().containers.size()>0&&outOfScope(var.getValue())){
-                    System.err.println("local variable is contained in non-local container");//TODO throw exception
+                    System.err.println("local variable is contained in non-local container");
                 }
             }
+            */
             for(VariableId id:remove){
-                ValueInfo removed = currentVars.remove(id);
-                if(removed.owner==null){
-                    System.err.println("Debug: free "+id);
-                }
+                currentVars.remove(id);
+                /*if(removed.owner==null){ TODO free variables
+
+                }*/
             }
         }
     }
@@ -3976,10 +3978,10 @@ public class Parser {
                     t.args[0]--;
                 }
             }
+            /* TODO find out of scope variables, check for remaining references
             if(dropped.valueInfo.stackReferences==0&&dropped.valueInfo.owner==OwnerInfo.STACK){
-                //TODO check for remaining references
-                System.out.println("Debug: "+dropped+" went out of scope");
             }
+            */
         }
         if(t.args[0]>0){
             ret.add(t);
