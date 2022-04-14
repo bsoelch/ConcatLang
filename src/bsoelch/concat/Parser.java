@@ -2779,20 +2779,14 @@ public class Parser {
 
                 //stack modifiers
                 //<count> $drop
-                case "$drop" ->{
-                    int[] args = getArgInts(str, new boolean[]{false}, tokens, pos);
-                    tokens.add(new StackModifierToken(TokenType.STACK_DROP,args,pos));
-                }
+                case "$drop" ->
+                    tokens.add(new StackModifierToken(TokenType.STACK_DROP,null,pos));
                 //<src> $dup
-                case "$dup" ->{
-                    int[] args = getArgInts(str, new boolean[]{false}, tokens, pos);
-                    tokens.add(new StackModifierToken(TokenType.STACK_DUP,args,pos));
-                }
+                case "$dup" ->
+                    tokens.add(new StackModifierToken(TokenType.STACK_DUP,null,pos));
                 //<count> <steps> rot
-                case "$rot" ->{
-                    int[] args = getArgInts(str, new boolean[]{true,false}, tokens, pos);
-                    tokens.add(new StackModifierToken(TokenType.STACK_ROT,args,pos));
-                }
+                case "$rot" ->
+                    tokens.add(new StackModifierToken(TokenType.STACK_ROT,null,pos));
 
                 case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
 
@@ -2991,32 +2985,6 @@ public class Parser {
                 }
             }
         }
-    }
-
-    private static int[] getArgInts(String op, boolean[] allowSigned, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
-        if(tokens.size()<allowSigned.length){
-            throw new SyntaxError("not enough arguments for "+op,pos);
-        }
-        int[] args=new int[allowSigned.length];
-        for(int i = 0; i< allowSigned.length; i++){
-            Token arg= tokens.remove(tokens.size()-1);
-            if(arg instanceof ValueToken){
-                try {
-                    long c=((ValueToken) arg).value.asLong();
-                    int minValue = allowSigned[i]?Integer.MIN_VALUE:0;
-                    if(c< minValue ||c>Integer.MAX_VALUE){
-                        throw new SyntaxError( "argument "+c+" for "+op+" out of range, " +
-                                "allowed values: "+ minValue +" to "+Integer.MAX_VALUE, arg.pos);
-                    }
-                    args[i]=(int)c;
-                } catch (TypeError e) {
-                    throw new SyntaxError(e, pos);
-                }
-            }else{
-                throw new SyntaxError("the arguments of "+ op +" have to be compile time constants",arg.pos);
-            }
-        }
-        return args;
     }
 
     private static void expandMacro(ParserState pState, Macro m, FilePosition pos) throws SyntaxError {
@@ -3982,9 +3950,35 @@ public class Parser {
             ret.add(t);
         }
     }
-    private static void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret)
-            throws RandomAccessStack.StackUnderflow {
-        for(TypeFrame dropped: typeStack.drop(t.args[0])){
+    private static int getInt(String baseName,String argName, boolean allowSigned,RandomAccessStack<TypeFrame> typeStack,
+                              ArrayList<Token> tokens, FilePosition pos) throws SyntaxError, RandomAccessStack.StackUnderflow {
+        if(tokens.size()<1||typeStack.size()<1){
+            throw new SyntaxError("not enough arguments for "+baseName,pos);
+        }
+        Token arg= tokens.remove(tokens.size()-1);
+        if(arg instanceof ValueToken){
+            if(typeStack.pop().value()!=((ValueToken) arg).value){
+                throw new RuntimeException("type-stack out of sync with tokens");
+            }
+            try {
+                long c=((ValueToken) arg).value.asLong();
+                int minValue = allowSigned?Integer.MIN_VALUE:0;
+                if(c< minValue ||c>Integer.MAX_VALUE){
+                    throw new SyntaxError( "value "+c+" for argument "+argName+" of "+baseName+" is out of range " +
+                            "("+ minValue +" to "+Integer.MAX_VALUE+")", arg.pos);
+                }
+                return (int)c;
+            } catch (TypeError e) {
+                throw new SyntaxError(e, pos);
+            }
+        }else{
+            throw new SyntaxError("the arguments of "+ baseName +" have to be compile time constants",arg.pos);
+        }
+    }
+    private static void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack,ArrayList<Token> ret)
+            throws RandomAccessStack.StackUnderflow, SyntaxError {
+        int count = getInt("drop","count", false, typeStack, ret,t.pos);
+        for(TypeFrame dropped: typeStack.drop(count)){
             dropped.valueInfo.stackReferences--;
             if(dropped.type instanceof Type.OverloadedProcedurePointer opp){
                 if(ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
@@ -3998,12 +3992,14 @@ public class Parser {
             }
             */
         }
-        if(t.args[0]>0){
-            ret.add(t);
+        if(count>0){
+            ret.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{count},t.pos));
         }
     }
-    private static void typeCheckDup(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
-        TypeFrame duped= typeStack.get(t.args[0]);
+    private static void typeCheckDup(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack,
+                                     ArrayList<Token> ret) throws SyntaxError, RandomAccessStack.StackUnderflow {
+        int offset = getInt("dup","offset", false,typeStack, ret, t.pos);
+        TypeFrame duped= typeStack.get(offset);
         duped.valueInfo.stackReferences++;
         if(duped.type instanceof Type.OverloadedProcedurePointer opp){
             typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(opp.proc,opp.genArgs, ret.size(),opp.pushedAt),
@@ -4012,12 +4008,15 @@ public class Parser {
         }else{
             duped=new TypeFrame(duped.type,duped.valueInfo, t.pos);
             typeStack.push(duped);
-            ret.add(t);
+            ret.add(new StackModifierToken(TokenType.STACK_DUP,new int[]{offset},t.pos));
         }
     }
-    private static void typeCheckStackRot(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret) {
-        typeStack.rotate(t.args[1],t.args[0]);
-        ret.add(t);
+    private static void typeCheckStackRot(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret)
+            throws SyntaxError, RandomAccessStack.StackUnderflow {
+        int steps = getInt("rot","steps", true,typeStack, ret, t.pos);
+        int count = getInt("rot","count", false,typeStack, ret, t.pos);
+        typeStack.rotate(count,steps);
+        ret.add(new StackModifierToken(TokenType.STACK_ROT,new int[]{count,steps},t.pos));
     }
     private static void typeCheckTypeModifier(String name, SyntaxError.ThrowingFunction<Type,Value> modifier, ArrayList<Token> ret,
                                        RandomAccessStack<TypeFrame> typeStack, FilePosition pos) throws SyntaxError,

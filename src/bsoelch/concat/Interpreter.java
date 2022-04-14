@@ -157,7 +157,7 @@ public class Interpreter {
                     }
                     case STACK_ROT -> {
                         assert next instanceof Parser.StackModifierToken;
-                        stack.rotate(((Parser.StackModifierToken)next).args[1],((Parser.StackModifierToken)next).args[0]);
+                        stack.rotate(((Parser.StackModifierToken)next).args[0],((Parser.StackModifierToken)next).args[1]);
                     }
                     case VARIABLE -> {
                         assert next instanceof Parser.VariableToken;
