@@ -472,6 +472,7 @@ public class Interpreter {
     }
 
     public static void main(String[] args) throws IOException {
+        FilePosition.ID_MODE=false;
         if(args.length==0){
             System.out.println("usage: <pathToFile> (-lib <libPath>)");
             return;

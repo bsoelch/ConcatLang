@@ -3,7 +3,7 @@ package bsoelch.concat;
 import java.util.Objects;
 
 class FilePosition {
-    static boolean ID_MODE=false;
+    static boolean ID_MODE=true;
 
     final String fileId;
     final String path;
