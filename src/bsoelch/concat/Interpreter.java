@@ -232,7 +232,7 @@ public class Interpreter {
                         return ExitType.ERROR;
                     }
                     case DECLARE_LAMBDA, IDENTIFIER,OPTIONAL_OF,EMPTY_OPTIONAL,
-                            MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,ARRAY_OF,MEMORY_OF ->
+                            MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,ARRAY_OF,MEMORY_OF,STACK_SIZE ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
                     case CONTEXT_OPEN -> {

@@ -32,7 +32,7 @@ public class Parser {
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
         TRAIT_FIELD_ACCESS,
         //compile time operations
-        ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,
+        ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,STACK_SIZE,
         MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifiers
         //overloaded procedure pointer placeholders
         NOP,OVERLOADED_PROC_PTR
@@ -2223,6 +2223,8 @@ public class Parser {
                     tokens.add(new ValueToken(Value.ofInt(basePos.line,true),pos));
                     tokens.add(new ValueToken(Value.ofInt(basePos.posInLine,true),pos));
                 }
+                case "#stackSize" ->// pushes the current stack size on the stack
+                    tokens.add(new Token(TokenType.STACK_SIZE,pos));
                 case "enum{" ->{
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("enums can only be declared at root level",pos);
@@ -3322,6 +3324,11 @@ public class Parser {
                         t1.forEachStruct(t2-> typeCheckStruct(t2,tState));
                         return Value.emptyOptional(t1);
                     },tState.ret,tState.typeStack(),t.pos);
+                case STACK_SIZE ->{
+                    Value size = Value.ofInt(tState.typeStack().size(), true);
+                    tState.ret.add(new ValueToken(size,t.pos));
+                    tState.typeStack().push(new TypeFrame(size.type,new ValueInfo(size),t.pos));
+                }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
                         CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX,
                         TRAIT_FIELD_ACCESS ->
