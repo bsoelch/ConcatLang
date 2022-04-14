@@ -1,4 +1,4 @@
-test/controlFloat :
+test/controlFlow:
 
 valueIO #include
 core #import

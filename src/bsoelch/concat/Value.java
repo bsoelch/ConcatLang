@@ -1364,7 +1364,7 @@ public abstract class Value {
         }
     }
     public static final class InternalProcedure extends NativeProcedure{
-        public static final FilePosition POSITION = new FilePosition("internal", 0, 0);
+        public static final FilePosition POSITION = new FilePosition("internal","internal", 0, 0);
 
         final ConcatRuntimeError.Function<Value[],Value[]> action;
 

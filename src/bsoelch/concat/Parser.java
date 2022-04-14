@@ -792,17 +792,19 @@ public class Parser {
 
         int cached=-1;
 
+        private String fileId;
         private final String path;
         private int line =1;
         private int posInLine =1;
         private FilePosition currentPos;
 
         private ParserReader(String path) throws SyntaxError {
+            this.fileId="???";
             this.path=path;
             try {
                 this.input = new BufferedReader(new FileReader(path));
             } catch (FileNotFoundException e) {
-                throw new SyntaxError("File not found",new FilePosition(path,0,0));
+                throw new SyntaxError("File not found: "+path,new FilePosition(fileId,path,0,0));
             }
         }
 
@@ -830,16 +832,16 @@ public class Parser {
         }
         FilePosition currentPos() {
             if(currentPos==null){
-                currentPos=new FilePosition(path,line, posInLine);
+                currentPos=new FilePosition(fileId,path,line, posInLine);
             }
             return currentPos;
         }
         void nextToken() {
-            currentPos=new FilePosition(path, line, posInLine);
+            currentPos=new FilePosition(fileId,path, line, posInLine);
             buffer.setLength(0);
         }
         void updateNextPos() {
-            currentPos=new FilePosition(path, line, posInLine);
+            currentPos=new FilePosition(fileId,path, line, posInLine);
         }
     }
 
@@ -1852,6 +1854,7 @@ public class Parser {
                 reader.buffer.append((char) c);
             }
         }
+        reader.fileId=fileId;
         reader.nextToken();
         if(fileId==null){
             throw new SyntaxError("invalid start of file, all concat files have to start with \"<file-id> :\"",

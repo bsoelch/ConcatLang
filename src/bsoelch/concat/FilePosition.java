@@ -3,12 +3,16 @@ package bsoelch.concat;
 import java.util.Objects;
 
 class FilePosition {
+    static boolean ID_MODE=false;
+
+    final String fileId;
     final String path;
     final long line;
     final int posInLine;
     final FilePosition expandedAt;
 
-    FilePosition(String path, long line, int posInLine) {
+    FilePosition(String fileId,String path, long line, int posInLine) {
+        this.fileId=fileId;
         this.path = path;
         this.line = line;
         this.posInLine = posInLine;
@@ -16,6 +20,7 @@ class FilePosition {
     }
 
     FilePosition(FilePosition at, FilePosition expandedAt) {
+        this.fileId=at.fileId;
         this.path = at.path;
         this.line = at.line;
         this.posInLine = at.posInLine;
@@ -24,12 +29,11 @@ class FilePosition {
 
     @Override
     public String toString() {
+        String ret= (ID_MODE?fileId:path) + ":" + line + ":" + posInLine;
         if (expandedAt != null) {
-            return path + ":" + line + ":" + posInLine +
-                    "\nexpanded at " + expandedAt;
-        } else {
-            return path + ":" + line + ":" + posInLine;
+            ret+="\nexpanded at " + expandedAt;
         }
+        return ret;
     }
 
     @Override

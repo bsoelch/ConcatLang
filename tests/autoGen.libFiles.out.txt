@@ -1,8 +1,16 @@
+numbers:
+
+Stack:
+[]
+codeblocks:
+
+Stack:
+[]
 2DArray:
 
 Stack:
 []
-arrayBuilder:
+math:
 
 Stack:
 []
@@ -10,11 +18,7 @@ arrays:
 
 Stack:
 []
-arraySlice:
-
-Stack:
-[]
-bufferedIO:
+utf8:
 
 Stack:
 []
@@ -23,10 +27,6 @@ bytes:
 Stack:
 []
 chars:
-
-Stack:
-[]
-codeblocks:
 
 Stack:
 []
@@ -42,27 +42,11 @@ io:
 
 Stack:
 []
-iterator:
+bufferedIO:
 
 Stack:
 []
-list:
-
-Stack:
-[]
-math:
-
-Stack:
-[]
-numbers:
-
-Stack:
-[]
-range:
-
-Stack:
-[]
-stack:
+valueIO2:
 
 Stack:
 []
@@ -70,15 +54,31 @@ strings:
 
 Stack:
 []
-utf8:
-
-Stack:
-[]
 valueIO:
 
 Stack:
 []
-valueIO2:
+arraySlice:
+
+Stack:
+[]
+range:
+
+Stack:
+[]
+list:
+
+Stack:
+[]
+iterator:
+
+Stack:
+[]
+arrayBuilder:
+
+Stack:
+[]
+stack:
 
 Stack:
 []

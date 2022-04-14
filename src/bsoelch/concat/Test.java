@@ -7,6 +7,7 @@ import java.util.Map;
 public class Test {//TODO add a new test for array access operations
 
     public static void main(String[] args) throws IOException {
+        FilePosition.ID_MODE=true;
         //TODO add tests for all internal procedures
         String testPath=System.getProperty("user.dir")+"/tests/";
         //auto generated tests.
