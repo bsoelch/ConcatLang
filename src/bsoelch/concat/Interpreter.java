@@ -149,7 +149,7 @@ public class Interpreter {
                     case DEBUG_PRINT -> ioContext.stdOut.println(stack.pop().stringValue());
                     case STACK_DROP ->{
                         assert next instanceof Parser.StackModifierToken;
-                        stack.drop(((Parser.StackModifierToken)next).args[0]);
+                        stack.drop(((Parser.StackModifierToken)next).args[0],((Parser.StackModifierToken)next).args[1]);
                     }
                     case STACK_DUP -> {
                         assert next instanceof Parser.StackModifierToken;

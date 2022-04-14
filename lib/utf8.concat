@@ -59,7 +59,7 @@ list #include
   append 0u
   while{ nextCodepoint do
     value swap << value =
-  } 3 $drop ## drop remaining data
+  } 3 ?drop ## drop remaining data
   value return
 }
 

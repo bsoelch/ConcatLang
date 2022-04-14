@@ -22,7 +22,7 @@ asMatrix public proc( A <?> A array mut? array mut? => A Matrix mut ){
   w h * A memory mut new data =::
   0 while{ dup h < do
     a over [] .length w == "fixed width" assert
-    a over [] 0 data  #+i+#4 $dup w *  w copy
+    a over [] 0 data  #+i+#4 ?dup w *  w copy
     1 +
   } drop
   data w h A Matrix mut new return
@@ -44,7 +44,7 @@ columns public proc( A <?> A Matrix mut => A array mut array mut~ ){
   0 while{ dup mat .width < do
     mat .height A memory mut new column =::
     0 while{ dup mat .height < do
-      column mat .data #+x+#4 $dup #+y+#4 $dup mat .width * + [] []^=
+      column mat .data #+x+#4 ?dup #+y+#4 ?dup mat .width * + [] []^=
       1 +
     } drop
     arrays column []^=

@@ -77,7 +77,7 @@ implement{ A <> A Iterator A FilteredIterator for
     prev .base while{ .^> do val =:: ## no-for loop since value of iterator is needed
       true match =
       0 while{ dup prev .filters .length < do
-         val prev .filters 3 $dup [] () ! if{
+         val prev .filters 3 ?dup [] () ! if{
             false match =
          }
          1 +

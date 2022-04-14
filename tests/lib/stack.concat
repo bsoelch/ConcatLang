@@ -9,4 +9,5 @@ core #import
 { 1 2 3 over  } debugPrint
 { 1 2 3 2over } debugPrint
 { 1 2 3 rot3  } debugPrint
+{ 1 2 3  2 ?drop } debugPrint
 

@@ -2214,9 +2214,9 @@ public class Parser {
                 case "()"  -> tokens.add(new Token(TokenType.CALL_PTR, pos));
                 case "new" -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
                 //stack modifiers
-                case "$drop" -> tokens.add(new StackModifierToken(TokenType.STACK_DROP,null,pos));
-                case "$dup" -> tokens.add(new StackModifierToken(TokenType.STACK_DUP,null,pos));
-                case "$rot" -> tokens.add(new StackModifierToken(TokenType.STACK_ROT,null,pos));
+                case "??drop" -> tokens.add(new StackModifierToken(TokenType.STACK_DROP,null,pos));
+                case "?dup" -> tokens.add(new StackModifierToken(TokenType.STACK_DUP,null,pos));
+                case "??rot" -> tokens.add(new StackModifierToken(TokenType.STACK_ROT,null,pos));
 
                 //identifiers
                 case "="-> parseAssign(tokens, prev, pos);
@@ -3975,8 +3975,11 @@ public class Parser {
     }
     private static void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack,ArrayList<Token> ret)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
+        //offset: number of elements on top of the stack that will be kepts
+        int offset = getInt("drop","offset", false, typeStack, ret,t.pos);
+        //count: number of dropped elements
         int count = getInt("drop","count", false, typeStack, ret,t.pos);
-        for(TypeFrame dropped: typeStack.drop(count)){
+        for(TypeFrame dropped: typeStack.drop(offset,count)){
             dropped.valueInfo.stackReferences--;
             if(dropped.type instanceof Type.OverloadedProcedurePointer opp){
                 if(ret.get(opp.tokenPos).tokenType==TokenType.OVERLOADED_PROC_PTR){
@@ -3991,11 +3994,12 @@ public class Parser {
             */
         }
         if(count>0){
-            ret.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{count},t.pos));
+            ret.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{offset,count},t.pos));
         }
     }
     private static void typeCheckDup(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack,
                                      ArrayList<Token> ret) throws SyntaxError, RandomAccessStack.StackUnderflow {
+        //offset of duplicated value
         int offset = getInt("dup","offset", false,typeStack, ret, t.pos);
         TypeFrame duped= typeStack.get(offset);
         duped.valueInfo.stackReferences++;
@@ -4011,7 +4015,9 @@ public class Parser {
     }
     private static void typeCheckStackRot(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret)
             throws SyntaxError, RandomAccessStack.StackUnderflow {
+        //number of steps the stack will be rotated
         int steps = getInt("rot","steps", true,typeStack, ret, t.pos);
+        //number of rotated elements
         int count = getInt("rot","count", false,typeStack, ret, t.pos);
         typeStack.rotate(count,steps);
         ret.add(new StackModifierToken(TokenType.STACK_ROT,new int[]{count,steps},t.pos));
@@ -4474,7 +4480,7 @@ public class Parser {
                             if (prev instanceof ValueToken && ((ValueToken) prev).value.equals(f.value())) {
                                 ret.set(ret.size() - 1, entry);
                             } else {//addLater? better way to replace previous value
-                                ret.add(new StackModifierToken(TokenType.STACK_DROP, new int[]{1}, t.pos));
+                                ret.add(new StackModifierToken(TokenType.STACK_DROP, new int[]{0,1}, t.pos));
                                 ret.add(entry);
                             }
                             break;//found field
