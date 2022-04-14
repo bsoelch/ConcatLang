@@ -2519,13 +2519,15 @@ public class Parser {
                 throw new SyntaxError(e, pos);
             }
         }else /*if(block instanceof TraitBlock)*/{
+            assert block instanceof TraitBlock;
             TraitContext context = ((TraitBlock) block).context;
             if(context.fields.size()>0){
                 throw new SyntaxError("'"+ str +"' cannot appear after a field declaration", pos);
             }
             try {
                 for(TypeFrame f:r.types()){
-                    if(f.type!=Type.TYPE||(!(f.value().asType() instanceof Type.Trait trait))){
+                    Type extended = f.value().asType();
+                    if(f.type!=Type.TYPE||(!(extended instanceof Type.Trait trait))){
                         throw new SyntaxError("values before '"+ str +"' have to be constant trait-types", pos);
                     }
                     //ensure trait is initialized
