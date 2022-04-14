@@ -1,0 +1,12 @@
+Warning: variable a declared at test/controlFlow:90:14
+     shadows existing variable declared at test/controlFlow:89:14
+Warning: variable a declared at test/controlFlow:94:12
+     shadows existing variable declared at test/controlFlow:89:14
+Warning: variable j declared at test/controlFlow:103:13
+     shadows existing variable declared at test/controlFlow:101:7
+Warning: variable doWhile declared at test/controlFlow:109:29
+     shadows existing variable declared at test/controlFlow:108:17
+Warning: variable doWhile declared at test/controlFlow:111:21
+     shadows existing variable declared at test/controlFlow:108:17
+Warning: variable doWhile declared at test/controlFlow:114:32
+     shadows existing variable declared at test/controlFlow:108:17

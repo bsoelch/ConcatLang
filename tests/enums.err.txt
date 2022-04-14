@@ -1,0 +1,1 @@
+Warning: enum switch-case at test/enums:23:17 contains a default statement (at test/enums:29:1)
