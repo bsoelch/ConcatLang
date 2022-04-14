@@ -2006,64 +2006,7 @@ public class Parser {
     private static void finishWord(String str, ParserState pState, FilePosition pos) throws SyntaxError {
         if (str.length() > 0) {
             if(str.startsWith("#compiler:")){
-                String[] commands=str.substring("#compiler:".length()).split(":");
-                switch (commands[0]){
-                    case "tokens"->{
-                        int n=Integer.parseInt(commands[1]);
-                        ArrayList<Token> tokens = pState.uncheckedCode;
-                        if(n>tokens.size()){
-                            System.out.println("n > #tokens ("+tokens.size()+")");
-                            n=tokens.size();
-                        }
-                        System.out.println("tokens:");
-                        for(int k=1;k<=n;k++){
-                            System.out.println("  "+tokens.get(tokens.size()-k));
-                        }
-                    }
-                    case "globalCode"->{
-                        int n=Integer.parseInt(commands[1]);
-                        ArrayList<Token> tokens = pState.globalCode;
-                        if(n>tokens.size()){
-                            System.out.println("n > #tokens ("+tokens.size()+")");
-                            n=tokens.size();
-                        }
-                        System.out.println("tokens:");
-                        for(int k=1;k<=n;k++){
-                            System.out.println("  "+tokens.get(tokens.size()-k));
-                        }
-                    }
-                    case "globalBlocks"->{
-                        int n=Integer.parseInt(commands[1]);
-                        ArrayDeque<CodeBlock> blocks = pState.openBlocks;
-                        if(n>blocks.size()){
-                            System.out.println("n > #blocks ("+blocks.size()+")");
-                            n=blocks.size();
-                        }
-                        System.out.println("globalBlocks:");
-                        CodeBlock[] blockArray = blocks.toArray(CodeBlock[]::new);
-                        for(int k=1;k<=n;k++){
-                            System.out.println("  "+blockArray[blocks.size()-k]);
-                        }
-                    }
-                    case "code"->{
-                        int n=Integer.parseInt(commands[1]);
-                        pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.TOKENS,n,pos));
-                    }
-                    case "blocks"->{
-                        int n=Integer.parseInt(commands[1]);
-                        pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.BLOCKS,n,pos));
-                    }
-                    case "types"->{
-                        int n=Integer.parseInt(commands[1]);
-                        pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.TYPES,n,pos));
-                    }
-                    case "globalConstants"->
-                            pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.GLOBAL_CONSTANTS,0,pos));
-                    case "context"->
-                            pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.CONTEXT,0,pos));
-                    default ->
-                        System.out.println("unknown compiler command: "+commands[0]);
-                }
+                parseCompilerCommand(str, pState, pos);
                 return;
             }
             ArrayList<Token> tokens = pState.uncheckedCode;
@@ -2079,61 +2022,8 @@ public class Parser {
                 }
                 return;
             }
-            if(str.charAt(0)=='\''){//unicode char literal
-                str=str.substring(1);
-                if(str.codePoints().count()==1){
-                    int codePoint = str.codePointAt(0);
-                    if(codePoint<0x7f){
-                        tokens.add(new ValueToken(Value.ofByte((byte)codePoint), pos));
-                    }else{
-                        throw new SyntaxError("codePoint "+codePoint+
-                                "does not fit in one byte " +
-                                "(if you want to use unicode-characters prefix the char-literal with u)", pos);
-                    }
-                }else{
-                    throw new SyntaxError("A char-literal must contain exactly one character", pos);
-                }
+            if(parseConstant(str,tokens,pos))
                 return;
-            }else if(str.startsWith("u'")){//unicode char literal
-                str=str.substring(2);
-                if(str.codePoints().count()==1){
-                    int codePoint = str.codePointAt(0);
-                    tokens.add(new ValueToken(Value.ofChar(codePoint), pos));
-                }else{
-                    throw new SyntaxError("A char-literal must contain exactly one codepoint", pos);
-                }
-                return;
-            }else if(str.charAt(0)=='"'){
-                str=str.substring(1);
-                tokens.add(new ValueToken(TokenType.GLOBAL_VALUE,Value.ofString(str,false),  pos));
-                return;
-            }else if(str.startsWith("u\"")){
-                str=str.substring(2);
-                tokens.add(new ValueToken(TokenType.GLOBAL_VALUE,Value.ofString(str,true),  pos));
-                return;
-            }
-            try{
-                if (tryParseInt(tokens, str,pos)) {
-                    return;
-                }else if(floatDec.matcher(str).matches()){
-                    //dez-Float
-                    double d = Double.parseDouble(str);
-                    tokens.add(new ValueToken(Value.ofFloat(d), pos));
-                    return;
-                }else if(floatBin.matcher(str).matches()){
-                    //bin-Float
-                    double d= Value.parseFloat(str.substring(BIN_PREFIX.length()),2);
-                    tokens.add(new ValueToken(Value.ofFloat(d), pos));
-                    return;
-                }else if(floatHex.matcher(str).matches()){
-                    //hex-Float
-                    double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
-                    tokens.add(new ValueToken(Value.ofFloat(d), pos));
-                    return;
-                }
-            }catch(ConcatRuntimeError|NumberFormatException e){
-                throw new SyntaxError(e, pos);
-            }
             switch (str){
                 //code-sections
                 case "#define"->{
@@ -2184,37 +2074,7 @@ public class Parser {
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("includes are can only allowed at root-level",pos);
                     }
-                    if(prev instanceof ValueToken){
-                        tokens.remove(tokens.size()-1);
-                        finishParsing(pState, pos);
-                        String name=((ValueToken) prev).value.stringValue();
-                        File file=new File(name);
-                        if(file.exists()){
-                            try {
-                                parse(file,pState,pState.ioContext);
-                            } catch (IOException e) {
-                                throw new SyntaxError(e,pos);
-                            }
-                        }else{
-                            throw new SyntaxError("File "+name+" does not exist",pos);
-                        }
-                    }else if(prevId != null){
-                        tokens.remove(tokens.size()-1);
-                        finishParsing(pState, pos);
-                        String path=libPath+File.separator+ prevId +DEFAULT_FILE_EXTENSION;
-                        File file=new File(path);
-                        if(file.exists()){
-                            try {
-                                parse(file,pState,pState.ioContext);
-                            } catch (IOException e) {
-                                throw new SyntaxError(e,pos);
-                            }
-                        }else{
-                            throw new SyntaxError(prevId+" is not part of the standard library",pos);
-                        }
-                    }else{
-                        throw new SyntaxError("include path has to be a string literal or identifier",pos);
-                    }
+                    parseInclude(pState, pos, tokens, prev, prevId);
                 }
                 case "#loc" ->{ // pushes the current location on the stack
                     FilePosition basePos=pos;
@@ -2225,253 +2085,16 @@ public class Parser {
                 }
                 case "#stackSize" ->// pushes the current stack size on the stack
                     tokens.add(new Token(TokenType.STACK_SIZE,pos));
-                case "enum{" ->{
-                    if(pState.openBlocks.size()>0){
-                        throw new SyntaxError("enums can only be declared at root level",pos);
-                    }
-                    if(tokens.size()==0){
-                        throw new SyntaxError("missing enum name",pos);
-                    }
-                    prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, pos);
-                    if(!(prev instanceof IdentifierToken)){
-                        throw new SyntaxError("token before enum has to be an identifier",pos);
-                    }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before enum has to be an unmodified identifier",pos);
-                    }
-                    String name = ((IdentifierToken) prev).name;
-                    pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublicReadable(), 0,pos,pState.topLevelContext()));
-                }
-                case "trait{" -> {
-                    if(pState.openBlocks.size()>0){
-                        throw new SyntaxError("traits can only be declared at root level",pos);
-                    }
-                    if(tokens.size()==0){
-                        throw new SyntaxError("missing trait name",pos);
-                    }
-                    prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, pos);
-                    if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before trait has to be an identifier",pos);
-                    }
-                    String name = ((IdentifierToken) prev).name;
-                    TraitBlock traitBlock = new TraitBlock(name,((IdentifierToken) prev).isPublicReadable(),
-                            0, pos, pState.topLevelContext());
-                    pState.openBlocks.add(traitBlock);
-                    pState.openedContexts.add(traitBlock.context());
-                }
-                case "implement{" -> {
-                    if(pState.openBlocks.size()>0){
-                        throw new SyntaxError("implement can only be used at root level",pos);
-                    }
-                    finishParsing(pState, pos);
-                    ImplementBlock implBlock = new ImplementBlock(0,pos, pState.topLevelContext());
-                    pState.openBlocks.add(implBlock);
-                    pState.openedContexts.add(implBlock.context());
-                }
-                case "for" -> {
-                    CodeBlock block = pState.openBlocks.peekLast();
-                    if(block instanceof ImplementBlock impl){
-                        List<Token> ins = tokens.subList(block.start, tokens.size());
-                        Type[] args = ProcedureBlock.getSignature(typeCheck(ins,block.context(),pState.globalConstants,
-                                new TypeData(),null,pos,pState.ioContext).tokens,"implement");
-                        if(args.length!=2){
-                            throw new SyntaxError("implement expects exactly 2 arguments (trait and targetType)",pos);
-                        }
-                        ins.clear();
-                        impl.context.lock();//don't allow declaring generics in body
-                        if(!(args[0] instanceof Type.Trait)){
-                            throw new SyntaxError("cannot implement "+args[0]+" (not a trait)",pos);
-                        }
-                        Set<Type.GenericParameter> unboundGenerics=args[1].unboundGenerics();
-                        for(Type.GenericParameter p:impl.context.generics){
-                            if(!unboundGenerics.contains(p)){
-                                throw new SyntaxError("the generic parameter "+p.label+" (declared at "+p.declaredAt+
-                                        ") is not used in the target type",pos);
-                            }
-                        }
-                        if(impl.context.generics.size()>0&&
-                                !new HashSet<>(impl.context.generics).equals(new HashSet<>(args[1].genericArguments()))){
-                            throw new SyntaxError("invalid generic arguments for trait target: "+args[1].genericArguments()+
-                                    " The generic parameters of the target type have to be either all generic "+
-                                    "or all non-generic",pos);
-                        }
-                        //ensure trait is type-checked before implementation
-                        typeCheckTrait((Type.Trait) args[0],pState.globalConstants,pState.ioContext);
-                        if(impl.setTypes((Type.Trait) args[0],args[1])){
-                            throw new SyntaxError("duplicate '"+str+"' in implement-block '"+str+"' " +
-                                    "can only appear after 'implement'",pos);
-                        }
-                    }else{
-                        throw new SyntaxError("'"+str+"' can only be used in implement blocks ",pos);
-                    }
-                }
-                case "struct{" -> {
-                    if(pState.openBlocks.size()>0){
-                        throw new SyntaxError("structs can only be declared at root level",pos);
-                    }
-                    if(tokens.size()==0){
-                        throw new SyntaxError("missing struct name",pos);
-                    }
-                    prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, pos);
-                    if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before struct has to be an identifier",pos);
-                    }
-                    String name = ((IdentifierToken) prev).name;
-                    StructBlock structBlock = new StructBlock(name,((IdentifierToken) prev).isPublicReadable(),
-                            0, pos, pState.topLevelContext());
-                    pState.openBlocks.add(structBlock);
-                    pState.openedContexts.add(structBlock.context());
-                }
-                case "extend" -> {
-                    CodeBlock block=pState.openBlocks.peek();
-                    if(!(block instanceof StructBlock||block instanceof TraitBlock)){
-                        throw new SyntaxError("'"+str+"' can only be used in struct or trait blocks",pos);
-                    }
-                    List<Token> subList = tokens.subList(block.start, tokens.size());
-                    //extended struct has to be known before type-checking
-                    TypeCheckResult r=typeCheck(subList,pState.getContext(),pState.globalConstants,
-                            new TypeData(),null,pos,pState.ioContext);
-                    subList.clear();
-                    if(block instanceof StructBlock){
-                        if(((StructBlock) block).context.fields.size()>0){
-                            throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
-                        }
-                        if(((StructBlock) block).extended!=null){
-                            throw new SyntaxError("structs can only contain one '"+str+"' statement",pos);
-                        }
-                        if(r.types().size()!=1||r.types().get(1).type!=Type.TYPE||r.types().get(1).value()==null){
-                            throw new SyntaxError("value before '"+str+"' has to be one constant type",pos);
-                        }
-                        try {
-                            Type extended=r.types().get(1).value().asType();
-                            if(!(extended instanceof Type.Struct)){
-                                throw new SyntaxError("extended type has to be a struct got: "+extended,pos);
-                            }
-                            ((StructBlock) block).extended=(Type.Struct) extended;
-                        } catch (TypeError e) {
-                            throw new SyntaxError(e,pos);
-                        }
-                    }else /*if(block instanceof TraitBlock)*/{
-                        TraitContext context = ((TraitBlock) block).context;
-                        if(context.fields.size()>0){
-                            throw new SyntaxError("'"+str+"' cannot appear after a field declaration",pos);
-                        }
-                        try {
-                            for(TypeFrame f:r.types()){
-                                if(f.type!=Type.TYPE||(!(f.value().asType() instanceof Type.Trait trait))){
-                                    throw new SyntaxError("values before '"+str+"' have to be constant trait-types",pos);
-                                }
-                                //ensure trait is initialized
-                                typeCheckTrait(trait,pState.globalConstants,pState.ioContext);
-
-                                for(Type.TraitField inherited:trait.traitFields){
-                                    context.checkName(inherited,f.pushedAt);
-                                }
-                                context.extended.add(trait);
-                            }
-                        } catch (TypeError e) {
-                            throw new SyntaxError(e,pos);
-                        }
-                    }
-                }
-                case "proc(","procedure(" ->{
-                    boolean implement=false;
-                    if(pState.openBlocks.size()>0){
-                        if(!(pState.openBlocks.peekLast() instanceof ImplementBlock)){
-                            throw new SyntaxError("procedures can only be declared at root level or in implement blocks",pos);
-                        }
-                        implement=true;
-                    }
-                    if(tokens.size()==0){
-                        throw new SyntaxError("missing procedure name",pos);
-                    }
-                    prev=tokens.remove(tokens.size()-1);
-                    finishParsing(pState, pos);
-                    boolean isNative=false;
-                    if(!(prev instanceof IdentifierToken)){
-                        throw new SyntaxError("token before '"+str+"' has to be an identifier",pos);
-                    }else if(((IdentifierToken) prev).isNative()){
-                        isNative=true;
-                        if(implement){
-                            throw new SyntaxError("procedures in implement blocks cannot be native",pos);
-                        }
-                    }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
-                        throw new SyntaxError("token before '"+str+"' has to be an unmodified identifier",pos);
-                    }
-                    String name = ((IdentifierToken) prev).name;
-                    if(implement){
-                        ImplementBlock iBlock = (ImplementBlock) pState.openBlocks.peekLast();
-                        assert iBlock!=null;
-                        if(!iBlock.context.fieldIds.containsKey(name)){
-                            throw new SyntaxError(iBlock.trait+" does not have a field "+name,pos);
-                        }
-                    }
-                    ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublicReadable(), 0,
-                            pos, pState.getContext(), isNative);
-                    pState.openBlocks.add(proc);
-                    if(implement){
-                        proc.context().lock();//procedures in implement blocks cannot have generic arguments
-                    }
-                    pState.openedContexts.add(proc.context());
-                }
-                case "lambda(","λ(" -> {
-                    ProcedureBlock lambda = new ProcedureBlock(null, false, tokens.size(),pos, pState.getContext(), false);
-                    pState.openBlocks.add(lambda);
-                    lambda.context().lock();//no generics in lambdas
-                    pState.openedContexts.add(lambda.context());
-                }
-                case "=>" ->{
-                    CodeBlock block = pState.openBlocks.peekLast();
-                    if(block instanceof ProcedureBlock proc) {
-                        List<Token> ins = tokens.subList(proc.start, tokens.size());
-                        if(proc.name!=null){
-                            proc.inTypes = ProcedureBlock.getSignature(typeCheck(ins,block.context(),pState.globalConstants,
-                                    new TypeData(),null,pos,pState.ioContext).tokens,"procedure");
-                        }else{
-                            proc.inTokens=new ArrayList<>(ins);
-                        }
-                        proc.insSet(pos);
-                        ins.clear();
-                        proc.context().lock();
-                    }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
-                        Token start=tokens.get(block.start);
-                        assert start instanceof BlockToken&&((BlockToken) start).blockType==BlockTokenType.TUPLE_TYPE;
-                        tokens.set(block.start,new BlockToken(BlockTokenType.PROC_TYPE,start.pos,-1));
-                        tokens.add(new BlockToken(BlockTokenType.ARROW,pos,-1));
-                    }else{
-                        throw new SyntaxError("'"+str+"' can only be used in proc- or proc-type blocks ",pos);
-                    }
-                }
-                case "){" -> {
-                    CodeBlock block=pState.openBlocks.peekLast();
-                    if(block==null){
-                        throw new SyntaxError(str+" can only be used in proc- and lambda- blocks",pos);
-                    }else if(block.type==BlockType.PROCEDURE){
-                        //handle procedure separately since : does not change context of produce a jump
-                        ProcedureBlock proc=(ProcedureBlock) block;
-                        if(proc.state==ProcedureBlock.STATE_BODY){
-                            throw new SyntaxError("unexpected '"+str+"'",pos);
-                        }
-                        List<Token> outs = tokens.subList(proc.start, tokens.size());
-                        if(proc.name!=null) {
-                            proc.outTypes = ProcedureBlock.getSignature(typeCheck(outs, block.context(), pState.globalConstants,
-                                    new TypeData(), null, pos, pState.ioContext).tokens,
-                                    "procedure");
-                        }else{
-                            if(proc.state==ProcedureBlock.STATE_IN){
-                                proc.inTokens=new ArrayList<>(outs);
-                            }else{
-                                proc.outTokens=new ArrayList<>(outs);
-                            }
-                        }
-                        proc.outsSet(pos);
-                        outs.clear();
-                    }else{
-                        throw new SyntaxError(str+" can only be used in proc- and lambda- blocks", pos);
-                    }
-                }
+                case "enum{"              -> parseStartEnum(tokens, pState, pos);
+                case "trait{"             -> parseStartTrait(tokens, pState, pos);
+                case "implement{"         -> parseStartImplementBlock(pState, pos);
+                case "for"                -> parseImplementFor(str, tokens, pState, pos);
+                case "struct{"            -> parseStartStruct(tokens, pState, pos);
+                case "extend"             -> parseExtentStatement(str, tokens, pState, pos);
+                case "proc(","procedure(" -> parseStartProc(str, tokens, pState, pos);
+                case "lambda(","λ("       -> parseStartLambda(tokens, pState, pos);
+                case "=>"                 -> parseDArrow(str, tokens, pState, pos);
+                case "){" -> parseStartProcedureBody(str, tokens, pState, pos);
                 case "{" -> {
                     tokens.add(new BlockToken(BlockTokenType.ARRAY,        pos,-1));
                     pState.openBlocks.add(new ArrayBlock(tokens.size(),BlockType.CONST_ARRAY,pos, pState.getContext()));
@@ -2528,189 +2151,7 @@ public class Parser {
                     }
                     tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
                 }
-                case "}" -> {
-                    CodeBlock block=pState.openBlocks.pollLast();
-                    if(block==null) {
-                        throw new SyntaxError("unexpected '"+str+"' statement",pos);
-                    }
-                    Token tmp;
-                    switch (block.type) {
-                        case PROCEDURE -> {
-                            List<Token> subList = tokens.subList(block.start, tokens.size());
-                            ArrayList<Token> content=new ArrayList<>(subList);
-                            subList.clear();
-                            ProcedureBlock procBlock = (ProcedureBlock) block;
-                            ProcedureContext context = procBlock.context();
-                            if(context != pState.openedContexts.pollLast()){
-                                throw new RuntimeException("openedContexts is out of sync with openBlocks");
-                            }
-                            assert context != null;
-                            Type[] ins= procBlock.inTypes;
-                            Type[] outs= procBlock.outTypes;
-                            ArrayList<Type.GenericParameter> generics= procBlock.context.generics;
-                            if(procBlock.state!=ProcedureBlock.STATE_BODY) {
-                                if(procBlock.state==ProcedureBlock.STATE_IN){
-                                    throw new SyntaxError("procedure does not have a signature",block.startPos);
-                                }else{
-                                    throw new SyntaxError("procedure does not provide output arguments",block.startPos);
-                                }
-                            }
-                            Type.Procedure procType=null;
-                            if (procBlock.name!=null) {
-                                procType=(generics.size()>0)?
-                                        Type.GenericProcedureType.create(generics.toArray(Type.GenericParameter[]::new),ins,outs,pos):
-                                        Type.Procedure.create(ins,outs,pos);
-                            }
-                            if(procBlock.isNative){
-                                assert procType!=null;
-                                assert procBlock.name!=null;
-                                if(content.size()>0){
-                                    throw new SyntaxError("unexpected token: "+subList.get(0)+
-                                            " (at "+subList.get(0).pos+") native procedures have to have an empty body",pos);
-                                }
-                                Value.NativeProcedure proc=Value.createExternalProcedure(procBlock.name,
-                                        procBlock.isPublic, procType,block.startPos
-                                );
-                                pState.topLevelContext().declareProcedure(proc,pState.ioContext);
-                            }else{
-                                if(procBlock.name!=null){
-                                    assert procType!=null;
-                                    if(generics.size()>0){
-                                        GenericProcedure proc=new GenericProcedure(procBlock.name,
-                                                procBlock.isPublic,(Type.GenericProcedureType) procType,
-                                                content,block.startPos,pos,context);
-                                        assert context.curried.isEmpty();
-                                        pState.topLevelContext().declareProcedure(proc,pState.ioContext);
-                                    }else{
-                                        Value.Procedure proc=Value.createProcedure(procBlock.name,
-                                                procBlock.isPublic,procType, content,block.startPos,pos,context);
-                                        assert context.curried.isEmpty();
-                                        if(pState.openBlocks.peekLast() instanceof ImplementBlock iBlock){
-                                            ImplementContext ic=iBlock.context;
-                                            Integer id=ic.fieldIds.get(proc.name);
-                                            if(id==null){
-                                                throw new SyntaxError("trait "+ic.trait+" does not have a field "+
-                                                        proc.name,pos);
-                                            }
-                                            if(ic.implementations[id]!=null){
-                                                throw new SyntaxError("field "+proc.name+" already has been implemented",pos);
-                                            }
-                                            Type.Procedure expectedType = ic.trait.traitFields[id].procType();
-                                            for(int i=0;i<proc.type().inTypes.length-1;i++){
-                                                if(!expectedType.inTypes[i].canAssignTo(proc.type().inTypes[i])){
-                                                   throw new SyntaxError("invalid signature for "+
-                                                           ic.trait.traitFields[id].name()+": "+proc.type()
-                                                           +" expected: "+expectedType,pos) ;
-                                                }
-                                            }
-                                            for(int i=0;i<proc.type().outTypes.length;i++){
-                                                if(!proc.type().outTypes[i].canAssignTo(expectedType.outTypes[i])){
-                                                    throw new SyntaxError("invalid signature for "+
-                                                            ic.trait.traitFields[id].name()+": "+proc.type()
-                                                            +" expected: "+expectedType,pos) ;
-                                                }
-                                            }
-                                            ic.implementations[id]=proc;
-                                            break;
-                                        }
-                                        pState.topLevelContext().declareProcedure(proc,pState.ioContext);
-                                    }
-                                }else{
-                                    tokens.add(new DeclareLambdaToken(procBlock.inTokens,procBlock.outTokens,
-                                            generics,content,context,block.startPos,pos));
-                                }
-                            }
-                        }
-                        case ENUM -> {
-                            if(tokens.size()>block.start){
-                                tmp=tokens.get(block.start);
-                                throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
-                            }
-                            pState.topLevelContext().declareEnum(((EnumBlock) block),pState.ioContext);
-                        }
-                        case STRUCT ->{
-                            assert block instanceof StructBlock;
-                            StructContext structContext = ((StructBlock) block).context;
-                            assert structContext!=null;
-                            if(structContext != pState.openedContexts.pollLast()){
-                                throw new RuntimeException("openedContexts is out of sync with openBlocks");
-                            }
-                            List<Token> subList = tokens.subList(block.start, tokens.size());
-                            ArrayList<Token> structTokens=new ArrayList<>(subList);
-                            subList.clear();
-                            ArrayList<Type.GenericParameter> generics= structContext.generics;
-                            if(generics.size()>0){
-                                GenericStruct struct=new GenericStruct(((StructBlock) block).name,((StructBlock) block).isPublic,
-                                        ((StructBlock) block).extended,structContext,
-                                        structTokens,block.startPos,pos);
-                                pState.topLevelContext().declareNamedDeclareable(struct,pState.ioContext);
-                            }else{
-                                Type.Struct struct=Type.Struct.create(((StructBlock) block).name, ((StructBlock) block).isPublic,
-                                        ((StructBlock) block).extended,structTokens,structContext,block.startPos,pos);
-                                pState.topLevelContext().declareNamedDeclareable(struct,pState.ioContext);
-                            }
-                        }
-                        case TRAIT -> {
-                            assert block instanceof TraitBlock;
-                            TraitContext traitContext = ((TraitBlock) block).context;
-                            assert traitContext!=null;
-                            if(traitContext != pState.openedContexts.pollLast()){
-                                throw new RuntimeException("openedContexts is out of sync with openBlocks");
-                            }
-                            List<Token> subList = tokens.subList(block.start, tokens.size());
-                            ArrayList<Token> traitTokens = new ArrayList<>(subList);
-                            subList.clear();
-                            ArrayList<Type.GenericParameter> generics= traitContext.generics;
-                            Type.Trait trait=Type.Trait.create(((TraitBlock) block).name, ((TraitBlock) block).isPublic,
-                                    ((TraitBlock) block).context.extended.toArray(Type.Trait[]::new),
-                                    generics.toArray(Type.GenericParameter[]::new),traitTokens,traitContext,block.startPos,pos);
-                            pState.topLevelContext().declareNamedDeclareable(trait,pState.ioContext);
-                        }
-                        case IMPLEMENT -> {
-                            assert block instanceof ImplementBlock;
-                            ImplementBlock iBlock = (ImplementBlock) block;
-                            ImplementContext iContext = iBlock.context;
-                            assert iContext!=null;
-                            if(iContext != pState.openedContexts.pollLast()){
-                                throw new RuntimeException("openedContexts is out of sync with openBlocks");
-                            }
-                            List<Token> subList = tokens.subList(block.start, tokens.size());
-                            ArrayList<Token> iTokens = typeCheck(subList,iContext,pState.globalConstants,
-                                    pState.typeData,null,pos,pState.ioContext).tokens;
-                            if(iTokens.size()>0){
-                                Token token = iTokens.get(0);
-                                throw new SyntaxError("unexpected token in implement-block: "+ token,token.pos);
-                            }
-                            subList.clear();
-                            for(Map.Entry<String, Integer> e:iContext.fieldIds.entrySet()){
-                                if(iContext.implementations[e.getValue()]==null){
-                                    throw new SyntaxError("the implementation for "+e.getKey()+" (declared at"+
-                                            iBlock.trait.traitFields[e.getValue()].declaredAt()+") in "+iBlock.trait+" is missing",pos);
-                                }
-                            }
-                            if(iContext.generics.size()==0){
-                                iBlock.target.implementTrait(iBlock.trait,iContext.implementations,pos);
-                                for(Value.Procedure c:iContext.implementations){
-                                    typeCheckProcedure(c,pState.globalConstants,pState.ioContext);
-                                }
-                            }else {
-                                iBlock.target.implementGenericTrait(iBlock.trait,
-                                        iContext.generics.toArray(Type.GenericParameter[]::new),iContext.implementations,pos,
-                                        pState.globalConstants,pState.ioContext);
-                            }
-                        }
-                        case IF,WHILE,FOR,SWITCH_CASE, CONST_ARRAY ->{
-                            if(tokens.size()>0&&tokens.get(tokens.size()-1) instanceof BlockToken b&&
-                                    b.blockType==BlockTokenType.DO){//merge do-end
-                                tokens.set(tokens.size()-1,new BlockToken(BlockTokenType.DO_WHILE, pos, -1));
-                            }else{
-                                tokens.add(new BlockToken(BlockTokenType.END, pos, -1));
-                            }
-                        }
-                        case UNION,ANONYMOUS_TUPLE,PROC_TYPE ->
-                                throw new SyntaxError("unexpected '"+str+"' statement",pos);
-                    }
-                }
+                case "}" -> parseEndBlock(str, tokens, pState, pos);
                 case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
                 case "exit"   -> tokens.add(new Token(TokenType.EXIT,  pos));
                 case "union(" ->{
@@ -2733,17 +2174,8 @@ public class Parser {
 
                 //debug helpers
                 case "debugPrint"    -> tokens.add(new Token(TokenType.DEBUG_PRINT, pos));
-                case "assert"    -> {
-                    if(tokens.size()<1){
-                        throw new SyntaxError("not enough tokens for 'assert'",pos);
-                    }
-                    prev=tokens.remove(tokens.size()-1);
-                    if(!(prev instanceof ValueToken&&((ValueToken) prev).value.isString())){
-                        throw new SyntaxError("tokens directly preceding 'assert' has to be a constant string",pos);
-                    }
-                    String message=((ValueToken) prev).value.stringValue();
-                    tokens.add(new AssertToken(message, pos));
-                }
+                case "assert"    ->
+                    parseAssert(tokens, pos);
                 case "unreachable" ->
                     tokens.add(new Token(TokenType.UNREACHABLE,pos));
                 //constants
@@ -2779,215 +2211,772 @@ public class Parser {
 
                 case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
 
+                case "()"  -> tokens.add(new Token(TokenType.CALL_PTR, pos));
+                case "new" -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
                 //stack modifiers
-                //<count> $drop
-                case "$drop" ->
-                    tokens.add(new StackModifierToken(TokenType.STACK_DROP,null,pos));
-                //<src> $dup
-                case "$dup" ->
-                    tokens.add(new StackModifierToken(TokenType.STACK_DUP,null,pos));
-                //<count> <steps> rot
-                case "$rot" ->
-                    tokens.add(new StackModifierToken(TokenType.STACK_ROT,null,pos));
-
-                case "()"     -> tokens.add(new Token(TokenType.CALL_PTR, pos));
-
-
-                case "new"       -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
+                case "$drop" -> tokens.add(new StackModifierToken(TokenType.STACK_DROP,null,pos));
+                case "$dup" -> tokens.add(new StackModifierToken(TokenType.STACK_DUP,null,pos));
+                case "$rot" -> tokens.add(new StackModifierToken(TokenType.STACK_ROT,null,pos));
 
                 //identifiers
-                case "="->{
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '=' modifier",pos);
-                    }else if(prev instanceof IdentifierToken){
-                        if(((IdentifierToken) prev).type == IdentifierType.WORD){
-                            prev=new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,
-                                    ((IdentifierToken) prev).flags, prev.pos);
-                        }else if(((IdentifierToken) prev).type == IdentifierType.GET_FIELD){
-                            prev=new IdentifierToken(IdentifierType.SET_FIELD,((IdentifierToken) prev).name,
-                                    ((IdentifierToken) prev).flags, prev.pos);
+                case "="-> parseAssign(tokens, prev, pos);
+                case "=:"->  parseDeclare(false, str,tokens,prev, prevId, pos);
+                case "=::"-> parseDeclare(true, str,tokens,prev, prevId, pos);
+                case "native" -> parseNativeModifier(str, tokens, prev, prevId, pos);
+                case "public" -> parseAccessModifier(IdentifierToken.ACCESSIBILITY_PUBLIC,str,tokens,prev,pos);
+                case "restricted" -> parseAccessModifier(IdentifierToken.ACCESSIBILITY_READ_ONLY,str,tokens,prev,pos);
+                case "private" -> parseAccessModifier(IdentifierToken.ACCESSIBILITY_PRIVATE,str,tokens,prev,pos);
+                case "mut"  -> parseMutabilityModifier(IdentifierToken.MUTABILITY_MUTABLE,str,tokens,prev,pos);
+                case "mut~"  -> parseMutabilityModifier(IdentifierToken.MUTABILITY_IMMUTABLE,str,tokens,prev,pos);
+                case "<>", "<?>" -> parseCreateGeneric(str, pState, pos, tokens, prev, prevId);
+                default -> parseIdentifier(str, pState, tokens, pos);
+            }
+        }
+    }
+
+    private static void parseCompilerCommand(String str, ParserState pState, FilePosition pos) {
+        String[] commands= str.substring("#compiler:".length()).split(":");
+        switch (commands[0]){
+            case "tokens"->{
+                int n=Integer.parseInt(commands[1]);
+                ArrayList<Token> tokens = pState.uncheckedCode;
+                if(n>tokens.size()){
+                    System.out.println("n > #tokens ("+tokens.size()+")");
+                    n=tokens.size();
+                }
+                System.out.println("tokens:");
+                for(int k=1;k<=n;k++){
+                    System.out.println("  "+tokens.get(tokens.size()-k));
+                }
+            }
+            case "globalCode"->{
+                int n=Integer.parseInt(commands[1]);
+                ArrayList<Token> tokens = pState.globalCode;
+                if(n>tokens.size()){
+                    System.out.println("n > #tokens ("+tokens.size()+")");
+                    n=tokens.size();
+                }
+                System.out.println("tokens:");
+                for(int k=1;k<=n;k++){
+                    System.out.println("  "+tokens.get(tokens.size()-k));
+                }
+            }
+            case "globalBlocks"->{
+                int n=Integer.parseInt(commands[1]);
+                ArrayDeque<CodeBlock> blocks = pState.openBlocks;
+                if(n>blocks.size()){
+                    System.out.println("n > #blocks ("+blocks.size()+")");
+                    n=blocks.size();
+                }
+                System.out.println("globalBlocks:");
+                CodeBlock[] blockArray = blocks.toArray(CodeBlock[]::new);
+                for(int k=1;k<=n;k++){
+                    System.out.println("  "+blockArray[blocks.size()-k]);
+                }
+            }
+            case "code"->{
+                int n=Integer.parseInt(commands[1]);
+                pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.TOKENS,n, pos));
+            }
+            case "blocks"->{
+                int n=Integer.parseInt(commands[1]);
+                pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.BLOCKS,n, pos));
+            }
+            case "types"->{
+                int n=Integer.parseInt(commands[1]);
+                pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.TYPES,n, pos));
+            }
+            case "globalConstants"->
+                    pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.GLOBAL_CONSTANTS,0, pos));
+            case "context"->
+                    pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.CONTEXT,0, pos));
+            default ->
+                System.out.println("unknown compiler command: "+commands[0]);
+        }
+    }
+    private static boolean parseConstant(String str, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
+        if(str.charAt(0)=='\''){//unicode char literal
+            str=str.substring(1);
+            if(str.codePoints().count()==1){
+                int codePoint = str.codePointAt(0);
+                if(codePoint<0x7f){
+                    tokens.add(new ValueToken(Value.ofByte((byte)codePoint), pos));
+                }else{
+                    throw new SyntaxError("codePoint "+codePoint+
+                            "does not fit in one byte " +
+                            "(if you want to use unicode-characters prefix the char-literal with u)", pos);
+                }
+            }else{
+                throw new SyntaxError("A char-literal must contain exactly one character", pos);
+            }
+            return true;
+        }else if(str.startsWith("u'")){//unicode char literal
+            str=str.substring(2);
+            if(str.codePoints().count()==1){
+                int codePoint = str.codePointAt(0);
+                tokens.add(new ValueToken(Value.ofChar(codePoint), pos));
+            }else{
+                throw new SyntaxError("A char-literal must contain exactly one codepoint", pos);
+            }
+            return true;
+        }else if(str.charAt(0)=='"'){
+            str=str.substring(1);
+            tokens.add(new ValueToken(TokenType.GLOBAL_VALUE,Value.ofString(str,false),  pos));
+            return true;
+        }else if(str.startsWith("u\"")){
+            str=str.substring(2);
+            tokens.add(new ValueToken(TokenType.GLOBAL_VALUE,Value.ofString(str,true),  pos));
+            return true;
+        }
+        try{
+            if (tryParseInt(tokens, str,pos)) {
+                return true;
+            }else if(floatDec.matcher(str).matches()){
+                //dez-Float
+                double d = Double.parseDouble(str);
+                tokens.add(new ValueToken(Value.ofFloat(d), pos));
+                return true;
+            }else if(floatBin.matcher(str).matches()){
+                //bin-Float
+                double d= Value.parseFloat(str.substring(BIN_PREFIX.length()),2);
+                tokens.add(new ValueToken(Value.ofFloat(d), pos));
+                return true;
+            }else if(floatHex.matcher(str).matches()){
+                //hex-Float
+                double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
+                tokens.add(new ValueToken(Value.ofFloat(d), pos));
+                return true;
+            }
+        }catch(ConcatRuntimeError|NumberFormatException e){
+            throw new SyntaxError(e, pos);
+        }
+        return false;
+    }
+    private static void parseInclude(ParserState pState, FilePosition pos, ArrayList<Token> tokens, Token prev,
+                                     String prevId) throws SyntaxError {
+        if(prev instanceof ValueToken){
+            tokens.remove(tokens.size()-1);
+            finishParsing(pState, pos);
+            String name=((ValueToken) prev).value.stringValue();
+            File file=new File(name);
+            if(file.exists()){
+                try {
+                    parse(file, pState, pState.ioContext);
+                } catch (IOException e) {
+                    throw new SyntaxError(e, pos);
+                }
+            }else{
+                throw new SyntaxError("File "+name+" does not exist", pos);
+            }
+        }else if(prevId != null){
+            tokens.remove(tokens.size()-1);
+            finishParsing(pState, pos);
+            String path=libPath+File.separator+ prevId +DEFAULT_FILE_EXTENSION;
+            File file=new File(path);
+            if(file.exists()){
+                try {
+                    parse(file, pState, pState.ioContext);
+                } catch (IOException e) {
+                    throw new SyntaxError(e, pos);
+                }
+            }else{
+                throw new SyntaxError(prevId +" is not part of the standard library", pos);
+            }
+        }else{
+            throw new SyntaxError("include path has to be a string literal or identifier", pos);
+        }
+    }
+    private static void parseStartEnum(ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        Token prev;
+        if(pState.openBlocks.size()>0){
+            throw new SyntaxError("enums can only be declared at root level", pos);
+        }
+        if(tokens.size()==0){
+            throw new SyntaxError("missing enum name", pos);
+        }
+        prev= tokens.remove(tokens.size()-1);
+        finishParsing(pState, pos);
+        if(!(prev instanceof IdentifierToken)){
+            throw new SyntaxError("token before enum has to be an identifier", pos);
+        }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
+            throw new SyntaxError("token before enum has to be an unmodified identifier", pos);
+        }
+        String name = ((IdentifierToken) prev).name;
+        pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublicReadable(), 0, pos, pState.topLevelContext()));
+    }
+    private static void parseStartTrait(ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        Token prev;
+        if(pState.openBlocks.size()>0){
+            throw new SyntaxError("traits can only be declared at root level", pos);
+        }
+        if(tokens.size()==0){
+            throw new SyntaxError("missing trait name", pos);
+        }
+        prev= tokens.remove(tokens.size()-1);
+        finishParsing(pState, pos);
+        if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
+            throw new SyntaxError("token before trait has to be an identifier", pos);
+        }
+        String name = ((IdentifierToken) prev).name;
+        TraitBlock traitBlock = new TraitBlock(name,((IdentifierToken) prev).isPublicReadable(),
+                0, pos, pState.topLevelContext());
+        pState.openBlocks.add(traitBlock);
+        pState.openedContexts.add(traitBlock.context());
+    }
+    private static void parseStartImplementBlock(ParserState pState, FilePosition pos) throws SyntaxError {
+        if(pState.openBlocks.size()>0){
+            throw new SyntaxError("implement can only be used at root level", pos);
+        }
+        finishParsing(pState, pos);
+        ImplementBlock implBlock = new ImplementBlock(0, pos, pState.topLevelContext());
+        pState.openBlocks.add(implBlock);
+        pState.openedContexts.add(implBlock.context());
+    }
+    private static void parseImplementFor(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        CodeBlock block = pState.openBlocks.peekLast();
+        if(block instanceof ImplementBlock impl){
+            List<Token> ins = tokens.subList(block.start, tokens.size());
+            Type[] args = ProcedureBlock.getSignature(typeCheck(ins,block.context(), pState.globalConstants,
+                    new TypeData(),null, pos, pState.ioContext).tokens,"implement");
+            if(args.length!=2){
+                throw new SyntaxError("implement expects exactly 2 arguments (trait and targetType)", pos);
+            }
+            ins.clear();
+            impl.context.lock();//don't allow declaring generics in body
+            if(!(args[0] instanceof Type.Trait)){
+                throw new SyntaxError("cannot implement "+args[0]+" (not a trait)", pos);
+            }
+            Set<Type.GenericParameter> unboundGenerics=args[1].unboundGenerics();
+            for(Type.GenericParameter p:impl.context.generics){
+                if(!unboundGenerics.contains(p)){
+                    throw new SyntaxError("the generic parameter "+p.label+" (declared at "+p.declaredAt+
+                            ") is not used in the target type", pos);
+                }
+            }
+            if(impl.context.generics.size()>0&&
+                    !new HashSet<>(impl.context.generics).equals(new HashSet<>(args[1].genericArguments()))){
+                throw new SyntaxError("invalid generic arguments for trait target: "+args[1].genericArguments()+
+                        " The generic parameters of the target type have to be either all generic "+
+                        "or all non-generic", pos);
+            }
+            //ensure trait is type-checked before implementation
+            typeCheckTrait((Type.Trait) args[0], pState.globalConstants, pState.ioContext);
+            if(impl.setTypes((Type.Trait) args[0],args[1])){
+                throw new SyntaxError("duplicate '"+ str +"' in implement-block '"+ str +"' " +
+                        "can only appear after 'implement'", pos);
+            }
+        }else{
+            throw new SyntaxError("'"+ str +"' can only be used in implement blocks ", pos);
+        }
+    }
+    private static void parseStartStruct(ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        Token prev;
+        if(pState.openBlocks.size()>0){
+            throw new SyntaxError("structs can only be declared at root level", pos);
+        }
+        if(tokens.size()==0){
+            throw new SyntaxError("missing struct name", pos);
+        }
+        prev= tokens.remove(tokens.size()-1);
+        finishParsing(pState, pos);
+        if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
+            throw new SyntaxError("token before struct has to be an identifier", pos);
+        }
+        String name = ((IdentifierToken) prev).name;
+        StructBlock structBlock = new StructBlock(name,((IdentifierToken) prev).isPublicReadable(),
+                0, pos, pState.topLevelContext());
+        pState.openBlocks.add(structBlock);
+        pState.openedContexts.add(structBlock.context());
+    }
+    private static void parseExtentStatement(String str, ArrayList<Token> tokens, ParserState pState,
+                                             FilePosition pos) throws SyntaxError {
+        CodeBlock block= pState.openBlocks.peek();
+        if(!(block instanceof StructBlock||block instanceof TraitBlock)){
+            throw new SyntaxError("'"+ str +"' can only be used in struct or trait blocks", pos);
+        }
+        List<Token> subList = tokens.subList(block.start, tokens.size());
+        //extended struct has to be known before type-checking
+        TypeCheckResult r=typeCheck(subList, pState.getContext(), pState.globalConstants,
+                new TypeData(),null, pos, pState.ioContext);
+        subList.clear();
+        if(block instanceof StructBlock){
+            if(((StructBlock) block).context.fields.size()>0){
+                throw new SyntaxError("'"+ str +"' cannot appear after a field declaration", pos);
+            }
+            if(((StructBlock) block).extended!=null){
+                throw new SyntaxError("structs can only contain one '"+ str +"' statement", pos);
+            }
+            if(r.types().size()!=1||r.types().get(1).type!=Type.TYPE||r.types().get(1).value()==null){
+                throw new SyntaxError("value before '"+ str +"' has to be one constant type", pos);
+            }
+            try {
+                Type extended=r.types().get(1).value().asType();
+                if(!(extended instanceof Type.Struct)){
+                    throw new SyntaxError("extended type has to be a struct got: "+extended, pos);
+                }
+                ((StructBlock) block).extended=(Type.Struct) extended;
+            } catch (TypeError e) {
+                throw new SyntaxError(e, pos);
+            }
+        }else /*if(block instanceof TraitBlock)*/{
+            TraitContext context = ((TraitBlock) block).context;
+            if(context.fields.size()>0){
+                throw new SyntaxError("'"+ str +"' cannot appear after a field declaration", pos);
+            }
+            try {
+                for(TypeFrame f:r.types()){
+                    if(f.type!=Type.TYPE||(!(f.value().asType() instanceof Type.Trait trait))){
+                        throw new SyntaxError("values before '"+ str +"' have to be constant trait-types", pos);
+                    }
+                    //ensure trait is initialized
+                    typeCheckTrait(trait, pState.globalConstants, pState.ioContext);
+
+                    for(Type.TraitField inherited:trait.traitFields){
+                        context.checkName(inherited,f.pushedAt);
+                    }
+                    context.extended.add(trait);
+                }
+            } catch (TypeError e) {
+                throw new SyntaxError(e, pos);
+            }
+        }
+    }
+    private static void parseStartProc(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        Token prev;
+        boolean implement=false;
+        if(pState.openBlocks.size()>0){
+            if(!(pState.openBlocks.peekLast() instanceof ImplementBlock)){
+                throw new SyntaxError("procedures can only be declared at root level or in implement blocks", pos);
+            }
+            implement=true;
+        }
+        if(tokens.size()==0){
+            throw new SyntaxError("missing procedure name", pos);
+        }
+        prev= tokens.remove(tokens.size()-1);
+        finishParsing(pState, pos);
+        boolean isNative=false;
+        if(!(prev instanceof IdentifierToken)){
+            throw new SyntaxError("token before '"+ str +"' has to be an identifier", pos);
+        }else if(((IdentifierToken) prev).isNative()){
+            isNative=true;
+            if(implement){
+                throw new SyntaxError("procedures in implement blocks cannot be native", pos);
+            }
+        }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
+            throw new SyntaxError("token before '"+ str +"' has to be an unmodified identifier", pos);
+        }
+        String name = ((IdentifierToken) prev).name;
+        if(implement){
+            ImplementBlock iBlock = (ImplementBlock) pState.openBlocks.peekLast();
+            assert iBlock!=null;
+            if(!iBlock.context.fieldIds.containsKey(name)){
+                throw new SyntaxError(iBlock.trait+" does not have a field "+name, pos);
+            }
+        }
+        ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublicReadable(), 0,
+                pos, pState.getContext(), isNative);
+        pState.openBlocks.add(proc);
+        if(implement){
+            proc.context().lock();//procedures in implement blocks cannot have generic arguments
+        }
+        pState.openedContexts.add(proc.context());
+    }
+    private static void parseStartLambda(ArrayList<Token> tokens, ParserState pState, FilePosition pos) {
+        ProcedureBlock lambda = new ProcedureBlock(null, false, tokens.size(), pos, pState.getContext(), false);
+        pState.openBlocks.add(lambda);
+        lambda.context().lock();//no generics in lambdas
+        pState.openedContexts.add(lambda.context());
+    }
+    private static void parseDArrow(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        CodeBlock block = pState.openBlocks.peekLast();
+        if(block instanceof ProcedureBlock proc) {
+            List<Token> ins = tokens.subList(proc.start, tokens.size());
+            if(proc.name!=null){
+                proc.inTypes = ProcedureBlock.getSignature(typeCheck(ins,block.context(), pState.globalConstants,
+                        new TypeData(),null, pos, pState.ioContext).tokens,"procedure");
+            }else{
+                proc.inTokens=new ArrayList<>(ins);
+            }
+            proc.insSet(pos);
+            ins.clear();
+            proc.context().lock();
+        }else if(block!=null&&block.type==BlockType.ANONYMOUS_TUPLE){
+            Token start= tokens.get(block.start);
+            assert start instanceof BlockToken&&((BlockToken) start).blockType==BlockTokenType.TUPLE_TYPE;
+            tokens.set(block.start,new BlockToken(BlockTokenType.PROC_TYPE,start.pos,-1));
+            tokens.add(new BlockToken(BlockTokenType.ARROW, pos,-1));
+        }else{
+            throw new SyntaxError("'"+ str +"' can only be used in proc- or proc-type blocks ", pos);
+        }
+    }
+    private static void parseStartProcedureBody(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        CodeBlock block= pState.openBlocks.peekLast();
+        if(block==null){
+            throw new SyntaxError(str +" can only be used in proc- and lambda- blocks", pos);
+        }else if(block.type==BlockType.PROCEDURE){
+            //handle procedure separately since : does not change context of produce a jump
+            ProcedureBlock proc=(ProcedureBlock) block;
+            if(proc.state==ProcedureBlock.STATE_BODY){
+                throw new SyntaxError("unexpected '"+ str +"'", pos);
+            }
+            List<Token> outs = tokens.subList(proc.start, tokens.size());
+            if(proc.name!=null) {
+                proc.outTypes = ProcedureBlock.getSignature(typeCheck(outs, block.context(), pState.globalConstants,
+                                new TypeData(), null, pos, pState.ioContext).tokens,
+                        "procedure");
+            }else{
+                if(proc.state==ProcedureBlock.STATE_IN){
+                    proc.inTokens=new ArrayList<>(outs);
+                }else{
+                    proc.outTokens=new ArrayList<>(outs);
+                }
+            }
+            proc.outsSet(pos);
+            outs.clear();
+        }else{
+            throw new SyntaxError(str +" can only be used in proc- and lambda- blocks", pos);
+        }
+    }
+    private static void parseEndBlock(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        CodeBlock block= pState.openBlocks.pollLast();
+        if(block==null) {
+            throw new SyntaxError("unexpected '"+ str +"' statement", pos);
+        }
+        Token tmp;
+        switch (block.type) {
+            case PROCEDURE -> {
+                List<Token> subList = tokens.subList(block.start, tokens.size());
+                ArrayList<Token> content=new ArrayList<>(subList);
+                subList.clear();
+                ProcedureBlock procBlock = (ProcedureBlock) block;
+                ProcedureContext context = procBlock.context();
+                if(context != pState.openedContexts.pollLast()){
+                    throw new RuntimeException("openedContexts is out of sync with openBlocks");
+                }
+                assert context != null;
+                Type[] ins= procBlock.inTypes;
+                Type[] outs= procBlock.outTypes;
+                ArrayList<Type.GenericParameter> generics= procBlock.context.generics;
+                if(procBlock.state!=ProcedureBlock.STATE_BODY) {
+                    if(procBlock.state==ProcedureBlock.STATE_IN){
+                        throw new SyntaxError("procedure does not have a signature",block.startPos);
+                    }else{
+                        throw new SyntaxError("procedure does not provide output arguments",block.startPos);
+                    }
+                }
+                Type.Procedure procType=null;
+                if (procBlock.name!=null) {
+                    procType=(generics.size()>0)?
+                            Type.GenericProcedureType.create(generics.toArray(Type.GenericParameter[]::new),ins,outs, pos):
+                            Type.Procedure.create(ins,outs, pos);
+                }
+                if(procBlock.isNative){
+                    assert procType!=null;
+                    assert procBlock.name!=null;
+                    if(content.size()>0){
+                        throw new SyntaxError("unexpected token: "+subList.get(0)+
+                                " (at "+subList.get(0).pos+") native procedures have to have an empty body", pos);
+                    }
+                    Value.NativeProcedure proc=Value.createExternalProcedure(procBlock.name,
+                            procBlock.isPublic, procType,block.startPos
+                    );
+                    pState.topLevelContext().declareProcedure(proc, pState.ioContext);
+                }else{
+                    if(procBlock.name!=null){
+                        assert procType!=null;
+                        if(generics.size()>0){
+                            GenericProcedure proc=new GenericProcedure(procBlock.name,
+                                    procBlock.isPublic,(Type.GenericProcedureType) procType,
+                                    content,block.startPos, pos,context);
+                            assert context.curried.isEmpty();
+                            pState.topLevelContext().declareProcedure(proc, pState.ioContext);
                         }else{
-                            throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
+                            Value.Procedure proc=Value.createProcedure(procBlock.name,
+                                    procBlock.isPublic,procType, content,block.startPos, pos,context);
+                            assert context.curried.isEmpty();
+                            if(pState.openBlocks.peekLast() instanceof ImplementBlock iBlock){
+                                ImplementContext ic=iBlock.context;
+                                Integer id=ic.fieldIds.get(proc.name);
+                                if(id==null){
+                                    throw new SyntaxError("trait "+ic.trait+" does not have a field "+
+                                            proc.name, pos);
+                                }
+                                if(ic.implementations[id]!=null){
+                                    throw new SyntaxError("field "+proc.name+" already has been implemented", pos);
+                                }
+                                Type.Procedure expectedType = ic.trait.traitFields[id].procType();
+                                for(int i=0;i<proc.type().inTypes.length-1;i++){
+                                    if(!expectedType.inTypes[i].canAssignTo(proc.type().inTypes[i])){
+                                        throw new SyntaxError("invalid signature for "+
+                                                ic.trait.traitFields[id].name()+": "+proc.type()
+                                                +" expected: "+expectedType, pos) ;
+                                    }
+                                }
+                                for(int i=0;i<proc.type().outTypes.length;i++){
+                                    if(!proc.type().outTypes[i].canAssignTo(expectedType.outTypes[i])){
+                                        throw new SyntaxError("invalid signature for "+
+                                                ic.trait.traitFields[id].name()+": "+proc.type()
+                                                +" expected: "+expectedType, pos) ;
+                                    }
+                                }
+                                ic.implementations[id]=proc;
+                                break;
+                            }
+                            pState.topLevelContext().declareProcedure(proc, pState.ioContext);
                         }
-                        tokens.set(tokens.size()-1,prev);
                     }else{
-                        throw new SyntaxError("invalid token for '=' modifier: "+prev,prev.pos);
+                        tokens.add(new DeclareLambdaToken(procBlock.inTokens,procBlock.outTokens,
+                                generics,content,context,block.startPos, pos));
                     }
                 }
-                case "=:"->{
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '=:' modifier",pos);
-                    }else if(prevId!=null){
-                        prev=new IdentifierToken(IdentifierType.DECLARE,prevId,((IdentifierToken) prev).flags, prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '=:' modifier "+prev,prev.pos);
-                    }
-                    tokens.set(tokens.size()-1,prev);
+            }
+            case ENUM -> {
+                if(tokens.size()>block.start){
+                    tmp= tokens.get(block.start);
+                    throw new SyntaxError("Invalid token in enum:"+tmp,tmp.pos);
                 }
-                case "=::"->{
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '=::' modifier",pos);
-                    }else if(prevId!=null){
-                        prev=new IdentifierToken(IdentifierType.IMPLICIT_DECLARE,prevId,((IdentifierToken) prev).flags, prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '=::' modifier "+prev,prev.pos);
-                    }
-                    tokens.set(tokens.size()-1,prev);
+                pState.topLevelContext().declareEnum(((EnumBlock) block), pState.ioContext);
+            }
+            case STRUCT ->{
+                assert block instanceof StructBlock;
+                StructContext structContext = ((StructBlock) block).context;
+                assert structContext!=null;
+                if(structContext != pState.openedContexts.pollLast()){
+                    throw new RuntimeException("openedContexts is out of sync with openBlocks");
                 }
-                case "native" -> {
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prevId!=null){
-                        if(((IdentifierToken) prev).isNative()){
-                            throw new SyntaxError("duplicate modifier for identifier "+prevId+" : '"+str+"'",pos);
-                        }
-                        prev=new IdentifierToken(IdentifierType.WORD,prevId,
-                                ((IdentifierToken) prev).flags|IdentifierToken.FLAG_NATIVE, prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
-                    }
-                    tokens.set(tokens.size()-1,prev);
+                List<Token> subList = tokens.subList(block.start, tokens.size());
+                ArrayList<Token> structTokens=new ArrayList<>(subList);
+                subList.clear();
+                ArrayList<Type.GenericParameter> generics= structContext.generics;
+                if(generics.size()>0){
+                    GenericStruct struct=new GenericStruct(((StructBlock) block).name,((StructBlock) block).isPublic,
+                            ((StructBlock) block).extended,structContext,
+                            structTokens,block.startPos, pos);
+                    pState.topLevelContext().declareNamedDeclareable(struct, pState.ioContext);
+                }else{
+                    Type.Struct struct=Type.Struct.create(((StructBlock) block).name, ((StructBlock) block).isPublic,
+                            ((StructBlock) block).extended,structTokens,structContext,block.startPos, pos);
+                    pState.topLevelContext().declareNamedDeclareable(struct, pState.ioContext);
                 }
-                case "public" -> {
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
-                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){
-                        if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
-                            throw new SyntaxError("multiple accessibility modifiers for identifier "+
-                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
-                        }
-                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
-                                ((IdentifierToken) prev).flags|IdentifierToken.ACCESSIBILITY_PUBLIC, prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
-                    }
-                    tokens.set(tokens.size()-1,prev);
+            }
+            case TRAIT -> {
+                assert block instanceof TraitBlock;
+                TraitContext traitContext = ((TraitBlock) block).context;
+                assert traitContext!=null;
+                if(traitContext != pState.openedContexts.pollLast()){
+                    throw new RuntimeException("openedContexts is out of sync with openBlocks");
                 }
-                case "restricted" -> {
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
-                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){
-                        if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
-                            throw new SyntaxError("multiple accessibility modifiers for identifier "+
-                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
-                        }
-                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
-                                ((IdentifierToken) prev).flags|IdentifierToken.ACCESSIBILITY_READ_ONLY, prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
-                    }
-                    tokens.set(tokens.size()-1,prev);
+                List<Token> subList = tokens.subList(block.start, tokens.size());
+                ArrayList<Token> traitTokens = new ArrayList<>(subList);
+                subList.clear();
+                ArrayList<Type.GenericParameter> generics= traitContext.generics;
+                Type.Trait trait=Type.Trait.create(((TraitBlock) block).name, ((TraitBlock) block).isPublic,
+                        ((TraitBlock) block).context.extended.toArray(Type.Trait[]::new),
+                        generics.toArray(Type.GenericParameter[]::new),traitTokens,traitContext,block.startPos, pos);
+                pState.topLevelContext().declareNamedDeclareable(trait, pState.ioContext);
+            }
+            case IMPLEMENT -> {
+                assert block instanceof ImplementBlock;
+                ImplementBlock iBlock = (ImplementBlock) block;
+                ImplementContext iContext = iBlock.context;
+                assert iContext!=null;
+                if(iContext != pState.openedContexts.pollLast()){
+                    throw new RuntimeException("openedContexts is out of sync with openBlocks");
                 }
-                case "private" -> {
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
-                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){
-                        if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
-                            throw new SyntaxError("multiple accessibility modifiers for identifier "+
-                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
-                        }
-                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
-                                ((IdentifierToken) prev).flags|IdentifierToken.ACCESSIBILITY_PRIVATE, prev.pos);
-                    }else{
-                        throw new SyntaxError("invalid token for '"+str+"' modifier: "+prev,prev.pos);
-                    }
-                    tokens.set(tokens.size()-1,prev);
+                List<Token> subList = tokens.subList(block.start, tokens.size());
+                ArrayList<Token> iTokens = typeCheck(subList,iContext, pState.globalConstants,
+                        pState.typeData,null, pos, pState.ioContext).tokens;
+                if(iTokens.size()>0){
+                    Token token = iTokens.get(0);
+                    throw new SyntaxError("unexpected token in implement-block: "+ token,token.pos);
                 }
-                case "mut"  -> {
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
+                subList.clear();
+                for(Map.Entry<String, Integer> e:iContext.fieldIds.entrySet()){
+                    if(iContext.implementations[e.getValue()]==null){
+                        throw new SyntaxError("the implementation for "+e.getKey()+" (declared at"+
+                                iBlock.trait.traitFields[e.getValue()].declaredAt()+") in "+iBlock.trait+" is missing", pos);
                     }
-                    if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
-                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){//mut as name modifier
-                        if((((IdentifierToken) prev).flags&IdentifierToken.MUTABILITY_MASK)!=IdentifierToken.MUTABILITY_DEFAULT){
-                            throw new SyntaxError("multiple mutability modifiers for identifier "+
-                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
-                        }
-                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
-                                ((IdentifierToken) prev).flags|IdentifierToken.MUTABILITY_MUTABLE, prev.pos);
-                        tokens.set(tokens.size()-1,prev);
-                    }else {
+                }
+                if(iContext.generics.size()==0){
+                    iBlock.target.implementTrait(iBlock.trait,iContext.implementations, pos);
+                    for(Value.Procedure c:iContext.implementations){
+                        typeCheckProcedure(c, pState.globalConstants, pState.ioContext);
+                    }
+                }else {
+                    iBlock.target.implementGenericTrait(iBlock.trait,
+                            iContext.generics.toArray(Type.GenericParameter[]::new),iContext.implementations, pos,
+                            pState.globalConstants, pState.ioContext);
+                }
+            }
+            case IF,WHILE,FOR,SWITCH_CASE, CONST_ARRAY ->{
+                if(tokens.size()>0&& tokens.get(tokens.size()-1) instanceof BlockToken b&&
+                        b.blockType==BlockTokenType.DO){//merge do-end
+                    tokens.set(tokens.size()-1,new BlockToken(BlockTokenType.DO_WHILE, pos, -1));
+                }else{
+                    tokens.add(new BlockToken(BlockTokenType.END, pos, -1));
+                }
+            }
+            case UNION,ANONYMOUS_TUPLE,PROC_TYPE ->
+                    throw new SyntaxError("unexpected '"+ str +"' statement", pos);
+        }
+    }
+    private static void parseAssert(ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
+        Token prev;
+        if(tokens.size()<1){
+            throw new SyntaxError("not enough tokens for 'assert'", pos);
+        }
+        prev= tokens.remove(tokens.size()-1);
+        if(!(prev instanceof ValueToken&&((ValueToken) prev).value.isString())){
+            throw new SyntaxError("tokens directly preceding 'assert' has to be a constant string", pos);
+        }
+        String message=((ValueToken) prev).value.stringValue();
+        tokens.add(new AssertToken(message, pos));
+    }
+    private static void parseAssign(ArrayList<Token> tokens, Token prev, FilePosition pos) throws SyntaxError {
+        if(prev ==null){
+            throw new SyntaxError("not enough tokens tokens for '=' modifier", pos);
+        }else if(prev instanceof IdentifierToken){
+            if(((IdentifierToken) prev).type == IdentifierType.WORD){
+                prev =new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,
+                        ((IdentifierToken) prev).flags, prev.pos);
+            }else if(((IdentifierToken) prev).type == IdentifierType.GET_FIELD){
+                prev =new IdentifierToken(IdentifierType.SET_FIELD,((IdentifierToken) prev).name,
+                        ((IdentifierToken) prev).flags, prev.pos);
+            }else{
+                throw new SyntaxError("invalid token for '=' modifier: "+ prev, prev.pos);
+            }
+            tokens.set(tokens.size()-1, prev);
+        }else{
+            throw new SyntaxError("invalid token for '=' modifier: "+ prev, prev.pos);
+        }
+    }
+    private static void parseDeclare(boolean isImplicit,String modifierName,ArrayList<Token> tokens,
+                                     Token prev, String prevId, FilePosition pos) throws SyntaxError {
+        if(prev ==null){
+            throw new SyntaxError("not enough tokens tokens for '"+modifierName+"' modifier", pos);
+        }else if(prevId !=null){
+            prev =new IdentifierToken(isImplicit?IdentifierType.IMPLICIT_DECLARE:IdentifierType.DECLARE,
+                    prevId,((IdentifierToken) prev).flags, prev.pos);
+        }else{
+            throw new SyntaxError("invalid token for '"+modifierName+"' modifier " + prev, prev.pos);
+        }
+        tokens.set(tokens.size()-1, prev);
+    }
+    private static void parseNativeModifier(String str, ArrayList<Token> tokens, Token prev, String prevId,
+                                            FilePosition pos) throws SyntaxError {
+        if(prev ==null){
+            throw new SyntaxError("not enough tokens tokens for '"+ str +"' modifier", pos);
+        }else if(prevId !=null){
+            if(((IdentifierToken) prev).isNative()){
+                throw new SyntaxError("duplicate modifier for identifier "+ prevId +" : '"+ str +"'", pos);
+            }
+            prev =new IdentifierToken(IdentifierType.WORD, prevId,
+                    ((IdentifierToken) prev).flags|IdentifierToken.FLAG_NATIVE, prev.pos);
+        }else{
+            throw new SyntaxError("invalid token for '"+ str +"' modifier: "+ prev, prev.pos);
+        }
+        tokens.set(tokens.size()-1, prev);
+    }
+    private static void parseAccessModifier(int modifier,String modifierName,ArrayList<Token> tokens,
+                                            Token prev,FilePosition pos) throws SyntaxError {
+        if(prev==null){
+            throw new SyntaxError("not enough tokens tokens for '"+modifierName+"' modifier",pos);
+        }else if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
+                ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){
+            if((((IdentifierToken) prev).flags&IdentifierToken.ACCESSIBILITY_MASK)!=IdentifierToken.ACCESSIBILITY_DEFAULT){
+                throw new SyntaxError("multiple accessibility modifiers for identifier "+
+                        ((IdentifierToken) prev).name+" : '"+modifierName+"'",pos);
+            }
+            prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
+                    ((IdentifierToken) prev).flags|(modifier&IdentifierToken.ACCESSIBILITY_MASK), prev.pos);
+        }else{
+            throw new SyntaxError("invalid token for '"+modifierName+"' modifier: "+prev,prev.pos);
+        }
+        tokens.set(tokens.size()-1,prev);
+    }
+    private static void parseMutabilityModifier(int modifier,String modifierName,ArrayList<Token> tokens,
+                                                Token prev,FilePosition pos) throws SyntaxError {
+        if(prev==null){
+            throw new SyntaxError("not enough tokens tokens for '"+modifierName+"' modifier",pos);
+        }
+        if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
+                ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){//mut as name modifier
+            if((((IdentifierToken) prev).flags&IdentifierToken.MUTABILITY_MASK)!=IdentifierToken.MUTABILITY_DEFAULT){
+                throw new SyntaxError("multiple mutability modifiers for identifier "+
+                        ((IdentifierToken) prev).name+" : '"+modifierName+"'",pos);
+            }
+            prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
+                    ((IdentifierToken) prev).flags|(modifier&IdentifierToken.MUTABILITY_MASK), prev.pos);
+            tokens.set(tokens.size()-1,prev);
+        }else {
+            switch (modifier&IdentifierToken.MUTABILITY_MASK){
+                case IdentifierToken.MUTABILITY_MUTABLE ->
                         tokens.add(new Token(TokenType.MARK_MUTABLE, pos));
-                    }
-                }
-                case "mut~"  -> {
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }
-                    if(prev instanceof IdentifierToken&&(((IdentifierToken) prev).type == IdentifierType.WORD||
-                            ((IdentifierToken) prev).type == IdentifierType.DECLARE_FIELD)){//mut as name modifier
-                        if((((IdentifierToken) prev).flags&IdentifierToken.MUTABILITY_MASK)!=IdentifierToken.MUTABILITY_DEFAULT){
-                            throw new SyntaxError("multiple mutability modifiers for identifier "+
-                                    ((IdentifierToken) prev).name+" : '"+str+"'",pos);
-                        }
-                        prev=new IdentifierToken(((IdentifierToken) prev).type,((IdentifierToken) prev).name,
-                                ((IdentifierToken) prev).flags|IdentifierToken.MUTABILITY_IMMUTABLE, prev.pos);
-                        tokens.set(tokens.size()-1,prev);
-                    }else {
+                case IdentifierToken.MUTABILITY_IMMUTABLE ->
                         tokens.add(new Token(TokenType.MARK_IMMUTABLE, pos));
-                    }
+            }
+        }
+    }
+    private static void parseCreateGeneric(String str, ParserState pState, FilePosition pos, ArrayList<Token> tokens, Token prev, String prevId) throws SyntaxError {
+        if(prev ==null){
+            throw new SyntaxError("not enough tokens tokens for '"+ str +"' modifier", pos);
+        }else if(prevId !=null){
+            VariableContext context= pState.getContext();
+            if(!(context instanceof GenericContext)){
+                throw new SyntaxError("generics can only be declared in tuple and procedure signatures", pos);
+            }
+            ((GenericContext) context).declareGeneric(prevId, str.equals("<?>"), pos, pState.ioContext);
+            tokens.remove(tokens.size()-1);
+        }else{
+            throw new SyntaxError("invalid token for '<>' modifier: "+ prev, prev.pos);
+        }
+    }
+    private static void parseIdentifier(String str, ParserState pState, ArrayList<Token> tokens,
+                                        FilePosition pos) throws SyntaxError {
+        Token prev;
+        if(str.startsWith(".")){
+            String name= str.substring(1);
+            boolean isPtr=false;
+            if(name.startsWith("@")){
+                name=name.substring(1);
+                isPtr=true;
+            }
+            prev = tokens.size()>0 ? tokens.get(tokens.size()-1) : null;
+            if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.WORD&&
+                    pState.topLevelContext().namespaces().contains(((IdentifierToken) prev).name)){
+                String newName = ((IdentifierToken) prev).name + NAMESPACE_SEPARATOR + name;
+                Declareable d= pState.topLevelContext().getDeclareable(newName);
+                if(d instanceof Macro){
+                    tokens.remove(tokens.size()-1);
+                    expandMacro(pState,(Macro)d, pos);
+                }else {
+                    tokens.set(tokens.size() - 1, new IdentifierToken(isPtr ? IdentifierType.PROC_ID : IdentifierType.WORD,
+                            newName, 0, pos));
                 }
-                case "<>", "<?>" ->{
-                    if(prev==null){
-                        throw new SyntaxError("not enough tokens tokens for '"+str+"' modifier",pos);
-                    }else if(prevId!=null){
-                        VariableContext context=pState.getContext();
-                        if(!(context instanceof GenericContext)){
-                            throw new SyntaxError("generics can only be declared in tuple and procedure signatures",pos);
-                        }
-                        ((GenericContext) context).declareGeneric(prevId, str.equals("<?>"), pos, pState.ioContext);
-                        tokens.remove(tokens.size()-1);
-                    }else{
-                        throw new SyntaxError("invalid token for '<>' modifier: "+prev,prev.pos);
-                    }
-                }
-                default -> {
-                    if(str.startsWith(".")){
-                        String name=str.substring(1);
-                        boolean isPtr=false;
-                        if(name.startsWith("@")){
-                            name=name.substring(1);
-                            isPtr=true;
-                        }
-                        prev = tokens.size()>0 ? tokens.get(tokens.size()-1) : null;
-                        if(prev instanceof IdentifierToken&&((IdentifierToken) prev).type==IdentifierType.WORD&&
-                                pState.topLevelContext().namespaces().contains(((IdentifierToken) prev).name)){
-                            String newName = ((IdentifierToken) prev).name + NAMESPACE_SEPARATOR + name;
-                            Declareable d=pState.topLevelContext().getDeclareable(newName);
-                            if(d instanceof Macro){
-                                tokens.remove(tokens.size()-1);
-                                expandMacro(pState,(Macro)d,pos);
-                            }else {
-                                tokens.set(tokens.size() - 1, new IdentifierToken(isPtr ? IdentifierType.PROC_ID : IdentifierType.WORD,
-                                        newName, 0, pos));
-                            }
-                        }else{
-                            tokens.add(new IdentifierToken(IdentifierType.GET_FIELD,name, 0, pos));
-                        }
-                    }else if(str.startsWith("@")){
-                        tokens.add(new IdentifierToken(IdentifierType.PROC_ID, str.substring(1), 0, pos));
-                    }else if(str.startsWith(":")){
-                        tokens.add(new IdentifierToken(IdentifierType.DECLARE_FIELD, str.substring(1), 0, pos));
-                    }else{
-                        Declareable d=pState.topLevelContext().getDeclareable(str);
-                        if(d instanceof Macro){
-                            expandMacro(pState,(Macro)d,pos);
-                        }else{
-                            CodeBlock last= pState.openBlocks.peekLast();
-                            if(last instanceof EnumBlock){
-                                ((EnumBlock) last).add(str,pos);
-                            }else{
-                                tokens.add(new IdentifierToken(IdentifierType.WORD, str, 0, pos));
-                            }
-                        }
-                    }
+            }else{
+                tokens.add(new IdentifierToken(IdentifierType.GET_FIELD,name, 0, pos));
+            }
+        }else if(str.startsWith("@")){
+            tokens.add(new IdentifierToken(IdentifierType.PROC_ID, str.substring(1), 0, pos));
+        }else if(str.startsWith(":")){
+            tokens.add(new IdentifierToken(IdentifierType.DECLARE_FIELD, str.substring(1), 0, pos));
+        }else{
+            Declareable d= pState.topLevelContext().getDeclareable(str);
+            if(d instanceof Macro){
+                expandMacro(pState,(Macro)d, pos);
+            }else{
+                CodeBlock last= pState.openBlocks.peekLast();
+                if(last instanceof EnumBlock){
+                    ((EnumBlock) last).add(str, pos);
+                }else{
+                    tokens.add(new IdentifierToken(IdentifierType.WORD, str, 0, pos));
                 }
             }
         }
     }
+
+
 
     private static void expandMacro(ParserState pState, Macro m, FilePosition pos) throws SyntaxError {
         m.markAsUsed();
