@@ -303,6 +303,10 @@ tmp ## load the total sum onto the stack
 ### other operators
 - `.type` replaces the top element on the stack 
 with its type
+- `clone` replaces the top element on the stack
+  with a shallow copy
+- `clone!` replaces the top element on the stack
+  with a deep copy
 - `cast` typecast `val type cast` casts `val` to 
 type `type` and pushes the result
 - `array`  wraps a type in the corresponding array-type
@@ -328,6 +332,7 @@ will be replaced with the elements of value
 cast to the type of the List
 - `()` call a procedure pointer
 
+
 Examples:
 ```
 1 .type println
@@ -352,21 +357,57 @@ Hello!
 
 ### Stack Manipulation
 These Operations directly manipulate the stack without
-interacting with the specific values
+interacting with the specific values. 
+The values in the stack are 1-indexed 
+counting from the top element 
 
-[//]: # (TODO $dup $drop $rot)
+- `<offset> ?dup` pushes the element at offset `<offset>`
+  (1 indexed) in the stack
+- `<count> <offset> ??drop` removes all elements 
+  with indices between `<offset>` (excluded) and
+  `<offset>+<count>` (included) from the stack 
+- `<count> <steps> ??rot` rotates the top `<count>` 
+  elements of the stack downwards by `<steps>` elements.
+
+simple stack actions: (can be included with `stack #include`)
 
 - `dup`  duplicates the top element on the stack
-  (can be included with `stack #include`)
 - `drop` removes the top element from the stack
-  (can be included with `stack #include`)
+- `<count> ?drop` removes the top `<count>`
+ elements from the stack
 - `swap` swaps the top 2 element on the stack
-  (can be included with `stack #include`)
-- `clone` replaces the top element on the stack 
-with a shallow copy
-- `clone!` replaces the top element on the stack
-  with a deep copy
+- `over` copies the 2nd element on the stack 
+  to the top
+- `2over` copies the 3rd element on the stack
+  to the top
+- `rot3` rotates the top 3 elements
+  ( `A B C`  -> `B C A` )
 
+Examples:
+
+The code
+```
+{ 1 2 3 dup   } debugPrint
+{ 1 2 3 over  } debugPrint
+{ 1 2 3 2over } debugPrint
+
+{ 1 2 3 drop  } debugPrint
+{ 1 2 3  2 ?drop } debugPrint
+{ 1 2 3 swap  } debugPrint
+{ 1 2 3 rot3  } debugPrint
+```
+prints 
+```
+[int:1, int:2, int:3, int:3]
+[int:1, int:2, int:3, int:2]
+[int:1, int:2, int:3, int:1]
+
+[int:1, int:2]
+[int:1]
+
+[int:1, int:3, int:2]
+[int:2, int:3, int:1]
+```
 
 ### Control Flow
 
