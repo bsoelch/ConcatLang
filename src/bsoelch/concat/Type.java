@@ -15,32 +15,32 @@ public class Type {
 
     public static final Type INT   = new Type("int",BITS64,  true) {
         @Override
-        public boolean canCastTo(Type t,BoundMaps bounds) {
-            return t==UINT||t==CODEPOINT||t==BYTE||t==FLOAT||super.canCastTo(t,bounds);
+        public CastType canCastTo(Type t,BoundMaps bounds) {
+            return (t==UINT||t==CODEPOINT||t==BYTE||t==FLOAT)?CastType.CAST:super.canCastTo(t,bounds);
         }
     };
     public static final Type UINT  = new Type("uint",BITS64, true) {
         @Override
-        public boolean canCastTo(Type t, BoundMaps bounds) {
-            return t==INT||t==CODEPOINT||t==BYTE||t==FLOAT||super.canCastTo(t,bounds);
+        public CastType canCastTo(Type t, BoundMaps bounds) {
+            return (t==INT||t==CODEPOINT||t==BYTE||t==FLOAT)?CastType.CAST:super.canCastTo(t,bounds);
         }
     };
     public static final Type FLOAT = new Type("float",BITS64,false) {
         @Override
-        public boolean canCastTo(Type t, BoundMaps bounds) {
-            return t==INT||t==UINT||super.canCastTo(t,bounds);
+        public CastType canCastTo(Type t, BoundMaps bounds) {
+            return (t==INT||t==UINT)?CastType.CAST:super.canCastTo(t,bounds);
         }
     };
     public static final Type CODEPOINT = new Type("codepoint",BITS32, true) {
         @Override
-        public boolean canCastTo(Type t, BoundMaps bounds) {
-            return t==INT||t==UINT||t==BYTE||super.canCastTo(t,bounds);
+        public CastType canCastTo(Type t, BoundMaps bounds) {
+            return (t==INT||t==UINT||t==BYTE)?CastType.CAST:super.canCastTo(t,bounds);
         }
     };
     public static final Type BYTE  = new Type("byte",BITS8, true){
         @Override
-        public boolean canCastTo(Type t, BoundMaps bounds) {
-            return t==INT||t==UINT||t==CODEPOINT||super.canCastTo(t,bounds);
+        public CastType canCastTo(Type t, BoundMaps bounds) {
+            return (t==INT||t==UINT||t==CODEPOINT)?CastType.CAST:super.canCastTo(t,bounds);
         }
     };
     public static final Type TYPE  = new Type("type",BITS64, false) {
@@ -112,8 +112,9 @@ public class Type {
     /**blank type that could contain any value*/
     public static final Type ANY = new Type("var",PTR, false) {
         @Override
-        protected boolean canCastTo(Type t, BoundMaps bounds) {
-            return true;
+        protected CastType canCastTo(Type t, BoundMaps bounds) {
+            CastType ret=canCastTo0(t, bounds);
+            return ret==CastType.NONE?CastType.RESTRICT:ret;
         }
     };
 
@@ -361,18 +362,34 @@ public class Type {
         TraitImplementation implementation = implementedTraits.get(t);
         return implementation==null?null:implementation.implementedAt();
     }
+    enum CastType{
+        /**value can be directly assigned to the target type*/
+        ASSIGN,
+        /**conversion to a different representations of the same value*/
+        CONVERT,
+        /**possible lossy conversion to another type*/
+        CAST,
+        /**casts this type to a restricted version of this type (may fail at runtime)*/
+        RESTRICT,
+        /**this object cannot be casts to the given type*/
+        NONE
+    }
     /**@return true if values of this type can be cast to type t*/
-    public final boolean canCastTo(Type t){
+    public final CastType canCastTo(Type t){
         return canCastTo(t,new BoundMaps());
     }
 
-    //TODO distinguish different cast-types (convert (i.e. ... -> var),transform (i.e. int -> float),restrict (i.e. bits8 -> byte) )
-    protected boolean canCastTo0(Type t, BoundMaps bounds){
-        if (hasTrait(t, bounds)) return true;
-        return t==ANY;
+    protected CastType canCastTo0(Type t, BoundMaps bounds){
+        if (hasTrait(t, bounds)) return CastType.CONVERT;
+        return t==ANY?CastType.CONVERT:CastType.NONE;
     }
-    protected boolean canCastTo(Type t, BoundMaps bounds){
-        return canCastTo0(t, bounds)||canAssignTo(t,bounds)||t.canAssignTo(this,bounds.swapped());
+    protected CastType canCastTo(Type t, BoundMaps bounds){
+        if(canAssignTo(t,bounds))
+            return CastType.ASSIGN;
+        CastType ret=canCastTo0(t, bounds);
+        if(ret!=CastType.NONE)
+            return ret;
+        return t.canAssignTo(this,bounds.swapped())?CastType.RESTRICT:CastType.NONE;
     }
 
     @Override
@@ -868,17 +885,20 @@ public class Type {
         }
 
         @Override
-        public boolean canCastTo(Type t, BoundMaps bounds) {
-            if (hasTrait(t, bounds)) return true;
+        public CastType canCastTo(Type t, BoundMaps bounds) {
+            if (hasTrait(t, bounds))
+                return CastType.CONVERT;
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
-                if (mutabilityIncompatible(t)) return false;//incompatible mutability
+                if (mutabilityIncompatible(t))
+                    return CastType.NONE;//incompatible mutability
                 return content().canCastTo(t.content(),bounds);
             }else if(wrapperName.equals(REFERENCE)){
                 BoundMaps newBounds=bounds.copy();
-                if(content().canCastTo(t,newBounds)){
+                CastType castType = content().canCastTo(t, newBounds);
+                if(castType!=CastType.NONE){
                     bounds.l.putAll(newBounds.l);
                     bounds.r.putAll(newBounds.r);
-                    return true;
+                    return castType;
                 }
             }
             return super.canCastTo0(t,bounds);
@@ -1065,16 +1085,16 @@ public class Type {
             }
         }
         @Override
-        protected boolean canCastTo(Type t, BoundMaps bounds) {
-            if(mutabilityIncompatible(t)){
-                return false;//incompatible mutability
-            }
+        protected CastType canCastTo(Type t, BoundMaps bounds) {
             if(t instanceof Tuple){
-                return TupleLike.canAssignElements(this,(Tuple) t, bounds)||
-                        TupleLike.canAssignElements(((Tuple) t),this, bounds.swapped());
-            }else{
-                return super.canCastTo0(t,bounds);
+                if(mutabilityIncompatible(t)){
+                    return CastType.NONE;//incompatible mutability
+                }
+                if(TupleLike.canAssignElements(this,(Tuple) t, bounds))
+                    return CastType.ASSIGN;
+                return TupleLike.canAssignElements(((Tuple) t),this, bounds.swapped())?CastType.RESTRICT:CastType.NONE;
             }
+            return super.canCastTo0(t,bounds);
         }
 
         @Override
@@ -1498,22 +1518,33 @@ public class Type {
             return super.canAssignTo(t, bounds);
         }
         @Override
-        protected boolean canCastTo(Type t, BoundMaps bounds) {
-            if (hasTrait(t, bounds)) return true;
+        protected CastType canCastTo(Type t, BoundMaps bounds) {
+            if (hasTrait(t, bounds))
+                return CastType.CONVERT;
             if(t instanceof Struct) {
                 if(mutabilityIncompatible(t)){
-                    return false;
+                    return CastType.NONE;
                 }
                 if(!declaredAt.equals(((Struct) t).declaredAt)){
-                    return (extended != null && extended.canCastTo(t, bounds))||
-                            (((Struct) t).extended != null && canCastTo(((Struct) t).extended,bounds));
+                    if(extended != null){
+                        CastType ret=extended.canCastTo(t, bounds);
+                        if(ret!=CastType.NONE)
+                            return ret;
+                    }
+                    if(((Struct) t).extended != null){
+                        return canCastTo(((Struct) t).extended,bounds);
+                    }
+                    return CastType.NONE;
                 }
+                boolean restrict=false;
                 for(int i=0;i<genericArgs.length;i++){
-                    if(!(genericArgs[i].canAssignTo(((Struct) t).genericArgs[i],bounds)&&
-                            ((Struct) t).genericArgs[i].canAssignTo(genericArgs[i],bounds.swapped())))
-                        return false;
+                    if(!(genericArgs[i].canAssignTo(((Struct) t).genericArgs[i],bounds))){
+                        if(!(((Struct) t).genericArgs[i].canAssignTo(genericArgs[i],bounds.swapped())))
+                            return CastType.NONE;
+                        restrict=true;
+                    }
                 }
-                return true;
+                return restrict?CastType.RESTRICT:CastType.ASSIGN;
             }
             return super.canCastTo0(t, bounds);
         }
@@ -1769,40 +1800,43 @@ public class Type {
         }
 
         @Override
-        protected boolean canCastTo(Type t, BoundMaps bounds) {
-            if(t.hasTrait(this,bounds.swapped()))
-                return true;
-            if (hasTrait(t, bounds))
-                return true;
+        protected CastType canCastTo(Type t, BoundMaps bounds) {
+            if(t.hasTrait(this,bounds.swapped())||hasTrait(t, bounds))
+                return CastType.CONVERT;
             if(t instanceof Trait) {
                 if(mutabilityIncompatible(t)){
-                    return false;
+                    return CastType.NONE;
                 }
                 if(!declaredAt.equals(((Trait) t).declaredAt)){
                     for(Trait ext:extended){
                         BoundMaps tmp = bounds.copy();
-                        if(ext.canCastTo(t, tmp)){
+                        CastType castType = ext.canCastTo(t, tmp);
+                        if(castType!=CastType.NONE){
                             bounds.l.putAll(tmp.l);
                             bounds.r.putAll(tmp.r);
-                            return true;
+                            return castType;
                         }
                     }
                     for(Trait ext:((Trait) t).extended){
                         BoundMaps tmp = bounds.copy();
-                        if(canCastTo(ext,tmp.swapped())) {
+                        CastType castType = canCastTo(ext,tmp);
+                        if(castType!=CastType.NONE) {
                             bounds.l.putAll(tmp.l);
                             bounds.r.putAll(tmp.r);
-                            return true;
+                            return castType;
                         }
                     }
-                    return false;
+                    return CastType.NONE;
                 }
+                boolean restrict=false;
                 for(int i=0;i<genericArgs.length;i++){
-                    if(!(genericArgs[i].canAssignTo(((Trait)t).genericArgs[i],bounds)&&
-                            ((Trait) t).genericArgs[i].canAssignTo(genericArgs[i],bounds.swapped())))
-                        return false;
+                    if(!(genericArgs[i].canAssignTo(((Trait)t).genericArgs[i],bounds))){
+                        if(!(((Trait) t).genericArgs[i].canAssignTo(genericArgs[i],bounds.swapped())))
+                            return CastType.NONE;
+                        restrict=true;
+                    }
                 }
-                return true;
+                return restrict?CastType.RESTRICT:CastType.ASSIGN;
             }
             return super.canCastTo0(t, bounds);
         }
@@ -2122,8 +2156,8 @@ public class Type {
         }
 
         @Override
-        public boolean canCastTo(Type t, BoundMaps bounds) {
-            return t==UINT||t==INT||super.canCastTo(t, bounds);
+        public CastType canCastTo(Type t, BoundMaps bounds) {
+            return (t==UINT||t==INT)?CastType.CAST:super.canCastTo(t, bounds);
         }
 
         @Override
@@ -2455,15 +2489,26 @@ public class Type {
         }
 
         @Override
-        protected boolean canCastTo(Type t, BoundMaps bounds) {
+        protected CastType canCastTo(Type t, BoundMaps bounds) {
             if(t instanceof GenericParameter){
                 return super.canCastTo(t, bounds);
             }
+            CastType match=CastType.NONE;
             for(Type e:elements){
-                if(e.canCastTo(t,bounds))
-                    return true;
+                CastType castType = e.canCastTo(t, bounds);
+                switch (castType){
+                    case ASSIGN,CONVERT -> {
+                        return CastType.CONVERT;
+                    }
+                    case CAST -> match=CastType.CAST;
+                    case RESTRICT -> {
+                        if (match != CastType.CAST)
+                            match = CastType.RESTRICT;
+                    }
+                    case NONE -> {}//do nothing
+                }
             }
-            return super.canCastTo(t, bounds);
+            return match!=CastType.NONE?match:super.canCastTo(t, bounds);
         }
     }
 
@@ -2503,8 +2548,8 @@ public class Type {
             return equals(t);
         }
         @Override
-        protected boolean canCastTo(Type t, BoundMaps bounds) {
-            return equals(t);
+        protected CastType canCastTo(Type t, BoundMaps bounds) {
+            return equals(t)?CastType.ASSIGN:CastType.NONE;
         }
     }
 }

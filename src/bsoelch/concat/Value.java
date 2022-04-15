@@ -647,7 +647,7 @@ public abstract class Value {
         public Value castTo(Type newType) throws ConcatRuntimeError {
             if (this.type.canAssignTo(newType)) {
                 return this;
-            }else if((newType.isArray()|| newType.isMemory())&&this.type.canCastTo(newType)){
+            }else if((newType.isArray()|| newType.isMemory())&&(this.type.canCastTo(newType)!= Type.CastType.NONE)){
                 Type newContent= newType.content();//addLater keep current capacity?
                 Value[] newValues=new Value[length];
                 for(int i=0;i<length;i++){
@@ -1102,7 +1102,7 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type newType) throws ConcatRuntimeError {
-            if(newType instanceof Type.Procedure&&this.type.canCastTo(newType)){
+            if(newType instanceof Type.Procedure&&(this.type.canCastTo(newType) != Type.CastType.NONE)){
                 return new Procedure(name, isPublic, newType, tokens, curriedArgs,
                         context, declaredAt, endPos,typeCheckState);
             }
@@ -1211,7 +1211,7 @@ public abstract class Value {
                 return this;
             }else if(newType.isOptional()){
                 if(wrapped==null){
-                    if(this.type.canCastTo(newType)){
+                    if(this.type.canCastTo(newType) != Type.CastType.NONE){
                         return new OptionalValue(newType.content());
                     }
                 }else{

@@ -4785,8 +4785,8 @@ public class Parser {
                     if(c instanceof Value.Procedure){//ensure procedures are type-checked
                         typeCheckProcedure((Value.Procedure) c, tState.globalConstants, tState.ioContext);
                     }
-                    ParamMatchType[] castDirections=new ParamMatchType[c.type().inTypes.length];
-                    Arrays.fill(castDirections, ParamMatchType.ASSIGN);
+                    Type.CastType[] castDirections=new Type.CastType[c.type().inTypes.length];
+                    Arrays.fill(castDirections, Type.CastType.ASSIGN);
                     matches.add(new CallMatch(c,c.type(),new IdentityHashMap<>(),0,castDirections,0,new HashMap<>()));
                 }
             }
@@ -4806,7 +4806,7 @@ public class Parser {
         }else{
             if(!src.canAssignTo(target,bounds)){//cast to correct type if necessary
                 bounds=new Type.BoundMaps();
-                if(!src.canCastTo(target,bounds)){
+                if(src.canCastTo(target,bounds)==Type.CastType.NONE){
                     throw new SyntaxError("cannot cast from "+ src+" to "+ target, pos);
                 }
                 if(stackPos==1){
@@ -4860,9 +4860,8 @@ public class Parser {
         }
     }
 
-    enum ParamMatchType {ASSIGN,CAST, DOWN_CAST}
     record CallMatch(Callable called, Type.Procedure type, IdentityHashMap<Type.GenericParameter,Type> genericParams,
-                     int nCasts, ParamMatchType[] paramMatchTypes, int nImplicit,
+                     int nCasts, Type.CastType[] paramMatchTypes, int nImplicit,
                     /*overloaded procedure pointers in the arguments of this call match*/
                      HashMap<Type.OverloadedProcedurePointer,CallMatch> opps){}
 
@@ -4872,8 +4871,8 @@ public class Parser {
         for (int i = 0; i < m1.type.inTypes.length; i++) {
             f=1;
             switch (m1.paramMatchTypes[i]){
-                case ASSIGN -> {
-                    if(m2.paramMatchTypes[i]!= ParamMatchType.ASSIGN){
+                case ASSIGN,CONVERT -> {
+                    if(m2.paramMatchTypes[i]!= Type.CastType.ASSIGN&&m2.paramMatchTypes[i]!=Type.CastType.CONVERT){
                         if(c>0) {
                             return 0;
                         }
@@ -4881,12 +4880,12 @@ public class Parser {
                     }
                 }
                 case CAST -> {
-                    if(m2.paramMatchTypes[i]== ParamMatchType.ASSIGN){
+                    if(m2.paramMatchTypes[i]== Type.CastType.ASSIGN||m2.paramMatchTypes[i]== Type.CastType.CONVERT){
                         if(c<0) {
                             return 0;
                         }
                         c=1;
-                    }else if(m2.paramMatchTypes[i]== ParamMatchType.DOWN_CAST){
+                    }else if(m2.paramMatchTypes[i]== Type.CastType.RESTRICT){
                         if(c>0) {
                             return 0;
                         }
@@ -4896,8 +4895,8 @@ public class Parser {
                     }
                     f=0;
                 }
-                case DOWN_CAST -> {
-                    if(m2.paramMatchTypes[i]!= ParamMatchType.DOWN_CAST){
+                case RESTRICT -> {
+                    if(m2.paramMatchTypes[i]!= Type.CastType.RESTRICT){
                         if(c<0) {
                             return 0;
                         }
@@ -4905,6 +4904,7 @@ public class Parser {
                     }
                     f=-1;
                 }
+                case NONE -> throw new RuntimeException("CastType NONE should not exist here:");
             }
             if(f!=0){
                 c*=f;
@@ -4982,8 +4982,8 @@ public class Parser {
         boolean isMatch=true;
         IdentityHashMap<Type.GenericParameter,Type> generics=new IdentityHashMap<>();
         int nCasts=0,nImplicit=0;
-        ParamMatchType[] paramMatchTypes =new ParamMatchType[inTypes.length];
-        Arrays.fill(paramMatchTypes, ParamMatchType.ASSIGN);
+        Type.CastType[] paramMatchTypes =new Type.CastType[inTypes.length];
+        Arrays.fill(paramMatchTypes, Type.CastType.ASSIGN);
         HashMap<Type.OverloadedProcedurePointer,CallMatch> opps=new HashMap<>();
         if(typeArgs !=null) {//update type signature
             for (int i = 0; i < typeArgs.length; i++) {
@@ -4997,10 +4997,9 @@ public class Parser {
             if(inTypes[i] instanceof Type.OverloadedProcedurePointer){
                 hasOpp=true;
             }else if(!inTypes[i].canAssignTo(type.inTypes[i],bounds)){
-                paramMatchTypes[i]=type.inTypes[i].canAssignTo(inTypes[i],bounds.copy().swapped())? ParamMatchType.DOWN_CAST :
-                        ParamMatchType.CAST;
+                paramMatchTypes[i]=inTypes[i].canCastTo(type.inTypes[i],bounds);
                 nCasts++;
-                if(!inTypes[i].canCastTo(type.inTypes[i],bounds)){//try to implicitly cast input arguments
+                if(paramMatchTypes[i] == Type.CastType.NONE){//try to implicitly cast input arguments
                     isMatch=false;
                     break;
                 }
@@ -5071,8 +5070,8 @@ public class Parser {
                     if(c instanceof Value.Procedure){
                         typeCheckProcedure((Value.Procedure) c,tState.globalConstants,tState.ioContext);
                     }
-                    ParamMatchType[] paramMatchTypes =new ParamMatchType[procType.inTypes.length];
-                    Arrays.fill(paramMatchTypes, ParamMatchType.ASSIGN);
+                    Type.CastType[] paramMatchTypes =new Type.CastType[procType.inTypes.length];
+                    Arrays.fill(paramMatchTypes, Type.CastType.ASSIGN);
                     matches.add(new CallMatch(c,procType,implicitGenerics,0, paramMatchTypes,implicitGenerics.size(),
                             new HashMap<>()));
                     matchBounds.add(test);
