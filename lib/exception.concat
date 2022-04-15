@@ -22,14 +22,17 @@ createException public proc( string Location => Exception ){
 
 $loc public #define #loc core .Location new #end
 
+## return the top element on the stack, drop all other elements
+$throw public #define  #stackSize 1 - 1 ??drop return  #end
+
 ## creates an exception at the current location, requires a string (the message) as parameter
-$throw public #define #+message+# $loc createException return #end
+$throwMessage public #define #+message+# $loc createException $throw #end
 
 addToTrace public proc( Exception Location => Exception ){
   loc =::
   dup .trace loc << drop
 }
-$rethrow public #define dup .type core .Exception == if{ $loc core .addToTrace return } #end
+$rethrow public #define dup .type core .Exception == if{ $loc core .addToTrace $throw } #end
 
 
 #end
