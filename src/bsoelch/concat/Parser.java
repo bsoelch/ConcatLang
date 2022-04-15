@@ -912,6 +912,9 @@ public class Parser {
     }
     interface Callable extends NamedDeclareable{
         Type.Procedure type();
+        default boolean compileTime() {
+            return false;
+        }
     }
     static boolean isCallable(DeclareableType type){
         switch (type){
@@ -4288,6 +4291,9 @@ public class Parser {
                         CallMatch match = typeCheckOverloadedCall(
                                 "procedure "+identifier.name, new OverloadedProcedure(proc),null,t.pos, tState);
                         match.called.markAsUsed();
+                        if(match.called.compileTime()&&compileTimeEvaluate(match, ret, tState,t.pos)){
+                            break;
+                        }
                         CallToken token = new CallToken( match.called, identifier.pos);
                         ret.add(token);
                     }
@@ -4573,6 +4579,39 @@ public class Parser {
                 }
             }
         }
+    }
+
+    private static boolean compileTimeEvaluate(CallMatch match, ArrayList<Token> ret, TypeCheckState tState,
+                                            FilePosition pos) throws SyntaxError, RandomAccessStack.StackUnderflow {
+        Value[] args=new Value[match.type.inTypes.length];
+        if(ret.size() < args.length)
+            return false;
+        for(int i=0;i<args.length;i++){
+            if(!(ret.get(ret.size()-args.length+i) instanceof ValueToken)){
+                return false;
+            }
+            args[i]=((ValueToken) ret.get(ret.size()-args.length+i)).value;
+        }
+        if(!(match.called instanceof Value.InternalProcedure)){
+            tState.ioContext.stdErr.println("compile-time evaluation is not supported for Callables of type "+
+                    match.called.getClass().getName());
+            return false;
+        }
+        ret.subList(ret.size()-args.length,ret.size()).clear();//type-stack is already updated
+        try {
+            args=((Value.InternalProcedure)match.called).callWith(args);
+            for(int i= args.length-1;i>=0;i--){
+                if(tState.typeStack().pop().type!=args[i].type)
+                    throw new RuntimeException("typeStack out of sync with tokens");
+            }
+            for (Value arg : args) {
+                ret.add(new ValueToken(arg, pos));
+                tState.typeStack().push(new TypeFrame(arg.type, new ValueInfo(arg), pos));
+            }
+        } catch (ConcatRuntimeError e) {
+            throw new SyntaxError(e,pos);
+        }
+        return true;
     }
 
     private static void typeCheckPushProcPointer(IdentifierToken identifier,FilePosition pos,TypeCheckState tState)
@@ -5092,6 +5131,5 @@ public class Parser {
             setOverloadedProcPtr(tokens,opp.getKey(),(Value)opp.getValue().called);
         }
     }
-
 
 }

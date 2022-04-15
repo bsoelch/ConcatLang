@@ -49,28 +49,28 @@ public class Type {
             super.initTypeFields();//addLater? make type-data getters return optional
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{TYPE},"content",
                     (values) ->
-                            new Value[]{Value.ofType(values[0].asType().content())}), declaredAt());
+                            new Value[]{Value.ofType(values[0].asType().content())},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"genericArguments",
                 (values) ->
                         new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
-                            values[0].asType().genericArguments().stream().map(Value::ofType).toArray(Value[]::new))}),
+                            values[0].asType().genericArguments().stream().map(Value::ofType).toArray(Value[]::new))},true),
                     declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"inTypes",
                 (values) ->
                         new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
-                            values[0].asType().inTypes().stream().map(Value::ofType).toArray(Value[]::new))}),
+                            values[0].asType().inTypes().stream().map(Value::ofType).toArray(Value[]::new))},true),
                     declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(TYPE)},"outTypes",
                 (values) ->
                         new Value[]{Value.createArray(Type.arrayOf(Type.TYPE),
-                            values[0].asType().outTypes().stream().map(Value::ofType).toArray(Value[]::new))}),
+                            values[0].asType().outTypes().stream().map(Value::ofType).toArray(Value[]::new))},true),
                     declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{RAW_STRING()},"name",
-                (values) -> new Value[]{Value.ofString(values[0].asType().name(),false)}),
+                (values) -> new Value[]{Value.ofString(values[0].asType().name(),false)},true),
                     declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{arrayOf(RAW_STRING())},"fieldNames",
                 (values) -> new Value[]{Value.createArray(Type.arrayOf(Type.RAW_STRING()),values[0].asType().fields()
-                            .stream().map(s->Value.ofString(s,false)).toArray(Value[]::new))}),
+                            .stream().map(s->Value.ofString(s,false)).toArray(Value[]::new))},true),
                     declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{ANY,UINT,TYPE},new Type[]{ANY},"getField",
                 (values) ->  {
@@ -81,28 +81,28 @@ public class Type {
                         throw new TypeError("cannot assign "+instance.type+" to "+type);
                     }
                     return new Value[]{instance.getField(index)};
-                }), declaredAt());
+                },true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isEnum",
-                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Enum)}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Enum)},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isArray",
-                (values) -> new Value[]{Value.ofBool(values[0].asType().isArray())}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isArray())},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMemory",
-                (values) -> new Value[]{Value.ofBool(values[0].asType().isMemory())}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isMemory())},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isProc",
-                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Type.Procedure)}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Type.Procedure)},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isOptional",
-                (values) -> new Value[]{Value.ofBool(values[0].asType().isOptional())}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isOptional())},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isTuple",
-                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Tuple)}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Tuple)},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isStruct",
-                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Struct)}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Struct)},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isUnion",
-                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof UnionType)}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof UnionType)},true), declaredAt());
 
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMutable",
-                (values) -> new Value[]{Value.ofBool(values[0].asType().isMutable())}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isMutable())},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMaybeMutable",
-                (values) -> new Value[]{Value.ofBool(values[0].asType().isMaybeMutable())}), declaredAt());
+                (values) -> new Value[]{Value.ofBool(values[0].asType().isMaybeMutable())},true), declaredAt());
         }
     };
     public static final Type BOOL  = new Type("bool",BITS8, false);
@@ -287,7 +287,7 @@ public class Type {
     }
     void initTypeFields() throws SyntaxError {
         addInternalField(new Value.InternalProcedure(new Type[]{this},new Type[]{TYPE},"type",
-                (values) ->  new Value[]{Value.ofType(values[0].valueType())}),declaredAt());
+                (values) ->  new Value[]{Value.ofType(values[0].valueType())},true),declaredAt());
         //addLater allow accessing current trait-interface at runtime
     }
     void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError{ }
@@ -697,25 +697,25 @@ public class Type {
             switch (wrapperName) {
                 case OPTIONAL -> {
                     addInternalField(new Value.InternalProcedure(new Type[]{this},new Type[]{BOOL}, "hasValue",
-                            (values) -> new Value[]{Value.ofBool(values[0].hasValue())}), declaredAt());
+                            (values) -> new Value[]{Value.ofBool(values[0].hasValue())},true), declaredAt());
                     //addLater static check if optional is nonempty
                     addInternalField(new Value.InternalProcedure(new Type[]{this},new Type[]{contentType}, "value",
-                            (values) -> new Value[]{values[0].unwrap()}), declaredAt());
+                            (values) -> new Value[]{values[0].unwrap()},true), declaredAt());
                 }
                 case MEMORY -> {
                     addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
                             new Type[]{UINT}, "length", (values) ->
-                            new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)}), declaredAt());
+                            new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)},false), declaredAt());
                     addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
                             new Type[]{UINT}, "capacity", (values) ->
-                            new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).capacity(), true)}), declaredAt());
+                            new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).capacity(), true)},false), declaredAt());
                     addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
                             new Type[]{UINT}, "offset", (values) ->
-                            new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).offset(), true)}), declaredAt());
+                            new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).offset(), true)},false), declaredAt());
                 }
                 case ARRAY -> addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
                         new Type[]{UINT}, "length", (values) ->
-                        new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)}), declaredAt());
+                        new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)},false), declaredAt());
             }
         }
 
@@ -985,9 +985,9 @@ public class Type {
             super.initTypeFields();
             addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{UINT},"length",
                 (values) ->
-                        new Value[]{Value.ofInt(values[0].length(),true)}),declaredAt());
+                        new Value[]{Value.ofInt(values[0].length(),true)},true),declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{arrayOf(ANY)},"elements",
-                (values) ->  new Value[]{Value.createArray(arrayOf(ANY),values[0].getElements())}),declaredAt());
+                (values) ->  new Value[]{Value.createArray(arrayOf(ANY),values[0].getElements())},true),declaredAt());
         }
 
         @Override

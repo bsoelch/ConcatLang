@@ -20,9 +20,9 @@ math #import
 0x0.4p-ff              float float_MIN_normal public =:
 0x0.00000000000004p-ff float float_MIN public =:
 
-float_NaN public #define 0 0.0 / #end ##addLater make constants (once '/' can be pre-evaluated )
-float_Positive_Infinity public #define 1 0.0 / #end
-float_Negative_Infinity public #define -1 0.0 / #end
+ 0 0.0 / float float_NaN public =:
+ 1 0.0 / float float_Positive_Infinity public =:
+-1 0.0 / float float_Negative_Infinity public =:
 
 float_isNaN public proc( float => bool ){
   float val =:

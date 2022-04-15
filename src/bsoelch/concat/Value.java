@@ -1367,27 +1367,33 @@ public abstract class Value {
         public static final FilePosition POSITION = new FilePosition("internal","internal", 0, 0);
 
         final ConcatRuntimeError.Function<Value[],Value[]> action;
+        final boolean compileTime;
 
         InternalProcedure(Type[] inTypes, Type[] outTypes, String name,
-                          ConcatRuntimeError.Function<Value[], Value[]> action) {
-            super(Type.Procedure.create(inTypes, outTypes,POSITION), name, POSITION);
-            this.action = action;
+                          ConcatRuntimeError.Function<Value[], Value[]> action,boolean compileTime) {
+            this(Type.Procedure.create(inTypes, outTypes,POSITION), name, action,compileTime);
         }
         InternalProcedure(Type.GenericParameter[] generics, Type[] inTypes, Type[] outTypes, String name,
-                                    ConcatRuntimeError.Function<Value[], Value[]> action) {
-            super(Type.GenericProcedureType.create(generics,inTypes, outTypes,POSITION), name, POSITION);
-            this.action = action;
+                          ConcatRuntimeError.Function<Value[], Value[]> action,boolean compileTime) {
+            this(Type.GenericProcedureType.create(generics,inTypes, outTypes,POSITION), name, action,compileTime);
         }
-        private InternalProcedure(Type.Procedure type, String name,ConcatRuntimeError.Function<Value[], Value[]> action) {
+        private InternalProcedure(Type.Procedure type, String name, ConcatRuntimeError.Function<Value[], Value[]> action,
+                                  boolean compileTime) {
             super(type, name, POSITION);
             this.action = action;
+            this.compileTime = compileTime;
+        }
+
+        @Override
+        public boolean compileTime() {
+            return compileTime;
         }
 
         @Override
         public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type newType=type.replaceGenerics(genericParams);
             if(newType!=type){
-                return new InternalProcedure((Type.Procedure) newType,name,action);
+                return new InternalProcedure((Type.Procedure) newType,name,action, false);
             }
             return this;
         }
@@ -1411,43 +1417,43 @@ public abstract class Value {
     static ArrayList<InternalProcedure> internalProcedures(){
         ArrayList<InternalProcedure> procs=new ArrayList<>();
         procs.add(new InternalProcedure(new Type[]{Type.ANY},new Type[]{Type.UINT},"refId",
-                (values) -> new Value[]{Value.ofInt(values[0].id(),true)}));
+                (values) -> new Value[]{Value.ofInt(values[0].id(),true)},false));
         procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"===",
-                (values) -> new Value[]{values[0].isEqualTo(values[1])?TRUE:FALSE}));
+                (values) -> new Value[]{values[0].isEqualTo(values[1])?TRUE:FALSE},false));
         procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"=!=",
-                (values) -> new Value[]{values[0].isEqualTo(values[1])?FALSE:TRUE}));
+                (values) -> new Value[]{values[0].isEqualTo(values[1])?FALSE:TRUE},false));
         //addLater? implement equals in standard library
         procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"==",
-                (values) -> new Value[]{values[0].equals(values[1])?TRUE:FALSE}));
+                (values) -> new Value[]{values[0].equals(values[1])?TRUE:FALSE},false));
         procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"!=",
-                (values) -> new Value[]{values[0].equals(values[1])?FALSE:TRUE}));
+                (values) -> new Value[]{values[0].equals(values[1])?FALSE:TRUE},false));
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone",
-                    (values) -> new Value[]{values[0].clone(false,null)}));
+                    (values) -> new Value[]{values[0].clone(false,null)},false));
         }
         {//cloning an immutable array creates a mutable copy
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a)},
                     new Type[]{Type.arrayOf(a).mutable()},"clone",
-                    (values) -> new Value[]{values[0].clone(false,values[0].type.mutable())}));
+                    (values) -> new Value[]{values[0].clone(false,values[0].type.mutable())},false));
         }
         {//cloning an immutable array creates a mutable copy
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable()},
                     new Type[]{Type.arrayOf(a).mutable()},"clone",
-                    (values) -> new Value[]{values[0].clone(false,values[0].type.mutable())}));
+                    (values) -> new Value[]{values[0].clone(false,values[0].type.mutable())},false));
         }
         {//cloning an immutable copy of a mutable array
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable()},
                     new Type[]{Type.arrayOf(a)},"clone-mut~",
-                    (values) -> new Value[]{values[0].clone(false,values[0].type.asArray().immutable())}));
+                    (values) -> new Value[]{values[0].clone(false,values[0].type.asArray().immutable())},false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone!",
-                    (values) -> new Value[]{values[0].clone(true,null)}));
+                    (values) -> new Value[]{values[0].clone(true,null)},false));
         }
 
         Type unsigned = Type.UnionType.create(new Type[]{Type.BYTE,Type.CODEPOINT,Type.UINT});
@@ -1455,100 +1461,100 @@ public abstract class Value {
         Type number  = Type.UnionType.create(new Type[]{integer,Type.FLOAT});
 
         procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!",
-                (values) -> new Value[]{values[0].asBool()?FALSE:TRUE}));
+                (values) -> new Value[]{values[0].asBool()?FALSE:TRUE},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"~",
-                (values) -> new Value[]{ofInt(~values[0].asLong(),false)}));
+                (values) -> new Value[]{ofInt(~values[0].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{Type.UINT},new Type[]{Type.UINT},"~",
-                (values) -> new Value[]{ofInt(~values[0].asLong(),true)}));
+                (values) -> new Value[]{ofInt(~values[0].asLong(),true)},true));
 
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"&",
-                (values) -> new Value[]{values[0].asBool()&&values[1].asBool()?TRUE:FALSE}));
+                (values) -> new Value[]{values[0].asBool()&&values[1].asBool()?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"|",
-                (values) -> new Value[]{values[0].asBool()||values[1].asBool()?TRUE:FALSE}));
+                (values) -> new Value[]{values[0].asBool()||values[1].asBool()?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"xor",
-                (values) -> new Value[]{values[0].asBool()^values[1].asBool()?TRUE:FALSE}));
+                (values) -> new Value[]{values[0].asBool()^values[1].asBool()?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"&",
-                (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),true)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),true)},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"&",
-                (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),false)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"|",
-                (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),true)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),true)},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"|",
-                (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),false)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"xor",
-                (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),true)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),true)},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"xor",
-                (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),false)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),false)},true));
 
         procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"<<",
-                (values) -> new Value[]{ofInt(values[0].asLong()<<values[1].asLong(),true)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()<<values[1].asLong(),true)},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"<<",
-                (values) -> new Value[]{ofInt(signedLeftShift(values[0].asLong(),values[1].asLong()),false)}));
+                (values) -> new Value[]{ofInt(signedLeftShift(values[0].asLong(),values[1].asLong()),false)},true));
         procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},">>",
-                (values) -> new Value[]{ofInt(values[0].asLong()>>>values[1].asLong(),true)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()>>>values[1].asLong(),true)},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},">>",
-                (values) -> new Value[]{ofInt(values[0].asLong()>>values[1].asLong(),false)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()>>values[1].asLong(),false)},true));
 
         procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"-_",
-                (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false)}));
+                (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false)},true));
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"-_",
-                (values) -> new Value[]{Value.ofFloat(-(values[0].asDouble()))}));
+                (values) -> new Value[]{Value.ofFloat(-(values[0].asDouble()))},true));
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"/_",
-                (values) -> new Value[]{Value.ofFloat(1.0/values[0].asDouble())}));
+                (values) -> new Value[]{Value.ofFloat(1.0/values[0].asDouble())},true));
         procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"+",
-                (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),true)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),true)},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"+",
-                (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),false)}));
+                (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"+",
-                (values) -> new Value[]{ofFloat(values[0].asDouble()+values[1].asDouble())}));
+                (values) -> new Value[]{ofFloat(values[0].asDouble()+values[1].asDouble())},true));
         procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"-",
-                (values)-> new Value[]{ofInt(values[0].asLong()-values[1].asLong(),true)}));
+                (values)-> new Value[]{ofInt(values[0].asLong()-values[1].asLong(),true)},true));
         procs.add(new InternalProcedure(new Type[]{integer,integer},new Type[]{Type.INT},"-",
-                (values) ->  new Value[]{ofInt(values[0].asLong()-values[1].asLong(),false)}));
+                (values) ->  new Value[]{ofInt(values[0].asLong()-values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"-",
-                (values) ->  new Value[]{ofFloat(values[0].asDouble()-values[1].asDouble())}));
+                (values) ->  new Value[]{ofFloat(values[0].asDouble()-values[1].asDouble())},true));
         procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"*",
-                (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),true)}));
+                (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),true)},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"*",
-                (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),false)}));
+                (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"*",
-                (values) ->  new Value[]{ofFloat(values[0].asDouble()*values[1].asDouble())}));
+                (values) ->  new Value[]{ofFloat(values[0].asDouble()*values[1].asDouble())},true));
         procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"/",
-                (values) ->  new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),true)}));
+                (values) ->  new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),true)},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"/",
-                (values) ->  new Value[]{ofInt(values[0].asLong()/values[1].asLong(),false)}));
+                (values) ->  new Value[]{ofInt(values[0].asLong()/values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"/",
-                (values) ->  new Value[]{ofFloat(values[0].asDouble()/values[1].asDouble())}));
+                (values) ->  new Value[]{ofFloat(values[0].asDouble()/values[1].asDouble())},true));
         procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"%",
-                (values) ->  new Value[]{ofInt(Long.remainderUnsigned(values[0].asLong(),values[1].asLong()),true)}));
+                (values) ->  new Value[]{ofInt(Long.remainderUnsigned(values[0].asLong(),values[1].asLong()),true)},true));
         procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"%",
-                (values) ->  new Value[]{ofInt(values[0].asLong()%values[1].asLong(),false)}));
+                (values) ->  new Value[]{ofInt(values[0].asLong()%values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"%",
-                (values) ->  new Value[]{ofFloat(values[0].asDouble()%values[1].asDouble())}));
+                (values) ->  new Value[]{ofFloat(values[0].asDouble()%values[1].asDouble())},true));
 
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])>0?TRUE:FALSE}));
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])>0?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">=",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])>=0?TRUE:FALSE}));
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])>=0?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])<0?TRUE:FALSE}));
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])<0?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<=",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])<=0?TRUE:FALSE}));
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])<=0?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"==",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])==0?TRUE:FALSE}));
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])==0?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"!=",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])!=0?TRUE:FALSE}));
+                (values) ->  new Value[]{compareNumbers(values[0],values[1])!=0?TRUE:FALSE},true));
 
         procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},"<=",
-                (values) ->  new Value[]{values[0].asType().canAssignTo(values[1].asType())?TRUE:FALSE}));
+                (values) ->  new Value[]{values[0].asType().canAssignTo(values[1].asType())?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},">=",
-                (values) ->  new Value[]{values[1].asType().canAssignTo(values[0].asType())?TRUE:FALSE}));
+                (values) ->  new Value[]{values[1].asType().canAssignTo(values[0].asType())?TRUE:FALSE},true));
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),Type.UINT},
                     new Type[]{a},"[]",
-                    (values) ->  new Value[]{((ArrayLike)values[0]).get(values[1].asLong())}));
+                    (values) ->  new Value[]{((ArrayLike)values[0]).get(values[1].asLong())},false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1557,7 +1563,7 @@ public abstract class Value {
                         //val list index
                         ((ArrayLike)values[1]).set(values[2].asLong(),values[0]);
                         return new Value[0];
-                    }));
+                    },false));
         }
 
 
@@ -1565,13 +1571,13 @@ public abstract class Value {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{Type.optionalOf(a)},
                     "wrap",
-                    (values) ->  new Value[]{wrap(values[0])}));
+                    (values) ->  new Value[]{wrap(values[0])},true));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.optionalOf(a)},
                     new Type[]{Type.BOOL},"!",
-                    (values) ->  new Value[]{values[0].hasValue()?FALSE:TRUE}));
+                    (values) ->  new Value[]{values[0].hasValue()?FALSE:TRUE},true));
         }
 
         {
@@ -1582,7 +1588,7 @@ public abstract class Value {
                         //list val
                         ((ArrayLike)values[0]).append(values[1]);
                         return new Value[0];
-                    }));
+                    },false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1592,7 +1598,7 @@ public abstract class Value {
                         //val list
                         ((ArrayLike)values[1]).prepend(values[0]);
                         return new Value[0];
-                    }));
+                    },false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1607,7 +1613,7 @@ public abstract class Value {
                         long count=values[4].asLong();
                         target.copyFrom(off,src.elements(),srcOff,count);
                         return new Value[0];
-                    }));
+                    },false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1622,7 +1628,7 @@ public abstract class Value {
                         long count=values[4].asLong();
                         target.copyFrom(off,src.elements(),srcOff,count);
                         return new Value[0];
-                    }));
+                    },false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1639,7 +1645,7 @@ public abstract class Value {
                         long count=values[5].asLong();
                         target.copyToSlice(sliceStart,sliceEnd,src.elements(),srcOff,count);
                         return new Value[0];
-                    }));
+                    },false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1653,7 +1659,7 @@ public abstract class Value {
                         long count=values[3].asLong();
                         target.fill(val,off,count);
                         return new Value[0];
-                    }));
+                    },false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1667,7 +1673,7 @@ public abstract class Value {
                         long count=values[3].asLong();
                         target.fill(val,off,count);
                         return new Value[0];
-                    }));
+                    },false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1680,7 +1686,7 @@ public abstract class Value {
                         long to=values[2].asLong();
                         mem.clearSlice(off,to);
                         return new Value[0];
-                    }));
+                    },false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1692,7 +1698,7 @@ public abstract class Value {
                         long newSize=values[1].asLong();
                         mem.reallocate(newSize);
                         return new Value[0];
-                    }));
+                    },false));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1704,7 +1710,7 @@ public abstract class Value {
                         long newOffset=values[1].asLong();
                         mem.setOffset(newOffset);
                         return new Value[0];
-                    }));
+                    },false));
         }
 
         return procs;
