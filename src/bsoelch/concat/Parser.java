@@ -32,7 +32,7 @@ public class Parser {
         TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
         TRAIT_FIELD_ACCESS,
         //compile time operations
-        ARRAY_OF,MEMORY_OF,OPTIONAL_OF,EMPTY_OPTIONAL,STACK_SIZE,
+        ARRAY_OF,MEMORY_OF,REFERENCE_TO,OPTIONAL_OF,EMPTY_OPTIONAL,STACK_SIZE,
         MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifiers
         //overloaded procedure pointer placeholders
         NOP,OVERLOADED_PROC_PTR
@@ -2211,12 +2211,13 @@ public class Parser {
                 case "bits256"    -> tokens.add(new ValueToken(Value.ofType(Type.MULTIBLOCK4),       pos));
                 case "bitsPtr"    -> tokens.add(new ValueToken(Value.ofType(Type.PTR),               pos));
 
-                case "mut?"     -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
-                case "mut^"     -> tokens.add(new Token(TokenType.MARK_INHERIT_MUTABILITY, pos));
-                case "array"    -> tokens.add(new Token(TokenType.ARRAY_OF,       pos));
-                case "memory"   -> tokens.add(new Token(TokenType.MEMORY_OF,      pos));
-                case "optional" -> tokens.add(new Token(TokenType.OPTIONAL_OF,    pos));
-                case "empty"    -> tokens.add(new Token(TokenType.EMPTY_OPTIONAL, pos));
+                case "mut?"      -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
+                case "mut^"      -> tokens.add(new Token(TokenType.MARK_INHERIT_MUTABILITY, pos));
+                case "array"     -> tokens.add(new Token(TokenType.ARRAY_OF,       pos));
+                case "memory"    -> tokens.add(new Token(TokenType.MEMORY_OF,      pos));
+                case "reference" -> tokens.add(new Token(TokenType.REFERENCE_TO,   pos));
+                case "optional"  -> tokens.add(new Token(TokenType.OPTIONAL_OF,    pos));
+                case "empty"     -> tokens.add(new Token(TokenType.EMPTY_OPTIONAL, pos));
 
                 case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
 
@@ -3348,6 +3349,8 @@ public class Parser {
                     typeCheckTypeModifier("array",(t1)->Value.ofType(Type.arrayOf(t1)),tState.ret,tState.typeStack(),t.pos);
                 case MEMORY_OF ->
                     typeCheckTypeModifier("memory",(t1)->Value.ofType(Type.memoryOf(t1)),tState.ret,tState.typeStack(),t.pos);
+                case REFERENCE_TO ->
+                    typeCheckTypeModifier("reference",(t1)->Value.ofType(Type.referenceTo(t1)),tState.ret,tState.typeStack(),t.pos);
                 case OPTIONAL_OF ->
                     typeCheckTypeModifier("optional",(t1)->Value.ofType(Type.optionalOf(t1)),tState.ret,tState.typeStack(),t.pos);
                 case EMPTY_OPTIONAL ->

@@ -98,6 +98,8 @@ public class Type {
                 (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof Struct)},true), declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isUnion",
                 (values) -> new Value[]{Value.ofBool(values[0].asType() instanceof UnionType)},true), declaredAt());
+            addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isReference",
+                    (values) -> new Value[]{Value.ofBool(values[0].asType().isReference())},true), declaredAt());
 
             addInternalField(new Value.InternalProcedure(new Type[]{TYPE},new Type[]{BOOL},"isMutable",
                 (values) -> new Value[]{Value.ofBool(values[0].asType().isMutable())},true), declaredAt());
@@ -415,6 +417,9 @@ public class Type {
     public boolean isOptional() {
         return false;
     }
+    public boolean isReference(){
+        return false;
+    }
     public boolean isRawString(){
         return false;
     }
@@ -576,14 +581,20 @@ public class Type {
         return WrapperType.create(WrapperType.OPTIONAL,contentType,Mutability.DEFAULT);
     }
 
+    public static Type referenceTo(Type contentType){
+        return WrapperType.create(WrapperType.REFERENCE,contentType,Mutability.DEFAULT);
+    }
+
     private static class WrapperType extends Type {
         static final HashMap<Type,WrapperType> arrays = new HashMap<>();
         static final HashMap<Type,WrapperType> memories = new HashMap<>();
         static final HashMap<Type,WrapperType> optionals = new HashMap<>();
+        static final HashMap<Type,WrapperType> references = new HashMap<>();
 
         static final ArrayList<GenericTraitImplementation> arrayTraits    = new ArrayList<>();
         static final ArrayList<GenericTraitImplementation> memoryTraits   = new ArrayList<>();
         static final ArrayList<GenericTraitImplementation> optionalTraits = new ArrayList<>();
+        static final ArrayList<GenericTraitImplementation> referenceTraits = new ArrayList<>();
 
         public static void resetCached(){
             arrays.clear();
@@ -594,6 +605,7 @@ public class Type {
         static final String ARRAY = "array";
         static final String MEMORY = "memory";
         static final String OPTIONAL = "optional";
+        static final String REFERENCE = "reference";
 
         final Type contentType;
         final String wrapperName;
@@ -604,6 +616,7 @@ public class Type {
                 case ARRAY -> cached = arrays.get(contentType);
                 case MEMORY -> cached = memories.get(contentType);
                 case OPTIONAL ->cached = optionals.get(contentType);
+                case REFERENCE ->cached = references.get(contentType);
                 default -> throw new IllegalArgumentException("unexpected type-wrapper : "+wrapperName);
             }
             if(cached!=null){
@@ -614,6 +627,7 @@ public class Type {
                 case ARRAY -> arrays.put(contentType,cached);
                 case MEMORY -> memories.put(contentType,cached);
                 case OPTIONAL -> optionals.put(contentType,cached);
+                case REFERENCE -> references.put(contentType,cached);
                 default -> throw new IllegalArgumentException("unexpected type-wrapper : "+wrapperName);
             }
             cached.initGenericTraits();//init generic traits after storing value in cache
@@ -630,7 +644,7 @@ public class Type {
 
         private static Type getBaseType(String wrapperName, Type contentBase) {
             switch (wrapperName) {
-                case ARRAY,MEMORY:
+                case ARRAY,MEMORY,REFERENCE:
                     return PTR;// data,len
                 case OPTIONAL:
                     if (contentBase == BITS8) {
@@ -670,6 +684,8 @@ public class Type {
                         traits=memoryTraits;
                     case OPTIONAL ->
                         traits=optionalTraits;
+                    case REFERENCE ->
+                            traits=referenceTraits;
                     default -> throw new RuntimeException("unexpected wrapper name:" + wrapperName);
                 }
                 for (GenericTraitImplementation t : traits) {
@@ -695,6 +711,7 @@ public class Type {
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();
             switch (wrapperName) {
+                case REFERENCE -> {}
                 case OPTIONAL -> {
                     addInternalField(new Value.InternalProcedure(new Type[]{this},new Type[]{BOOL}, "hasValue",
                             (values) -> new Value[]{Value.ofBool(values[0].hasValue())},true), declaredAt());
@@ -746,6 +763,10 @@ public class Type {
                 case OPTIONAL -> {
                     optionalTraits.add(impl);
                     types=optionals.values();
+                }
+                case REFERENCE -> {
+                    referenceTraits.add(impl);
+                    types=references.values();
                 }
                 default -> throw new RuntimeException("unexpected wrapper name:"+wrapperName);
             }
@@ -823,6 +844,10 @@ public class Type {
         public boolean isOptional() {
             return wrapperName.equals(OPTIONAL);
         }
+        @Override
+        public boolean isReference() {
+            return wrapperName.equals(REFERENCE);
+        }
 
         @Override
         public boolean canAssignTo(Type t, BoundMaps bounds) {
@@ -848,6 +873,13 @@ public class Type {
             if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
                 if (mutabilityIncompatible(t)) return false;//incompatible mutability
                 return content().canCastTo(t.content(),bounds);
+            }else if(wrapperName.equals(REFERENCE)){
+                BoundMaps newBounds=bounds.copy();
+                if(content().canCastTo(t,newBounds)){
+                    bounds.l.putAll(newBounds.l);
+                    bounds.r.putAll(newBounds.r);
+                    return true;
+                }
             }
             return super.canCastTo0(t,bounds);
         }
