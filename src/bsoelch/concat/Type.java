@@ -1801,8 +1801,10 @@ public class Type {
 
         @Override
         protected CastType canCastTo(Type t, BoundMaps bounds) {
-            if(t.hasTrait(this,bounds.swapped())||hasTrait(t, bounds))
+            if(hasTrait(t, bounds))
                 return CastType.CONVERT;
+            if(t.hasTrait(this,bounds.swapped()))
+                return CastType.RESTRICT;
             if(t instanceof Trait) {
                 if(mutabilityIncompatible(t)){
                     return CastType.NONE;
