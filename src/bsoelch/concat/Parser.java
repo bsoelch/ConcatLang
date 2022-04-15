@@ -4345,6 +4345,12 @@ public class Parser {
                         VariableId id = (VariableId) d;
                         VariableId prevId=id;
                         id = context.wrapCurried(identifier.name, id, identifier.pos);
+                        Value constValue = globalConstants.get(id);
+                        if (constValue != null) {
+                            typeStack.push(new TypeFrame(constValue.type,new ValueInfo(OwnerInfo.OUT_OF_SCOPE,constValue),t.pos));
+                            ret.add(new ValueToken(constValue, identifier.pos));
+                            break;
+                        }
                         ValueInfo contentOwner;
                         if(prevId!=id){
                             contentOwner = new ValueInfo(new OwnerInfo.Variable(id));
@@ -4353,15 +4359,9 @@ public class Parser {
                             contentOwner=tState.currentVariables().get(id);
                         }
                         assert contentOwner!=null;
-                        Value constValue = globalConstants.get(id);
-                        if (constValue != null) {
-                            typeStack.push(new TypeFrame(constValue.type,new ValueInfo(OwnerInfo.OUT_OF_SCOPE,constValue),t.pos));
-                            ret.add(new ValueToken(constValue, identifier.pos));
-                        } else {
-                            typeStack.push(new TypeFrame(id.type,contentOwner,t.pos));
-                            ret.add(new VariableToken(identifier.pos, identifier.name, id,
-                                    AccessType.READ, context));
-                        }
+                        typeStack.push(new TypeFrame(id.type,contentOwner,t.pos));
+                        ret.add(new VariableToken(identifier.pos, identifier.name, id,
+                                AccessType.READ, context));
                     }
                     case MACRO ->
                             throw new SyntaxError("Unable to expand macro \""+((Macro)d).name+
