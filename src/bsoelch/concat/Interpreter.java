@@ -164,20 +164,23 @@ public class Interpreter {
                         Parser.VariableToken asVar=(Parser.VariableToken) next;
                         switch (asVar.accessType){
                             case READ -> {
+                                Value[] values;
                                 switch (asVar.variableType){
                                     case GLOBAL ->
-                                            stack.push((globalVariables==null?variables:globalVariables)
-                                                    .get(asVar.id.level)[asVar.id.id]);
+                                            values=(globalVariables==null?variables:globalVariables)
+                                                    .get(asVar.id.level);
                                     case LOCAL -> {
                                         if (globalVariables != null) {
-                                            stack.push(variables.get(asVar.id.level)[asVar.id.id]);
+                                            values=variables.get(asVar.id.level);
                                         }else{
                                             throw new RuntimeException("access to local variable outside of procedure");
                                         }
                                     }
                                     case CURRIED ->
-                                            stack.push(curried[asVar.id.id]);
+                                            values=curried;
+                                    default -> throw new RuntimeException("unexpected variableType:"+asVar.variableType);
                                 }
+                                stack.push(values[asVar.id.id]);
                             }
                             case WRITE -> {
                                 Value newValue=stack.pop();
@@ -231,7 +234,7 @@ public class Interpreter {
                         ioContext.stdErr.println("unresolved overloaded procedure pointer: "+next.pos);
                         return ExitType.ERROR;
                     }
-                    case DECLARE_LAMBDA, IDENTIFIER,OPTIONAL_OF,EMPTY_OPTIONAL,
+                    case DECLARE_LAMBDA, IDENTIFIER,REFERENCE_TO,OPTIONAL_OF,EMPTY_OPTIONAL,
                             MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,ARRAY_OF,MEMORY_OF,STACK_SIZE ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +
                                     " should be eliminated at compile time");
