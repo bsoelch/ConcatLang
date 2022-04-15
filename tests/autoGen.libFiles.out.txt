@@ -18,6 +18,10 @@ arrays:
 
 Stack:
 []
+complex:
+
+Stack:
+[]
 utf8:
 
 Stack:

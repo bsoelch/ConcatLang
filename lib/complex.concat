@@ -1,0 +1,48 @@
+lib/complex:
+
+core #namespace
+
+Complex public struct{ A <>
+  A :real      restricted
+  A :imaginary restricted
+}
+
+newComplex public proc( A <?> A A => A Complex ){
+  #+real+# #+imaginary+# A Complex new return
+}
+
++ public proc( A <?> A Complex A Complex => A Complex ){
+  y =::
+  x =::
+  x .real y .real +  x .imaginary y .imaginary +  A Complex new
+}
+- public proc( A <?> A Complex A Complex => A Complex ){
+  y =::
+  x =::
+  x .real y .real -  x .imaginary y .imaginary -  A Complex new
+}
+-_ public proc( A <?> A Complex  => A Complex ){
+  x =::
+  x .real -_  x .imaginary -_ A Complex new
+}
+* public proc( A <?> A Complex A Complex => A Complex ){
+  y =::
+  x =::
+  x .real y .real * x .imaginary y .imaginary * -   x .real y .imaginary * x .imaginary y .real * +  A Complex new
+}
+/_ public proc( A <?> A Complex  => A Complex ){
+  x =::
+  x .real x .real * x .imaginary x .imaginary * + s =::
+  x .real s / x .imaginary -_ s / A Complex new
+}
+/ public proc( A <?> A Complex A Complex  => A Complex ){
+  y =::
+  x =::
+  y .real y .real * y .imaginary y .imaginary * + s =::
+
+  x .real y .real * x .imaginary y .imaginary * + s /
+  x .imaginary y .real * x .real y .imaginary * - s / A Complex new
+}
+## addLater mod, extensions of math functions
+
+#end

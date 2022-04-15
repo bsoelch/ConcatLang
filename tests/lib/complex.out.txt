@@ -1,0 +1,9 @@
+(float:-1.0,float:-2.0)
+(float:4.0,float:6.0)
+(float:-2.0,float:-2.0)
+(float:-5.0,float:10.0)
+(float:0.2,float:-0.4)
+(float:0.44,float:0.08)
+
+Stack:
+[]

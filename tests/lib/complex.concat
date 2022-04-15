@@ -1,0 +1,14 @@
+tests/lib/complex:
+
+complex #include
+core #import
+
+1.0 2 newComplex c =::
+3.0 4 newComplex d =::
+
+c -_ debugPrint
+c d + debugPrint
+c d - debugPrint
+c d * debugPrint
+c /_ debugPrint
+c d / debugPrint
