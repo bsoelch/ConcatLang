@@ -1,0 +1,11 @@
+3
+(byte array mut~:div0,Location List mut:(Location memory mut:[Location:(byte array mut~:tests/lib/exception,uint:8,uint:12)]))
+0
+(byte array mut~:div0,Location List mut:(Location memory mut:[Location:(byte array mut~:tests/lib/exception,uint:8,uint:12)]))
+________________________________________
+4
+(byte array mut~:invalid number,Location List mut:(Location memory mut:[Location:(byte array mut~:tests/lib/exception,uint:22,uint:22)]))
+(byte array mut~:invalid number,Location List mut:(Location memory mut:[Location:(byte array mut~:tests/lib/exception,uint:22,uint:22), Location:(byte array mut~:tests/lib/exception,uint:26,uint:15), Location:(byte array mut~:tests/lib/exception,uint:26,uint:15), Location:(byte array mut~:tests/lib/exception,uint:26,uint:15)]))
+
+Stack:
+[]

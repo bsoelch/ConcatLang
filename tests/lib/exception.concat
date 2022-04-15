@@ -1,0 +1,31 @@
+tests/lib/exception:
+
+exception #include
+core #import
+
+saveDiv proc( int int => union( int Exception ) ){
+  dup 0 == if{
+    "div0" $throwMessage
+  }
+  / return
+}
+
+42 13 saveDiv debugPrint
+42  0 saveDiv debugPrint
+ 0 13 saveDiv debugPrint
+ 0  0 saveDiv debugPrint
+
+"________________________________________" debugPrint
+
+check proc( int => union( int Exception ) ){
+  dup 0 < if{
+    "invalid number" $throwMessage
+  else dup 0 == if
+    #+number+# return
+  else
+    2 - check $rethrow int cast 2 + return
+  }
+}
+ 4 check debugPrint
+-2 check debugPrint
+ 5 check debugPrint
