@@ -2082,7 +2082,8 @@ public class Parser {
                 case "#loc" ->{ // pushes the current location on the stack
                     FilePosition basePos=pos;
                     while(basePos.expandedAt!=null){basePos=basePos.expandedAt;}
-                    tokens.add(new ValueToken(Value.ofString(basePos.path,false),pos));
+                    tokens.add(new ValueToken(Value.ofString(FilePosition.ID_MODE? basePos.fileId :basePos.path,
+                            false),pos));
                     tokens.add(new ValueToken(Value.ofInt(basePos.line,true),pos));
                     tokens.add(new ValueToken(Value.ofInt(basePos.posInLine,true),pos));
                 }
