@@ -932,16 +932,18 @@ public class Parser {
         final FilePosition pos;
         final String name;
         final boolean isPublic;
+        final int nArgs;
         final ArrayList<StringWithPos> content;
-        Macro(FilePosition pos, String name,boolean isPublic,ArrayList<StringWithPos> content) {
+        Macro(FilePosition pos, String name, boolean isPublic, int nArgs, ArrayList<StringWithPos> content) {
             this.pos=pos;
             this.name=name;
             this.isPublic=isPublic;
+            this.nArgs = nArgs;
             this.content=content;
         }
         @Override
         public String toString() {
-            return "macro " +name+":"+content;
+            return "macro "+(nArgs>0?"("+nArgs+")":"") +name+":"+content;
         }
         @Override
         public DeclareableType declarableType() {
@@ -2027,20 +2029,23 @@ public class Parser {
             }
             if(parseConstant(str,tokens,pos))
                 return;
+            if(str.startsWith("#define:")){
+                long argCount;
+                try {
+                    argCount = Long.parseLong(str.substring("#define:".length()));
+                }catch (NumberFormatException nfe){
+                    throw new SyntaxError(nfe,pos);
+                }
+                if(argCount<0||argCount>Integer.MAX_VALUE){
+                    throw new SyntaxError("argCount outside allowed range: 0 to "+Integer.MAX_VALUE,pos);
+                }
+                parseMacroDefinition(pState, pos, tokens, prev, prevId,(int)argCount);
+                return;
+            }
             switch (str){
                 //code-sections
-                case "#define"->{
-                    if(pState.openBlocks.size()>0){
-                        throw new SyntaxError("macros can only be defined at root-level",pos);
-                    }
-                    if(prevId!=null){
-                        tokens.remove(tokens.size()-1);
-                        finishParsing(pState,pos);
-                        pState.currentMacro=new Macro(pos,prevId,((IdentifierToken) prev).isPublicReadable(),new ArrayList<>());
-                    }else{
-                        throw new SyntaxError("invalid token preceding #define: "+prev+" expected identifier",pos);
-                    }
-                }
+                case "#define"->
+                    parseMacroDefinition(pState, pos, tokens, prev, prevId,0);
                 case "#namespace"-> {
                     if(pState.openBlocks.size()>0){
                         throw new SyntaxError("namespaces can only be declared at root-level",pos);
@@ -2238,6 +2243,20 @@ public class Parser {
         }
     }
 
+
+    private static void parseMacroDefinition(ParserState pState, FilePosition pos, ArrayList<Token> tokens,
+                                             Token prev, String prevId,int argCount) throws SyntaxError {
+        if(pState.openBlocks.size()>0){
+            throw new SyntaxError("macros can only be defined at root-level", pos);
+        }
+        if(prevId !=null){
+            tokens.remove(tokens.size()-1);
+            finishParsing(pState, pos);
+            pState.currentMacro=new Macro(pos, prevId,((IdentifierToken) prev).isPublicReadable(), argCount, new ArrayList<>());
+        }else{
+            throw new SyntaxError("invalid token preceding #define: "+ prev +" expected identifier", pos);
+        }
+    }
     private static void parseCompilerCommand(String str, ParserState pState, FilePosition pos) {
         String[] commands= str.substring("#compiler:".length()).split(":");
         switch (commands[0]){
@@ -2986,7 +3005,24 @@ public class Parser {
 
     private static void expandMacro(ParserState pState, Macro m, FilePosition pos) throws SyntaxError {
         m.markAsUsed();
+        if(pState.uncheckedCode.size()<m.nArgs){
+            throw new SyntaxError("no enough arguments for macro "+m.name+" expected: "+m.nArgs+" got:"+
+                    pState.uncheckedCode.size(),pos);
+        }
+        List<Token> subList = pState.uncheckedCode.subList(pState.uncheckedCode.size()-m.nArgs,pState.uncheckedCode.size());
+        Token[] args= subList.toArray(Token[]::new);
+        subList.clear();
         for(StringWithPos s:m.content){
+            if(s.str.startsWith("#")){
+                try{
+                    long i=Long.parseLong(s.str.substring(1));
+                    if(i<0||i>= args.length){
+                        throw new SyntaxError("argument index out of range:"+i+" argCount:"+args.length,pos);
+                    }
+                    pState.uncheckedCode.add(args[(int)i]);//addLater update position
+                    continue;
+                }catch (NumberFormatException ignored){}
+            }
             finishWord(s.str,pState,new FilePosition(s.start, pos));
         }
     }
