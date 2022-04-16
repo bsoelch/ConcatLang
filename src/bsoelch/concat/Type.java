@@ -340,7 +340,6 @@ public class Type {
         return equals(t)||t==baseType;
     }
 
-
     /**@return true if this type has the trait t*/
     public final boolean hasTrait(Trait t){
         return hasTrait(t,new BoundMaps());
@@ -2495,22 +2494,27 @@ public class Type {
             if(t instanceof GenericParameter){
                 return super.canCastTo(t, bounds);
             }
-            CastType match=CastType.NONE;
+            CastType match=CastType.ASSIGN;
             for(Type e:elements){
                 CastType castType = e.canCastTo(t, bounds);
                 switch (castType){
-                    case ASSIGN,CONVERT -> {
-                        return CastType.CONVERT;
+                    case ASSIGN -> {} //do nothing
+                    case CONVERT -> {
+                        if (match == CastType.ASSIGN)
+                            match = CastType.CONVERT;
                     }
-                    case CAST -> match=CastType.CAST;
-                    case RESTRICT -> {
-                        if (match != CastType.CAST)
-                            match = CastType.RESTRICT;
+                    case CAST -> {
+                        if(match!=CastType.RESTRICT)
+                            match = CastType.CAST;
                     }
-                    case NONE -> {}//do nothing
+                    case RESTRICT ->
+                        match = CastType.RESTRICT;
+                    case NONE -> {
+                        return super.canCastTo0(t, bounds);
+                    }
                 }
             }
-            return match!=CastType.NONE?match:super.canCastTo(t, bounds);
+            return match;
         }
     }
 
