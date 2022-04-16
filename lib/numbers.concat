@@ -144,8 +144,8 @@ intToString public proc( #+value+# int #+base+# int #+signed+# bool #+big+# bool
   value log base log / floor int e mut =:
   e int e_max mut =:
   base e float cast pow float p mut =:
-  64 int newList buff =::
-  0 n =::
+  64 int newList buff mut =::
+  0 n mut =::
   while{ p eps > do
     value p / floor int cast int d =:
     buff d << buff =

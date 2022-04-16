@@ -325,12 +325,8 @@ public class Parser {
                 throw new RuntimeException("all variables (including curried ones) should be global, " +
                         "or part of the current context");
             }
-            if(access==AccessType.WRITE){
-                if(id.mutability==Mutability.IMMUTABLE){
-                    throw new SyntaxError("cannot write to immutable variable "+name,pos);
-                }else if(id.mutability==Mutability.UNDECIDED){
-                    id.mutability=Mutability.MUTABLE;
-                }
+            if(access==AccessType.WRITE&&id.mutability!=Mutability.MUTABLE){
+                throw new SyntaxError("cannot write to immutable variable "+name,pos);
             }
         }
         @Override
@@ -1022,7 +1018,7 @@ public class Parser {
         final Type type;
         final Accessibility accessibility;
         final int id;
-        Mutability mutability;
+        final Mutability mutability;
         final FilePosition declaredAt;
 
         VariableId(VariableContext context, int level, int id, Type type, Mutability mutability,
@@ -1582,7 +1578,6 @@ public class Parser {
                 if(id.mutability==Mutability.MUTABLE){
                     throw new SyntaxError("cannot curry mutable variable "+name+" (declared at "+id.declaredAt+")",pos);
                 }
-                id.mutability=Mutability.IMMUTABLE;
                 if(!(id.context instanceof TopLevelContext)){
                     id=new CurriedVariable(id,this, curried.size(), pos);
                     curried.add((CurriedVariable)id);//curry variable
@@ -4425,7 +4420,7 @@ public class Parser {
                 if(d==null){
                     throw new SyntaxError("variable "+identifier.name+" does not exist", t.pos);
                 }//no else
-                if(d.declarableType()!=DeclareableType.VARIABLE||((VariableId)d).mutability==Mutability.IMMUTABLE){
+                if(d.declarableType()!=DeclareableType.VARIABLE||((VariableId)d).mutability!=Mutability.MUTABLE){
                     throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
                             identifier.name+" (declared at "+d.declaredAt()+") is not a mutable variable", t.pos);
                 }//no else
@@ -4434,7 +4429,6 @@ public class Parser {
                             +") has cannot be modified",t.pos);
                 }
                 VariableId id=(VariableId) d;
-                id.mutability=Mutability.MUTABLE;
                 context.wrapCurried(identifier.name,id,identifier.pos);
                 assert !globalConstants.containsKey(id);
                 TypeFrame f = typeStack.pop();

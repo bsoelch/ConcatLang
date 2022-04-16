@@ -63,10 +63,10 @@ indexOf public proc( A <?> A array A array => int ){
   b =::
   a =::
   a .length b .length - int iMax =:
-  0 i =::
-  false match =::
+  0 i mut =::
+  false match mut =::
   while{ i iMax <= do
-    0 j =::
+    0 j mut =::
     true match =
     while{ match &&{ j b .length < } do
       a i j + [] b j [] != if{
@@ -86,10 +86,10 @@ lastIndexOf public proc( A <?> A array A array => int ){
   b =::
   a =::
   a .length b .length - int iMax =:
-  iMax i =::
-  false match =::
+  iMax i mut =::
+  false match mut =::
   while{ i 0 >= do
-    0 j =::
+    0 j mut =::
     true match =
     while{ match &&{ j b .length < } do
       a i j + [] b j [] != if{

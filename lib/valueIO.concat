@@ -12,8 +12,8 @@ list #include
 
 <<array public proc( A <?> StringBuilder A array mut? => StringBuilder ){
   A array mut? value =:
-  '[' << res =::
-  0 i =::
+  '[' << res mut =::
+  0 i mut =::
   while{ i value .length < do
     i 0 > if{
       res ", " <<* res =
@@ -39,7 +39,7 @@ list #include
     value ustring mut? cast <<* return
   else value .type .isTuple if
     value ( ) cast .elements elements =::
-    0 i =::
+    0 i mut =::
     '(' <<
     while{ i elements .length < do
       i 0 > if{
@@ -52,7 +52,7 @@ list #include
   else value .type .isStruct if
     value .type sType =::
     sType .fieldNames fields =::
-    0 i =::
+    0 i mut =::
     '(' <<
     while{ i fields .length < do
       i 0 > if{
@@ -69,8 +69,8 @@ list #include
   else value .type .isEnum if
     value .type .name <<* ' ' << value .type .fieldNames value uint cast [] <<* " ." <<* return
   else value .type type == if
-    value type cast .genericArguments args =::
-    0 i =::
+    value type cast .genericArguments args mut =::
+    0 i mut =::
     while{ i args .length < do
         args i [] <<s " " <<*
         i 1 + i =
@@ -359,7 +359,7 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
     32 buildString
     format .format << " is no valid format specifier\n" <<* .build eputs
     1 exit
-  } res =::
+  } res mut =::
   res .length width < if{
     width res .length - int count =:
     format .flags IO_FLAG_PAD_0 & 0 != if{ '0' else ' ' } byte padChar =:
@@ -390,14 +390,14 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
   string format =:
   var array mut? args =:
 
-  format .length 4 / Format newList parts =::
+  format .length 4 / Format newList parts mut =::
   0 int i0 mut =:
   0 int i mut =:
   format .length int n  =:
    0 int count mut =:
   -1 int maxFormat mut =:
   0 byte tmpC mut =:
-  0 buildString tmp =::
+  0 buildString tmp mut =::
   while{ i0 n < do
     i0 i =
     while{ i format .length < &&{ format i [] '%' != } do

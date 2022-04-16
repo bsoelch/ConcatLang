@@ -6,7 +6,7 @@ valueIO #include
 uintToBytes public proc( uint => byte array ){
   uint val mut =:
   0 8 byte array mut new rawData =::
-  0 i =::
+  0 i mut =::
   while{ i 8 < do
     val 0xff & byte cast rawData i []=
     val 8 >> val =

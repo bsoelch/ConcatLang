@@ -73,7 +73,7 @@ filter public proc( A <?> A FilteredIterator ( A => bool ) => A Iterator ){
 implement{ A <> A Iterator A FilteredIterator for
   ^> proc( A FilteredIterator => A Iterator A optional ){
     prev =::
-    false match =::
+    false match mut =::
     prev .base while{ .^> do val =:: ## no-for loop since value of iterator is needed
       true match =
       0 while{ dup prev .filters .length < do
@@ -147,7 +147,7 @@ implement{ A <> A Iterator A ConcatenatedIterator for
     else itr .iterators .length 1 == if
       itr .iterators 0 [] .^> return ## only one iterator in chain
     }
-    itr .iterators 0 [] .^> res =::
+    itr .iterators 0 [] .^> res mut =::
     res .hasValue if{
       itr .iterators clone iterators =::
       #+newItr+# iterators 0 []=

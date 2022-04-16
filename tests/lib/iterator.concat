@@ -1,4 +1,4 @@
-test/iterator :
+lib/tests/iterator :
 
 stack #include
 iterator #include
@@ -8,7 +8,7 @@ core #import
 reverse proc( string => string ){
   string toReverse =:
   ## store type and length of the list
-  toReverse .length buildString res =::
+  toReverse .length buildString res mut =::
   ## Iterate though the elements in reverse order
   toReverse _^ while{ .<^ do
     byte cast res swap << res =

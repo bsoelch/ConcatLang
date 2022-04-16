@@ -233,7 +233,7 @@ remove public proc( A <?> A List mut uint => A ){
   #+prev+# return
 }
 remove public proc( A <?> A ListSlice mut uint => A ){
-  index =::
+  index mut =::
   slice =::
   index 0 < ||{ index slice .length >= } if{
     64 buildString

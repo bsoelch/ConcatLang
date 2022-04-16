@@ -19,8 +19,8 @@ newBufferedInput public proc( FILE #+ cap +# int => BufferedInput ){
 
 ##addLater read to array
 read public proc( BufferedInput #+buffer+# byte memory mut #+off+# int #+amount+# uint => #+n-read+#int ){
-  count =::
-  offset =::
+  count  mut =::
+  offset mut =::
   buffer =::
   in =::
   in .buffer inBuf =::

@@ -1,4 +1,4 @@
-lib/lists :
+lib/arrays :
 
 core #namespace
 stack #include
@@ -10,7 +10,7 @@ binarySearch public proc( A <?> A array mut? A => int ){
   A array mut? data =:
   0            uint l mut =:
   data .length uint r mut =:
-  l r + 2 / c =::
+  l r + 2 / c mut =::
   while{
     val data c [] < if{
       c r =
@@ -29,7 +29,7 @@ binarySearch2 public proc( A <?> A array mut? ( A A => int ) A => int ){
   A array mut? data =:
   0            uint l mut =:
   data .length uint r mut =:
-  l r + 2 / c =::
+  l r + 2 / c mut =::
   while{
     val data c [] cmp () cp =::
     cp 0 < if{
@@ -46,7 +46,7 @@ binarySearch2 public proc( A <?> A array mut? ( A A => int ) A => int ){
 
 reverse public proc( A <?> A array mut  => ){
   toReverse =::
-  0 i =::
+  0 i mut =::
   toReverse .length 1 - int maxId =:
   while{ i toReverse .length 2 / < do
     toReverse i [] A tmp =:
@@ -155,7 +155,7 @@ map public proc( A <?> B <?> A array mut? ( A => B ) => B array mut ){
   f =::
   l =::
   l .length B memory mut new res =::
-  0 i =::
+  0 i mut =::
   while{ i l .length < do
     res l i [] f () []^=
     i 1 + i =
@@ -166,7 +166,7 @@ filter public proc( A <?> A array mut? ( A => bool ) => A array mut ){
   f =::
   l =::
   l .length A memory mut new res =::
-  0 i =::
+  0 i mut =::
   while{ i l .length < do
     l i [] f () if{
       res l i [] []^=

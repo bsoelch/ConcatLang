@@ -54,7 +54,7 @@ list #include
 
 <<* public proc( UStringBuilder string mut? => UStringBuilder ){
   append =::
-  value  =::
+  value mut =::
   value .length append .length +  value .ensureCap
   append 0u
   while{ nextCodepoint do
@@ -91,7 +91,7 @@ list #include
   }
 }
 *>> public proc( ustring mut? StringBuilder => StringBuilder ){
-  value =::
+  value mut =::
   append =::
   value .length append .length +  value .ensureCap
   append .length 1 - int i mut =:

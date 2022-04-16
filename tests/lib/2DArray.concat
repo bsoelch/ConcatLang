@@ -7,7 +7,7 @@ io #include
 
 core #import
 
-0  3 4 int newMatrix matrix1 =::
+0  3 4 int newMatrix matrix1 mut =::
 
 0 while{ dup matrix1 .width < do
   0 while{ dup matrix1 .height < do

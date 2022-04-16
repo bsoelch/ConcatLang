@@ -177,8 +177,8 @@ HashMapItr struct{ K <> V <>
 implement{ K <> V <> K V MapEntry Iterator  K V HashMapItr for
   ^> proc( K V HashMapItr => K V MapEntry Iterator  K V MapEntry optional ){
     K V HashMapItr itr =:
-    itr .index index =::
-    itr .next  next =::
+    itr .index index mut =::
+    itr .next  next  mut =::
     while{ next ! do
       index 1 + index =
       index itr .map .data .length >= if{

@@ -541,7 +541,7 @@ RootContext.file proc( RootContext mut? => OpenFile ){
 RootContext.inCurrentModule proc( RootContext mut? #+name+# string => string ){
    string name =:
    #+context+# RootContext.file .openModules namespaces =::
-   name .length buildString path =::
+   name .length buildString path mut =::
    namespaces length 0 > if{
      0 int i mut =:
      while{ i namespaces length < do
@@ -569,9 +569,9 @@ RootContext.startModule proc( RootContext mut? #+name+# string #+declaredAt+# Fi
     fPos  << '\n' << .build eputs
     1 exit
   }
-  context "" RootContext.inCurrentModule buildString fullPath =::
-  16 string newList path =::
-  16 buildString tmp =::
+  context "" RootContext.inCurrentModule buildString fullPath mut =::
+  16 string newList path mut =::
+  16 buildString tmp mut =::
   0 int i mut =:
   while{ i name .length < do
     fullPath name i [] << fullPath =
@@ -670,7 +670,7 @@ RootContext.endFile proc( RootContext mut? FilePosition mut? => ){
 RootContext.currentPaths proc( RootContext mut? => string List mut ){
   #+context+# RootContext.file OpenFile file =:
   file .globalImports clone string List mut paths mut =:
-  16 buildString path =::
+  16 buildString path mut =::
   file .openModules namespaces =::
   0 int i mut =:
   while{ i namespaces length < do
@@ -744,7 +744,7 @@ RootContext.declareEnum proc( #+context+# RootContext mut? #+source+# EnumBlock 
   0 int i mut =:
   anEnum .enumType .fields NameWithPos array fields =:
   while{ i fields .length < do
-    source .name buildString MODULE_SEPARATOR << fields i [] .name <<* .build fieldName =::
+    source .name buildString MODULE_SEPARATOR << fields i [] .name <<* .build fieldName mut =::
     context fieldName DeclareableType .ENUM_ENTRY fields i [] .pos Context.ensureDeclareable fieldName =
     anEnum .enumType i newEnumEntry context .elements fieldName HashMap.put drop
     i 1 + i =
@@ -901,8 +901,8 @@ Program struct{
 parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition mut? #+open_blocks+# OpenBlocks mut
   #+program+# Program mut => ){
   Program mut program =:
-  program .context context =::
-  program .tokens tokens =::
+  program .context context mut =::
+  program .tokens tokens mut =::
   OpenBlocks mut openBlocks =:
   FilePosition mut? fPos =:
   string next =:
@@ -1533,7 +1533,7 @@ parseWord proc( #+word+# string #+next+# string #+pos+# FilePosition mut? #+open
           tokens tBlock .start tokens length [:] subList =::
           subList constEvaluate values =::
           subList clear
-          values length Type newList types =::
+          values length Type newList types mut =::
           0 int i mut =:
           while{ i values length < do
             values i [] .tokenType TokenType .VALUE != if{
@@ -1682,7 +1682,7 @@ readEscapeChar proc( ParserReader => ){
 parseFile proc( #+fileName+# string #+program+# Program mut =>  ){
   Program mut program =:
   program .context context =::
-  program .tokens tokens =::
+  program .tokens tokens mut =::
   string fileName =:
   fileName "r" open if{ #+auto-unwrap+# else
     20 fileName .length + buildString
@@ -1902,8 +1902,8 @@ parseFile proc( #+fileName+# string #+program+# Program mut =>  ){
 
 constEvaluate proc( Token mut ListSlice mut => Token mut List mut ){
   tokens =::
-  tokens .length Token mut newList res =::
-  0 i =::
+  tokens .length Token mut newList res mut =::
+  0 i mut =::
   while{ i tokens .length < do
     tokens i [] .tokenType switch{
       VALUE case
