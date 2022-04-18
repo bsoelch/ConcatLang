@@ -301,7 +301,7 @@ public class Type {
                 (values) ->  new Value[]{Value.ofType(values[0].valueType())},true),declaredAt());
         //addLater allow accessing current trait-interface at runtime
     }
-    void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError{ }
+    void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError{ }
 
     @Override
     public final boolean equals(Object o) {
