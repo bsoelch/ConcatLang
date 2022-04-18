@@ -709,11 +709,11 @@ public class Type {
             try {
                 switch (wrapperName) {
                     case ARRAY ->
-                        traits=arrayTraits;
+                            traits=arrayTraits;
                     case MEMORY ->
-                        traits=memoryTraits;
+                            traits=memoryTraits;
                     case OPTIONAL ->
-                        traits=optionalTraits;
+                            traits=optionalTraits;
                     case REFERENCE ->
                             traits=referenceTraits;
                     default -> throw new RuntimeException("unexpected wrapper name:" + wrapperName);
