@@ -125,7 +125,7 @@ public class Type {
         return WrapperType.create(WrapperType.ARRAY, Type.BYTE, Mutability.IMMUTABLE);
     }
 
-    public static Optional<Type> commonSuperType(Type a, Type b,boolean strict) {
+    public static Optional<Type> commonSuperType(Type a, Type b,boolean strict,boolean deRef) {
         if(a==b||b==null){
             return Optional.of(a);
         }else if(a==null){
@@ -135,6 +135,14 @@ public class Type {
                 return Optional.of(b);
             }else if(b.canAssignTo(a)){
                 return Optional.of(a);
+            }else if(deRef&&a.isReference()&&a.content().canAssignTo(b)){
+                    return Optional.of(b);
+            }else if(deRef&&a.isReference()&&b.canAssignTo(a.content())){
+                return Optional.of(a.content());
+            }else if(deRef&&b.isReference()&&b.content().canAssignTo(a)){
+                return Optional.of(a);
+            }else if(deRef&&b.isReference()&&a.canAssignTo(b.content())){
+                return Optional.of(b.content());
             }else if((!strict)&&((a==UINT||a==INT)&&(b==UINT||b==INT))){//TODO better handling of implicit casting of numbers
                 return Optional.of(UnionType.create(new Type[]{a,b}));
             }else if((!strict)&&((a==FLOAT&&(b==UINT||b==INT))||(b==FLOAT&&(a==UINT||a==INT)))){
@@ -149,7 +157,7 @@ public class Type {
         }
     }
     public static Type commonSuperTypeThrow(Type a, Type b,boolean strict) {
-        Optional<Type> opt=commonSuperType(a, b, strict);
+        Optional<Type> opt=commonSuperType(a, b, strict,false);
         if(opt.isEmpty()){
             throw new WrappedConcatError(new TypeError("Cannot merge types "+a+" and "+b));
         }
@@ -319,7 +327,7 @@ public class Type {
                 if(bound.min==null||bound.min.canAssignTo(this,bounds.swapped())) {
                     bound=new GenericBound(this,bound.max);
                 }else if(!canAssignTo(bound.min,bounds)){ //addLater use bounds in commonSuperType
-                    Optional<Type> newMin=commonSuperType(this, bound.min, false);
+                    Optional<Type> newMin=commonSuperType(this, bound.min, false,true);
                     if(newMin.isEmpty()) {
                         return false;
                     }
@@ -2285,7 +2293,7 @@ public class Type {
                         }else{
                             return false;
                         }
-                        Optional<Type> newMin = commonSuperType(mBound.min, tBound.min, false);
+                        Optional<Type> newMin = commonSuperType(mBound.min, tBound.min, false,true);
                         if(newMin.isEmpty()){
                             return false;
                         }

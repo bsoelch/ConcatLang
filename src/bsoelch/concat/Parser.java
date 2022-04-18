@@ -3133,7 +3133,7 @@ public class Parser {
             TypeFrame t1= mainTypes.get(p);
             TypeFrame t2= branchTypes.get(p);
             if((!t1.equals(t2))){
-                Optional<Type> merged = Type.commonSuperType(t1.type, t2.type, true);
+                Optional<Type> merged = Type.commonSuperType(t1.type, t2.type, true,false);
                 if(merged.isEmpty()){
                     throw new SyntaxError("Cannot merge "+t1.type+" (pushed at "+t1.pushedAt+") and "+t2.type+
                             " (pushed at "+t2.pushedAt+")",endMain);
@@ -3756,7 +3756,7 @@ public class Parser {
                     case CONST_ARRAY -> {
                         Type type = null;
                         for (TypeFrame f : tState.typeStack()) {
-                            Optional<Type> merged = Type.commonSuperType(type, f.type, false);
+                            Optional<Type> merged = Type.commonSuperType(type, f.type, false,false);
                             if(merged.isEmpty()){
                                 throw new SyntaxError("cannot merge types "+type+" and "+f.type,pos);
                             }
