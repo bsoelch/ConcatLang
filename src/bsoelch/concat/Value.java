@@ -1423,10 +1423,17 @@ public abstract class Value {
         procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"=!=",
                 (values) -> new Value[]{values[0].isEqualTo(values[1])?FALSE:TRUE},false));
         //addLater? implement equals in standard library
-        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"==",
-                (values) -> new Value[]{values[0].equals(values[1])?TRUE:FALSE},false));
-        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"!=",
-                (values) -> new Value[]{values[0].equals(values[1])?FALSE:TRUE},false));
+
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type[]{a,a},new Type[]{Type.BOOL},"==",
+                    (values) -> new Value[]{values[0].equals(values[1])?TRUE:FALSE},false));
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type[]{a,a},new Type[]{Type.BOOL},"!=",
+                    (values) -> new Value[]{values[0].equals(values[1])?FALSE:TRUE},false));
+        }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{a},"clone",
@@ -1983,6 +1990,16 @@ public abstract class Value {
             this.set = set;
         }
 
+        @Override
+        public boolean equals(Object obj) {
+            if(!(obj instanceof ReferenceValue))
+                return false;
+            try {
+                return get.get().equals(((ReferenceValue) obj).get.get());
+            } catch (ConcatRuntimeError e) {
+                throw new RuntimeException(e);
+            }
+        }
         public Value get() throws ConcatRuntimeError {
             return get.get();
         }
