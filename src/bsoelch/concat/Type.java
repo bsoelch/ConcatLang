@@ -1548,7 +1548,9 @@ public class Type {
                             return ret;
                     }
                     if(((Struct) t).extended != null){
-                        return canCastTo(((Struct) t).extended,bounds);
+                        CastType ret=canCastTo(((Struct) t).extended,bounds);
+                        if(ret!=CastType.NONE)
+                            return CastType.RESTRICT;
                     }
                     return CastType.NONE;
                 }
@@ -1841,7 +1843,7 @@ public class Type {
                         if(castType!=CastType.NONE) {
                             bounds.l.putAll(tmp.l);
                             bounds.r.putAll(tmp.r);
-                            return castType;
+                            return CastType.RESTRICT;
                         }
                     }
                     return CastType.NONE;
