@@ -3674,8 +3674,12 @@ public class Parser {
                 throw new SyntaxError("currently for is only supported for arrays and iterators",pos);
             }
             case SWITCH -> {
-                TypeFrame f=tState.typeStack().pop();
-                SwitchCaseBlock switchBlock=new SwitchCaseBlock(f.type,ret.size(), pos,tState.context);
+                Type switchType=tState.typeStack().pop().type;
+                if(switchType.isReference()){
+                    ret.add(new Token(TokenType.DEREFERENCE,pos));
+                    switchType=switchType.content();
+                }
+                SwitchCaseBlock switchBlock=new SwitchCaseBlock(switchType,ret.size(), pos,tState.context);
                 switchBlock.defaultTypes=tState.typeData;
 
                 openBlocks.addLast(switchBlock);
