@@ -50,7 +50,7 @@ public class Parser {
         GLOBAL,LOCAL,CURRIED
     }
     enum AccessType{
-        REFERENCE_TO, READ,WRITE,DECLARE
+        READ, WRITE,DECLARE
     }
 
     static class Token {
@@ -70,7 +70,7 @@ public class Parser {
         DEFAULT,PUBLIC,READ_ONLY,PRIVATE
     }
     enum IdentifierType{
-        DECLARE, WORD, CONTENT_OF,VAR_WRITE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE,DECLARE_FIELD
+        DECLARE, WORD, PROC_ID,VAR_WRITE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE,DECLARE_FIELD
     }
     static class IdentifierToken extends Token {
         static final int FLAG_NATIVE=1;
@@ -312,7 +312,7 @@ public class Parser {
                 if(id instanceof CurriedVariable){
                     variableType=VariableType.CURRIED;
                     switch (accessType){
-                        case READ, REFERENCE_TO -> {}
+                        case READ -> {}
                         case WRITE ->
                                 throw new SyntaxError("cannot write to curried variable "+name,pos);
                         case DECLARE ->
@@ -2979,14 +2979,14 @@ public class Parser {
                     tokens.remove(tokens.size()-1);
                     expandMacro(pState,(Macro)d, pos);
                 }else {
-                    tokens.set(tokens.size() - 1, new IdentifierToken(getContent ? IdentifierType.CONTENT_OF : IdentifierType.WORD,
+                    tokens.set(tokens.size() - 1, new IdentifierToken(getContent ? IdentifierType.PROC_ID : IdentifierType.WORD,
                             newName, 0, pos));
                 }
             }else{
                 tokens.add(new IdentifierToken(IdentifierType.GET_FIELD,name, 0, pos));
             }
         }else if(str.startsWith("@")){
-            tokens.add(new IdentifierToken(IdentifierType.CONTENT_OF, str.substring(1), 0, pos));
+            tokens.add(new IdentifierToken(IdentifierType.PROC_ID, str.substring(1), 0, pos));
         }else if(str.startsWith(":")){
             tokens.add(new IdentifierToken(IdentifierType.DECLARE_FIELD, str.substring(1), 0, pos));
         }else{
@@ -4389,7 +4389,7 @@ public class Parser {
                             throw new SyntaxError("values of type "+declarableName(type,false)+
                                     " cannot be marked as mutable",t.pos);
                         }
-                        typeCheckVarRead(true,(VariableId) d,identifier,tState);
+                        typeCheckVarRead((VariableId) d,identifier,tState);
                     }
                     case MACRO ->
                             throw new SyntaxError("Unable to expand macro \""+((Macro)d).name+
@@ -4474,17 +4474,15 @@ public class Parser {
                 ret.add(new VariableToken(identifier.pos,identifier.name,id,
                         AccessType.WRITE, context));
             }
-            case CONTENT_OF ->{
+            case PROC_ID ->{
                 Declareable d= tState.context.getDeclareable(identifier.name);
                 if(d==null){
                     throw new SyntaxError("declareable "+ identifier.name+" does not exist", t.pos);
                 }
                 switch (d.declarableType()){
-                    case VARIABLE,CURRIED_VARIABLE ->
-                        typeCheckVarRead(false,(VariableId) d,identifier,tState);
                     case PROCEDURE,NATIVE_PROC,GENERIC_PROCEDURE,OVERLOADED_PROCEDURE ->
                         typeCheckPushProcPointer(d, t.pos, tState);
-                    case ENUM,TUPLE,STRUCT,TRAIT, CONSTANT,GENERIC,GENERIC_STRUCT,MACRO->
+                    case VARIABLE,CURRIED_VARIABLE,ENUM,TUPLE,STRUCT,TRAIT, CONSTANT,GENERIC,GENERIC_STRUCT,MACRO->
                         throw new SyntaxError("invalid declareable for '@' prefix " +
                                 declarableName(d.declarableType(),false)+" "+identifier.name+
                                 " (declared at "+d.declaredAt()+")",t.pos);
@@ -4681,7 +4679,7 @@ public class Parser {
         return false;
     }
 
-    private static void typeCheckVarRead(boolean allowReferences,VariableId d, IdentifierToken identifier,
+    private static void typeCheckVarRead(VariableId d, IdentifierToken identifier,
                                          TypeCheckState tState) throws SyntaxError {
         VariableId id = d;
         VariableId prevId=id;
@@ -4699,14 +4697,13 @@ public class Parser {
             tState.currentVariables().put(id,contentOwner);
         }
         assert contentOwner!=null;
-        if(allowReferences&&id.mutability==Mutability.MUTABLE){
+        if(id.mutability == Mutability.MUTABLE){
             contentOwner=new ValueInfo(new OwnerInfo.Variable(id, contentOwner));
             tState.typeStack().push(new TypeFrame(Type.referenceTo(id.type).mutable(),contentOwner, identifier.pos));
         }else{
             tState.typeStack().push(new TypeFrame(id.type,contentOwner, identifier.pos));
         }
-        tState.ret.add(new VariableToken(identifier.pos, identifier.name, id,
-                allowReferences?AccessType.REFERENCE_TO :AccessType.READ, tState.context));
+        tState.ret.add(new VariableToken(identifier.pos, identifier.name, id,AccessType.READ, tState.context));
     }
 
     private static boolean compileTimeEvaluate(CallMatch match, ArrayList<Token> ret, TypeCheckState tState,
