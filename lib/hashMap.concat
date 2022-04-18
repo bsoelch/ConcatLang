@@ -73,7 +73,7 @@ HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap mut #+key+#
     while{ entry .next do
       entry .key key == if{ drop ##drop next
         ##replace does not change size
-        entry .value
+        entry .value ..
         value entry .value =
         wrap return
       }
@@ -81,7 +81,7 @@ HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap mut #+key+#
     } ##drop last entry
     entry .key key == if{
       ##replace does not change size
-      entry .value
+      entry .value .. ## get value, not reference to value
       value entry .value =
       wrap return
     else
