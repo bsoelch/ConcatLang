@@ -2001,7 +2001,11 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            return type+"("+get.get()+")";
+            try {
+                return type+"("+get.get()+")";
+            } catch (ConcatRuntimeError e) {
+                throw new RuntimeException(e);
+            }
         }
 
     }
