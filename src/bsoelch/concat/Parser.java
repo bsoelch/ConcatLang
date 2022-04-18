@@ -4318,6 +4318,9 @@ public class Parser {
                         if(!type.isValid()){
                             throw new SyntaxError("cannot create variable of type "+type,t.pos);
                         }
+                        if(type.isReference()){
+                            type=type.content();//addLater? print warning
+                        }
                     }else if (ret.size() > 0 && (prev = ret.remove(ret.size() - 1)) instanceof ValueToken) {
                         type = ((ValueToken) prev).value.asType();
                         if(typeStack.pop().type != Type.TYPE){
