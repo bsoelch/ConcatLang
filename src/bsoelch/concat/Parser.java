@@ -3339,6 +3339,9 @@ public class Parser {
                     if(!target.isReference()){
                         throw new SyntaxError("unexpected target-type for assign:"+target,t.pos);
                     }
+                    if(!target.isMutable()){
+                        throw new SyntaxError("cannot assign value to non-mutable reference:"+target,t.pos);
+                    }
                     Type src=tState.typeStack().pop().type;
                     typeCheckCast(src,2,target.content(), tState, t.pos);
                     tState.ret.add(t);
@@ -4694,7 +4697,7 @@ public class Parser {
         assert contentOwner!=null;
         if(allowReferences&&id.mutability==Mutability.MUTABLE){
             contentOwner=new ValueInfo(new OwnerInfo.Variable(id, contentOwner));
-            tState.typeStack().push(new TypeFrame(Type.referenceTo(id.type),contentOwner, identifier.pos));
+            tState.typeStack().push(new TypeFrame(Type.referenceTo(id.type).mutable(),contentOwner, identifier.pos));
         }else{
             tState.typeStack().push(new TypeFrame(id.type,contentOwner, identifier.pos));
         }
