@@ -8,8 +8,6 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public abstract class Value {
     public static final Value FALSE = new Value(Type.BOOL) {
@@ -1368,18 +1366,18 @@ public abstract class Value {
     public static final class InternalProcedure extends NativeProcedure{
         public static final FilePosition POSITION = new FilePosition("internal","internal", 0, 0);
 
-        final ConcatRuntimeError.Function<Value[],Value[]> action;
+        final ThrowingFunction<Value[],Value[],ConcatRuntimeError> action;
         final boolean compileTime;
 
         InternalProcedure(Type[] inTypes, Type[] outTypes, String name,
-                          ConcatRuntimeError.Function<Value[], Value[]> action,boolean compileTime) {
+                          ThrowingFunction<Value[], Value[],ConcatRuntimeError> action,boolean compileTime) {
             this(Type.Procedure.create(inTypes, outTypes,POSITION), name, action,compileTime);
         }
         InternalProcedure(Type.GenericParameter[] generics, Type[] inTypes, Type[] outTypes, String name,
-                          ConcatRuntimeError.Function<Value[], Value[]> action,boolean compileTime) {
+                          ThrowingFunction<Value[], Value[],ConcatRuntimeError> action,boolean compileTime) {
             this(Type.GenericProcedureType.create(generics,inTypes, outTypes,POSITION), name, action,compileTime);
         }
-        private InternalProcedure(Type.Procedure type, String name, ConcatRuntimeError.Function<Value[], Value[]> action,
+        private InternalProcedure(Type.Procedure type, String name, ThrowingFunction<Value[], Value[],ConcatRuntimeError> action,
                                   boolean compileTime) {
             super(type, name, POSITION);
             this.action = action;
@@ -1976,18 +1974,19 @@ public abstract class Value {
         }
     }
     static class ReferenceValue extends Value{
-        private final Supplier<Value> get;
-        private final Consumer<Value> set;
-        ReferenceValue(Type contentType, Supplier<Value> get, Consumer<Value> set) {
+        private final ThrowingSupplier<Value,ConcatRuntimeError> get;
+        private final ThrowingConsumer<Value,ConcatRuntimeError> set;
+        ReferenceValue(Type contentType, ThrowingSupplier<Value,ConcatRuntimeError> get,
+                       ThrowingConsumer<Value,ConcatRuntimeError> set) {
             super(Type.referenceTo(contentType));
             this.get = get;
             this.set = set;
         }
 
-        public Value get() {
+        public Value get() throws ConcatRuntimeError {
             return get.get();
         }
-        public void set(Value newVal){
+        public void set(Value newVal) throws ConcatRuntimeError {
             set.accept(newVal);
         }
 

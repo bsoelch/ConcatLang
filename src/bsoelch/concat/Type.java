@@ -766,7 +766,7 @@ public class Type {
             }
         }
 
-        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
+        void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError {
             contentType.forEachStruct(action);
         }
 
@@ -945,7 +945,7 @@ public class Type {
             super(name, src, mutability);
         }
         @Override
-        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
+        void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError {
             for(int i=0;i<elementCount();i++){
                 getElement(i).forEachStruct(action);
             }
@@ -1430,7 +1430,7 @@ public class Type {
         }
 
         @Override
-        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
+        void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError {
             action.accept(this);
             super.forEachStruct(action);
         }
@@ -1934,7 +1934,7 @@ public class Type {
         }
 
         @Override
-        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
+        void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError {
             for(Type t:inTypes){
                 t.forEachStruct(action);
             }
@@ -2432,7 +2432,7 @@ public class Type {
         }
 
         @Override
-        void forEachStruct(SyntaxError.ThrowingConsumer<Struct> action) throws SyntaxError {
+        void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError {
             for(Type t:elements){
                 t.forEachStruct(action);
             }

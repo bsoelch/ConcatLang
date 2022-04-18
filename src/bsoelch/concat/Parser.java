@@ -4112,7 +4112,7 @@ public class Parser {
         typeStack.rotate(count,steps);
         ret.add(new StackModifierToken(TokenType.STACK_ROT,new int[]{count,steps},t.pos));
     }
-    private static void typeCheckTypeModifier(String name, SyntaxError.ThrowingFunction<Type,Value> modifier, ArrayList<Token> ret,
+    private static void typeCheckTypeModifier(String name, ThrowingFunction<Type,Value,SyntaxError> modifier, ArrayList<Token> ret,
                                        RandomAccessStack<TypeFrame> typeStack, FilePosition pos) throws SyntaxError,
             RandomAccessStack.StackUnderflow, TypeError {
         TypeFrame f = typeStack.pop();
@@ -4121,6 +4121,7 @@ public class Parser {
                 throw new SyntaxError("type argument of '"+name+"' has to be a constant",pos);
             }
             Value modified = modifier.apply(f.value().asType());
+            assert modified!=null;
             f = new TypeFrame(modified.type, new ValueInfo(modified), pos);
             typeStack.push(f);
             Token prev;

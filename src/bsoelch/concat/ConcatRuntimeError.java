@@ -5,7 +5,4 @@ public class ConcatRuntimeError extends Exception {
         super(message);
     }
 
-    interface Function<K,V>{
-        K apply(V val) throws ConcatRuntimeError;
-    }
 }
