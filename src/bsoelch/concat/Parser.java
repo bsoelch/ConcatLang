@@ -30,7 +30,7 @@ public class Parser {
         SWITCH,
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
-        TUPLE_GET_INDEX,TUPLE_SET_INDEX,//direct access to tuple elements
+        TUPLE_GET_INDEX,TUPLE_REFERENCE_TO, TUPLE_SET_INDEX,//direct access to tuple elements
         TRAIT_FIELD_ACCESS,
         //compile time operations
         ARRAY_OF,MEMORY_OF,REFERENCE_TO,OPTIONAL_OF,EMPTY_OPTIONAL,STACK_SIZE,
@@ -290,8 +290,12 @@ public class Parser {
     }
     static class TupleElementAccess extends Token{
         final int index;
-        TupleElementAccess(int index, boolean set, FilePosition pos) {
-            super(set?TokenType.TUPLE_SET_INDEX:TokenType.TUPLE_GET_INDEX, pos);
+        TupleElementAccess(int index, boolean isReference, FilePosition pos) {
+            super(isReference?TokenType.TUPLE_REFERENCE_TO:TokenType.TUPLE_GET_INDEX, pos);
+            this.index = index;
+        }
+        TupleElementAccess(int index, FilePosition pos) {
+            super(TokenType.TUPLE_SET_INDEX, pos);
             this.index = index;
         }
     }
@@ -3387,7 +3391,7 @@ public class Parser {
                     tState.typeStack().push(new TypeFrame(size.type,new ValueInfo(size),t.pos));
                 }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
-                        CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_SET_INDEX,
+                        CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_REFERENCE_TO, TUPLE_SET_INDEX,
                         TRAIT_FIELD_ACCESS ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
@@ -4526,7 +4530,7 @@ public class Parser {
                         if(field.accessibility()==Accessibility.PUBLIC||field.declaredAt().path.equals(t.pos.path)){
                             if(field.mutable()){
                                 typeCheckCast(val.type,2,struct.getElement(index), tState, t.pos);
-                                ret.add(new TupleElementAccess(index, true, t.pos));
+                                ret.add(new TupleElementAccess(index,  t.pos));
                                 hasField=true;
                             }else{
                                 throw new SyntaxError("field "+identifier.name+" (declared at "+ field.declaredAt()+
@@ -4545,7 +4549,7 @@ public class Parser {
                             Type fieldType = tuple.getElement(index);
                             if(tuple.isMutable()){
                                 typeCheckCast(val.type,2,fieldType, tState, t.pos);
-                                ret.add(new TupleElementAccess(index, true, t.pos));
+                                ret.add(new TupleElementAccess(index,  t.pos));
                                 hasField=true;
                             }else{
                                 throw new SyntaxError("tuple "+ tuple.name+
@@ -4602,9 +4606,7 @@ public class Parser {
             if(index!=null){
                 Type.StructField field=((Type.Struct) f.type).fields[index];
                 if((field.accessibility()!=Accessibility.PRIVATE||field.declaredAt().path.equals(pos.path))){
-                    tState.typeStack().push(new TypeFrame(((Type.Struct) f.type).getElement(index),
-                            new ValueInfo(new OwnerInfo.Container(f.valueInfo)), pos));
-                    tState.ret.add(new TupleElementAccess(index, false, pos));
+                    pushField(f, index, tState, pos);
                     return true;
                 }else{
                     tState.ioContext.stdErr.println("cannot access private field "+field.name()+" (declared at "+
@@ -4616,9 +4618,7 @@ public class Parser {
             try {
                 int index = Integer.parseInt(identifier.name);
                 if(index>=0&&index<((Type.Tuple) f.type).elementCount()){
-                    tState.typeStack().push(new TypeFrame(((Type.Tuple) f.type).getElement(index),
-                            new ValueInfo(new OwnerInfo.Container(f.valueInfo)), pos));
-                    tState.ret.add(new TupleElementAccess(index, false, pos));
+                    pushField(f, index, tState, pos);
                     return true;
                 }
             }catch (NumberFormatException ignored){}
@@ -4678,6 +4678,26 @@ public class Parser {
             }
         }
         return false;
+    }
+
+    private static boolean isMutableField(Type.TupleLike tuple,int index,FilePosition pos){
+        if(!tuple.isMutable())
+            return false;
+        if(tuple instanceof Type.Tuple)
+            return true;
+        assert tuple instanceof Type.Struct;
+        Type.StructField field = ((Type.Struct) tuple).fields[index];
+        return field.mutable() && (field.accessibility() == Accessibility.PUBLIC || field.declaredAt().path.equals(pos.path));
+    }
+    private static void pushField(TypeFrame f, int index, TypeCheckState tState, FilePosition pos) {
+        Type.TupleLike tupleType = (Type.TupleLike) f.type;
+        Type fieldType = tupleType.getElement(index);
+        boolean isReference = isMutableField(tupleType, index, pos);
+        if(isReference){
+            fieldType=Type.referenceTo(fieldType);
+        }
+        tState.typeStack().push(new TypeFrame(fieldType,new ValueInfo(new OwnerInfo.Container(f.valueInfo)), pos));
+        tState.ret.add(new TupleElementAccess(index, isReference, pos));
     }
 
     private static void typeCheckVarRead(VariableId d, IdentifierToken identifier,

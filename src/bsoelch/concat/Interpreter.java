@@ -401,6 +401,14 @@ public class Interpreter {
                         Value tuple = stack.pop();
                         stack.push(tuple.getField(((Parser.TupleElementAccess) next).index));
                     }
+                    case TUPLE_REFERENCE_TO -> {
+                        assert next instanceof Parser.TupleElementAccess;
+                        Value tuple = stack.pop();
+                        int index = ((Parser.TupleElementAccess) next).index;
+                        stack.push(new Value.ReferenceValue(((Type.TupleLike)tuple.type).getElement(index),
+                                ()->tuple.getField(index),(val)->tuple.set(index,val)
+                        ));
+                    }
                     case TUPLE_SET_INDEX -> {
                         assert next instanceof Parser.TupleElementAccess;
                         Value tuple = stack.pop();
