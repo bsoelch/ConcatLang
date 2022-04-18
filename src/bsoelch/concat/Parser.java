@@ -16,7 +16,8 @@ public class Parser {
 
 
     enum TokenType {
-        VALUE, GLOBAL_VALUE /*values owned by the global scope*/,  DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,CAST,NEW, NEW_ARRAY,
+        VALUE, GLOBAL_VALUE /*values owned by the global scope*/,  DECLARE_LAMBDA,LAMBDA, CURRIED_LAMBDA,
+        CAST,NEW, NEW_ARRAY,DEREFERENCE,ASSIGN,
         STACK_DROP,STACK_DUP,STACK_ROT,
         IDENTIFIER,
         VARIABLE,
@@ -2218,8 +2219,12 @@ public class Parser {
 
                 case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
 
+                case ".." -> tokens.add(new Token(TokenType.DEREFERENCE,pos));
+                case "_=" -> tokens.add(new Token(TokenType.ASSIGN,pos)); //addLater change to =
+
                 case "()"  -> tokens.add(new Token(TokenType.CALL_PTR, pos));
                 case "new" -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
+
                 //stack modifiers
                 case "??drop" -> tokens.add(new StackModifierToken(TokenType.STACK_DROP,null,pos));
                 case "?dup" -> tokens.add(new StackModifierToken(TokenType.STACK_DUP,null,pos));
@@ -3103,7 +3108,7 @@ public class Parser {
                     +Arrays.toString(outTypes), pos);
         }
         for(Type t: outTypes){
-            typeCheckCast(tState.typeStack().get(k).type(),k,t,pos,tState);
+            typeCheckCast(tState.typeStack().get(k).type(),k,t, tState, pos);
             k--;
         }
     }
@@ -3317,8 +3322,26 @@ public class Parser {
                     if(target.mutability==Mutability.DEFAULT){
                         target=target.setMutability(f.type.mutability);
                     }
-                    typeCheckCast(f.type,1,target, t.pos,tState);
+                    typeCheckCast(f.type,1,target, tState, t.pos);
                     tState.typeStack().push(new TypeFrame(target,new ValueInfo(OwnerInfo.STACK),t.pos));
+                }
+                case DEREFERENCE -> {
+                    TypeFrame f=tState.typeStack().pop();
+                    if(!f.type.isReference()){
+                        throw new SyntaxError("unexpected type for dereference:"+f.type,t.pos);
+                    }
+                    //TODO update valueInfo
+                    tState.typeStack().push(new TypeFrame(f.type.content(),f.valueInfo,f.pushedAt));
+                    tState.ret.add(t);
+                }
+                case ASSIGN -> {
+                    Type target=tState.typeStack().pop().type;
+                    if(!target.isReference()){
+                        throw new SyntaxError("unexpected target-type for assign:"+target,t.pos);
+                    }
+                    Type src=tState.typeStack().pop().type;
+                    typeCheckCast(src,2,target.content(), tState, t.pos);
+                    tState.ret.add(t);
                 }
                 case STACK_DROP -> {
                     assert t instanceof StackModifierToken;
@@ -3453,7 +3476,7 @@ public class Parser {
             case IF ->{
                 TypeFrame f = tState.typeStack().pop();
                 if(f.type.isReference()){//dereference references
-                    typeCheckCast(f.type,1,f.type.content(),pos,tState);
+                    typeCheckCast(f.type,1,f.type.content(), tState, pos);
                     f=new TypeFrame(f.type.content(),f.valueInfo,pos);
                 }
                 IfBlock ifBlock = new IfBlock(ret.size(), pos, tState.context);
@@ -3507,7 +3530,7 @@ public class Parser {
                 ifBlock.elseTypes = tState.typeData;
                 tState.typeData = tState.typeData.copy();
                 if(f.type.isReference()){//dereference references
-                    typeCheckCast(f.type,1,f.type.content(),pos,tState);
+                    typeCheckCast(f.type,1,f.type.content(), tState, pos);
                     f=new TypeFrame(f.type.content(),f.valueInfo,pos);
                 }
                 if(f.type!=Type.BOOL){
@@ -3544,7 +3567,7 @@ public class Parser {
                 whileBlock.forkTypes=tState.typeData;
                 tState.typeData=tState.typeData.copy();
                 if(f.type.isReference()){//dereference references
-                    typeCheckCast(f.type,1,f.type.content(),pos,tState);
+                    typeCheckCast(f.type,1,f.type.content(), tState, pos);
                     f=new TypeFrame(f.type.content(),f.valueInfo,pos);
                 }
                 if(f.type!=Type.BOOL){
@@ -3570,7 +3593,7 @@ public class Parser {
                 }
                 TypeFrame f = tState.typeStack().pop();
                 if(f.type.isReference()){//dereference references
-                    typeCheckCast(f.type,1,f.type.content(),pos,tState);
+                    typeCheckCast(f.type,1,f.type.content(), tState, pos);
                     f=new TypeFrame(f.type.content(),f.valueInfo,pos);
                 }
                 if(f.type!=Type.BOOL){
@@ -3619,7 +3642,7 @@ public class Parser {
                     itrNext=Type.Trait.rootVersion(itrNext);
                     //ensure trait is initialized
                     typeCheckTrait(itrNext.trait(),tState.globalConstants,tState.ioContext);
-                    typeCheckCast(iterableType,1,itrNext.trait(),pos,tState);
+                    typeCheckCast(iterableType,1,itrNext.trait(), tState, pos);
 
                     iterableType=itrNext.trait();
                     Type.Procedure procType=itrNext.trait().traitFields[itrNext.offset()].procType();
@@ -3988,7 +4011,7 @@ public class Parser {
         assert t instanceof AssertToken;
         TypeFrame f= tState.typeStack().pop();
         if(f.type.isReference()){//dereference references
-            typeCheckCast(f.type,1,f.type.content(),t.pos,tState);
+            typeCheckCast(f.type,1,f.type.content(), tState, t.pos);
             f=new TypeFrame(f.type.content(),f.valueInfo,t.pos);
         }
         if(f.type!=Type.BOOL){
@@ -4254,7 +4277,7 @@ public class Parser {
                 }//no else
                 if(type.isArray()){
                     f=tState.typeStack().pop();
-                    typeCheckCast(f.type,2,type.content(),pos,tState);
+                    typeCheckCast(f.type,2,type.content(), tState, pos);
                 }
                 tState.typeStack().push(new TypeFrame(type,new ValueInfo(OwnerInfo.STACK), pos));
                 //addLater? support new memory/array in pre-evaluation
@@ -4307,7 +4330,7 @@ public class Parser {
                     TypeFrame val = typeStack.pop();
                     val.valueInfo.variableReferences.add(id);
                     tState.currentVariables().put(id,val.valueInfo);
-                    typeCheckCast(val.type,1, id.type,t.pos,tState);
+                    typeCheckCast(val.type,1, id.type, tState, t.pos);
                     if (id.mutability==Mutability.IMMUTABLE && id.context.procedureContext() == null
                             && (prev = ret.get(ret.size()-1)) instanceof ValueToken) {
                         Value value = ((ValueToken) prev).value;
@@ -4359,7 +4382,7 @@ public class Parser {
                             throw new SyntaxError("values of type "+declarableName(type,false)+
                                     " cannot be marked as mutable",t.pos);
                         }
-                        typeCheckVarRead(false,(VariableId) d,identifier,tState);
+                        typeCheckVarRead(true,(VariableId) d,identifier,tState);
                     }
                     case MACRO ->
                             throw new SyntaxError("Unable to expand macro \""+((Macro)d).name+
@@ -4440,7 +4463,7 @@ public class Parser {
                 contentOwner.variableReferences.remove(id);
                 tState.currentVariables().put(id,f.valueInfo);
                 f.valueInfo.variableReferences.add(id);
-                typeCheckCast(f.type,1, id.type, t.pos,tState);
+                typeCheckCast(f.type,1, id.type, tState, t.pos);
                 ret.add(new VariableToken(identifier.pos,identifier.name,id,
                         AccessType.WRITE, context));
             }
@@ -4451,7 +4474,7 @@ public class Parser {
                 }
                 switch (d.declarableType()){
                     case VARIABLE,CURRIED_VARIABLE ->
-                        typeCheckVarRead(true,(VariableId) d,identifier,tState);
+                        typeCheckVarRead(false,(VariableId) d,identifier,tState);
                     case PROCEDURE,NATIVE_PROC,GENERIC_PROCEDURE,OVERLOADED_PROCEDURE ->
                         typeCheckPushProcPointer(d, t.pos, tState);
                     case ENUM,TUPLE,STRUCT,TRAIT, CONSTANT,GENERIC,GENERIC_STRUCT,MACRO->
@@ -4466,7 +4489,7 @@ public class Parser {
                     if (typeCheckGetField(identifier, f, tState))
                         break;//found field
                     if(f.type.isReference()){
-                        typeCheckCast(f.type,1,f.type.content(),t.pos,tState);
+                        typeCheckCast(f.type,1,f.type.content(), tState, t.pos);
                         if(typeCheckGetField(identifier,new TypeFrame(f.type.content(),f.valueInfo,t.pos), tState))
                             break;//found field in reference
                     }
@@ -4480,7 +4503,7 @@ public class Parser {
             case SET_FIELD -> {
                 TypeFrame f=typeStack.pop();
                 if(f.type.isReference()){//dereference references
-                    typeCheckCast(f.type,1,f.type.content(),t.pos,tState);
+                    typeCheckCast(f.type,1,f.type.content(), tState, t.pos);
                     f=new TypeFrame(f.type.content(),f.valueInfo,t.pos);
                 }
                 TypeFrame val=typeStack.pop();
@@ -4496,7 +4519,7 @@ public class Parser {
                         Type.StructField field = struct.fields[index];
                         if(field.accessibility()==Accessibility.PUBLIC||field.declaredAt().path.equals(t.pos.path)){
                             if(field.mutable()){
-                                typeCheckCast(val.type,2,struct.getElement(index),t.pos,tState);
+                                typeCheckCast(val.type,2,struct.getElement(index), tState, t.pos);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -4515,7 +4538,7 @@ public class Parser {
                         if(index>=0&&index< tuple.elementCount()){
                             Type fieldType = tuple.getElement(index);
                             if(tuple.isMutable()){
-                                typeCheckCast(val.type,2,fieldType,t.pos,tState);
+                                typeCheckCast(val.type,2,fieldType, tState, t.pos);
                                 ret.add(new TupleElementAccess(index, true, t.pos));
                                 hasField=true;
                             }else{
@@ -4809,7 +4832,7 @@ public class Parser {
         return genArgs;
     }
 
-    private static void typeCheckCast(Type src, int stackPos, Type target,FilePosition pos,TypeCheckState tState) throws SyntaxError {
+    private static void typeCheckCast(Type src, int stackPos, Type target, TypeCheckState tState, FilePosition pos) throws SyntaxError {
         Type.BoundMaps bounds=new Type.BoundMaps();
         if(src instanceof Type.OverloadedProcedurePointer){
             if(!(target instanceof Type.Procedure)){
@@ -4900,7 +4923,7 @@ public class Parser {
         Type.BoundMaps bounds=new Type.BoundMaps();
         for(int i=0;i<inTypes.length;i++){
             try{
-                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i],pos,tState);
+                typeCheckCast(inTypes[i],inTypes.length-i+offset,type.inTypes[i], tState, pos);
             }catch (SyntaxError e){
                 throw new SyntaxError("wrong parameters for "+procName+" "+Arrays.toString(type.inTypes)+
                         ": "+Arrays.toString(inTypes),pos);

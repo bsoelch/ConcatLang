@@ -147,6 +147,15 @@ public class Interpreter {
                         }
                     }
                     case DEBUG_PRINT -> ioContext.stdOut.println(stack.pop().stringValue());
+                    case DEREFERENCE -> {
+                        Value v=stack.pop();
+                        stack.push(((Value.ReferenceValue)v).get());
+                    }
+                    case ASSIGN -> {
+                        Value target=stack.pop();
+                        Value value=stack.pop();
+                        ((Value.ReferenceValue)target).set(value);
+                    }
                     case STACK_DROP ->{
                         assert next instanceof Parser.StackModifierToken;
                         stack.drop(((Parser.StackModifierToken)next).args[0],((Parser.StackModifierToken)next).args[1]);

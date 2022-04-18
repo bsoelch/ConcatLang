@@ -29,7 +29,7 @@ read public proc( BufferedInput #+buffer+# byte memory mut #+off+# int #+amount+
     buffer .capacity offset - count =
   }
   inBuf .length 0 > if{ ##read from buffer
-    count inBuf .length < if{ count else inBuf .length } nRead =
+    count inBuf .length < if{ count .. else inBuf .length } nRead =
     inBuf 0 buffer offset nRead copy
     inBuf 0 nRead clearSlice
     count nRead - count =
@@ -38,11 +38,11 @@ read public proc( BufferedInput #+buffer+# byte memory mut #+off+# int #+amount+
   count 0 > if{ ## get more data from file
     in .file inBuf 0 in .cap read int res =:
     res 0 < if{
-      nRead 0 > if{ nRead else res } return
+      nRead 0 > if{ nRead .. else res } return
     }
   }
   inBuf .length 0 > if{ ##read from buffer
-    count inBuf .length < if{ count else inBuf .length } int n =:
+    count inBuf .length < if{ count .. else inBuf .length } int n =:
     inBuf 0 buffer offset n copy
     inBuf 0 n clearSlice
     count n - count =

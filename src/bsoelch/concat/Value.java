@@ -1976,12 +1976,19 @@ public abstract class Value {
         }
     }
     static class ReferenceValue extends Value{
-        final Supplier<Value> get;
-        final Consumer<Value> set;
+        private final Supplier<Value> get;
+        private final Consumer<Value> set;
         ReferenceValue(Type contentType, Supplier<Value> get, Consumer<Value> set) {
             super(Type.referenceTo(contentType));
             this.get = get;
             this.set = set;
+        }
+
+        public Value get() {
+            return get.get();
+        }
+        public void set(Value newVal){
+            set.accept(newVal);
         }
 
         @Override
@@ -1997,6 +2004,7 @@ public abstract class Value {
         public String stringValue() {
             return type+"("+get.get()+")";
         }
+
     }
 
     static int compareNumbers(Value n1,Value n2) throws ConcatRuntimeError{

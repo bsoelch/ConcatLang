@@ -442,7 +442,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
         tmp clear
         _formatString .length  tmp .ensureCap
         ## ([0-9]+$)?  index
-        tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
+        tmp .. while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
           _formatString i [] <<
           i 1 + i =
         } tmp =
@@ -484,7 +484,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
               false ## break loop
             }
           }
-          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
+          tmp .. while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
             _formatString i [] <<
             i 1 + i =
           } tmp =
@@ -498,7 +498,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
           true w_ptr =
           count w =
           count 1 + count =
-          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
+          tmp .. while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
             _formatString i [] <<
             i 1 + i =
           } tmp =
@@ -524,7 +524,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
             count p =
             count 1 + count =
           }
-          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
+          tmp .. while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
             _formatString i [] <<
             i 1 + i =
           } tmp =
@@ -552,7 +552,7 @@ sprintf public proc( #+args+# var array mut? #+format+# string => string ){
             count b =
             count 1 + count =
           }
-          tmp while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
+          tmp .. while{ i _formatString .length < &&{ '0' _formatString i [] <= &&{ '9' _formatString i [] >= } } do
             _formatString i [] <<
             i 1 + i =
           } tmp =

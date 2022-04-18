@@ -17,7 +17,7 @@ core #import
   1 +
 } drop
 
-matrix1 debugPrint
+matrix1 .. debugPrint
 
 printIntMatrix proc( int Matrix mut? => ){
   matrix =::
@@ -37,7 +37,7 @@ matrix1 printIntMatrix
 
 { { 1 2 3 } { 4 5 6 } } asMatrix matrix1 =
 
-matrix1 debugPrint
+matrix1 .. debugPrint
 matrix1 printIntMatrix
 matrix1 rows debugPrint
 matrix1 columns debugPrint
