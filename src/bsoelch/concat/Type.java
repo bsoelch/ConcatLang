@@ -380,6 +380,8 @@ public class Type {
 
     protected CastType canCastTo0(Type t, BoundMaps bounds){
         if (hasTrait(t, bounds)) return CastType.CONVERT;
+        if(t instanceof GenericParameter)
+            return canAssignTo(t, bounds)?CastType.ASSIGN:CastType.NONE;
         return t==ANY?CastType.CONVERT:CastType.NONE;
     }
     protected CastType canCastTo(Type t, BoundMaps bounds){
@@ -389,6 +391,10 @@ public class Type {
         if(ret!=CastType.NONE)
             return ret;
         return t.canAssignTo(this,bounds.swapped())?CastType.RESTRICT:CastType.NONE;
+    }
+    public boolean canConvertTo(Type t){
+        CastType ct=canCastTo(t);
+        return ct==CastType.ASSIGN||ct==CastType.CONVERT;
     }
 
     @Override
@@ -887,17 +893,19 @@ public class Type {
         public CastType canCastTo(Type t, BoundMaps bounds) {
             if (hasTrait(t, bounds))
                 return CastType.CONVERT;
-            if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
+            if(t instanceof WrapperType&&((((WrapperType)t).wrapperName.equals(wrapperName))||
+                    ((isArray()||isMemory())&&(t.isArray()||t.isMemory())))){
                 if (mutabilityIncompatible(t))
                     return CastType.NONE;//incompatible mutability
-                return content().canCastTo(t.content(),bounds);
+                CastType ct=content().canCastTo(t.content(),bounds);
+                return ((ct==CastType.ASSIGN||ct==CastType.CONVERT)&&isArray()&& t.isMemory())?CastType.CAST:ct;
             }else if(wrapperName.equals(REFERENCE)){
                 BoundMaps newBounds=bounds.copy();
                 CastType castType = content().canCastTo(t, newBounds);
                 if(castType!=CastType.NONE){
                     bounds.l.putAll(newBounds.l);
                     bounds.r.putAll(newBounds.r);
-                    return castType;
+                    return castType==CastType.ASSIGN?CastType.CONVERT:castType;
                 }
             }
             return super.canCastTo0(t,bounds);
@@ -1495,7 +1503,8 @@ public class Type {
         protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
             if(!(t instanceof Struct))
                 return false;
-            return ((Struct) t).declaredAt.equals(declaredAt)&&super.equals(t, generics);
+            return ((Struct) t).declaredAt.equals(declaredAt)&&
+                    Arrays.equals(genericArgs,((Struct) t).genericArgs);
         }
 
         @Override
@@ -1844,7 +1853,8 @@ public class Type {
 
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
-            return t instanceof Trait&&((Trait) t).declaredAt.equals(declaredAt);
+            return t instanceof Trait&&((Trait) t).declaredAt.equals(declaredAt)&&
+                    Arrays.equals(genericArgs,((Trait) t).genericArgs);
         }
         @Override
         public int hashCode() {
@@ -2494,27 +2504,32 @@ public class Type {
             if(t instanceof GenericParameter){
                 return super.canCastTo(t, bounds);
             }
-            CastType match=CastType.ASSIGN;
+            boolean hasMatch=false;
+            CastType matchType=CastType.ASSIGN;
             for(Type e:elements){
                 CastType castType = e.canCastTo(t, bounds);
                 switch (castType){
-                    case ASSIGN -> {} //do nothing
+                    case ASSIGN ->
+                        hasMatch=true;
                     case CONVERT -> {
-                        if (match == CastType.ASSIGN)
-                            match = CastType.CONVERT;
+                        hasMatch=true;
+                        if (matchType == CastType.ASSIGN)
+                            matchType = CastType.CONVERT;
                     }
                     case CAST -> {
-                        if(match!=CastType.RESTRICT)
-                            match = CastType.CAST;
+                        hasMatch=true;
+                        if(matchType!=CastType.RESTRICT)
+                            matchType = CastType.CAST;
                     }
-                    case RESTRICT ->
-                        match = CastType.RESTRICT;
-                    case NONE -> {
-                        return super.canCastTo0(t, bounds);
+                    case RESTRICT -> {
+                        hasMatch=true;
+                        matchType = CastType.RESTRICT;
                     }
+                    case NONE -> //at least one is no match -> restrict
+                        matchType = CastType.RESTRICT;
                 }
             }
-            return match;
+            return hasMatch?matchType:canCastTo0(t, bounds);
         }
     }
 

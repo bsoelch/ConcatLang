@@ -8,6 +8,8 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public abstract class Value {
     public static final Value FALSE = new Value(Type.BOOL) {
@@ -1546,9 +1548,9 @@ public abstract class Value {
                 (values) ->  new Value[]{compareNumbers(values[0],values[1])!=0?TRUE:FALSE},true));
 
         procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},"<=",
-                (values) ->  new Value[]{values[0].asType().canAssignTo(values[1].asType())?TRUE:FALSE},true));
+                (values) ->  new Value[]{values[0].asType().canConvertTo(values[1].asType())?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},">=",
-                (values) ->  new Value[]{values[1].asType().canAssignTo(values[0].asType())?TRUE:FALSE},true));
+                (values) ->  new Value[]{values[1].asType().canConvertTo(values[0].asType())?TRUE:FALSE},true));
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
@@ -1971,6 +1973,29 @@ public abstract class Value {
         @Override
         public String stringValue() {
             return wrapped.stringValue();
+        }
+    }
+    static class ReferenceValue extends Value{
+        final Supplier<Value> get;
+        final Consumer<Value> set;
+        ReferenceValue(Type contentType, Supplier<Value> get, Consumer<Value> set) {
+            super(Type.referenceTo(contentType));
+            this.get = get;
+            this.set = set;
+        }
+
+        @Override
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(type.canAssignTo(newType))
+                return this;
+            if(type.content().canCastTo(newType) != Type.CastType.NONE)
+                return get.get().castTo(newType);
+            return super.castTo(newType);
+        }
+
+        @Override
+        public String stringValue() {
+            return type+"("+get.get()+")";
         }
     }
 
