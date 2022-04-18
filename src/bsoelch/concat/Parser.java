@@ -50,7 +50,7 @@ public class Parser {
         GLOBAL,LOCAL,CURRIED
     }
     enum AccessType{
-        READ,REFERENCE_TO, WRITE,DECLARE
+        READ,REFERENCE_TO, DECLARE
     }
 
     static class Token {
@@ -70,7 +70,7 @@ public class Parser {
         DEFAULT,PUBLIC,READ_ONLY,PRIVATE
     }
     enum IdentifierType{
-        DECLARE, WORD, PROC_ID,VAR_WRITE,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE,DECLARE_FIELD
+        DECLARE, WORD, PROC_ID,GET_FIELD,SET_FIELD,IMPLICIT_DECLARE,DECLARE_FIELD
     }
     static class IdentifierToken extends Token {
         static final int FLAG_NATIVE=1;
@@ -304,7 +304,7 @@ public class Parser {
         final AccessType accessType;
         final VariableId id;
         final String variableName;
-        VariableToken(FilePosition pos,String name,VariableId id,AccessType access,VariableContext currentContext) throws SyntaxError {
+        VariableToken(FilePosition pos,String name,VariableId id,AccessType access,VariableContext currentContext) {
             super(TokenType.VARIABLE, pos);
             this.variableName=name;
             this.id=id;
@@ -317,8 +317,6 @@ public class Parser {
                     variableType=VariableType.CURRIED;
                     switch (accessType){
                         case READ,REFERENCE_TO -> {}
-                        case WRITE ->
-                                throw new SyntaxError("cannot write to curried variable "+name,pos);
                         case DECLARE ->
                                 throw new RuntimeException("cannot declare to curried variables "+name);
                         default -> throw new RuntimeException("unreachable");
@@ -329,9 +327,6 @@ public class Parser {
             }else{
                 throw new RuntimeException("all variables (including curried ones) should be global, " +
                         "or part of the current context");
-            }
-            if(access==AccessType.WRITE&&id.mutability!=Mutability.MUTABLE){
-                throw new SyntaxError("cannot write to immutable variable "+name,pos);
             }
         }
         @Override
@@ -2224,7 +2219,7 @@ public class Parser {
                 case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
 
                 case ".." -> tokens.add(new Token(TokenType.DEREFERENCE,pos));
-                case "_=" -> tokens.add(new Token(TokenType.ASSIGN,pos)); //addLater change to =
+                case "=" -> tokens.add(new Token(TokenType.ASSIGN,pos));
 
                 case "()"  -> tokens.add(new Token(TokenType.CALL_PTR, pos));
                 case "new" -> tokens.add(new TypedToken(TokenType.NEW,null, pos));
@@ -2235,7 +2230,6 @@ public class Parser {
                 case "??rot" -> tokens.add(new StackModifierToken(TokenType.STACK_ROT,null,pos));
 
                 //identifiers
-                case "="-> parseAssign(tokens, prev, pos);
                 case "=:"->  parseDeclare(false, str,tokens,prev, prevId, pos);
                 case "=::"-> parseDeclare(true, str,tokens,prev, prevId, pos);
                 case "native" -> parseNativeModifier(str, tokens, prev, prevId, pos);
@@ -2864,24 +2858,6 @@ public class Parser {
         }
         String message=((ValueToken) prev).value.stringValue();
         tokens.add(new AssertToken(message, pos));
-    }
-    private static void parseAssign(ArrayList<Token> tokens, Token prev, FilePosition pos) throws SyntaxError {
-        if(prev ==null){
-            throw new SyntaxError("not enough tokens tokens for '=' modifier", pos);
-        }else if(prev instanceof IdentifierToken){
-            if(((IdentifierToken) prev).type == IdentifierType.WORD){
-                prev =new IdentifierToken(IdentifierType.VAR_WRITE,((IdentifierToken) prev).name,
-                        ((IdentifierToken) prev).flags, prev.pos);
-            }else if(((IdentifierToken) prev).type == IdentifierType.GET_FIELD){
-                prev =new IdentifierToken(IdentifierType.SET_FIELD,((IdentifierToken) prev).name,
-                        ((IdentifierToken) prev).flags, prev.pos);
-            }else{
-                throw new SyntaxError("invalid token for '=' modifier: "+ prev, prev.pos);
-            }
-            tokens.set(tokens.size()-1, prev);
-        }else{
-            throw new SyntaxError("invalid token for '=' modifier: "+ prev, prev.pos);
-        }
     }
     private static void parseDeclare(boolean isImplicit,String modifierName,ArrayList<Token> tokens,
                                      Token prev, String prevId, FilePosition pos) throws SyntaxError {
@@ -4456,32 +4432,6 @@ public class Parser {
                     }
                 }
             }
-            case VAR_WRITE -> {
-                Declareable d= context.getDeclareable(identifier.name);
-                if(d==null){
-                    throw new SyntaxError("variable "+identifier.name+" does not exist", t.pos);
-                }//no else
-                if(d.declarableType()!=DeclareableType.VARIABLE||((VariableId)d).mutability!=Mutability.MUTABLE){
-                    throw new SyntaxError(declarableName(d.declarableType(),false)+" "+
-                            identifier.name+" (declared at "+d.declaredAt()+") is not a mutable variable", t.pos);
-                }//no else
-                if(d.accessibility()==Accessibility.READ_ONLY&&!((VariableId) d).declaredAt.path.equals(t.pos.path)){
-                    throw new SyntaxError("variable "+identifier.name+"(declared at "+d.declaredAt()
-                            +") has cannot be modified",t.pos);
-                }
-                VariableId id=(VariableId) d;
-                context.wrapCurried(identifier.name,id,identifier.pos);
-                assert !globalConstants.containsKey(id);
-                TypeFrame f = typeStack.pop();
-                ValueInfo contentOwner=tState.currentVariables().get(id);
-                assert contentOwner!=null;
-                contentOwner.variableReferences.remove(id);
-                tState.currentVariables().put(id,f.valueInfo);
-                f.valueInfo.variableReferences.add(id);
-                typeCheckCast(f.type,1, id.type, tState, t.pos);
-                ret.add(new VariableToken(identifier.pos,identifier.name,id,
-                        AccessType.WRITE, context));
-            }
             case PROC_ID ->{
                 Declareable d= tState.context.getDeclareable(identifier.name);
                 if(d==null){
@@ -4697,7 +4647,7 @@ public class Parser {
         Type fieldType = tupleType.getElement(index);
         boolean isReference = isMutableField(tupleType, index, pos);
         if(isReference){
-            fieldType=Type.referenceTo(fieldType);
+            fieldType=Type.referenceTo(fieldType).mutable();
         }
         tState.typeStack().push(new TypeFrame(fieldType,new ValueInfo(new OwnerInfo.Container(f.valueInfo)), pos));
         tState.ret.add(new TupleElementAccess(index, isReference, pos));

@@ -196,23 +196,6 @@ public class Interpreter {
                                     stack.push(values[asVar.id.id]);
                                 }
                             }
-                            case WRITE -> {
-                                Value newValue=stack.pop();
-                                switch (asVar.variableType){
-                                    case GLOBAL ->
-                                            (globalVariables==null?variables:globalVariables).get(asVar.id.level)
-                                                    [asVar.id.id]=newValue;
-                                    case LOCAL ->{
-                                        if (globalVariables != null) {
-                                            variables.get(asVar.id.level)[asVar.id.id]=newValue;
-                                        }else{
-                                            throw new RuntimeException("access to local variable outside of procedure");
-                                        }
-                                    }
-                                    case CURRIED ->
-                                            throw new ConcatRuntimeError("cannot modify curried variables");
-                                }
-                            }
                             case DECLARE -> {
                                 Type type= asVar.id.type;
                                 assert type != null;
