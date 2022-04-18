@@ -50,7 +50,7 @@ public class Parser {
         GLOBAL,LOCAL,CURRIED
     }
     enum AccessType{
-        READ, WRITE,DECLARE
+        READ,REFERENCE_TO, WRITE,DECLARE
     }
 
     static class Token {
@@ -312,7 +312,7 @@ public class Parser {
                 if(id instanceof CurriedVariable){
                     variableType=VariableType.CURRIED;
                     switch (accessType){
-                        case READ -> {}
+                        case READ,REFERENCE_TO -> {}
                         case WRITE ->
                                 throw new SyntaxError("cannot write to curried variable "+name,pos);
                         case DECLARE ->
@@ -4701,10 +4701,11 @@ public class Parser {
         if(id.mutability == Mutability.MUTABLE){
             contentOwner=new ValueInfo(new OwnerInfo.Variable(id, contentOwner));
             tState.typeStack().push(new TypeFrame(Type.referenceTo(id.type).mutable(),contentOwner, identifier.pos));
+            tState.ret.add(new VariableToken(identifier.pos, identifier.name, id, AccessType.REFERENCE_TO, tState.context));
         }else{
             tState.typeStack().push(new TypeFrame(id.type,contentOwner, identifier.pos));
+            tState.ret.add(new VariableToken(identifier.pos, identifier.name, id, AccessType.READ, tState.context));
         }
-        tState.ret.add(new VariableToken(identifier.pos, identifier.name, id,AccessType.READ, tState.context));
     }
 
     private static boolean compileTimeEvaluate(CallMatch match, ArrayList<Token> ret, TypeCheckState tState,

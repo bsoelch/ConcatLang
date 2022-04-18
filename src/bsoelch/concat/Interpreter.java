@@ -172,7 +172,7 @@ public class Interpreter {
                         assert next instanceof Parser.VariableToken;
                         Parser.VariableToken asVar=(Parser.VariableToken) next;
                         switch (asVar.accessType){
-                            case READ -> {
+                            case READ, REFERENCE_TO -> {
                                 Value[] values;
                                 switch (asVar.variableType){
                                     case GLOBAL ->
@@ -189,7 +189,7 @@ public class Interpreter {
                                             values=curried;
                                     default -> throw new RuntimeException("unexpected variableType:"+asVar.variableType);
                                 }
-                                if(asVar.id.mutability == Mutability.MUTABLE){
+                                if(asVar.accessType== Parser.AccessType.REFERENCE_TO){
                                     stack.push(new Value.ReferenceValue(asVar.id.type,()->values[asVar.id.id],
                                             v->values[asVar.id.id]=v));
                                 }else{
