@@ -116,39 +116,60 @@ utf8 #include
         i 1 + i =
       }
       ')' <<
-    else t type == if
-      "type"  <<*
-    else t bool == if
-      "bool"  <<*
-    else t byte == if
-      "byte"  <<*
-    else t  int == if
-      "int"   <<*
-    else t uint == if
-      "uint"  <<*
-    else t float == if
-      "float" <<*
-    else t codepoint == if
-      "codepoint" <<*
-    else t bits8 == if
-      "bits8" <<*
-    else t bits16 == if
-      "bits16" <<*
-    else t bits32 == if
-      "bits32" <<*
-    else t bits64 == if
-      "bits64" <<*
-    else t bits128 == if
-      "bits128" <<*
-    else t bits192 == if
-      "bits192" <<*
-    else t bits256 == if
-      "bits256" <<*
-    else t bitsPtr == if
-      "bitsPtr" <<*
-    else t var == if
-      "var" <<*
-    else unreachable }
+    else
+      t type cast switch{
+      type case
+        "type"  <<*
+        end-case
+      bool case
+        "bool"  <<*
+        end-case
+      byte case
+        "byte"  <<*
+        end-case
+      int case
+        "int"  <<*
+        end-case
+      uint case
+        "uint"  <<*
+        end-case
+      float case
+        "float"  <<*
+        end-case
+      codepoint case
+        "codepoint"  <<*
+        end-case
+      bits8 case
+        "bits8"  <<*
+        end-case
+      bits16 case
+        "bits16"  <<*
+        end-case
+      bits32 case
+        "bits32"  <<*
+        end-case
+      bits64 case
+        "bits64"  <<*
+        end-case
+      bits128 case
+        "bits128"  <<*
+        end-case
+      bits192 case
+        "bits192"  <<*
+        end-case
+      bits256 case
+        "bits256"  <<*
+        end-case
+      bitsPtr case
+        "bitsPtr"  <<*
+        end-case
+      var case
+        "var" <<*
+        end-case
+      default
+        unreachable
+      }
+    }
     ##append mutability postfix
     t .isMutable if{
       " mut" <<* return
@@ -262,21 +283,33 @@ utf8 #include
     value <<array return
   else value .type .isTuple if
     value <<tuple return
-  else value .type type == if
-    value <<type return
-  else value .type bool == if
-    value <<bool return
-  else value .type byte == if
-    value <<char return
-  else value .type  int == if
-    value <<i return
-  else value .type uint == if
-    value  <<u return
-  else value .type float == if
-    value <<f return
-  else value .type codepoint == if
-    value <<codepoint return
-  else unreachable }
+  else
+    value .type switch{
+    type case
+      value <<type return
+      end-case
+    bool case
+      value <<bool return
+      end-case
+    byte case
+      value <<char return
+      end-case
+    int case
+      value <<i return
+      end-case
+    uint case
+      value <<u return
+      end-case
+    float case
+      value <<f return
+      end-case
+    codepoint case
+      value <<codepoint return
+      end-case
+    default
+      unreachable
+    }
+  }
 }
 
 

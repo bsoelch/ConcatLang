@@ -68,100 +68,149 @@ list #include
     value <<optional return
   else value .type .isEnum if
     value .type .name <<* ' ' << value .type .fieldNames value uint cast [] <<* " ." <<* return
-  else value .type type == if
-    value type cast .genericArguments args mut =::
-    0 i mut =::
-    while{ i args .length < do
-        args i [] <<s " " <<*
-        i 1 + i =
-    }
-    value type cast .isStruct if{
-      value type cast .name <<*
-    else value type cast .isTuple if
-      value type cast .outTypes args =
-      0 i =
-      "( " <<*
-      while{ i args .length < do
-        args i [] <<s " " <<*
-        i 1 + i =
-      }
-      ")" <<*
-    else value type cast .isProc if
-      value type cast .inTypes args =
-      0 i =
-      "( " <<*
-      while{ i args .length < do
-        args i [] <<s " " <<*
-        i 1 + i =
-      }
-      "=> " <<*
-      value type cast .outTypes args =
-      0 i =
-      while{ i args .length < do
-        args i [] <<s " " <<*
-        i 1 + i =
-      }
-      ")" <<*
-    else value type cast .isArray if
-      #+content is generic parameter+# "array" <<*
-    else value type cast .isMemory if
-      #+content is generic parameter+# "memory" <<*
-    else value type cast .isOptional if
-      #+content is generic parameter+# "optional" <<*
-    else value type cast .isEnum if
-      value type cast .name <<* ## return enum-name
-    else value type cast .isUnion if
-      value type cast .inTypes args =
-      0 i =
-      "union( " <<*
-      while{ i args .length < do
-        args i [] <<s " " <<*
-        i 1 + i =
-      }
-      ')' <<
-    else value type == if
-      "type"  <<*
-    else value bool == if
-      "bool"  <<*
-    else value byte == if
-      "byte"  <<*
-    else value  int == if
-      "int"   <<*
-    else value uint == if
-      "uint"  <<*
-    else value float == if
-      "float" <<*
-    else value codepoint == if
-      "codepoint" <<*
-    else value var == if
-      "var" <<*
-    else unreachable }
-    ##append mutability postfix
-    value type cast .isMutable if{
-      " mut" <<* return
-    else value type cast .isMaybeMutable if
-      " mut?" <<* return
-    }
-  else value .type bool == if
-    value bool cast if{ "true" else "false" } <<* return
-  else value .type byte == if
-    value byte cast 0x80 byte cast < if{
-      value byte cast << return ## print valid ascii-characters as character
-    else
-      value <<byte return ## print all other bytes as their byte-code
-    }
-  else value .type  int == if
-    value <<i return
-  else value .type uint == if
-    value  <<u return
-  else value .type float == if
-    value <<f return
-  else value .type codepoint == if
-    value codepoint cast << return
   else value .type .isProc if
     ## procedure
     value .type <<s "@" <<* value refId <<X return
-  else unreachable }
+  else
+    value .type switch{
+    type case
+      value type cast .genericArguments args mut =::
+      0 i mut =::
+      while{ i args .length < do
+          args i [] <<s " " <<*
+          i 1 + i =
+      }
+      value type cast .isStruct if{
+        value type cast .name <<*
+      else value type cast .isTuple if
+        value type cast .outTypes args =
+        0 i =
+        "( " <<*
+        while{ i args .length < do
+          args i [] <<s " " <<*
+          i 1 + i =
+        }
+        ")" <<*
+      else value type cast .isProc if
+        value type cast .inTypes args =
+        0 i =
+        "( " <<*
+        while{ i args .length < do
+          args i [] <<s " " <<*
+          i 1 + i =
+        }
+        "=> " <<*
+        value type cast .outTypes args =
+        0 i =
+        while{ i args .length < do
+          args i [] <<s " " <<*
+          i 1 + i =
+        }
+        ")" <<*
+      else value type cast .isArray if
+        #+content is generic parameter+# "array" <<*
+      else value type cast .isMemory if
+        #+content is generic parameter+# "memory" <<*
+      else value type cast .isOptional if
+        #+content is generic parameter+# "optional" <<*
+      else value type cast .isEnum if
+        value type cast .name <<* ## return enum-name
+      else value type cast .isUnion if
+        value type cast .inTypes args =
+        0 i =
+        "union( " <<*
+        while{ i args .length < do
+          args i [] <<s " " <<*
+          i 1 + i =
+        }
+        ')' <<
+      else
+        value type cast switch{
+        type case
+          "type" <<*
+          end-case
+        bool case
+          "bool" <<*
+          end-case
+        byte case
+          "byte" <<*
+          end-case
+        int case
+          "int" <<*
+          end-case
+        uint case
+          "uint" <<*
+          end-case
+        float case
+          "float" <<*
+          end-case
+        codepoint case
+          "codepoint" <<*
+          end-case
+        bits8 case
+          "bits8" <<*
+          end-case
+        bits16 case
+          "bits16" <<*
+          end-case
+        bits32 case
+          "bits32" <<*
+          end-case
+        bits64 case
+          "bits64" <<*
+          end-case
+        bits128 case
+          "bits128" <<*
+          end-case
+        bits192 case
+          "bits192" <<*
+          end-case
+        bits256 case
+          "bits256" <<*
+          end-case
+        bitsPtr case
+          "bitsPtr" <<*
+          end-case
+        var case
+          "var" <<*
+          end-case
+        default
+          unreachable
+        }
+      }
+      ##append mutability postfix
+      value type cast .isMutable if{
+        " mut" <<* return
+      else value type cast .isMaybeMutable if
+        " mut?" <<* return
+      }
+      end-case
+    bool case
+      value bool cast if{ "true" else "false" } <<* return
+      end-case
+    byte case
+      value byte cast 0x80 byte cast < if{
+        value byte cast << return ## print valid ascii-characters as character
+      else
+        value <<byte return ## print all other bytes as their byte-code
+      }
+      end-case
+    int case
+      value <<i return
+      end-case
+    uint case
+      value  <<u return
+      end-case
+    float case
+      value <<f return
+      end-case
+    codepoint case
+      value codepoint cast << return
+      end-case
+    default
+      unreachable
+    }
+  }
 }
 stringValue public proc( var => string ){
   var val =:
