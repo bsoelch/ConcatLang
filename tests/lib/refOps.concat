@@ -1,0 +1,17 @@
+tests/lib/refOps:
+
+refOps #include
+core #import
+
+0 i mut =::
+
+while{ i 5 < do
+  i .. debugPrint
+  i ++
+}
+"________________________________________" debugPrint
+10 i =
+while{ i 0 >= do
+  i .. debugPrint
+  i --
+}

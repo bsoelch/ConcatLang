@@ -1,0 +1,14 @@
+lib/refOps:
+
+core #namespace
+
+stack #include
+
+++ public proc( A <?> A reference mut => ){
+  dup .. 1 + swap =
+}
+-- public proc( A <?> A reference mut => ){
+  dup .. 1 - swap =
+}
+
+#end
