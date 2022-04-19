@@ -1559,6 +1559,17 @@ public abstract class Value {
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).mutable(),Type.UINT},
+                    new Type[]{Type.referenceTo(a).mutable()},"[]",
+                    (values) ->  {
+                        long index=values[1].asLong();
+                        ArrayLike array=((ArrayLike)values[0]);
+                        return new Value[]{new ReferenceValue(values[0].type.content(),()->array.get(index),
+                                val->array.set(index,val))};
+                    },false));
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),Type.UINT},
                     new Type[]{a},"[]",
                     (values) ->  new Value[]{((ArrayLike)values[0]).get(values[1].asLong())},false));
