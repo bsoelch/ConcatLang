@@ -54,6 +54,14 @@ columns public proc( A <?> A Matrix mut => A array mut array mut~ ){
 }
 
 
+
+[,] public proc( A <?> A Matrix mut uint uint => A reference mut ){
+  y =::
+  x =::
+  mat =::
+  x mat .width < &&{ y mat .height < } "matrix index in bounds" assert
+  mat .data x y mat .width * + [] return
+}
 [,] public proc( A <?> A Matrix mut? uint uint => A ){
   y =::
   x =::
@@ -61,14 +69,6 @@ columns public proc( A <?> A Matrix mut => A array mut array mut~ ){
   x mat .width < &&{ y mat .height < } "matrix index in bounds" assert
   mat .data x y mat .width * + [] return
 }
-[,]= public proc( A <?> A A Matrix mut uint uint => ){
-  y =::
-  x =::
-  mat =::
-  x mat .width < &&{ y mat .height < } "matrix index in bounds" assert
-  #+val+# mat .data x y mat .width * + []=
-}
-
 
 
 #end

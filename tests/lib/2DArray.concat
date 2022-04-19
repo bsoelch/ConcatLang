@@ -11,7 +11,7 @@ core #import
 
 0 while{ dup matrix1 .width < do
   0 while{ dup matrix1 .height < do
-    over  over 10 * + matrix1 4 ?dup 4 ?dup [,]=
+    over  over 10 * + matrix1 4 ?dup 4 ?dup [,] =
     1 +
   } drop
   1 +

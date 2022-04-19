@@ -150,7 +150,7 @@ implement{ A <> A Iterator A ConcatenatedIterator for
     itr .iterators 0 [] .^> res mut =::
     res .hasValue if{
       itr .iterators clone iterators =::
-      #+newItr+# iterators 0 []=
+      #+newItr+# iterators 0 [] =
       iterators clone-mut~ A ConcatenatedIterator new res return
     }
     drop ## drop empty iterator
@@ -160,7 +160,7 @@ implement{ A <> A Iterator A ConcatenatedIterator for
       res .hasValue if{
         itr .iterators .length i - A Iterator memory mut new iterators =::
         itr .iterators i iterators 0 itr .iterators .length i - copy
-        #+newItr+# iterators 0 []=
+        #+newItr+# iterators 0 [] =
         iterators clone-mut~ A ConcatenatedIterator new  res return
       }
       drop ## drop empty iterator

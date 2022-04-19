@@ -111,7 +111,7 @@ fill public proc( A <?> A A ListSlice mut int uint => ){
 []= public proc( A <?> A A List mut uint => ){
   i =::
   mList =::
-  #+val+# mList .data i []=
+  #+val+# mList .data i [] =
 }
 []= public proc( A <?> A A ListSlice mut uint => ){
   i =::
@@ -121,7 +121,7 @@ fill public proc( A <?> A A ListSlice mut int uint => ){
     "index out of bounds " <<* i <<i " length:" <<* slice .length <<u '\n' << .build eputs
     1 exit
   }
-  #+val+# slice .parent .data slice .offset i + []=
+  #+val+# slice .parent .data slice .offset i + [] =
 }
 
 ##inserts element after the given index
@@ -140,7 +140,7 @@ insert public proc( A <?> A A List mut uint => ){
   }
   index listData .length < if{
     listData index listData index 1 + listData .length index - copy
-    #+val+# listData index []=
+    #+val+# listData index [] =
   else
     #+val+# listData swap []^=
   }

@@ -64,7 +64,8 @@ public class OverloadedProcedure implements Parser.Declareable {
             boolean isEqual=true;
             IdentityHashMap<Type.GenericParameter, Type.GenericParameter> generics=new IdentityHashMap<>();
             for(int i=0;i<t0.inTypes.length;i++){
-                if(!t0.inTypes[i].equals(t1.inTypes[i],generics)){
+                if(!t0.inTypes[i].equals(t1.inTypes[i],generics)||
+                        t0.inTypes[i].mutability!=t1.inTypes[i].mutability){
                     isEqual=false;
                     break;
                 }

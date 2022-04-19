@@ -1574,16 +1574,6 @@ public abstract class Value {
                     new Type[]{a},"[]",
                     (values) ->  new Value[]{((ArrayLike)values[0]).get(values[1].asLong())},false));
         }
-        {
-            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.arrayOf(a).mutable(),Type.UINT},
-                    new Type[]{},"[]=", (values) ->  {
-                        //val list index
-                        ((ArrayLike)values[1]).set(values[2].asLong(),values[0]);
-                        return new Value[0];
-                    },false));
-        }
-
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);

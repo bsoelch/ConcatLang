@@ -28,17 +28,18 @@ arraySlice public struct{ A <>
    #+array+# off to off - A arraySlice new return
 }
 
-[] public proc( A <?> A arraySlice mut? uint => A ){
+
+[] public proc( A <?> A arraySlice mut uint => A reference mut ){
       index =::
       slice =::
       index 0 >= &&{ index slice .length < } "index in range" assert
       slice .parent slice .offset index + [] return
 }
-[]= public proc( A <?> A A arraySlice mut uint => ){
+[] public proc( A <?> A arraySlice mut? uint => A ){
       index =::
       slice =::
       index 0 >= &&{ index slice .length < } "index in range" assert
-      #+val+# slice .parent slice .offset index + []= return
+      slice .parent slice .offset index + [] return
 }
 
 #end ## core

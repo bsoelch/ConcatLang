@@ -90,7 +90,7 @@ HashMap.put public proc( K <?> V <?> #+value+# V #+map+# K V HashMap mut #+key+#
       V empty return
     }
   else
-    key value K V HashMapEntry mut empty K V HashMapEntry mut new wrap   hMap .data i []=
+    key value K V HashMapEntry mut empty K V HashMapEntry mut new wrap   hMap .data i [] =
     hMap HashMap.incSize
     V empty return
   }
@@ -145,7 +145,7 @@ HashMap.remove public proc( K <?> V <?> #+map+# K V HashMap mut #+key+# K => #+p
     entry .key key == if{
       hMap HashMap.decSize
       entry .value ## get previous value
-      entry .next K V HashMapEntry mut optional cast  hMap .data i []= ## remove entry
+      entry .next K V HashMapEntry mut optional cast  hMap .data i [] = ## remove entry
       wrap return
     else
       while{ entry .next do

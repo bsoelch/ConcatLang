@@ -8,7 +8,7 @@ uintToBytes public proc( uint => byte array ){
   0 8 byte array mut new rawData =::
   0 i mut =::
   while{ i 8 < do
-    val 0xff & byte cast rawData i []=
+    val 0xff & byte cast rawData i [] =
     val 8 >> val =
     i 1 + i =
   }

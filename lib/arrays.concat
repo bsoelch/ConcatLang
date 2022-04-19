@@ -50,8 +50,8 @@ reverse public proc( A <?> A array mut  => ){
   toReverse .length 1 - int maxId =:
   while{ i toReverse .length 2 / < do
     toReverse i [] A tmp =:
-    toReverse maxId i - []  toReverse i []=
-    tmp  toReverse maxId i - []=
+    toReverse maxId i - []  toReverse i [] =
+    tmp  toReverse maxId i - [] =
     i 1 + i =
   }
 }
