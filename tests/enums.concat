@@ -23,10 +23,10 @@ a .is println
 a .enumeration  switch{
 this is case
   "this or is" println
-end-case
+  break
 a .enumeration case
   "enumeration" println
-end-case
+  break
 default
   "default-case" println
 }

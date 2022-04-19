@@ -120,52 +120,52 @@ utf8 #include
       t type cast switch{
       type case
         "type"  <<*
-        end-case
+        break
       bool case
         "bool"  <<*
-        end-case
+        break
       byte case
         "byte"  <<*
-        end-case
+        break
       int case
         "int"  <<*
-        end-case
+        break
       uint case
         "uint"  <<*
-        end-case
+        break
       float case
         "float"  <<*
-        end-case
+        break
       codepoint case
         "codepoint"  <<*
-        end-case
+        break
       bits8 case
         "bits8"  <<*
-        end-case
+        break
       bits16 case
         "bits16"  <<*
-        end-case
+        break
       bits32 case
         "bits32"  <<*
-        end-case
+        break
       bits64 case
         "bits64"  <<*
-        end-case
+        break
       bits128 case
         "bits128"  <<*
-        end-case
+        break
       bits192 case
         "bits192"  <<*
-        end-case
+        break
       bits256 case
         "bits256"  <<*
-        end-case
+        break
       bitsPtr case
         "bitsPtr"  <<*
-        end-case
+        break
       var case
         "var" <<*
-        end-case
+        break
       default
         unreachable
       }
@@ -287,25 +287,18 @@ utf8 #include
     value .type switch{
     type case
       value <<type return
-      end-case
     bool case
       value <<bool return
-      end-case
     byte case
       value <<char return
-      end-case
     int case
       value <<i return
-      end-case
     uint case
       value <<u return
-      end-case
     float case
       value <<f return
-      end-case
     codepoint case
       value <<codepoint return
-      end-case
     default
       unreachable
     }

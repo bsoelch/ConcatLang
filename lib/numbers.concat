@@ -326,27 +326,28 @@ checkErrCode proc( #+err-code+# StringParseError #+type-name+# string mut? #+sou
   string mut? source =:
   string mut? typeName =:
   #+err-code+# switch{
-  ERR_NONE case end-case
+  ERR_NONE case
+    break
   ERR_BASE case
       100 buildString
       "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (base outside of allowed rage)\n" <<* .build eputs
       1 exit
-  end-case
+  break
   ERR_EMPTY case
       100 buildString
       "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (empty-string)\n" <<* .build eputs
       1 exit
-  end-case
+  break
   ERR_ILLEGAL_CHAR case
       100 buildString
       "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (illegal-character)\n" <<* .build eputs
       1 exit
-  end-case
+  break
   ERR_OVERFLOW case
       100 buildString
       "invalid string-format for " <<* typeName <<* " \"" <<* source <<* "\" (overflow)\n" <<* .build eputs
       1 exit
-  end-case
+  break
   }
 }
 parseInt  public proc( string mut? => int ){

@@ -7,16 +7,12 @@ test proc( int => string ){
   #+input+# switch{
   1 case
     "1st case" return
-    end-case
   2 case
     "2nd case" return
-    end-case
   3 case
     "3rd case" return
-    end-case
   0 4 5 6 7 8 9 case
     "0,4,5,6,7,8,9 case" return
-    end-case
   }
   "fallthrough" return
 }
@@ -25,16 +21,12 @@ testDefault proc( int => string ){
   #+input+# switch{
   1 case
     "1st case" return
-    end-case
   2 case
     "2nd case" return
-    end-case
   3 case
     "3rd case" return
-    end-case
   0 4 5 6 7 8 9 case
     "0,4,5,6,7,8,9 case" return
-    end-case
   default
     "default case" return
   }
@@ -77,38 +69,38 @@ testDefault proc( int => string ){
   "switch" case
      drop
      "NOT OK" println
-    end-case
+    break
   "ERROR" case
      drop
      "NOT OK" println
-    end-case
+    break
   "in" case
     switch{
     "switch" case
        "OK" println
-      end-case
+      break
     "in" case
        "NOT OK" println
-      end-case
+      break
     "ERROR" case
        "NOT OK" println
-      end-case
+      break
     default
        "NOT OK" println
     }
-    end-case
+    break
   default drop
     "NOT OK" println
   }
-  end-case
+  break
 "in" case
    drop drop
    "NOT OK" println
-  end-case
+  break
 "ERROR" case
    drop drop
    "NOT OK" println
-  end-case
+  break
 default
    drop drop
    "NOT OK" println

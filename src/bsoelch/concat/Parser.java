@@ -166,7 +166,7 @@ public class Parser {
         }
     }
     enum BlockTokenType{
-        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE,END_CASE,DEFAULT, ARRAY, END,
+        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE, BREAK,DEFAULT, ARRAY, END,
         TUPLE_TYPE, PROC_TYPE,ARROW, UNION_TYPE, END_TYPE,
         FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END,FOR_ITERATOR_LOOP,FOR_ITERATOR_END
     }
@@ -543,7 +543,7 @@ public class Parser {
         void newSection(int start, FilePosition pos) throws SyntaxError {
             context=null;
             if(sectionStart!=-1||defaultJump!=-1){
-                throw new SyntaxError("unexpected 'end-case' statement",pos);
+                throw new SyntaxError("unexpected 'break' statement",pos);
             }else{
                 sectionStart=start;
                 if(blockStart !=-1){
@@ -2151,11 +2151,11 @@ public class Parser {
                     }
                     tokens.add(new BlockToken(BlockTokenType.DEFAULT, pos, -1));
                 }
-                case "end-case" -> {
+                case "break" -> {
                     if(!(pState.openBlocks.peekLast() instanceof SwitchCaseBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
-                    tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
+                    tokens.add(new BlockToken(BlockTokenType.BREAK, pos, -1));
                 }
                 case "}" -> parseEndBlock(str, tokens, pState, pos);
                 case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
@@ -3235,7 +3235,7 @@ public class Parser {
             }
             if(tState.finishedBranch){
                 if(t.tokenType!=TokenType.UNREACHABLE&&((!(t instanceof BlockToken block))
-                        ||(block.blockType!=BlockTokenType.ELSE&&block.blockType!=BlockTokenType.END_CASE
+                        ||(block.blockType!=BlockTokenType.ELSE&&block.blockType!=BlockTokenType.BREAK
                         &&block.blockType!=BlockTokenType.END))){
                     //end of branch that is not always executed
                     throw new SyntaxError("unreachable statement: "+t,t.pos);
@@ -3287,6 +3287,11 @@ public class Parser {
                     }
                     tState.finishedBranch=true;
                     tState.ret.add(t);
+                    if(tState.openBlocks.peekLast() instanceof SwitchCaseBlock sBlock){
+                        if(sBlock.defaultJump==-1){//no default statement
+                            endCase(sBlock,tState,t.pos);
+                        }
+                    }
                 }
                 case CAST -> {
                     if(tState.ret.size()==0){
@@ -3452,7 +3457,6 @@ public class Parser {
 
     private static void typeCheckBlock(BlockToken block,FilePosition pos,TypeCheckState tState) throws RandomAccessStack.StackUnderflow, SyntaxError {
         final ArrayList<Token> ret=tState.ret;
-        final List<Token> uncheckedTokens=tState.src;
         final ArrayDeque<CodeBlock> openBlocks=tState.openBlocks;
 
         switch (block.blockType){
@@ -3665,86 +3669,14 @@ public class Parser {
                 openBlocks.addLast(switchBlock);
                 ret.add(new SwitchToken(switchBlock,pos));
                 switchBlock.newSection(ret.size(),pos);
-                //find case statement
-                int j=tState.index+1;
-                while(j<uncheckedTokens.size()&&(!(uncheckedTokens.get(j) instanceof BlockToken))){
-                    j++;
-                }
-                if(j>= uncheckedTokens.size()){
-                    throw new SyntaxError("found no case-statement for switch at "+pos,
-                            uncheckedTokens.get(uncheckedTokens.size()-1).pos);
-                }else if(((BlockToken)uncheckedTokens.get(j)).blockType!=BlockTokenType.CASE){
-                    throw new SyntaxError("unexpected statement in switch at "+pos+" "+
-                            uncheckedTokens.get(j)+" expected 'case' statement",
-                            uncheckedTokens.get(j).pos);
-                }
-                List<Token> caseValues=uncheckedTokens.subList(tState.index+1,j);
-                findEnumFields(switchBlock, caseValues);
-                tState.context=switchBlock.caseBlock(typeCheck(caseValues,tState.context,tState.globalConstants,
-                                new TypeData(),null,pos,tState.ioContext).tokens,
-                        uncheckedTokens.get(j).pos);
-                ret.add(new ContextOpen(tState.context,pos));
-                tState.index=j;
-                if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
-                    tState.typeData=tState.typeData.copy();
-                }
+                nextCase(true,switchBlock, tState, pos);
             }
-            case END_CASE -> {
+            case BREAK -> {
                 CodeBlock open=openBlocks.peekLast();
                 if(!(open instanceof SwitchCaseBlock switchBlock)){
-                    throw new SyntaxError("end-case can only be used in switch-case-blocks",pos);
+                    throw new SyntaxError("break can only be used in switch-case-blocks",pos);
                 }
-                if(tState.finishedBranch) {
-                    tState.finishedBranch=false;
-                }else{
-                    switchBlock.caseTypes.add(new BranchWithEnd(tState.typeData,pos));
-                }
-                tState.typeData=switchBlock.defaultTypes;
-
-                ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
-                tState.closeContext();
-                ret.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
-                switchBlock.newSection(ret.size(),pos);
-                //find case statement
-                int j=tState.index+1;
-                while(j<uncheckedTokens.size()&&(!(uncheckedTokens.get(j) instanceof BlockToken))){
-                    j++;
-                }
-                if(j>= uncheckedTokens.size()){
-                    throw new SyntaxError("found no case-statement for switch at "+pos,
-                            uncheckedTokens.get(uncheckedTokens.size()-1).pos);
-                }
-                Token t=uncheckedTokens.get(j);
-                if(((BlockToken)t).blockType==BlockTokenType.CASE){
-                    List<Token> caseValues=uncheckedTokens.subList(tState.index+1,j);
-                    findEnumFields(switchBlock, caseValues);
-                    tState.context=switchBlock.caseBlock(typeCheck(caseValues,tState.context,tState.globalConstants,
-                            new TypeData(),null,pos,tState.ioContext).tokens,
-                            uncheckedTokens.get(j).pos);
-                    ret.add(new ContextOpen(tState.context,pos));
-
-                    if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
-                        tState.typeData=tState.typeData.copy();
-                    }
-                }else if(((BlockToken)t).blockType==BlockTokenType.DEFAULT){
-                    tState.context=switchBlock.defaultBlock(ret.size(),pos);
-                    ret.add(new ContextOpen(tState.context,pos));
-                }else if(((BlockToken)t).blockType==BlockTokenType.END){
-                    switchBlock.end(ret.size(),pos,tState.ioContext);
-                    openBlocks.removeLast();//remove switch-block form blocks
-                    for(Integer p:switchBlock.blockEnds){
-                        Token tmp=ret.get(p);
-                        ((BlockToken)tmp).delta=ret.size()-p;
-                    }
-                    for(BranchWithEnd branch:switchBlock.caseTypes){
-                        merge(tState.typeData,pos,branch.types,branch.end,"switch");
-                    }
-                }else{
-                    throw new SyntaxError("unexpected statement after end-case at "+
-                            uncheckedTokens.get(tState.index).pos+": "+block+
-                            " expected 'case', 'default' or 'end' statement",pos);
-                }
-                tState.index=j;
+                endCase(switchBlock, tState, pos);
             }
             case CASE ->
                     throw new SyntaxError("unexpected 'case' statement",pos);
@@ -3883,7 +3815,7 @@ public class Parser {
                     }
                     case SWITCH_CASE -> {//end switch with default
                         if(((SwitchCaseBlock)open).defaultJump==-1){
-                            throw new SyntaxError("missing end-case statement",pos);
+                            throw new SyntaxError("missing break statement",pos);
                         }
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                         tState.closeContext();
@@ -3990,6 +3922,69 @@ public class Parser {
                 }
             }
         }
+    }
+
+    private static void endCase(SwitchCaseBlock switchBlock, TypeCheckState tState, FilePosition pos) throws SyntaxError {
+        if(tState.finishedBranch) {
+            tState.finishedBranch=false;
+        }else{
+            switchBlock.caseTypes.add(new BranchWithEnd(tState.typeData, pos));
+        }
+        tState.typeData= switchBlock.defaultTypes;
+
+        tState.ret.add(new Token(TokenType.CONTEXT_CLOSE, pos));
+        tState.closeContext();
+        tState.ret.add(new BlockToken(BlockTokenType.BREAK, pos, -1));
+        switchBlock.newSection(tState.ret.size(), pos);
+        nextCase(false, switchBlock, tState, pos);
+    }
+    private static void nextCase(boolean first,SwitchCaseBlock switchBlock, TypeCheckState tState,FilePosition pos)
+            throws SyntaxError {
+        List<Token> uncheckedTokens=tState.src;
+        int j= tState.index+1;
+        while(j< uncheckedTokens.size()&&(!(uncheckedTokens.get(j) instanceof BlockToken))){
+            j++;
+        }
+        if(j>= uncheckedTokens.size()){
+            throw new SyntaxError("found no case-statement after"+ pos,
+                    uncheckedTokens.get(uncheckedTokens.size()-1).pos);
+        }
+        Token t= uncheckedTokens.get(j);
+        if(((BlockToken)t).blockType==BlockTokenType.CASE){
+            List<Token> caseValues= uncheckedTokens.subList(tState.index+1,j);
+            findEnumFields(switchBlock, caseValues);
+            tState.context= switchBlock.caseBlock(typeCheck(caseValues, tState.context, tState.globalConstants,
+                    new TypeData(),null, t.pos, tState.ioContext).tokens,
+                    uncheckedTokens.get(j).pos);
+            tState.ret.add(new ContextOpen(tState.context, t.pos));
+
+            if(switchBlock.hasMoreCases()){//only clone typeStack if there are more cases
+                tState.typeData= tState.typeData.copy();
+            }
+        }else if(((BlockToken)t).blockType==BlockTokenType.DEFAULT){
+            if(first){
+                throw new SyntaxError("switch block has to contain at least one case-statement",t.pos);
+            }
+            tState.context= switchBlock.defaultBlock(tState.ret.size(), t.pos);
+            tState.ret.add(new ContextOpen(tState.context, t.pos));
+        }else if(((BlockToken)t).blockType==BlockTokenType.END){
+            if(first){
+                throw new SyntaxError("switch block has to contain at least one case-statement",t.pos);
+            }
+            switchBlock.end(tState.ret.size(), t.pos, tState.ioContext);
+            tState.openBlocks.removeLast();//remove switch-block form blocks
+            for(Integer p: switchBlock.blockEnds){
+                Token tmp= tState.ret.get(p);
+                ((BlockToken)tmp).delta= tState.ret.size()-p;
+            }
+            for(BranchWithEnd branch: switchBlock.caseTypes){
+                merge(tState.typeData, t.pos,branch.types,branch.end,"switch");
+            }
+        }else{
+            throw new SyntaxError("unexpected statement in switch-block:"+ t
+                    + " expected 'case', 'default' or 'end' statement", t.pos);
+        }
+        tState.index=j;
     }
 
     private static void typeCheckAssert( Token t,TypeCheckState tState)

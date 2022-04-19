@@ -503,6 +503,77 @@ while{
 
 It is also possible to use `}do{` instead of `do`.
 
+#### switch-case blocks
+switch-case statements can be used to compact chains of if-else 
+statements of specific types currently  the switchable types are
+`int` `uint` `byte` `codepoint` `type` `string` `ustring`
+and all enum-types.
+
+The values for case statements have to contain constant 
+expressions (evaluable at compile time) of the correct type.
+Each value can in at most one case-statement.
+When switching over an enum value every entry of the enum 
+has to be covered by exactly one case.
+
+If a value is supplied to a switch-statement the case-block for that 
+value is executed, if the value is in no case-block 
+then the default-block (if-present) is executed.
+
+
+
+switch case start with:
+```
+<val> switch{
+```
+which is followed by one or more case-blocks
+```
+<const> ... <const> case 
+  <body> 
+  break
+```
+or
+```
+<const> ... <const> case 
+  <body> 
+  return
+```
+and optionally a default block
+```
+default
+  <body>
+```
+the switch ended with a closing curly bracket
+```
+}
+```
+
+Examples:
+```
+## checks if a given ascii-character is a (decimal) digit
+isDigit proc( byte => bool ){
+  #+char+# switch{
+    '0' '1' '2' '3' '4' 
+    '5' '6' '7' '8' '9' case
+      true return
+    default
+      false return
+  }
+}
+
+anEnum enum{ A B C D }
+
+asChar proc( anEnum => byte ){
+  #+entry+# switch{
+    A case 'A' break
+    B case 'B' break
+    C case 'C' break
+    D case 'D' break
+  }
+  return
+}
+```
+
+
 ### Procedures
 Procedures are code blocks that can be called 
 from other points in the program. 

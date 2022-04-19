@@ -128,85 +128,80 @@ list #include
         value type cast switch{
         type case
           "type" <<*
-          end-case
+          break
         bool case
           "bool" <<*
-          end-case
+          break
         byte case
           "byte" <<*
-          end-case
+          break
         int case
           "int" <<*
-          end-case
+          break
         uint case
           "uint" <<*
-          end-case
+          break
         float case
           "float" <<*
-          end-case
+          break
         codepoint case
           "codepoint" <<*
-          end-case
+          break
         bits8 case
           "bits8" <<*
-          end-case
+          break
         bits16 case
           "bits16" <<*
-          end-case
+          break
         bits32 case
           "bits32" <<*
-          end-case
+          break
         bits64 case
           "bits64" <<*
-          end-case
+          break
         bits128 case
           "bits128" <<*
-          end-case
+          break
         bits192 case
           "bits192" <<*
-          end-case
+          break
         bits256 case
           "bits256" <<*
-          end-case
+          break
         bitsPtr case
           "bitsPtr" <<*
-          end-case
+          break
         var case
           "var" <<*
-          end-case
+          break
         default
           unreachable
         }
       }
       ##append mutability postfix
       value type cast .isMutable if{
-        " mut" <<* return
+        " mut"  <<*
       else value type cast .isMaybeMutable if
-        " mut?" <<* return
+        " mut?" <<*
       }
-      end-case
+      return
     bool case
       value bool cast if{ "true" else "false" } <<* return
-      end-case
     byte case
       value byte cast 0x80 byte cast < if{
-        value byte cast << return ## print valid ascii-characters as character
+        value byte cast << ## print valid ascii-characters as character
       else
-        value <<byte return ## print all other bytes as their byte-code
+        value <<byte  ## print all other bytes as their byte-code
       }
-      end-case
+      return
     int case
       value <<i return
-      end-case
     uint case
       value  <<u return
-      end-case
     float case
       value <<f return
-      end-case
     codepoint case
       value codepoint cast << return
-      end-case
     default
       unreachable
     }
@@ -299,11 +294,11 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
   'b' case
     5 buildString
     values format .index [] bool cast if{ "true" else "false" } <<* StringBuilder cast
-    end-case
+    break
   'B' case
     5 buildString
     values format .index [] bool cast if{ "TRUE" else "FALSE" } <<* StringBuilder cast
-    end-case
+    break
   'i' case
     64 buildString
     plusSgn '\0' != if{
@@ -312,7 +307,7 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
       }
     }
     values format .index [] int cast base <<?i
-    end-case
+    break
   'I' case
     64 buildString
     plusSgn '\0' != if{
@@ -321,21 +316,21 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
       }
     }
     values format .index [] int cast  base <<?I
-    end-case
+    break
   'u' case
     64 buildString
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast base <<?u
-    end-case
+    break
   'U' case
     64 buildString
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast base <<?U
-    end-case
+    break
   'd' case
     64 buildString
     plusSgn '\0' != if{
@@ -344,21 +339,21 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
       }
     }
     values format .index [] int cast <<i
-    end-case
+    break
   'x' case
     16 buildString
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast <<x
-   end-case
+   break
   'X' case
     16 buildString
     plusSgn '\0' != if{
       plusSgn <<
     }
     values format .index [] uint cast <<X
-    end-case
+    break
   'e' case
     32 buildString
     plusSgn '\0' != if{
@@ -367,7 +362,7 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
       }
     }
     values format .index [] float cast precision base <<??e
-    end-case
+    break
   'E' case
     32 buildString
     plusSgn '\0' != if{
@@ -376,7 +371,7 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
       }
     }
     values format .index [] float cast precision base <<??E
-    end-case
+    break
   'f' case
     32 buildString
     plusSgn '\0' != if{
@@ -385,7 +380,7 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
       }
     }
     values format .index [] float cast precision base <<??f
-    end-case
+    break
   'F' case
     32 buildString
     plusSgn '\0' != if{
@@ -394,16 +389,16 @@ IO_printValue proc( FormatValue var array mut? => string ){ ## addLater runtime 
       }
     }
     values format .index [] float cast precision base <<??F
-    end-case
+    break
   'c' case
     1 buildString values format .index [] byte cast << StringBuilder cast
-    end-case
+    break
   's' 'S' case
     0 buildString values format .index [] stringValue <<* StringBuilder cast
-    end-case
+    break
   '%' case
     1 buildString '%' << StringBuilder cast
-    end-case
+    break
   default
     32 buildString
     format .format << " is no valid format specifier\n" <<* .build eputs
