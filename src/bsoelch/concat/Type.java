@@ -43,7 +43,7 @@ public class Type {
             return (t==INT||t==UINT||t==CODEPOINT)?CastType.CAST:super.canCastTo(t,bounds);
         }
     };
-    public static final Type TYPE  = new Type("type",BITS64, false) {
+    public static final Type TYPE  = new Type("type",BITS64, true) {
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();//addLater? make type-data getters return optional
