@@ -206,6 +206,62 @@ true
 false
 ```
 
+#### other operators
+- `.type` replaces the top element on the stack
+  with its type
+- `clone` replaces the top element on the stack
+  with a shallow copy
+- `clone!` replaces the top element on the stack
+  with a deep copy
+- `cast` typecast `val type cast` casts `val` to
+  type `type` and pushes the result
+- `array`  wraps a type in the corresponding array-type
+- `optional`  wraps a type in the corresponding optional-type
+- `.content` unwraps array and optional types
+- `>>` `<<` add a new element at the start/end of a List
+- `*>>` `<<*` adds all elements of an array or a List to a List
+- `[]` get an element of an array
+  - syntax: `<array> <index> []`
+- `[]=`  set an element of an array
+  - syntax: `<value> <array> <index> []=`
+  - the element at index will be set to value cast to
+    the type of the array-elements
+- `[:]`  get a slice of an array
+  - syntax: `<array> <off> <to> [:]`
+  - returns a new arraySlice containing the elements
+    of the array with indices between `<off>` included
+    and `<to>` excluded
+- `[:]=` replace a subList of a List
+  - syntax: `<value> <array> <off> <to> [:]=`
+  - all elements in specified section of the List
+    will be replaced with the elements of value
+    cast to the type of the List
+- `()` call a procedure pointer
+
+
+Examples:
+```
+1 .type println
+3.1 int cast println
+int array array drop ## array of array of ints
+"Hello" ' ' "World" >> <<* '!' << println
+"Hello World!" 7 9 [:] println
+"Hello World?" '!' over 11 []= println
+"Hello World!" "Programmer" over 6 11 [:]= println
+"Hello World!" "" over 5 11 [:]= println
+```
+prints
+```
+int
+3
+Hello World!
+or
+Hello World!
+Hello Programmer!
+Hello!
+```
+
+
 ### Optionals 
 Optionals hold an optional value.
 
@@ -263,17 +319,6 @@ while{ .^> do   ## iterate over all elements
 drop ## drop the iterator
 ```
 
-using the `for{` macro:
-```
-## import for macro from the standed library
-codeblocks #include
-core #import 
-
-array ^_ for{
-  println ## do something with data
-} drop
-```
-
 reverse a string:
 ```
 list #include ## buildString/build 
@@ -288,72 +333,40 @@ reverse proc( string => string ){
   res .build return
 }
 ```
-!!! `for{` does not work for backward iteration !!!
+#### For-Loops
+for-loops simplify interaction with iterators, 
+a for loops can iterate over arrays or Iterators
 
-Sum all elements of an array
+A for-loop over an array iterates through 
+all elements of the array (from left to right):
+
+Example:
 ```
 0 int tmp mut =: ## Initialize sum to 0
 ## Iterate though all elements of the array
-^_ for{
+array1 for{
  tmp swap + tmp =
-} drop
+}
 tmp ## load the total sum onto the stack
 ```
+sums all the elements in the array `array1`.
 
-### other operators
-- `.type` replaces the top element on the stack 
-with its type
-- `clone` replaces the top element on the stack
-  with a shallow copy
-- `clone!` replaces the top element on the stack
-  with a deep copy
-- `cast` typecast `val type cast` casts `val` to 
-type `type` and pushes the result
-- `array`  wraps a type in the corresponding array-type
-- `optional`  wraps a type in the corresponding optional-type
-- `.content` unwraps array and optional types
-- `>>` `<<` add a new element at the start/end of a List
-- `*>>` `<<*` adds all elements of an array or a List to a List
-- `[]` get an element of an array
-   - syntax: `<array> <index> []`
-- `[]=`  set an element of an array
-  - syntax: `<value> <array> <index> []=`
-  - the element at index will be set to value cast to 
-the type of the array-elements
-- `[:]`  get a slice of an array
-  - syntax: `<array> <off> <to> [:]`
-  - returns a new arraySlice containing the elements 
-of the array with indices between `<off>` included
-and `<to>` excluded
-- `[:]=` replace a subList of a List
-  - syntax: `<value> <array> <off> <to> [:]=`
-  - all elements in specified section of the List 
-will be replaced with the elements of value
-cast to the type of the List
-- `()` call a procedure pointer
+A for-loop over an Iterator iterates over all the 
+elements supplied by the iterator.
 
-
-Examples:
 ```
-1 .type println
-3.1 int cast println
-int array array drop ## array of array of ints
-"Hello" ' ' "World" >> <<* '!' << println
-"Hello World!" 7 9 [:] println
-"Hello World?" '!' over 11 []= println
-"Hello World!" "Programmer" over 6 11 [:]= println
-"Hello World!" "" over 5 11 [:]= println
+<itr> for{ 
+   <body> 
+}
 ```
-prints 
+behaves like 
 ```
-int
-3
-Hello World!
-or
-Hello World!
-Hello Programmer!
-Hello!
+<itr> while{ .^> do 
+   <body>
+} drop
 ```
+It is not possible to access the iterator 
+from within the for-loop
 
 ### Stack Manipulation
 These Operations directly manipulate the stack without
@@ -474,7 +487,7 @@ else
 
 #### while-loops
 While loops have the syntax
-```Julia
+```
 while{ <condition> do
  <body>
 }
@@ -482,7 +495,7 @@ while{ <condition> do
 
 do-while loops have the syntax
 
-```Julia
+```
 while{
   <body> 
 <condition> do }
@@ -587,7 +600,7 @@ placed directly after the corresponding variable
 - `=:` change read-variable to declare-variable
 
 Examples:
-```Python
+```
 1 int a mut =: #+ declare a as integer with value 1 +#
 42 a = #+ store 42 in a +#
 a println  #+ print the value of a +#
