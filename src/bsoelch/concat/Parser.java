@@ -1932,7 +1932,7 @@ public class Parser {
                                 case 'b' -> reader.buffer.append('\b');
                                 case 'f' -> reader.buffer.append('\f');
                                 case '0' -> reader.buffer.append('\0');
-                                case 'x' -> {
+                                case 'x' -> { //addLater in concat version \x?? will not be converted to its unicode escape sequence
                                     String tmp = String.valueOf((char) reader.forceNextChar()) +
                                             (char) reader.forceNextChar();
                                     reader.buffer.append(Character.toChars(Integer.parseInt(tmp, 16)));
