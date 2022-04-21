@@ -42,7 +42,7 @@ static void printValues(value_t* data,size_t count){
 }
 int main(void){
 	value_t data[100];
-	Stack s={.data=data,.size=0};
+	Stack s={.data=data,.size=0,.capacity=100};
 	s.data[s.size++]=(value_t){.asU64=1};
 	s.data[s.size++]=(value_t){.asU64=2};
 	s.data[s.size++]=(value_t){.asU64=3};

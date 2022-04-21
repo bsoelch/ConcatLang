@@ -12,12 +12,13 @@
 typedef union value_t_Impl value_t;
 
 typedef struct{
+	size_t capacity;//update capacity at start of procedures
 	size_t size;
-	value_t* data;//required capacity can be computed at compile time
+	value_t* data;
 }Stack;
 
 typedef uint64_t type_t;
-typedef double float64_t;
+typedef double float64_t;//TODO ensure that float64_t is a 64bit (IEEE) float
 typedef void(*fptr_t)(Stack*,value_t*/*curried*/);
 typedef void* ptr_t;
 
