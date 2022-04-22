@@ -3,7 +3,7 @@
 /ConcatLang.iml
 .idea
 /examples/test.concat
-/compiler/test.concat
+/compiler.concat/test.concat
 /examples/native.jar
 /examples/native/
 /src/future.txt
