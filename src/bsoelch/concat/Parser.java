@@ -1274,8 +1274,11 @@ public class Parser {
             return 0;
         }
     }
+    record PrivateDefinitionId(String fileId,String nameInFile){}
     static class RootContext extends TopLevelContext{
         private final HashMap<String,Declareable> elements =new HashMap<>();
+
+        private final HashMap<PrivateDefinitionId,Declareable> localDefinitions =new HashMap<>();
         HashSet<String> namespaces=new HashSet<>();
 
         RootContext() throws SyntaxError {
@@ -1297,6 +1300,9 @@ public class Parser {
         }
         Iterable<Map.Entry<String,Declareable>> declareables(){
             return elements.entrySet();
+        }
+        Set<Map.Entry<PrivateDefinitionId, Declareable>> localDeclareables(){
+            return localDefinitions.entrySet();
         }
         @Override
         RootContext root() {
@@ -1356,6 +1362,7 @@ public class Parser {
         protected Declareable putElement(String name, Declareable val) {
             Accessibility access=val.accessibility();
             if(access==Accessibility.PRIVATE){
+                root.localDefinitions.put(new PrivateDefinitionId(fileName,name),val);
                 return localDeclareables.put(name, val);
             }
             return root.putElement(name,val);
