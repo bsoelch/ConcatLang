@@ -52,9 +52,16 @@ public class Compiler {
             writeComment(writer,"procedure bodies");
             writer.newLine();
             printProcedureBodies(writer,prog);
-            writeComment(writer,"main");
+
             writer.newLine();
-            // addLater main
+            writeLine(writer,"int main(){");
+            //TODO determine stack capacity, execute global code
+            writeLine(writer,1,STACK_DATA_TYPE+" "+STACK_FIELD_DATA+"[100];");//? allocate in heap
+            writeLine(writer,1,"Stack "+STACK_ARG_NAME+" = {."+STACK_FIELD_DATA+" = "+STACK_FIELD_DATA+
+                    ", ."+STACK_FIELD_SIZE+" =0, ."+STACK_FIELD_CAPACITY+" = 100};");
+            Parser.Declareable main=prog.rootContext().getElement("main",true);
+            writeLine(writer,1,PUBLIC_PROC_PREFIX+idOf(main)+"(&"+STACK_ARG_NAME+", NULL);");
+            writeLine(writer,"}");
         }
     }
 

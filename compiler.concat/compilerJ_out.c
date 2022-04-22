@@ -102,5 +102,9 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried){
 }
 
-// main
 
+int main(){
+  value_t data[100];
+  Stack stack = {.data = data, .size =0, .capacity = 100};
+  concat_public_procedure_test0x2F_compiler_8_13(&stack, NULL);
+}
