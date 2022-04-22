@@ -29,7 +29,7 @@ public class Compiler {
 
     static final String STACK_FIELD_DATA="data";
     static final String STACK_DATA_TYPE="value_t";
-    static final String STACK_FIELD_SIZE="size";
+    static final String STACK_FIELD_POINTER="ptr";
     static final String STACK_FIELD_CAPACITY="capacity";
 
     static final String DUP_VAR_NAME="dup_tmp";
@@ -58,7 +58,7 @@ public class Compiler {
             //TODO determine stack capacity, execute global code
             writeLine(writer,1,STACK_DATA_TYPE+" "+STACK_FIELD_DATA+"[100];");//? allocate in heap
             writeLine(writer,1,"Stack "+STACK_ARG_NAME+" = {."+STACK_FIELD_DATA+" = "+STACK_FIELD_DATA+
-                    ", ."+STACK_FIELD_SIZE+" =0, ."+STACK_FIELD_CAPACITY+" = 100};");
+                    ", ."+STACK_FIELD_POINTER+" = "+STACK_FIELD_DATA+", ."+STACK_FIELD_CAPACITY+" = 100};");
             Parser.Declareable main=prog.rootContext().getElement("main",true);
             writeLine(writer,1,PUBLIC_PROC_PREFIX+idOf(main)+"(&"+STACK_ARG_NAME+", NULL);");
             writeLine(writer,"}");
@@ -104,9 +104,9 @@ public class Compiler {
         writer.newLine();
         writeLine(writer,"typedef union "+STACK_DATA_TYPE+"_Impl "+STACK_DATA_TYPE+";");
         writer.newLine();
-        writeLine(writer,"typedef struct{");
+        writeLine(writer,"typedef struct{"); //addLater? replace cap with data+cap
         writeLine(writer,1,"size_t "+STACK_FIELD_CAPACITY+";");
-        writeLine(writer,1,"size_t "+STACK_FIELD_SIZE+";");
+        writeLine(writer,1,STACK_DATA_TYPE+"* "+STACK_FIELD_POINTER+";");
         writeLine(writer,1,STACK_DATA_TYPE+"* "+STACK_FIELD_DATA+";");
         writeLine(writer,"}Stack;");
         writer.newLine();
@@ -202,8 +202,7 @@ public class Compiler {
                         assert next instanceof Parser.ValueToken;
                         Value value = ((Parser.ValueToken) next).value;
                         if(primitives.containsKey(value.type)){
-                            String prefix=STACK_ARG_NAME+"->"+STACK_FIELD_DATA+
-                                    "[("+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+")++]."+typeWrapperName(value.type)+" = ";
+                            String prefix="("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++)->"+typeWrapperName(value.type)+" = ";
                             if (value.type == Type.INT) {
                                 writeLine(writer, level,prefix+value.asLong() + "LL;");
                             }else if (value.type == Type.UINT) {
@@ -229,62 +228,60 @@ public class Compiler {
                     }
                     case STACK_DUP -> {
                         writeLine(writer, level,(hasDupTmpVar?"":STACK_DATA_TYPE+" ")+DUP_VAR_NAME+
-                                " = "+STACK_ARG_NAME+"->"+STACK_FIELD_DATA+"["+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+
-                                "-"+((Parser.StackModifierToken)next).args[0]+"];");
+                                " = *("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+
+                                "-"+((Parser.StackModifierToken)next).args[0]+");");
                         writeLine(writer, level,
-                                STACK_ARG_NAME+"->"+STACK_FIELD_DATA+"["+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"++] = "
-                                        +DUP_VAR_NAME+";");
+                                "*("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++) = "+DUP_VAR_NAME+";");
                         hasDupTmpVar=true;
                     }
                     case STACK_DROP -> {
                         int offset=((Parser.StackModifierToken)next).args[0];
                         int count=((Parser.StackModifierToken)next).args[1];
                         if(offset>0){
-                            writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_DATA+"+"+
-                                    STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+(offset+count)+","+
-                                    STACK_ARG_NAME+"->"+STACK_FIELD_DATA+"+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+offset+"," +
+                            writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+(offset+count)+","+
+                                    STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+offset+"," +
                                     offset+"*sizeof("+STACK_DATA_TYPE+"));");
                         }
-                        writeLine(writer, level,STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-="+count+";");
+                        writeLine(writer, level,STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-="+count+";");
                     }
                     case STACK_ROT -> {
                         int count=((Parser.StackModifierToken)next).args[0];
                         int steps=((Parser.StackModifierToken)next).args[1];
-                        writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_DATA+
-                                "+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+" ," +
-                                STACK_ARG_NAME+"->"+STACK_FIELD_DATA+
-                                "+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+count+","+
+                        writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+" ," +
+                                STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+count+","+
                                 steps+"*sizeof("+STACK_DATA_TYPE+"));");
-                        writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_DATA+
-                                "+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+count+"," +
-                                STACK_ARG_NAME+"->"+STACK_FIELD_DATA+
-                                "+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+(count-steps)+
+                        writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+count+"," +
+                                STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+(count-steps)+
                                 ","+count+"*sizeof("+STACK_DATA_TYPE+"));");
                     }
                     case DEBUG_PRINT ->{
                         Type t=((Parser.TypedToken)next).target;
-                        String popElement = STACK_ARG_NAME + "->" +STACK_FIELD_DATA +
-                                "[--(" + STACK_ARG_NAME + "->" + STACK_FIELD_SIZE + ")]";
+                        String popElement = "(--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))";
                         if(t==Type.INT){
-                            writeLine(writer, level, "printf(\"%\"PRIi64\"\\n\", " + popElement + "." + typeWrapperName(t) + ");");
+                            writeLine(writer, level, "printf(\"%\"PRIi64\"\\n\", " + popElement +
+                                    "->" + typeWrapperName(t) + ");");
                         }else if(t==Type.UINT){
-                            writeLine(writer, level, "printf(\"%\"PRIu64\"\\n\", " + popElement + "." + typeWrapperName(t) + ");");
+                            writeLine(writer, level, "printf(\"%\"PRIu64\"\\n\", " + popElement +
+                                    "->" + typeWrapperName(t) + ");");
                         }else if(t==Type.CODEPOINT){
-                            writeLine(writer, level, "printf(\"%\"PRIx32\"\\n\", " + popElement + "." + typeWrapperName(t) + ");");
+                            writeLine(writer, level, "printf(\"%\"PRIx32\"\\n\", " + popElement +
+                                    "->" + typeWrapperName(t) + ");");
                         }else if(t==Type.BYTE){
-                            writeLine(writer, level, "printf(\"'%1$c' (%1$\"PRIx8\")\\n\", " + popElement + "." + typeWrapperName(t) + ");");
+                            writeLine(writer, level, "printf(\"'%1$c' (%1$\"PRIx8\")\\n\", " + popElement +
+                                    "->" + typeWrapperName(t) + ");");
                         }else{
                             System.err.println("unsupported type in debugPrint:"+t);
                             //TODO better output for debug print
-                            writeLine(writer, level,"printf(\"%\"PRIx64\"\\n\", "+popElement + "." +typeWrapperName(Type.UINT)+");");
+                            writeLine(writer, level,"printf(\"%\"PRIx64\"\\n\", "+popElement +
+                                    "->" +typeWrapperName(Type.UINT)+");");
                         }
                     }
                     case CONTEXT_OPEN, CONTEXT_CLOSE -> {}
                     case BLOCK_TOKEN -> {
                         switch(((Parser.BlockToken)next).blockType){
                             case IF,_IF -> //TODO distinguish between if(bool) and if(optional)
-                                writeLine(writer, level++, "if(" + STACK_ARG_NAME + "->" + STACK_FIELD_DATA +
-                                        "[--(" + STACK_ARG_NAME + "->" + STACK_FIELD_SIZE + ")]." + typeWrapperName(Type.BOOL) + "){");
+                                writeLine(writer, level++, "if((--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))->"
+                                        + typeWrapperName(Type.BOOL) + "){");
                             case ELSE ->
                                 writeLine(writer,level-1,"}else{");
                             case END_IF ->{

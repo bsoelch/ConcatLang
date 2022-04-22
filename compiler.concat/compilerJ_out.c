@@ -10,7 +10,7 @@ typedef union value_t_Impl value_t;
 
 typedef struct{
   size_t capacity;
-  size_t size;
+  value_t* ptr;
   value_t* data;
 }Stack;
 
@@ -55,78 +55,78 @@ void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curri
 // procedure main ( => )
 void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curried){
   // VALUE: int:3
-  stack->data[(stack->size)++].asInt = 3LL;
+  (stack->ptr++)->asInt = 3LL;
   // CALL_PROC: ( int => int ):@(test/compiler:6:6)
   concat_private_procedure_test0x2F_compiler_6_6(stack, NULL);
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", stack->data[--(stack->size)].asInt);
+  printf("%"PRIi64"\n", (--(stack->ptr))->asInt);
   // VALUE: int:1
-  stack->data[(stack->size)++].asInt = 1LL;
+  (stack->ptr++)->asInt = 1LL;
   // VALUE: uint:2
-  stack->data[(stack->size)++].asUint = 2ULL;
+  (stack->ptr++)->asUint = 2ULL;
   // VALUE: byte:3
-  stack->data[(stack->size)++].asByte = 0x33;
+  (stack->ptr++)->asByte = 0x33;
   // VALUE: codepoint:💻
-  stack->data[(stack->size)++].asCodepoint = 0x1f4bb;
+  (stack->ptr++)->asCodepoint = 0x1f4bb;
   // STACK_ROT at lib/stack:13:26
   // expanded at test/compiler:10:18
-  memmove(stack->data+stack->size ,stack->data+stack->size-2,1*sizeof(value_t));
-  memmove(stack->data+stack->size-2,stack->data+stack->size-1,2*sizeof(value_t));
+  memmove(stack->ptr ,stack->ptr-2,1*sizeof(value_t));
+  memmove(stack->ptr-2,stack->ptr-1,2*sizeof(value_t));
   // STACK_ROT at lib/stack:14:26
   // expanded at test/compiler:10:23
-  memmove(stack->data+stack->size ,stack->data+stack->size-3,1*sizeof(value_t));
-  memmove(stack->data+stack->size-3,stack->data+stack->size-2,3*sizeof(value_t));
+  memmove(stack->ptr ,stack->ptr-3,1*sizeof(value_t));
+  memmove(stack->ptr-3,stack->ptr-2,3*sizeof(value_t));
   // STACK_DUP at lib/stack:11:26
   // expanded at test/compiler:10:28
-  value_t dup_tmp = stack->data[stack->size-2];
-  stack->data[stack->size++] = dup_tmp;
+  value_t dup_tmp = *(stack->ptr-2);
+  *(stack->ptr++) = dup_tmp;
   // STACK_DUP at lib/stack:10:26
   // expanded at test/compiler:10:33
-  dup_tmp = stack->data[stack->size-1];
-  stack->data[stack->size++] = dup_tmp;
+  dup_tmp = *(stack->ptr-1);
+  *(stack->ptr++) = dup_tmp;
   // DEBUG_PRINT: byte
-  printf("'%1$c' (%1$"PRIx8")\n", stack->data[--(stack->size)].asByte);
+  printf("'%1$c' (%1$"PRIx8")\n", (--(stack->ptr))->asByte);
   // STACK_DROP at lib/stack:9:26
   // expanded at test/compiler:12:3
-  stack->size-=1;
+  stack->ptr-=1;
   // DEBUG_PRINT: uint
-  printf("%"PRIu64"\n", stack->data[--(stack->size)].asUint);
+  printf("%"PRIu64"\n", (--(stack->ptr))->asUint);
   // DEBUG_PRINT: byte
-  printf("'%1$c' (%1$"PRIx8")\n", stack->data[--(stack->size)].asByte);
+  printf("'%1$c' (%1$"PRIx8")\n", (--(stack->ptr))->asByte);
   // DEBUG_PRINT: codepoint
-  printf("%"PRIx32"\n", stack->data[--(stack->size)].asCodepoint);
+  printf("%"PRIx32"\n", (--(stack->ptr))->asCodepoint);
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", stack->data[--(stack->size)].asInt);
+  printf("%"PRIi64"\n", (--(stack->ptr))->asInt);
   // VALUE: bool:false
-  stack->data[(stack->size)++].asBool = false;
+  (stack->ptr++)->asBool = false;
   // IF: +5
-  if(stack->data[--(stack->size)].asBool){
+  if((--(stack->ptr))->asBool){
     // CONTEXT_OPEN at test/compiler:19:12
     // VALUE: int:1
-    stack->data[(stack->size)++].asInt = 1LL;
+    (stack->ptr++)->asInt = 1LL;
     // CONTEXT_CLOSE at test/compiler:21:3
     // ELSE: +11
   }else{
     // CONTEXT_OPEN at test/compiler:21:3
     // VALUE: bool:false
-    stack->data[(stack->size)++].asBool = false;
+    (stack->ptr++)->asBool = false;
     // _IF: +6
-    if(stack->data[--(stack->size)].asBool){
+    if((--(stack->ptr))->asBool){
       // CONTEXT_OPEN at test/compiler:21:14
       // VALUE: int:1
-      stack->data[(stack->size)++].asInt = 1LL;
+      (stack->ptr++)->asInt = 1LL;
       // CONTEXT_CLOSE at test/compiler:23:3
       // CONTEXT_CLOSE at test/compiler:23:3
       // ELSE: +3
     }else{
       // VALUE: int:0
-      stack->data[(stack->size)++].asInt = 0LL;
+      (stack->ptr++)->asInt = 0LL;
       // CONTEXT_CLOSE at test/compiler:25:3
       // END_IF: +2
     }
   }
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", stack->data[--(stack->size)].asInt);
+  printf("%"PRIi64"\n", (--(stack->ptr))->asInt);
 }
 // procedure test ( int => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried){
@@ -135,6 +135,6 @@ void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curri
 
 int main(){
   value_t data[100];
-  Stack stack = {.data = data, .size =0, .capacity = 100};
+  Stack stack = {.data = data, .ptr = data, .capacity = 100};
   concat_public_procedure_test0x2F_compiler_8_13(&stack, NULL);
 }
