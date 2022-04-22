@@ -256,7 +256,7 @@ public class Compiler {
                         writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_DATA+
                                 "+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+count+"," +
                                 STACK_ARG_NAME+"->"+STACK_FIELD_DATA+
-                                "+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+(count+steps)+
+                                "+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+(count-steps)+
                                 ","+count+"*sizeof("+STACK_DATA_TYPE+"));");
                     }
                     case DEBUG_PRINT ->

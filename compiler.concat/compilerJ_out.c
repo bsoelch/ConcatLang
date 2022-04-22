@@ -71,11 +71,11 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   // STACK_ROT at lib/stack:13:26
   // expanded at test/compiler:10:18
   memmove(stack->data+stack->size ,stack->data+stack->size-2,1*sizeof(value_t));
-  memmove(stack->data+stack->size-2,stack->data+stack->size-3,2*sizeof(value_t));
+  memmove(stack->data+stack->size-2,stack->data+stack->size-1,2*sizeof(value_t));
   // STACK_ROT at lib/stack:14:26
   // expanded at test/compiler:10:23
   memmove(stack->data+stack->size ,stack->data+stack->size-3,1*sizeof(value_t));
-  memmove(stack->data+stack->size-3,stack->data+stack->size-4,3*sizeof(value_t));
+  memmove(stack->data+stack->size-3,stack->data+stack->size-2,3*sizeof(value_t));
   // STACK_DUP at lib/stack:11:26
   // expanded at test/compiler:10:28
   value_t dup_tmp = stack->data[stack->size-2];
