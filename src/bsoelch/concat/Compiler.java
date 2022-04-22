@@ -252,6 +252,10 @@ public class Compiler {
                                 "+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+(count+steps)+
                                 ","+count+"*sizeof("+STACK_DATA_TYPE+"));");
                     }
+                    case DEBUG_PRINT ->
+                        //TODO better output for debug print
+                        writeLine(writer, level,"printf(\"%\"PRIx64, "+STACK_ARG_NAME+"->"+
+                                STACK_FIELD_DATA+"["+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"--]."+typeWrapperName(Type.UINT)+");");
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case CAST -> throw new UnsupportedOperationException("compiling CAST  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
@@ -264,7 +268,6 @@ public class Compiler {
                     case CALL_PTR -> throw new UnsupportedOperationException("compiling CALL_PTR  is currently not implemented");
                     case CALL_NATIVE_PROC -> throw new UnsupportedOperationException("compiling CALL_NATIVE_PROC  is currently not implemented");
                     case RETURN -> throw new UnsupportedOperationException("compiling RETURN  is currently not implemented");
-                    case DEBUG_PRINT -> throw new UnsupportedOperationException("compiling DEBUG_PRINT  is currently not implemented");
                     case ASSERT -> throw new UnsupportedOperationException("compiling ASSERT  is currently not implemented");
                     case BLOCK_TOKEN -> throw new UnsupportedOperationException("compiling BLOCK_TOKEN  is currently not implemented");
                     case SWITCH -> throw new UnsupportedOperationException("compiling SWITCH  is currently not implemented");
@@ -287,7 +290,7 @@ public class Compiler {
 
 
     public static void main(String[] args) throws SyntaxError, IOException {
-        File in=new File(System.getProperty("user.dir")+"/compiler.concat/compilerJ.concat");
+        File in=new File(System.getProperty("user.dir")+"/compiler.concat/test_compilerJ.concat");
         File out=new File(System.getProperty("user.dir")+"/compiler.concat/compilerJ_out.c");
         compile(Parser.parse(in,null,Interpreter.defaultContext),out);
     }

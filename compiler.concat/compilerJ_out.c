@@ -58,6 +58,8 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   stack->data[(stack->size)++].asInt = 3LL;
   // CALL_PROC: ( int => int ):@(test/compiler:6:6)
   concat_private_procedure_test0x2F_compiler_6_6(stack, NULL);
+  // DEBUG_PRINT at test/compiler:9:10
+  printf("%"PRIx64, stack->data[stack->size--].asUint);
   // VALUE: int:1
   stack->data[(stack->size)++].asInt = 1LL;
   // VALUE: uint:2
@@ -84,7 +86,7 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   stack->data[stack->size++] = dup_tmp;
   // STACK_DROP at lib/stack:7:26
   // expanded at test/compiler:12:5
-  stack->size-=7;
+  stack->size-=6;
 }
 // procedure test ( int => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried){
