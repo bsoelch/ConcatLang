@@ -16,4 +16,9 @@ public class SyntaxError extends Exception {
         super(parent);
         this.pos=pos;
     }
+
+    @Override
+    public String toString() {
+        return super.toString()+"\n  at "+pos;
+    }
 }
