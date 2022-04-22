@@ -3275,8 +3275,8 @@ public class Parser {
                     tState.ret.add(t);
                 }
                 case DEBUG_PRINT -> {
-                    tState.typeStack().pop();
-                    tState.ret.add(t);
+                    Type printed=tState.typeStack().pop().type;
+                    tState.ret.add(new TypedToken(TokenType.DEBUG_PRINT,printed,t.pos));
                 }
                 case EXIT -> {
                     Type t1=tState.typeStack().pop().type;
