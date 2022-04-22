@@ -289,9 +289,20 @@ public class Compiler {
     }
 
 
-    public static void main(String[] args) throws SyntaxError, IOException {
+    public static void main(String[] args) throws IOException {
         File in=new File(System.getProperty("user.dir")+"/compiler.concat/test_compilerJ.concat");
         File out=new File(System.getProperty("user.dir")+"/compiler.concat/compilerJ_out.c");
-        compile(Parser.parse(in,null,Interpreter.defaultContext),out);
+
+        try {
+            compile(Parser.parse(in,null,Interpreter.defaultContext),out);
+        }catch (SyntaxError e){
+            SyntaxError s = e;
+            System.err.println(s.getMessage());
+            System.err.println("  at "+ s.pos);
+            while(s.getCause() instanceof SyntaxError){
+                s =(SyntaxError) s.getCause();
+                System.err.println("  at "+ s.pos);
+            }
+        }
     }
 }
