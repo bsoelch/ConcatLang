@@ -1,0 +1,14 @@
+test/compiler:
+
+stack #include
+core  #import
+
+test proc( int => int ){ }
+
+main public proc( => ){
+  3 test
+  1 2u '3' u'💻' swap rot3 over dup
+
+  7 ?drop
+}
+
