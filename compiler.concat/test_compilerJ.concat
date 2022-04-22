@@ -8,7 +8,11 @@ test proc( int => int ){ }
 main public proc( => ){
   3 test debugPrint
   1 2u '3' u'💻' swap rot3 over dup
-
-  6 ?drop
+  debugPrint
+  drop
+  debugPrint
+  debugPrint
+  debugPrint
+  debugPrint
 }
 
