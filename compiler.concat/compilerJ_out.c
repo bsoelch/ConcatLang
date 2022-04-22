@@ -58,8 +58,8 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   stack->data[(stack->size)++].asInt = 3LL;
   // CALL_PROC: ( int => int ):@(test/compiler:6:6)
   concat_private_procedure_test0x2F_compiler_6_6(stack, NULL);
-  // DEBUG_PRINT at test/compiler:9:10
-  printf("%"PRIx64, stack->data[stack->size--].asUint);
+  // DEBUG_PRINT: int
+  printf("%"PRIi64"\n", stack->data[--(stack->size)].asInt);
   // VALUE: int:1
   stack->data[(stack->size)++].asInt = 1LL;
   // VALUE: uint:2
@@ -84,19 +84,19 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   // expanded at test/compiler:10:33
   dup_tmp = stack->data[stack->size-1];
   stack->data[stack->size++] = dup_tmp;
-  // DEBUG_PRINT at test/compiler:11:3
-  printf("%"PRIx64, stack->data[stack->size--].asUint);
+  // DEBUG_PRINT: byte
+  printf("'%1$c' (%1$"PRIx8")\n", stack->data[--(stack->size)].asByte);
   // STACK_DROP at lib/stack:9:26
   // expanded at test/compiler:12:3
   stack->size-=1;
-  // DEBUG_PRINT at test/compiler:13:3
-  printf("%"PRIx64, stack->data[stack->size--].asUint);
-  // DEBUG_PRINT at test/compiler:14:3
-  printf("%"PRIx64, stack->data[stack->size--].asUint);
-  // DEBUG_PRINT at test/compiler:15:3
-  printf("%"PRIx64, stack->data[stack->size--].asUint);
-  // DEBUG_PRINT at test/compiler:16:3
-  printf("%"PRIx64, stack->data[stack->size--].asUint);
+  // DEBUG_PRINT: uint
+  printf("%"PRIu64"\n", stack->data[--(stack->size)].asUint);
+  // DEBUG_PRINT: byte
+  printf("'%1$c' (%1$"PRIx8")\n", stack->data[--(stack->size)].asByte);
+  // DEBUG_PRINT: codepoint
+  printf("%"PRIx32"\n", stack->data[--(stack->size)].asCodepoint);
+  // DEBUG_PRINT: int
+  printf("%"PRIi64"\n", stack->data[--(stack->size)].asInt);
 }
 // procedure test ( int => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried){

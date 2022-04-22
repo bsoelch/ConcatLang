@@ -259,10 +259,24 @@ public class Compiler {
                                 "+"+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"-"+(count-steps)+
                                 ","+count+"*sizeof("+STACK_DATA_TYPE+"));");
                     }
-                    case DEBUG_PRINT ->
-                        //TODO better output for debug print
-                        writeLine(writer, level,"printf(\"%\"PRIx64, "+STACK_ARG_NAME+"->"+
-                                STACK_FIELD_DATA+"["+STACK_ARG_NAME+"->"+STACK_FIELD_SIZE+"--]."+typeWrapperName(Type.UINT)+");");
+                    case DEBUG_PRINT ->{
+                        Type t=((Parser.TypedToken)next).target;
+                        String popElement = STACK_ARG_NAME + "->" +STACK_FIELD_DATA +
+                                "[--(" + STACK_ARG_NAME + "->" + STACK_FIELD_SIZE + ")]";
+                        if(t==Type.INT){
+                            writeLine(writer, level, "printf(\"%\"PRIi64\"\\n\", " + popElement + "." + typeWrapperName(t) + ");");
+                        }else if(t==Type.UINT){
+                            writeLine(writer, level, "printf(\"%\"PRIu64\"\\n\", " + popElement + "." + typeWrapperName(t) + ");");
+                        }else if(t==Type.CODEPOINT){
+                            writeLine(writer, level, "printf(\"%\"PRIx32\"\\n\", " + popElement + "." + typeWrapperName(t) + ");");
+                        }else if(t==Type.BYTE){
+                            writeLine(writer, level, "printf(\"'%1$c' (%1$\"PRIx8\")\\n\", " + popElement + "." + typeWrapperName(t) + ");");
+                        }else{
+                            System.err.println("unsupported type in debugPrint:"+t);
+                            //TODO better output for debug print
+                            writeLine(writer, level,"printf(\"%\"PRIx64\"\\n\", "+popElement + "." +typeWrapperName(Type.UINT)+");");
+                        }
+                    }
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case CAST -> throw new UnsupportedOperationException("compiling CAST  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
