@@ -166,7 +166,7 @@ public class Parser {
         }
     }
     enum BlockTokenType{
-        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE, BREAK,DEFAULT, ARRAY, END,
+        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE, END_CASE,DEFAULT, ARRAY, END,
         TUPLE_TYPE, PROC_TYPE,ARROW, UNION_TYPE, END_TYPE,
         FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END,FOR_ITERATOR_LOOP,FOR_ITERATOR_END
     }
@@ -2162,7 +2162,7 @@ public class Parser {
                     if(!(pState.openBlocks.peekLast() instanceof SwitchCaseBlock)){
                         throw new SyntaxError("'"+str+"' can only appear in switch-blocks", pos);
                     }
-                    tokens.add(new BlockToken(BlockTokenType.BREAK, pos, -1));
+                    tokens.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
                 }
                 case "}" -> parseEndBlock(str, tokens, pState, pos);
                 case "return" -> tokens.add(new Token(TokenType.RETURN,  pos));
@@ -3242,7 +3242,7 @@ public class Parser {
             }
             if(tState.finishedBranch){
                 if(t.tokenType!=TokenType.UNREACHABLE&&((!(t instanceof BlockToken block))
-                        ||(block.blockType!=BlockTokenType.ELSE&&block.blockType!=BlockTokenType.BREAK
+                        ||(block.blockType!=BlockTokenType.ELSE&&block.blockType!=BlockTokenType.END_CASE
                         &&block.blockType!=BlockTokenType.END))){
                     //end of branch that is not always executed
                     throw new SyntaxError("unreachable statement: "+t,t.pos);
@@ -3678,7 +3678,7 @@ public class Parser {
                 switchBlock.newSection(ret.size(),pos);
                 nextCase(true,switchBlock, tState, pos);
             }
-            case BREAK -> {
+            case END_CASE -> {
                 CodeBlock open=openBlocks.peekLast();
                 if(!(open instanceof SwitchCaseBlock switchBlock)){
                     throw new SyntaxError("break can only be used in switch-case-blocks",pos);
@@ -3941,7 +3941,7 @@ public class Parser {
 
         tState.ret.add(new Token(TokenType.CONTEXT_CLOSE, pos));
         tState.closeContext();
-        tState.ret.add(new BlockToken(BlockTokenType.BREAK, pos, -1));
+        tState.ret.add(new BlockToken(BlockTokenType.END_CASE, pos, -1));
         switchBlock.newSection(tState.ret.size(), pos);
         nextCase(false, switchBlock, tState, pos);
     }

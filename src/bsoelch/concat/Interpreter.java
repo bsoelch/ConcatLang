@@ -309,7 +309,7 @@ public class Interpreter {
                                     incIp = false;
                                 }
                             }
-                            case ELSE,END_WHILE, BREAK,FOR_ITERATOR_END -> {
+                            case ELSE,END_WHILE, END_CASE,FOR_ITERATOR_END -> {
                                 ip+=((Parser.BlockToken) next).delta;
                                 incIp = false;
                             }
