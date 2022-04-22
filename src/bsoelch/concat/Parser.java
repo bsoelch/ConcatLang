@@ -3774,7 +3774,8 @@ public class Parser {
                             tmp=ret.get(branch);
                             ((BlockToken)tmp).delta=ret.size()-branch;
                         }
-                        ret.add(new BlockToken(BlockTokenType.END_IF,pos,-1));
+                        //remember number of else-blocks
+                        ret.add(new BlockToken(BlockTokenType.END_IF,pos,((IfBlock) open).elsePositions.size()));
                         FilePosition mainEnd=pos;
                         if(tState.finishedBranch){
                             if(((IfBlock) open).branchTypes.size()>0){
