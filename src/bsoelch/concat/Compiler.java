@@ -212,6 +212,8 @@ public class Compiler {
                                 writeLine(writer, level,prefix+"0x"+Long.toHexString(value.asLong()) + ";");
                             }else if (value.type == Type.BYTE) {
                                 writeLine(writer, level,prefix+"0x"+Integer.toHexString(value.asByte()) + ";");
+                            }else if (value.type == Type.BOOL) {
+                                writeLine(writer, level,prefix+(value.asBool()?"true":"false")+";");
                             }else {
                                 throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
                             }
@@ -277,6 +279,47 @@ public class Compiler {
                             writeLine(writer, level,"printf(\"%\"PRIx64\"\\n\", "+popElement + "." +typeWrapperName(Type.UINT)+");");
                         }
                     }
+                    case CONTEXT_OPEN, CONTEXT_CLOSE -> {}
+                    case BLOCK_TOKEN -> {
+                        switch(((Parser.BlockToken)next).blockType){
+                            case IF,_IF -> //TODO distinguish between if(bool) and if(optional)
+                                writeLine(writer, level++, "if(" + STACK_ARG_NAME + "->" + STACK_FIELD_DATA +
+                                        "[--(" + STACK_ARG_NAME + "->" + STACK_FIELD_SIZE + ")]." + typeWrapperName(Type.BOOL) + "){");
+                            case ELSE ->
+                                writeLine(writer,level-1,"}else{");
+                            case END_IF ->{
+                                int elseCount=((Parser.BlockToken) next).delta;
+                                if(elseCount==0)
+                                    elseCount=1;
+                                while (elseCount-->0){
+                                    writeLine(writer,--level,"}");
+                                }
+                            }
+                            case WHILE ->
+                                throw new UnsupportedOperationException("compiling WHILE  is currently not implemented");
+                            case DO ->
+                                throw new UnsupportedOperationException("compiling DO  is currently not implemented");
+                            case END_WHILE ->
+                                throw new UnsupportedOperationException("compiling END_WHILE  is currently not implemented");
+                            case DO_WHILE ->
+                                throw new UnsupportedOperationException("compiling DO_WHILE  is currently not implemented");
+                            case END_CASE ->
+                                throw new UnsupportedOperationException("compiling BREAK  is currently not implemented");
+                            case FOR_ARRAY_PREPARE ->
+                                throw new UnsupportedOperationException("compiling FOR_ARRAY_PREPARE  is currently not implemented");
+                            case FOR_ARRAY_LOOP ->
+                                throw new UnsupportedOperationException("compiling FOR_ARRAY_LOOP  is currently not implemented");
+                            case FOR_ARRAY_END ->
+                                throw new UnsupportedOperationException("compiling FOR_ARRAY_END  is currently not implemented");
+                            case FOR_ITERATOR_LOOP ->
+                                throw new UnsupportedOperationException("compiling FOR_ITERATOR_LOOP  is currently not implemented");
+                            case FOR_ITERATOR_END ->
+                                throw new UnsupportedOperationException("compiling FOR_ITERATOR_END  is currently not implemented");
+                            case FOR,SWITCH,CASE,DEFAULT, ARRAY, END, UNION_TYPE,TUPLE_TYPE,PROC_TYPE,ARROW,END_TYPE ->
+                                    throw new RuntimeException("blocks of type "+((Parser.BlockToken)next).blockType+
+                                            " should be eliminated at compile time");
+                        }
+                    }
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case CAST -> throw new UnsupportedOperationException("compiling CAST  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
@@ -284,13 +327,10 @@ public class Compiler {
                     case DEREFERENCE -> throw new UnsupportedOperationException("compiling DEREFERENCE  is currently not implemented");
                     case ASSIGN -> throw new UnsupportedOperationException("compiling ASSIGN  is currently not implemented");
                     case VARIABLE -> throw new UnsupportedOperationException("compiling VARIABLE  is currently not implemented");
-                    case CONTEXT_OPEN -> throw new UnsupportedOperationException("compiling CONTEXT_OPEN  is currently not implemented");
-                    case CONTEXT_CLOSE -> throw new UnsupportedOperationException("compiling CONTEXT_CLOSE  is currently not implemented");
                     case CALL_PTR -> throw new UnsupportedOperationException("compiling CALL_PTR  is currently not implemented");
                     case CALL_NATIVE_PROC -> throw new UnsupportedOperationException("compiling CALL_NATIVE_PROC  is currently not implemented");
                     case RETURN -> throw new UnsupportedOperationException("compiling RETURN  is currently not implemented");
                     case ASSERT -> throw new UnsupportedOperationException("compiling ASSERT  is currently not implemented");
-                    case BLOCK_TOKEN -> throw new UnsupportedOperationException("compiling BLOCK_TOKEN  is currently not implemented");
                     case SWITCH -> throw new UnsupportedOperationException("compiling SWITCH  is currently not implemented");
                     case EXIT -> throw new UnsupportedOperationException("compiling EXIT  is currently not implemented");
                     case CAST_ARG -> throw new UnsupportedOperationException("compiling CAST_ARG  is currently not implemented");

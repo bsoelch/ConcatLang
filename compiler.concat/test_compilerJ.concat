@@ -14,5 +14,15 @@ main public proc( => ){
   debugPrint
   debugPrint
   debugPrint
+
+  false
+  #+cond+# if{
+     1
+  else false if
+     1
+  else
+     0
+  }
+  debugPrint
 }
 

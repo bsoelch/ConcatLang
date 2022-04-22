@@ -97,6 +97,36 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   printf("%"PRIx32"\n", stack->data[--(stack->size)].asCodepoint);
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", stack->data[--(stack->size)].asInt);
+  // VALUE: bool:false
+  stack->data[(stack->size)++].asBool = false;
+  // IF: +5
+  if(stack->data[--(stack->size)].asBool){
+    // CONTEXT_OPEN at test/compiler:19:12
+    // VALUE: int:1
+    stack->data[(stack->size)++].asInt = 1LL;
+    // CONTEXT_CLOSE at test/compiler:21:3
+    // ELSE: +11
+  }else{
+    // CONTEXT_OPEN at test/compiler:21:3
+    // VALUE: bool:false
+    stack->data[(stack->size)++].asBool = false;
+    // _IF: +6
+    if(stack->data[--(stack->size)].asBool){
+      // CONTEXT_OPEN at test/compiler:21:14
+      // VALUE: int:1
+      stack->data[(stack->size)++].asInt = 1LL;
+      // CONTEXT_CLOSE at test/compiler:23:3
+      // CONTEXT_CLOSE at test/compiler:23:3
+      // ELSE: +3
+    }else{
+      // VALUE: int:0
+      stack->data[(stack->size)++].asInt = 0LL;
+      // CONTEXT_CLOSE at test/compiler:25:3
+      // END_IF: +2
+    }
+  }
+  // DEBUG_PRINT: int
+  printf("%"PRIi64"\n", stack->data[--(stack->size)].asInt);
 }
 // procedure test ( int => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried){
