@@ -33,5 +33,13 @@ main public proc( => ){
   x .. debugPrint
   'x' x =
   x .. debugPrint
+
+  true true while{ false rot3 do
+    dup debugPrint
+  } drop drop
+  ' ' debugPrint
+  true true while{
+    false rot3 dup debugPrint
+  do } drop drop
 }
 

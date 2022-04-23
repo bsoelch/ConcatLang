@@ -297,16 +297,18 @@ public class Compiler {
                                     writeLine(writer,--level,"}");
                                 }
                             }
-                            case WHILE ->
-                                throw new UnsupportedOperationException("compiling WHILE  is currently not implemented");
+                            case WHILE -> //concat while loops are best represented by do{ ... if(pop()) break; ... }while(true);
+                                writeLine(writer,level++,"do{");
                             case DO ->
-                                throw new UnsupportedOperationException("compiling DO  is currently not implemented");
+                                writeLine(writer, level-1, "if(!((--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))->"
+                                        + typeWrapperName(Type.BOOL) + ")) break; //exit while loop");
                             case DO_OPTIONAL ->
                                     throw new UnsupportedOperationException("compiling DO_OPTIONAL  is currently not implemented");
                             case END_WHILE ->
-                                throw new UnsupportedOperationException("compiling END_WHILE  is currently not implemented");
+                                writeLine(writer,--level,"}while(true);");
                             case DO_WHILE ->
-                                throw new UnsupportedOperationException("compiling DO_WHILE  is currently not implemented");
+                                writeLine(writer, --level, "}while(((--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))->"
+                                        + typeWrapperName(Type.BOOL) + "));");
                             case END_CASE ->
                                 throw new UnsupportedOperationException("compiling BREAK  is currently not implemented");
                             case FOR_ARRAY_PREPARE ->

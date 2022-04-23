@@ -162,6 +162,70 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   ((stack->ptr)-1)->asByte = *(((stack->ptr)-1)->asByteRef);
   // DEBUG_PRINT: byte
   printf("'%1$c' (%1$"PRIx8")\n", (--(stack->ptr))->asByte);
+  // VALUE: bool:true
+  (stack->ptr++)->asBool = true;
+  // VALUE: bool:true
+  (stack->ptr++)->asBool = true;
+  // WHILE: -1
+  do{
+    // CONTEXT_OPEN at test/compiler:37:13
+    // VALUE: bool:false
+    (stack->ptr++)->asBool = false;
+    // STACK_ROT at lib/stack:14:26
+    // expanded at test/compiler:37:26
+    memmove(stack->ptr ,stack->ptr-3,1*sizeof(value_t));
+    memmove(stack->ptr-3,stack->ptr-2,3*sizeof(value_t));
+    // CONTEXT_CLOSE at test/compiler:37:31
+    // DO: +6
+  if(!((--(stack->ptr))->asBool)) break; //exit while loop
+    // CONTEXT_OPEN at test/compiler:37:31
+    // STACK_DUP at lib/stack:10:26
+    // expanded at test/compiler:38:5
+    dup_tmp = *(stack->ptr-1);
+    *(stack->ptr++) = dup_tmp;
+    // DEBUG_PRINT: bool
+    puts(((--(stack->ptr))->asBool) ? "true" : "false");
+    // CONTEXT_CLOSE at test/compiler:39:3
+    // END_WHILE: -10
+  }while(true);
+  // STACK_DROP at lib/stack:9:26
+  // expanded at test/compiler:39:5
+  stack->ptr-=1;
+  // STACK_DROP at lib/stack:9:26
+  // expanded at test/compiler:39:10
+  stack->ptr-=1;
+  // VALUE: byte: 
+  (stack->ptr++)->asByte = 0x20;
+  // DEBUG_PRINT: byte
+  printf("'%1$c' (%1$"PRIx8")\n", (--(stack->ptr))->asByte);
+  // VALUE: bool:true
+  (stack->ptr++)->asBool = true;
+  // VALUE: bool:true
+  (stack->ptr++)->asBool = true;
+  // WHILE: -1
+  do{
+    // CONTEXT_OPEN at test/compiler:41:13
+    // VALUE: bool:false
+    (stack->ptr++)->asBool = false;
+    // STACK_ROT at lib/stack:14:26
+    // expanded at test/compiler:42:11
+    memmove(stack->ptr ,stack->ptr-3,1*sizeof(value_t));
+    memmove(stack->ptr-3,stack->ptr-2,3*sizeof(value_t));
+    // STACK_DUP at lib/stack:10:26
+    // expanded at test/compiler:42:16
+    dup_tmp = *(stack->ptr-1);
+    *(stack->ptr++) = dup_tmp;
+    // DEBUG_PRINT: bool
+    puts(((--(stack->ptr))->asBool) ? "true" : "false");
+    // CONTEXT_CLOSE at test/compiler:43:6
+    // DO_WHILE: -6
+  }while(((--(stack->ptr))->asBool));
+  // STACK_DROP at lib/stack:9:26
+  // expanded at test/compiler:43:8
+  stack->ptr-=1;
+  // STACK_DROP at lib/stack:9:26
+  // expanded at test/compiler:43:13
+  stack->ptr-=1;
 }
 // procedure test ( int => byte ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried){
