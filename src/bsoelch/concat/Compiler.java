@@ -91,6 +91,9 @@ public class Compiler {
     private static String typeWrapperName(Type primitive){
         return "as"+Character.toUpperCase(primitive.name.charAt(0))+primitive.name.substring(1);
     }
+    private static String typeRefName(Type primitive){
+        return typeWrapperName(primitive)+"Ref";
+    }
     private static void printFileHeader(BufferedWriter writer) throws IOException {
         //include required library files
         writeLine(writer,"#include \"stdbool.h\"");
@@ -115,7 +118,7 @@ public class Compiler {
         writeLine(writer,"union "+STACK_DATA_TYPE+"_Impl {");
         for(Map.Entry<Type, String> e:primitives.entrySet()){//addLater text alignment
             writeLine(writer,1,e.getValue()+"  "+typeWrapperName(e.getKey())+";");
-            writeLine(writer,1,e.getValue()+"* "+typeWrapperName(e.getKey())+"Ref;");
+            writeLine(writer,1,e.getValue()+"* "+typeRefName(e.getKey())+";");
         }
         writeLine(writer,1,"fptr_t  asFPtr;");
         writeLine(writer,1,"fptr_t* asFPtrRef;");
@@ -323,12 +326,31 @@ public class Compiler {
                     case CAST_ARG ->
                         compileCast(writer, level, ((Parser.ArgCastToken)next).src,  ((Parser.ArgCastToken)next).target,
                                 ((Parser.ArgCastToken)next).offset);
+                    case VARIABLE -> {
+                        assert next instanceof Parser.VariableToken;
+                        Parser.VariableToken asVar=(Parser.VariableToken) next;
+                        String idName=asVar.variableType.name().toLowerCase()+"_var_"+asVar.id.level+"_"+asVar.id.id;
+                        if(!primitives.containsKey(asVar.id.type)){
+                            throw new UnsupportedEncodingException("variables of type "+asVar.id.type+" are currently not supported");
+                        }
+                        switch (asVar.accessType){
+                            case DECLARE ->
+                                writeLine(writer,level,primitives.get(asVar.id.type)+" "+idName+
+                                        " = (--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))->"+
+                                                typeWrapperName(asVar.id.type)+";");
+                            case READ ->
+                                    writeLine(writer,level,"("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"++)->"+
+                                            typeWrapperName(asVar.id.type)+" = "+idName+";");
+                            case REFERENCE_TO ->
+                                    writeLine(writer,level,"("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"++)->"+
+                                            typeRefName(asVar.id.type)+" = &"+idName+";");
+                        }
+                    }
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
                     case DEREFERENCE -> throw new UnsupportedOperationException("compiling DEREFERENCE  is currently not implemented");
                     case ASSIGN -> throw new UnsupportedOperationException("compiling ASSIGN  is currently not implemented");
-                    case VARIABLE -> throw new UnsupportedOperationException("compiling VARIABLE  is currently not implemented");
                     case CALL_PTR -> throw new UnsupportedOperationException("compiling CALL_PTR  is currently not implemented");
                     case CALL_NATIVE_PROC -> throw new UnsupportedOperationException("compiling CALL_NATIVE_PROC  is currently not implemented");
                     case RETURN -> throw new UnsupportedOperationException("compiling RETURN  is currently not implemented");
