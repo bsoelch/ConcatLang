@@ -289,15 +289,16 @@ public class Interpreter {
                         assert next instanceof Parser.BlockToken;
                         switch(((Parser.BlockToken)next).blockType){
                             case IF,_IF,DO -> {
+                                if (!stack.pop().asBool()) {
+                                    ip+=((Parser.BlockToken) next).delta;
+                                    incIp = false;
+                                }
+                            }
+                            case IF_OPTIONAL,_IF_OPTIONAL,DO_OPTIONAL -> {
                                 Value c = stack.pop();
-                                if(c.type.isOptional()){
-                                    if(c.hasValue()){
-                                        stack.push(c.unwrap());
-                                    }else{
-                                        ip+=((Parser.BlockToken) next).delta;
-                                        incIp = false;
-                                    }
-                                }else if (!c.asBool()) {
+                                if(c.hasValue()){
+                                    stack.push(c.unwrap());
+                                }else{
                                     ip+=((Parser.BlockToken) next).delta;
                                     incIp = false;
                                 }

@@ -279,9 +279,11 @@ public class Compiler {
                     case CONTEXT_OPEN, CONTEXT_CLOSE -> {}
                     case BLOCK_TOKEN -> {
                         switch(((Parser.BlockToken)next).blockType){
-                            case IF,_IF -> //TODO distinguish between if(bool) and if(optional)
+                            case IF,_IF ->
                                 writeLine(writer, level++, "if((--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))->"
                                         + typeWrapperName(Type.BOOL) + "){");
+                            case IF_OPTIONAL,_IF_OPTIONAL ->
+                                    throw new UnsupportedOperationException("compiling IF_OPTIONAL  is currently not implemented");
                             case ELSE ->
                                 writeLine(writer,level-1,"}else{");
                             case END_IF ->{
@@ -296,6 +298,8 @@ public class Compiler {
                                 throw new UnsupportedOperationException("compiling WHILE  is currently not implemented");
                             case DO ->
                                 throw new UnsupportedOperationException("compiling DO  is currently not implemented");
+                            case DO_OPTIONAL ->
+                                    throw new UnsupportedOperationException("compiling DO_OPTIONAL  is currently not implemented");
                             case END_WHILE ->
                                 throw new UnsupportedOperationException("compiling END_WHILE  is currently not implemented");
                             case DO_WHILE ->

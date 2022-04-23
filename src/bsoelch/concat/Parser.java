@@ -166,7 +166,8 @@ public class Parser {
         }
     }
     enum BlockTokenType{
-        IF, ELSE, _IF,END_IF, WHILE,DO, END_WHILE, DO_WHILE,SWITCH,CASE, END_CASE,DEFAULT, ARRAY, END,
+        IF, IF_OPTIONAL, ELSE, _IF,_IF_OPTIONAL,END_IF, WHILE, DO, DO_OPTIONAL, END_WHILE, DO_WHILE,
+        SWITCH,CASE, END_CASE,DEFAULT, ARRAY, END,
         TUPLE_TYPE, PROC_TYPE,ARROW, UNION_TYPE, END_TYPE,
         FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END,FOR_ITERATOR_LOOP,FOR_ITERATOR_END
     }
@@ -3478,6 +3479,7 @@ public class Parser {
                 tState.typeData = tState.typeData.copy();
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
+                        block=new BlockToken(BlockTokenType.IF_OPTIONAL,block.pos,block.delta);
                         tState.typeStack().push(new TypeFrame(f.type.content(),
                                 new ValueInfo(new OwnerInfo.Container(f.valueInfo)),pos));
                     }else {
@@ -3529,6 +3531,7 @@ public class Parser {
                 }
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
+                        block=new BlockToken(BlockTokenType._IF_OPTIONAL,block.pos,block.delta);
                         tState.typeStack().push(new TypeFrame(f.type.content(),
                                 new ValueInfo(new OwnerInfo.Container(f.valueInfo)),pos));
                     }else {
@@ -3540,7 +3543,7 @@ public class Parser {
                 ret.add(new ContextOpen(tState.context,pos));
             }
             case END_IF,END_WHILE,FOR_ARRAY_PREPARE, FOR_ARRAY_LOOP,FOR_ARRAY_END,
-                    FOR_ITERATOR_LOOP,FOR_ITERATOR_END->
+                    FOR_ITERATOR_LOOP,FOR_ITERATOR_END,IF_OPTIONAL,_IF_OPTIONAL,DO_OPTIONAL ->
                     throw new RuntimeException("block tokens of type "+block.blockType+
                             " should not exist at this stage of compilation");
             case WHILE -> {
@@ -3566,6 +3569,7 @@ public class Parser {
                 }
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
+                        block=new BlockToken(BlockTokenType.DO_OPTIONAL,block.pos,block.delta);
                         tState.typeStack().push(new TypeFrame(f.type.content(),
                                 new ValueInfo(new OwnerInfo.Container(f.valueInfo)),pos));
                     }else {
