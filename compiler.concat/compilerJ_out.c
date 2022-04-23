@@ -20,12 +20,6 @@ typedef void(*fptr_t)(Stack*, value_t*);
 typedef void* ptr_t;
 
 union value_t_Impl {
-  type_t  asType;
-  type_t* asTypeRef;
-  uint64_t  asUint;
-  uint64_t* asUintRef;
-  uint32_t  asCodepoint;
-  uint32_t* asCodepointRef;
   bool  asBool;
   bool* asBoolRef;
   int64_t  asInt;
@@ -34,6 +28,12 @@ union value_t_Impl {
   float64_t* asFloatRef;
   uint8_t  asByte;
   uint8_t* asByteRef;
+  uint64_t  asUint;
+  uint64_t* asUintRef;
+  uint32_t  asCodepoint;
+  uint32_t* asCodepointRef;
+  type_t  asType;
+  type_t* asTypeRef;
   fptr_t  asFPtr;
   fptr_t* asFPtrRef;
   ptr_t   asPtr;
@@ -88,7 +88,7 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   // DEBUG_PRINT: byte
   printf("'%1$c' (%1$"PRIx8")\n", (--(stack->ptr))->asByte);
   // DEBUG_PRINT: codepoint
-  printf("%"PRIx32"\n", (--(stack->ptr))->asCodepoint);
+  printf("U+%"PRIx32"\n", (--(stack->ptr))->asCodepoint);
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", (--(stack->ptr))->asInt);
   // VALUE: bool:false

@@ -10,10 +10,9 @@ public class Compiler {
 
     static{
         primitives.put(Type.BOOL,"bool");
-        primitives.put(Type.BYTE,"uint8_t");
-        primitives.put(Type.CODEPOINT,"uint32_t");
-        primitives.put(Type.INT,"int64_t");
-        primitives.put(Type.UINT,"uint64_t");
+        for(Type.IntType t:Type.IntType.intTypes) {
+            primitives.put(t, (t.signed?"int":"uint")+t.bits+"_t");
+        }
         primitives.put(Type.FLOAT,"float64_t");
         primitives.put(Type.TYPE,"type_t");
     }
@@ -191,7 +190,7 @@ public class Compiler {
     private static void compileCodeSection(BufferedWriter writer, Parser.CodeSection section) throws IOException {
         int level=1;
         boolean hasDupTmpVar=false;
-        //TODO initialize local variables
+        //addLater optimize code (merge consecutive push and pop operations)
         for(Parser.Token next:section.tokens()){
             writeComment(writer,level,next.toString());
             try {
@@ -203,13 +202,13 @@ public class Compiler {
                         Value value = ((Parser.ValueToken) next).value;
                         if(primitives.containsKey(value.type)){
                             String prefix="("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++)->"+typeWrapperName(value.type)+" = ";
-                            if (value.type == Type.INT) {
+                            if (value.type == Type.INT()) {
                                 writeLine(writer, level,prefix+value.asLong() + "LL;");
-                            }else if (value.type == Type.UINT) {
+                            }else if (value.type == Type.UINT()) {
                                 writeLine(writer, level,prefix+value.asLong() + "ULL;");
-                            }else if (value.type == Type.CODEPOINT) {
+                            }else if (value.type == Type.CODEPOINT()) {
                                 writeLine(writer, level,prefix+"0x"+Long.toHexString(value.asLong()) + ";");
-                            }else if (value.type == Type.BYTE) {
+                            }else if (value.type == Type.BYTE()) {
                                 writeLine(writer, level,prefix+"0x"+Integer.toHexString(value.asByte()) + ";");
                             }else if (value.type == Type.BOOL) {
                                 writeLine(writer, level,prefix+(value.asBool()?"true":"false")+";");
@@ -257,17 +256,15 @@ public class Compiler {
                     case DEBUG_PRINT ->{
                         Type t=((Parser.TypedToken)next).target;
                         String popElement = "(--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))";
-                        if(t==Type.INT){
-                            writeLine(writer, level, "printf(\"%\"PRIi64\"\\n\", " + popElement +
-                                    "->" + typeWrapperName(t) + ");");
-                        }else if(t==Type.UINT){
-                            writeLine(writer, level, "printf(\"%\"PRIu64\"\\n\", " + popElement +
-                                    "->" + typeWrapperName(t) + ");");
-                        }else if(t==Type.CODEPOINT){
-                            writeLine(writer, level, "printf(\"%\"PRIx32\"\\n\", " + popElement +
-                                    "->" + typeWrapperName(t) + ");");
-                        }else if(t==Type.BYTE){
+                        if(t==Type.BYTE()){
                             writeLine(writer, level, "printf(\"'%1$c' (%1$\"PRIx8\")\\n\", " + popElement +
+                                    "->" + typeWrapperName(t) + ");");
+                        }else if(t==Type.CODEPOINT()){
+                            writeLine(writer, level, "printf(\"U+%\"PRIx32\"\\n\", " + popElement +
+                                    "->" + typeWrapperName(t) + ");");
+                        }else if(t instanceof Type.IntType){
+                            writeLine(writer, level, "printf(\"%\"PRI"+(((Type.IntType) t).signed?"i":"u")+((Type.IntType) t).bits+
+                                    "\"\\n\", " + popElement +
                                     "->" + typeWrapperName(t) + ");");
                         }else if(t==Type.BOOL){
                             writeLine(writer, level, "puts((" + popElement +
@@ -276,7 +273,7 @@ public class Compiler {
                             System.err.println("unsupported type in debugPrint:"+t);
                             //TODO better output for debug print
                             writeLine(writer, level,"printf(\"%\"PRIx64\"\\n\", "+popElement +
-                                    "->" +typeWrapperName(Type.UINT)+");");
+                                    "->" +typeWrapperName(Type.UINT())+");");
                         }
                     }
                     case CONTEXT_OPEN, CONTEXT_CLOSE -> {}
