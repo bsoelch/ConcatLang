@@ -1,9 +1,6 @@
 package bsoelch.concat;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -321,8 +318,12 @@ public class Compiler {
                                             " should be eliminated at compile time");
                         }
                     }
+                    case CAST ->
+                        compileCast(writer, level, ((Parser.CastToken)next).src,  ((Parser.CastToken)next).target, 1);
+                    case CAST_ARG ->
+                        compileCast(writer, level, ((Parser.ArgCastToken)next).src,  ((Parser.ArgCastToken)next).target,
+                                ((Parser.ArgCastToken)next).offset);
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
-                    case CAST -> throw new UnsupportedOperationException("compiling CAST  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
                     case DEREFERENCE -> throw new UnsupportedOperationException("compiling DEREFERENCE  is currently not implemented");
@@ -334,7 +335,6 @@ public class Compiler {
                     case ASSERT -> throw new UnsupportedOperationException("compiling ASSERT  is currently not implemented");
                     case SWITCH -> throw new UnsupportedOperationException("compiling SWITCH  is currently not implemented");
                     case EXIT -> throw new UnsupportedOperationException("compiling EXIT  is currently not implemented");
-                    case CAST_ARG -> throw new UnsupportedOperationException("compiling CAST_ARG  is currently not implemented");
                     case TUPLE_GET_INDEX -> throw new UnsupportedOperationException("compiling TUPLE_GET_INDEX  is currently not implemented");
                     case TUPLE_REFERENCE_TO -> throw new UnsupportedOperationException("compiling TUPLE_REFERENCE_TO  is currently not implemented");
                     case TUPLE_SET_INDEX -> throw new UnsupportedOperationException("compiling TUPLE_SET_INDEX  is currently not implemented");
@@ -347,6 +347,17 @@ public class Compiler {
             }catch (ConcatRuntimeError e){
                 throw new RuntimeException("while executing "+next.pos,e);
             }
+        }
+    }
+
+    private static void compileCast(BufferedWriter writer,int indent,Type src, Type target, int offset) throws IOException {
+        if(primitives.containsKey(src)&&primitives.containsKey(target)){
+            //TODO check if direct C-cast is allowed
+            writeLine(writer,indent,"("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+(offset>1?"-"+(offset-1):"")+")->"+
+                typeWrapperName(target)+" = ("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+(offset>1?"-"+(offset-1):"")+")->"+
+            typeWrapperName(src)+";");
+        }else{
+            throw new UnsupportedEncodingException("casting from "+src+" to "+target+" is currently not supported");
         }
     }
 

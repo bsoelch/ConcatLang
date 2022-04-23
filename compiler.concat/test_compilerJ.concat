@@ -3,10 +3,10 @@ test/compiler:
 stack #include
 core  #import
 
-test proc( int => int ){ }
+test proc( int => byte ){ byte cast }
 
 main public proc( => ){
-  3 test debugPrint
+  0x42 test debugPrint
   1 2u '3' u'💻' swap rot3 over dup
   debugPrint
   drop

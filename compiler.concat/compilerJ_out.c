@@ -45,7 +45,7 @@ union value_t_Impl {
 
 // procedure main ( => )
 void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curried);
-// procedure test ( int => int ) in test/compiler
+// procedure test ( int => byte ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried);
 
 // global variables
@@ -54,12 +54,12 @@ void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curri
 
 // procedure main ( => )
 void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curried){
-  // VALUE: int:3
-  (stack->ptr++)->asInt = 3LL;
-  // CALL_PROC: ( int => int ):@(test/compiler:6:6)
+  // VALUE: int:66
+  (stack->ptr++)->asInt = 66LL;
+  // CALL_PROC: ( int => byte ):@(test/compiler:6:6)
   concat_private_procedure_test0x2F_compiler_6_6(stack, NULL);
-  // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", (--(stack->ptr))->asInt);
+  // DEBUG_PRINT: byte
+  printf("'%1$c' (%1$"PRIx8")\n", (--(stack->ptr))->asByte);
   // VALUE: int:1
   (stack->ptr++)->asInt = 1LL;
   // VALUE: uint:2
@@ -128,8 +128,10 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", (--(stack->ptr))->asInt);
 }
-// procedure test ( int => int ) in test/compiler
+// procedure test ( int => byte ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried){
+  // CAST at test/compiler:6:32
+  (stack->ptr)->asByte = (stack->ptr)->asInt;
 }
 
 
