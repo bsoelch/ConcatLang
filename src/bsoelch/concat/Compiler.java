@@ -269,6 +269,9 @@ public class Compiler {
                         }else if(t==Type.BYTE){
                             writeLine(writer, level, "printf(\"'%1$c' (%1$\"PRIx8\")\\n\", " + popElement +
                                     "->" + typeWrapperName(t) + ");");
+                        }else if(t==Type.BOOL){
+                            writeLine(writer, level, "puts((" + popElement +
+                                    "->" + typeWrapperName(t) + ") ? \"true\" : \"false\");");
                         }else{
                             System.err.println("unsupported type in debugPrint:"+t);
                             //TODO better output for debug print
