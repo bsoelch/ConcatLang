@@ -178,7 +178,7 @@ public abstract class Value {
     private static class IntValue extends Value implements NumberValue{
         final long intValue;
         private IntValue(long intValue, boolean unsigned) {
-            super(unsigned?Type.UINT:Type.INT);
+            super(unsigned?Type.UINT():Type.INT());
             this.intValue = intValue;
         }
 
@@ -189,7 +189,7 @@ public abstract class Value {
 
         @Override
         public double asDouble() {
-            return type==Type.UINT?((intValue>>>1)*2.0):intValue;
+            return type==Type.UINT()?((intValue>>>1)*2.0):intValue;
         }
         @Override
         public long asLong() {
@@ -202,25 +202,25 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type newType) throws ConcatRuntimeError {
-            if(newType ==Type.INT){
-                if(this.type==Type.INT){
+            if(newType ==Type.INT()){
+                if(this.type==Type.INT()){
                     return this;
                 }else{
                     return ofInt(intValue,false);
                 }
-            }else if(newType ==Type.UINT){
-                if(this.type==Type.UINT){
+            }else if(newType ==Type.UINT()){
+                if(this.type==Type.UINT()){
                     return this;
                 }else{
                     return ofInt(intValue,true);
                 }
-            }else if(newType ==Type.BYTE){
+            }else if(newType ==Type.BYTE()){
                 if(intValue<0||intValue>0xff){
                     throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to byte");
                 }
                 return Value.ofByte((byte)intValue);
 
-            }else if(newType ==Type.CODEPOINT){
+            }else if(newType ==Type.CODEPOINT()){
                 if(intValue<0||intValue>Character.MAX_CODE_POINT){
                     throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to char");
                 }
@@ -234,7 +234,7 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            return type==Type.UINT?Long.toUnsignedString(intValue):Long.toString(intValue);
+            return type==Type.UINT()?Long.toUnsignedString(intValue):Long.toString(intValue);
         }
         @Override
         public boolean equals(Object o) {
@@ -339,9 +339,9 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type newType) throws ConcatRuntimeError {
-            if(newType ==Type.INT){
+            if(newType ==Type.INT()){
                 return ofInt((long)floatValue,false);
-            }else if(newType ==Type.UINT){
+            }else if(newType ==Type.UINT()){
                 return ofInt(floatValue<0 ? 0 :
                             floatValue>=18446744073709551615.0 ? -1 :
                                     ((long)(floatValue/2))<<1,true);
@@ -423,7 +423,7 @@ public abstract class Value {
     private static class CodepointValue extends Value{
         final int codePoint;
         private CodepointValue(int codePoint) {
-            super(Type.CODEPOINT);
+            super(Type.CODEPOINT());
             this.codePoint = codePoint;
         }
 
@@ -448,11 +448,11 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type newType) throws ConcatRuntimeError {
-            if(newType ==Type.BYTE){
+            if(newType ==Type.BYTE()){
                 return ofByte((byte)codePoint);
-            }else if(newType ==Type.INT){
+            }else if(newType ==Type.INT()){
                 return ofInt(codePoint,false);
-            }else if(newType ==Type.UINT){
+            }else if(newType ==Type.UINT()){
                 return ofInt(codePoint,true);
             }else{
                 return super.castTo(newType);
@@ -484,7 +484,7 @@ public abstract class Value {
     private static class ByteValue extends Value{
         final byte byteValue;
         private ByteValue(byte byteValue) {
-            super(Type.BYTE);
+            super(Type.BYTE());
             this.byteValue = byteValue;
         }
 
@@ -510,11 +510,11 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type newType) throws ConcatRuntimeError {
-            if(newType ==Type.INT){
+            if(newType ==Type.INT()){
                 return ofInt(byteValue&0xff,false);
-            }else if(newType ==Type.UINT){
+            }else if(newType ==Type.UINT()){
                 return ofInt(byteValue&0xff,true);
-            }else if(newType ==Type.CODEPOINT){
+            }else if(newType ==Type.CODEPOINT()){
                 return ofChar(byteValue);
             }else{
                 return super.castTo(newType);
@@ -672,13 +672,13 @@ public abstract class Value {
 
         /*raw data of this Value as a standard java Object*/
         Object rawData(Type argType) throws TypeError {
-            if(argType.isArray()&&argType.content()==Type.BYTE){
+            if(argType.isArray()&&argType.content()==Type.BYTE()){
                 byte[] unpacked=new byte[length];
                 for(int i=0;i<length;i++){
                     unpacked[i]=data[offset+i].asByte();
                 }
                 return unpacked;
-            }else if(argType.isMemory()&&argType.content()==Type.BYTE){
+            }else if(argType.isMemory()&&argType.content()==Type.BYTE()){
                 byte[] unpacked=new byte[data.length];
                 for(int i=0;i<length;i++){
                     unpacked[offset+i]=data[offset+i].asByte();
@@ -689,11 +689,11 @@ public abstract class Value {
         }
         @Override
         void updateFrom(Object nativeArg) throws ConcatRuntimeError {
-            if(nativeArg instanceof byte[] unpacked && (type.isArray()||type.isMemory())&&type.content()==Type.BYTE){
+            if(nativeArg instanceof byte[] unpacked && (type.isArray()||type.isMemory())&&type.content()==Type.BYTE()){
                 for(int i=0;i<length;i++){
                     data[offset+i]=ofByte(unpacked[i]);
                 }
-            }else if(nativeArg instanceof Object[] nativeArgs && type.isMemory()&&type.content()==Type.BYTE){
+            }else if(nativeArg instanceof Object[] nativeArgs && type.isMemory()&&type.content()==Type.BYTE()){
                 byte[] unpacked=(byte[])nativeArgs[0];
                 offset=(int)nativeArgs[1];
                 length=(int)nativeArgs[2];
@@ -912,13 +912,13 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            if(type.content()==Type.BYTE){
+            if(type.content()==Type.BYTE()){
                 try {
                     return new String((byte[])rawData(Type.RAW_STRING()),StandardCharsets.UTF_8);
                 } catch (TypeError e) {
                     throw new RuntimeException(e);
                 }
-            }else if(type.content()==Type.CODEPOINT){
+            }else if(type.content()==Type.CODEPOINT()){
                 StringBuilder str=new StringBuilder();
                 for(int i=offset;i<offset+length;i++){
                     str.append(Character.toChars(((CodepointValue)data[i]).getChar()));
@@ -1288,9 +1288,9 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type newType) throws ConcatRuntimeError {
-            if(newType ==Type.INT){
+            if(newType ==Type.INT()){
                 return ofInt(index,false);
-            }else if(newType ==Type.UINT){
+            }else if(newType ==Type.UINT()){
                 return ofInt(index,true);
             }else{
                 return super.castTo(newType);
@@ -1416,7 +1416,7 @@ public abstract class Value {
 
     static ArrayList<InternalProcedure> internalProcedures(){
         ArrayList<InternalProcedure> procs=new ArrayList<>();
-        procs.add(new InternalProcedure(new Type[]{Type.ANY},new Type[]{Type.UINT},"refId",
+        procs.add(new InternalProcedure(new Type[]{Type.ANY},new Type[]{Type.UINT()},"refId",
                 (values) -> new Value[]{Value.ofInt(values[0].id(),true)},false));
         procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"===",
                 (values) -> new Value[]{values[0].isEqualTo(values[1])?TRUE:FALSE},false));
@@ -1463,15 +1463,15 @@ public abstract class Value {
                     (values) -> new Value[]{values[0].clone(true,null)},false));
         }
 
-        Type unsigned = Type.UnionType.create(new Type[]{Type.BYTE,Type.CODEPOINT,Type.UINT});
-        Type integer = Type.UnionType.create(new Type[]{unsigned,Type.INT});
+        Type unsigned = Type.UnionType.create(new Type[]{Type.BYTE(),Type.CODEPOINT(),Type.UINT()});
+        Type integer = Type.UnionType.create(new Type[]{unsigned,Type.INT()});
         Type number  = Type.UnionType.create(new Type[]{integer,Type.FLOAT});
 
         procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!",
                 (values) -> new Value[]{values[0].asBool()?FALSE:TRUE},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"~",
+        procs.add(new InternalProcedure(new Type[]{Type.INT()},new Type[]{Type.INT()},"~",
                 (values) -> new Value[]{ofInt(~values[0].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.UINT},new Type[]{Type.UINT},"~",
+        procs.add(new InternalProcedure(new Type[]{Type.UINT()},new Type[]{Type.UINT()},"~",
                 (values) -> new Value[]{ofInt(~values[0].asLong(),true)},true));
 
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"&",
@@ -1480,61 +1480,61 @@ public abstract class Value {
                 (values) -> new Value[]{values[0].asBool()||values[1].asBool()?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"xor",
                 (values) -> new Value[]{values[0].asBool()^values[1].asBool()?TRUE:FALSE},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"&",
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"&",
                 (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"&",
+        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"&",
                 (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"|",
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"|",
                 (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"|",
+        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"|",
                 (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"xor",
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"xor",
                 (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"xor",
+        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"xor",
                 (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),false)},true));
 
-        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"<<",
+        procs.add(new InternalProcedure(new Type[]{Type.UINT(),integer},new Type[]{Type.UINT()},"<<",
                 (values) -> new Value[]{ofInt(values[0].asLong()<<values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"<<",
+        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"<<",
                 (values) -> new Value[]{ofInt(signedLeftShift(values[0].asLong(),values[1].asLong()),false)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},">>",
+        procs.add(new InternalProcedure(new Type[]{Type.UINT(),integer},new Type[]{Type.UINT()},">>",
                 (values) -> new Value[]{ofInt(values[0].asLong()>>>values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},">>",
+        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},">>",
                 (values) -> new Value[]{ofInt(values[0].asLong()>>values[1].asLong(),false)},true));
 
-        procs.add(new InternalProcedure(new Type[]{Type.INT},new Type[]{Type.INT},"-_",
+        procs.add(new InternalProcedure(new Type[]{Type.INT()},new Type[]{Type.INT()},"-_",
                 (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false)},true));
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"-_",
                 (values) -> new Value[]{Value.ofFloat(-(values[0].asDouble()))},true));
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"/_",
                 (values) -> new Value[]{Value.ofFloat(1.0/values[0].asDouble())},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"+",
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"+",
                 (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"+",
+        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"+",
                 (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"+",
                 (values) -> new Value[]{ofFloat(values[0].asDouble()+values[1].asDouble())},true));
-        procs.add(new InternalProcedure(new Type[]{Type.UINT,integer},new Type[]{Type.UINT},"-",
+        procs.add(new InternalProcedure(new Type[]{Type.UINT(),integer},new Type[]{Type.UINT()},"-",
                 (values)-> new Value[]{ofInt(values[0].asLong()-values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{integer,integer},new Type[]{Type.INT},"-",
+        procs.add(new InternalProcedure(new Type[]{integer,integer},new Type[]{Type.INT()},"-",
                 (values) ->  new Value[]{ofInt(values[0].asLong()-values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"-",
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()-values[1].asDouble())},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"*",
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"*",
                 (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"*",
+        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"*",
                 (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"*",
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()*values[1].asDouble())},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"/",
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"/",
                 (values) ->  new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"/",
+        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"/",
                 (values) ->  new Value[]{ofInt(values[0].asLong()/values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"/",
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()/values[1].asDouble())},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT},"%",
+        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"%",
                 (values) ->  new Value[]{ofInt(Long.remainderUnsigned(values[0].asLong(),values[1].asLong()),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT,integer},new Type[]{Type.INT},"%",
+        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"%",
                 (values) ->  new Value[]{ofInt(values[0].asLong()%values[1].asLong(),false)},true));
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"%",
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()%values[1].asDouble())},true));
@@ -1559,7 +1559,7 @@ public abstract class Value {
 
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).mutable(),Type.UINT},
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).mutable(),Type.UINT()},
                     new Type[]{Type.referenceTo(a).mutable()},"[]",
                     (values) ->  {
                         long index=values[1].asLong();
@@ -1570,7 +1570,7 @@ public abstract class Value {
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
-            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),Type.UINT},
+            procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),Type.UINT()},
                     new Type[]{a},"[]",
                     (values) ->  new Value[]{((ArrayLike)values[0]).get(values[1].asLong())},false));
         }
@@ -1611,7 +1611,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
-                    Type.UINT,Type.memoryOf(a).mutable(), Type.INT,Type.UINT}, new Type[]{},"copy",
+                    Type.UINT(),Type.memoryOf(a).mutable(), Type.INT(),Type.UINT()}, new Type[]{},"copy",
                     (values) ->   {
                         //src srcOff target targetOff count
                         ArrayLike src=(ArrayLike)values[0];
@@ -1626,7 +1626,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
-                    Type.UINT,Type.arrayOf(a).mutable(), Type.UINT,Type.UINT}, new Type[]{},"copy",
+                    Type.UINT(),Type.arrayOf(a).mutable(), Type.UINT(),Type.UINT()}, new Type[]{},"copy",
                     (values) ->  {
                         //src srcOff target targetOff count
                         ArrayLike src=(ArrayLike)values[0];
@@ -1641,7 +1641,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
-                    Type.UINT,Type.memoryOf(a).mutable(), Type.UINT,Type.UINT,Type.UINT},
+                    Type.UINT(),Type.memoryOf(a).mutable(), Type.UINT(),Type.UINT(),Type.UINT()},
                     new Type[]{},"copyToSlice",
                     (values) ->  {
                         //src srcOff target targetOff count
@@ -1658,7 +1658,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.memoryOf(a).mutable(),
-                    Type.INT,Type.UINT}, new Type[]{},"fill",
+                    Type.INT(),Type.UINT()}, new Type[]{},"fill",
                     (values) ->   {
                         //val target off count
                         Value val=values[0];
@@ -1672,7 +1672,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a,Type.arrayOf(a).mutable(),
-                    Type.INT,Type.UINT}, new Type[]{},"fill",
+                    Type.INT(),Type.UINT()}, new Type[]{},"fill",
                     (values) ->   {
                         //val target off count
                         Value val=values[0];
@@ -1686,7 +1686,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},
-                    new Type[]{Type.memoryOf(a).mutable(),Type.UINT,Type.UINT}, new Type[]{},"clearSlice",
+                    new Type[]{Type.memoryOf(a).mutable(),Type.UINT(),Type.UINT()}, new Type[]{},"clearSlice",
                     (values) ->  {
                         //memory off to
                         ArrayLike mem=(ArrayLike)values[0];
@@ -1699,7 +1699,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.memoryOf(a).mutable(),
-                    Type.UINT}, new Type[]{},"realloc",
+                    Type.UINT()}, new Type[]{},"realloc",
                     (values) ->   {
                         //memory newSize
                         ArrayLike mem=(ArrayLike)values[0];
@@ -1711,7 +1711,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.memoryOf(a).mutable(),
-                    Type.INT}, new Type[]{},"setOffset",
+                    Type.INT()}, new Type[]{},"setOffset",
                     (values) ->  {
                         //memory newOffset
                         ArrayLike mem=(ArrayLike)values[0];
@@ -1747,17 +1747,17 @@ public abstract class Value {
                 }
             }else if(type==Type.BOOL){
                 return ((Boolean)jValue)?TRUE:FALSE;
-            }else if(type==Type.BYTE){
+            }else if(type==Type.BYTE()){
                 return ofByte((Byte)jValue);
-            }else if(type == Type.CODEPOINT){
+            }else if(type == Type.CODEPOINT()){
                 return ofChar((Integer)jValue);
-            }else if(type==Type.INT||type==Type.UINT){
-                return ofInt((Long) jValue,type==Type.UINT);
+            }else if(type==Type.INT()||type==Type.UINT()){
+                return ofInt((Long) jValue,type==Type.UINT());
             }else if(type==Type.FLOAT){
                 return ofFloat((Double)jValue);
-            }else if(type.isArray()&&type.content()==Type.BYTE){
+            }else if(type.isArray()&&type.content()==Type.BYTE()){
                 return new ArrayValue(type,wrapBytes((byte[])jValue));
-            }else if(type.isMemory()&&type.content()==Type.BYTE){
+            }else if(type.isMemory()&&type.content()==Type.BYTE()){
                 Object[] parts=(Object[])jValue;
                 return new ArrayValue(type,wrapBytes((byte[])parts[0]),(int)parts[1],(int)parts[2]);
             }else if(type.isOptional()){
@@ -1780,19 +1780,19 @@ public abstract class Value {
     private static Class<?> jClass(Type t) throws TypeError {
         if(t == Type.BOOL){
             return boolean.class;
-        }else if(t == Type.BYTE){
+        }else if(t == Type.BYTE()){
             return byte.class;
-        }else if(t == Type.CODEPOINT){
+        }else if(t == Type.CODEPOINT()){
             return int.class;
-        }else if(t == Type.INT||t == Type.UINT){
+        }else if(t == Type.INT()||t == Type.UINT()){
             return long.class;
         }else if(t == Type.FLOAT){
             return double.class;
         }else if(t == Type.ANY){
             return Object.class;
-        }else if(t.isArray()&&t.content()==Type.BYTE){
+        }else if(t.isArray()&&t.content()==Type.BYTE()){
             return byte[].class;
-        }else if(t.isMemory()&&t.content()==Type.BYTE){
+        }else if(t.isMemory()&&t.content()==Type.BYTE()){
             return Object[].class;//bytes,off,length
         }else if(t.isOptional()){
             jClass(t.content());//check content Type
@@ -2031,14 +2031,14 @@ public abstract class Value {
     static int compareNumbers(Value n1,Value n2) throws ConcatRuntimeError{
         if(n1 instanceof ByteValue||n1 instanceof CodepointValue||n1 instanceof IntValue){
             if(n2 instanceof ByteValue||n2 instanceof CodepointValue||n2 instanceof IntValue){
-                if(n1.type==Type.UINT){
-                    if(n2.type==Type.UINT){
+                if(n1.type==Type.UINT()){
+                    if(n2.type==Type.UINT()){
                         return Long.compareUnsigned(n1.asLong(),n2.asLong());
                     }else{
                         return n2.asLong()<0?1:Long.compareUnsigned(n1.asLong(),n2.asLong());
                     }
                 }else{
-                    if(n2.type==Type.UINT){
+                    if(n2.type==Type.UINT()){
                         return n1.asLong()<0?-1:Long.compareUnsigned(n1.asLong(),n2.asLong());
                     }else{
                         return Long.compare(n1.asLong(),n2.asLong());

@@ -13,36 +13,78 @@ public class Type {
     static final Type MULTIBLOCK4 = new Type("bits256",null,false);
     static final Type PTR         = new Type("bitsPtr",null,false);
 
-    public static final Type INT   = new Type("int",BITS64,  true) {
-        @Override
-        public CastType canCastTo(Type t,BoundMaps bounds) {
-            return (t==UINT||t==CODEPOINT||t==BYTE||t==FLOAT)?CastType.CAST:super.canCastTo(t,bounds);
+
+
+    static Type baseTypeFromBits(int bits) {
+        if(bits<=8){
+            return BITS8;
+        }else if(bits<=16){
+            return BITS16;
+        }else if(bits<=32){
+            return BITS32;
+        }else if(bits<=64){
+            return BITS64;
+        }else{
+            throw new UnsupportedOperationException("primitve types with more than 64bits are currently not supported");
         }
-    };
-    public static final Type UINT  = new Type("uint",BITS64, true) {
-        @Override
-        public CastType canCastTo(Type t, BoundMaps bounds) {
-            return (t==INT||t==CODEPOINT||t==BYTE||t==FLOAT)?CastType.CAST:super.canCastTo(t,bounds);
+    }
+    public static class IntType extends Type{
+        static final ArrayList<IntType> intTypes = new ArrayList<>();
+
+        public static final IntType BYTE = new IntType("byte",8,false,false);
+        public static final IntType CODEPOINT = new IntType("codepoint",32,false,false);
+        public static final IntType INT = new IntType("int",64,true,true);
+        public static final IntType UINT = new IntType("uint",64,false,true);
+        final int bits;
+        final boolean signed;
+        /**true if this type can be cast to/from floats*/
+        final boolean floatCompatible;
+
+        private IntType(String name, int bits, boolean signed, boolean floatCompatible) {
+            super(name, baseTypeFromBits(bits), true);
+            this.bits = bits;
+            this.signed = signed;
+            this.floatCompatible = floatCompatible;
+            intTypes.add(this);
         }
-    };
+
+        @Override
+        protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
+            return t instanceof IntType&&((IntType) t).bits==bits&&((IntType) t).signed==signed&&
+                    ((IntType) t).floatCompatible == floatCompatible;
+        }
+
+        @Override
+        protected CastType canCastTo(Type t, BoundMaps bounds) {
+            if(t.equals(this))
+                return CastType.ASSIGN;
+            if(t instanceof IntType)
+                return CastType.CAST;
+            if(t==FLOAT&&floatCompatible)
+                return CastType.CAST;
+            return super.canCastTo(t, bounds);
+        }
+    }
+
+    public static Type BYTE(){
+        return IntType.BYTE;
+    }
+    public static Type CODEPOINT(){
+        return IntType.CODEPOINT;
+    }
+    public static Type INT(){
+        return IntType.INT;
+    }
+    public static Type UINT(){
+        return IntType.UINT;
+    }
     public static final Type FLOAT = new Type("float",BITS64,false) {
         @Override
         public CastType canCastTo(Type t, BoundMaps bounds) {
-            return (t==INT||t==UINT)?CastType.CAST:super.canCastTo(t,bounds);
+            return (t instanceof IntType&&((IntType) t).floatCompatible)?CastType.CAST:super.canCastTo(t,bounds);
         }
     };
-    public static final Type CODEPOINT = new Type("codepoint",BITS32, true) {
-        @Override
-        public CastType canCastTo(Type t, BoundMaps bounds) {
-            return (t==INT||t==UINT||t==BYTE)?CastType.CAST:super.canCastTo(t,bounds);
-        }
-    };
-    public static final Type BYTE  = new Type("byte",BITS8, true){
-        @Override
-        public CastType canCastTo(Type t, BoundMaps bounds) {
-            return (t==INT||t==UINT||t==CODEPOINT)?CastType.CAST:super.canCastTo(t,bounds);
-        }
-    };
+
     public static final Type TYPE  = new Type("type",BITS64, true) {
         @Override
         void initTypeFields() throws SyntaxError {
@@ -72,7 +114,7 @@ public class Type {
                 (values) -> new Value[]{Value.createArray(Type.arrayOf(Type.RAW_STRING()),values[0].asType().fields()
                             .stream().map(s->Value.ofString(s,false)).toArray(Value[]::new))},true),
                     declaredAt());
-            addInternalField(new Value.InternalProcedure(new Type[]{ANY,UINT,TYPE},new Type[]{ANY},"getField",
+            addInternalField(new Value.InternalProcedure(new Type[]{ANY,IntType.UINT,TYPE},new Type[]{ANY},"getField",
                 (values) ->  {
                     Value instance = values[0];
                     long index     = values[1].asLong();
@@ -119,10 +161,10 @@ public class Type {
     };
 
     public static Type UNICODE_STRING() {
-        return WrapperType.create(WrapperType.ARRAY, Type.CODEPOINT, Mutability.IMMUTABLE);
+        return WrapperType.create(WrapperType.ARRAY, IntType.CODEPOINT, Mutability.IMMUTABLE);
     }
     public static Type RAW_STRING() {
-        return WrapperType.create(WrapperType.ARRAY, Type.BYTE, Mutability.IMMUTABLE);
+        return WrapperType.create(WrapperType.ARRAY, IntType.BYTE, Mutability.IMMUTABLE);
     }
 
     public static Optional<Type> commonSuperType(Type a, Type b,boolean strict,boolean deRef) {
@@ -143,9 +185,11 @@ public class Type {
                 return Optional.of(a);
             }else if(deRef&&b.isReference()&&a.canAssignTo(b.content())){
                 return Optional.of(b.content());
-            }else if((!strict)&&((a==UINT||a==INT)&&(b==UINT||b==INT))){//TODO better handling of implicit casting of numbers
+            }else if((!strict)&&(a instanceof IntType&&b instanceof IntType)){
+                //TODO better handling of implicit casting of numbers
                 return Optional.of(UnionType.create(new Type[]{a,b}));
-            }else if((!strict)&&((a==FLOAT&&(b==UINT||b==INT))||(b==FLOAT&&(a==UINT||a==INT)))){
+            }else if((!strict)&&((a==FLOAT&&(b instanceof IntType&&((IntType) b).floatCompatible))
+                    ||(b==FLOAT&&(a instanceof IntType&&((IntType) a).floatCompatible)))){
                 return Optional.of(FLOAT);
             }else if((!strict)&&a.baseType==b.baseType){
                 return Optional.of(a.baseType);
@@ -667,7 +711,7 @@ public class Type {
             super(updateChildMutability(contentType,mutability).name+" "+
                     wrapperName+mutabilityPostfix(mutability),getBaseType(wrapperName,contentType.baseType),
                     ARRAY.equals(wrapperName)&&
-                    (contentType==BYTE||contentType==CODEPOINT),mutability);
+                    (contentType==IntType.BYTE||contentType==IntType.CODEPOINT),mutability);
             this.wrapperName = wrapperName;
             this.contentType = contentType;
         }
@@ -751,17 +795,17 @@ public class Type {
                 }
                 case MEMORY -> {
                     addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
-                            new Type[]{UINT}, "length", (values) ->
+                            new Type[]{IntType.UINT}, "length", (values) ->
                             new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)},false), declaredAt());
                     addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
-                            new Type[]{UINT}, "capacity", (values) ->
+                            new Type[]{IntType.UINT}, "capacity", (values) ->
                             new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).capacity(), true)},false), declaredAt());
                     addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
-                            new Type[]{UINT}, "offset", (values) ->
+                            new Type[]{IntType.UINT}, "offset", (values) ->
                             new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).offset(), true)},false), declaredAt());
                 }
                 case ARRAY -> addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},
-                        new Type[]{UINT}, "length", (values) ->
+                        new Type[]{IntType.UINT}, "length", (values) ->
                         new Value[]{Value.ofInt(((Value.ArrayLike) values[0]).length(), true)},false), declaredAt());
             }
         }
@@ -856,11 +900,11 @@ public class Type {
 
         @Override
         public boolean isRawString() {
-            return wrapperName.equals(ARRAY)&&contentType==BYTE;
+            return wrapperName.equals(ARRAY)&&contentType==IntType.BYTE;
         }
         @Override
         public boolean isUnicodeString() {
-            return wrapperName.equals(ARRAY)&&contentType==CODEPOINT;
+            return wrapperName.equals(ARRAY)&&contentType==IntType.CODEPOINT;
         }
         @Override
         public boolean isArray() {
@@ -1050,7 +1094,7 @@ public class Type {
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();
-            addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{UINT},"length",
+            addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{IntType.UINT},"length",
                 (values) ->
                         new Value[]{Value.ofInt(values[0].length(),true)},true),declaredAt());
             addInternalField(new Value.InternalProcedure(new Type[]{this.maybeMutable()},new Type[]{arrayOf(ANY)},"elements",
@@ -2178,7 +2222,9 @@ public class Type {
 
         @Override
         public CastType canCastTo(Type t, BoundMaps bounds) {
-            return (t==UINT||t==INT)?CastType.CAST:super.canCastTo(t, bounds);
+            return (t instanceof IntType&&(((IntType) t).bits>=32||
+                    (entryNames.length>(1<<(((IntType) t).bits-(((IntType) t).signed?1:0))))))
+                    ?CastType.CAST:super.canCastTo(t, bounds);
         }
 
         @Override

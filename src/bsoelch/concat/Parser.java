@@ -2135,7 +2135,7 @@ public class Parser {
                 }
                 case "switch{" -> {
                     tokens.add(new BlockToken(BlockTokenType.SWITCH, pos, -1));
-                    pState.openBlocks.add(new SwitchCaseBlock(Type.INT,tokens.size(),pos, pState.getContext()));
+                    pState.openBlocks.add(new SwitchCaseBlock(Type.INT(),tokens.size(),pos, pState.getContext()));
                 }
                 case "if{" -> {
                     tokens.add(new BlockToken(BlockTokenType.IF, pos, -1));
@@ -2209,10 +2209,10 @@ public class Parser {
                 case "false" -> tokens.add(new ValueToken(Value.FALSE,   pos));
                 //types
                 case "bool"       -> tokens.add(new ValueToken(Value.ofType(Type.BOOL),              pos));
-                case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE),              pos));
-                case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT),               pos));
-                case "uint"       -> tokens.add(new ValueToken(Value.ofType(Type.UINT),              pos));
-                case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT),         pos));
+                case "byte"       -> tokens.add(new ValueToken(Value.ofType(Type.BYTE()),            pos));
+                case "int"        -> tokens.add(new ValueToken(Value.ofType(Type.INT()),             pos));
+                case "uint"       -> tokens.add(new ValueToken(Value.ofType(Type.UINT()),            pos));
+                case "codepoint"  -> tokens.add(new ValueToken(Value.ofType(Type.CODEPOINT()),       pos));
                 case "float"      -> tokens.add(new ValueToken(Value.ofType(Type.FLOAT),             pos));
                 case "string"     -> tokens.add(new ValueToken(Value.ofType(Type.RAW_STRING()),      pos));
                 case "ustring"    -> tokens.add(new ValueToken(Value.ofType(Type.UNICODE_STRING()),  pos));
@@ -3293,7 +3293,7 @@ public class Parser {
                 }
                 case EXIT -> {
                     Type t1=tState.typeStack().pop().type;
-                    if((t1!=Type.INT)&&(t1!=Type.UINT)){
+                    if(!(t1 instanceof Type.IntType)){
                         throw new SyntaxError("exit code has to be an integer",t.pos);
                     }
                     tState.finishedBranch=true;
@@ -4278,7 +4278,7 @@ public class Parser {
                 }
             }else if(type.isMemory()||type.isArray()){
                 TypeFrame f= tState.typeStack().pop();
-                if(f.type!=Type.UINT&&f.type!=Type.INT){
+                if(f.type!=Type.UINT()&&f.type!=Type.INT()){
                     throw new SyntaxError("invalid argument for '"+type+" new': "+f.type+
                             " expected an integer", pos);
                 }//no else
