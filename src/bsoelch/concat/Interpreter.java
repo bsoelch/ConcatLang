@@ -113,8 +113,8 @@ public class Interpreter {
                         stack.push(Value.createArray(Type.arrayOf(type),values.toArray(Value[]::new)));
                     }
                     case CAST -> {
-                        assert next instanceof Parser.TypedToken;
-                        Type type=((Parser.TypedToken)next).target;
+                        assert next instanceof Parser.CastToken;
+                        Type type=((Parser.CastToken)next).target;
                         if(type==null){//dynamic operation
                             type=stack.pop().asType();
                         }

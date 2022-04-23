@@ -260,12 +260,24 @@ public class Parser {
         }
 
     }
+    static class CastToken extends Token{
+        final Type src;
+        final Type target;
+        CastToken(Type src, Type target, FilePosition pos) {
+            super(TokenType.CAST, pos);
+            this.src = src;
+            this.target=target;
+        }
+    }
     static class ArgCastToken extends Token{
         final int offset;
+
+        final Type src;
         final Type target;
-        ArgCastToken(int offset,Type target,FilePosition pos) {
+        ArgCastToken(int offset, Type src, Type target, FilePosition pos) {
             super(TokenType.CAST_ARG, pos);
             this.offset=offset;
+            this.src = src;
             this.target=target;
         }
 
@@ -2224,7 +2236,7 @@ public class Parser {
                 case "optional"  -> tokens.add(new Token(TokenType.OPTIONAL_OF,    pos));
                 case "empty"     -> tokens.add(new Token(TokenType.EMPTY_OPTIONAL, pos));
 
-                case "cast"   -> tokens.add(new TypedToken(TokenType.CAST,null,pos));
+                case "cast"   -> tokens.add(new CastToken(null,null,pos));
 
                 case ".." -> tokens.add(new Token(TokenType.DEREFERENCE,pos));
                 case "=" -> tokens.add(new Token(TokenType.ASSIGN,pos));
@@ -4882,10 +4894,10 @@ public class Parser {
                             throw new SyntaxError(e,pos);
                         }
                     }else{
-                        tState.ret.add(new TypedToken(TokenType.CAST, target, pos));
+                        tState.ret.add(new CastToken(src, target, pos));
                     }
                 }else{
-                    tState.ret.add(new ArgCastToken(stackPos, target, pos));
+                    tState.ret.add(new ArgCastToken(stackPos, src, target, pos));
                 }
             }
             if(bounds.l.size()>0||bounds.r.size()>0){
@@ -5229,7 +5241,7 @@ public class Parser {
                 }
             }//no else
             if(!inTypes[i].canAssignTo(match.type.inTypes[i],new Type.BoundMaps())){
-                tokens.add(new ArgCastToken(inTypes.length-i+(isPtr ?1:0), match.type.inTypes[i], pos));
+                tokens.add(new ArgCastToken(inTypes.length-i+(isPtr ?1:0), inTypes[i], match.type.inTypes[i], pos));
             }
         }
         for(Map.Entry<Type.OverloadedProcedurePointer, CallMatch> opp: match.opps.entrySet()){
