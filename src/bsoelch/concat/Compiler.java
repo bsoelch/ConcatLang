@@ -346,11 +346,28 @@ public class Compiler {
                                             typeRefName(asVar.id.type)+" = &"+idName+";");
                         }
                     }
+                    case DEREFERENCE -> {
+                        Type content=((Parser.TypedToken)next).target;
+                        if(!primitives.containsKey(content)){
+                            throw new UnsupportedEncodingException("dereferencing "+content+" is currently not implemented");
+                        }
+                        writeLine(writer,level,"(("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +")-1)->"+
+                                typeWrapperName(content)+" = "+"*((("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +")-1)->"+
+                                typeRefName(content)+");");
+                    }
+                    case ASSIGN -> {
+                        Type content=((Parser.TypedToken)next).target;
+                        if(!primitives.containsKey(content)){
+                            throw new UnsupportedEncodingException("assigning to "+content+" is currently not implemented");
+                        }
+                        writeLine(writer,level,"*((("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +")-1)->"+
+                                typeRefName(content)+") = "+"(("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +")-2)->"+
+                                typeWrapperName(content)+";");
+                        writeLine(writer,level,STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"-=2;");
+                    }
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
-                    case DEREFERENCE -> throw new UnsupportedOperationException("compiling DEREFERENCE  is currently not implemented");
-                    case ASSIGN -> throw new UnsupportedOperationException("compiling ASSIGN  is currently not implemented");
                     case CALL_PTR -> throw new UnsupportedOperationException("compiling CALL_PTR  is currently not implemented");
                     case CALL_NATIVE_PROC -> throw new UnsupportedOperationException("compiling CALL_NATIVE_PROC  is currently not implemented");
                     case RETURN -> throw new UnsupportedOperationException("compiling RETURN  is currently not implemented");

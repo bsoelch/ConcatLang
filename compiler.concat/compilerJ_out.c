@@ -135,14 +135,33 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   (stack->ptr)->asInt = (stack->ptr)->asByte;
   // LOCAL_DECLARE:1 (y)
   int64_t local_var_0_1 = (--(stack->ptr))->asInt;
-  // LOCAL_READ:0 (x)
-  (stack->ptr++)->asByte = local_var_0_0;
-  // DEBUG_PRINT: byte
-  printf("'%1$c' (%1$"PRIx8")\n", (--(stack->ptr))->asByte);
+  // LOCAL_REFERENCE_TO:0 (x)
+  (stack->ptr++)->asByteRef = &local_var_0_0;
+  // DEBUG_PRINT: byte reference mut
+  printf("%"PRIx64"\n", (--(stack->ptr))->asUint);
   // LOCAL_READ:1 (y)
   (stack->ptr++)->asInt = local_var_0_1;
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", (--(stack->ptr))->asInt);
+  // LOCAL_REFERENCE_TO:0 (x)
+  (stack->ptr++)->asByteRef = &local_var_0_0;
+  // DEREFERENCE: byte
+  ((stack->ptr)-1)->asByte = *(((stack->ptr)-1)->asByteRef);
+  // DEBUG_PRINT: byte
+  printf("'%1$c' (%1$"PRIx8")\n", (--(stack->ptr))->asByte);
+  // VALUE: byte:x
+  (stack->ptr++)->asByte = 0x78;
+  // LOCAL_REFERENCE_TO:0 (x)
+  (stack->ptr++)->asByteRef = &local_var_0_0;
+  // ASSIGN: byte
+  *(((stack->ptr)-1)->asByteRef) = ((stack->ptr)-2)->asByte;
+  stack->ptr-=2;
+  // LOCAL_REFERENCE_TO:0 (x)
+  (stack->ptr++)->asByteRef = &local_var_0_0;
+  // DEREFERENCE: byte
+  ((stack->ptr)-1)->asByte = *(((stack->ptr)-1)->asByteRef);
+  // DEBUG_PRINT: byte
+  printf("'%1$c' (%1$"PRIx8")\n", (--(stack->ptr))->asByte);
 }
 // procedure test ( int => byte ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried){
