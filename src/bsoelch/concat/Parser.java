@@ -3337,7 +3337,7 @@ public class Parser {
                     }
                     //TODO update valueInfo
                     tState.typeStack().push(new TypeFrame(f.type.content(),f.valueInfo,f.pushedAt));
-                    tState.ret.add(t);
+                    tState.ret.add(new TypedToken(TokenType.DEREFERENCE,f.type.content(),t.pos));
                 }
                 case ASSIGN -> {
                     Type target=tState.typeStack().pop().type;
@@ -3349,7 +3349,7 @@ public class Parser {
                     }
                     Type src=tState.typeStack().pop().type;
                     typeCheckCast(src,2,target.content(), tState, t.pos);
-                    tState.ret.add(t);
+                    tState.ret.add(new TypedToken(TokenType.ASSIGN,target.content(),t.pos));
                 }
                 case STACK_DROP -> {
                     assert t instanceof StackModifierToken;
