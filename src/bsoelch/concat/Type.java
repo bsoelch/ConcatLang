@@ -45,13 +45,17 @@ public class Type {
             this.bits = bits;
             this.signed = signed;
             this.floatCompatible = floatCompatible;
+
+            for(IntType t:intTypes){
+                if(t.bits==bits&&t.signed==signed)//ensure each combination of sign and bit-count only exists once
+                    throw new RuntimeException("multiple intTypes for "+(signed?"uint":"int")+bits+": "+t.name+" and "+name);
+            }
             intTypes.add(this);
         }
 
         @Override
         protected boolean equals(Type t, IdentityHashMap<GenericParameter, GenericParameter> generics) {
-            return t instanceof IntType&&((IntType) t).bits==bits&&((IntType) t).signed==signed&&
-                    ((IntType) t).floatCompatible == floatCompatible;
+            return t instanceof IntType&&((IntType) t).bits==bits&&((IntType) t).signed==signed;
         }
 
         @Override
