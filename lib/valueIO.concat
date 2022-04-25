@@ -188,7 +188,7 @@ list #include
     bool case
       value bool cast if{ "true" else "false" } <<* return
     byte case
-      value byte cast 0x80 byte cast < if{
+      value byte cast 0 >= if{
         value byte cast << ## print valid ascii-characters as character
       else
         value <<byte  ## print all other bytes as their byte-code

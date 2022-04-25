@@ -26,12 +26,12 @@ union value_t_Impl {
   int64_t* asIntRef;
   float64_t  asFloat;
   float64_t* asFloatRef;
-  uint8_t  asByte;
-  uint8_t* asByteRef;
+  int8_t  asByte;
+  int8_t* asByteRef;
   uint64_t  asUint;
   uint64_t* asUintRef;
-  uint32_t  asCodepoint;
-  uint32_t* asCodepointRef;
+  int32_t  asCodepoint;
+  int32_t* asCodepointRef;
   type_t  asType;
   type_t* asTypeRef;
   fptr_t  asFPtr;
@@ -130,7 +130,7 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   dup_tmp = *(stack->ptr-1);
   *(stack->ptr++) = dup_tmp;
   // LOCAL_DECLARE:0 (x)
-  uint8_t local_var_0_0 = (--(stack->ptr))->asByte;
+  int8_t local_var_0_0 = (--(stack->ptr))->asByte;
   // CAST at test/compiler:30:7
   (stack->ptr)->asInt = (stack->ptr)->asByte;
   // LOCAL_DECLARE:1 (y)

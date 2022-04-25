@@ -12,7 +12,12 @@ list #include
 <<codepoint public proc( StringBuilder codepoint => StringBuilder ){
   uint cp =:
   str =::
-       cp 0x80    < if{   ## ascii - character
+       cp 0       < if{
+    ## don't exit on invalid codepoints, only display waring message
+    35 buildString
+    "invalid codepoint: " <<* cp int cast <<i '\n' << .build eputs
+    str return
+  else cp 0x80    < if  ## ascii - character
     str cp byte cast << return
   else cp 0x800   < if  ## 2-byte blocks
     str cp 6 >>          0xc0 | byte cast <<
@@ -29,7 +34,7 @@ list #include
   else
     ## don't exit on invalid codepoints, only display waring message
     35 buildString
-    "Codepoint out of range: 0x" <<* cp int cast <<X '\n' << .build eputs
+    "Codepoint out of range: 0x" <<* cp uint cast <<X '\n' << .build eputs
     str return
   }
 }
@@ -66,7 +71,12 @@ list #include
 >> public proc( codepoint StringBuilder => StringBuilder ){
   str =::
   uint cp =:
-       cp 0x80    < if{   ## ascii - character
+       cp 0       < if{
+    ## don't exit on invalid codepoints, only display waring message
+    35 buildString
+    "invalid codepoint: " <<* cp int cast <<i '\n' << .build eputs
+    str return
+  else cp 0x80    < if  ## ascii - character
     cp byte cast str >> return
   else cp 0x800   < if  ## 2-byte blocks
      cp 6 >>          0xc0 | byte cast
@@ -86,7 +96,7 @@ list #include
   else
     ## don't exit on invalid codepoints, only display waring message
     35 buildString
-    "Codepoint out of range: 0x" <<* cp int cast <<X '\n' << .build eputs
+    "Codepoint out of range: 0x" <<* cp uint cast <<X '\n' << .build eputs
     str return
   }
 }

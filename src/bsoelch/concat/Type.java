@@ -31,8 +31,8 @@ public class Type {
     public static class IntType extends Type{
         static final ArrayList<IntType> intTypes = new ArrayList<>();
 
-        public static final IntType BYTE = new IntType("byte",8,false);
-        public static final IntType CODEPOINT = new IntType("codepoint",32,false);
+        public static final IntType BYTE = new IntType("byte",8,true);
+        public static final IntType CODEPOINT = new IntType("codepoint",32,true);
         public static final IntType INT = new IntType("int",64,true);
         public static final IntType UINT = new IntType("uint",64,false);
         final int bits;
@@ -64,8 +64,8 @@ public class Type {
             if(n==b.bits&&signed!=b.signed)
                 n*=2;
             return switch (n) {
-                case 8 -> Optional.of(signed ? INT : BYTE);
-                case 16, 32 -> Optional.of(signed ? INT : CODEPOINT);
+                case 8 -> Optional.of(signed ? BYTE : UINT);
+                case 16, 32 -> Optional.of(signed ? CODEPOINT : UINT);
                 case 64 -> Optional.of(signed ? INT : UINT);
                 case 128 -> Optional.empty();
                 default -> throw new RuntimeException("unexpected bit count:" + n);

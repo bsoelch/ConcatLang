@@ -32,7 +32,7 @@ utf8 #include
   << return
 }
 <<< public proc( StringBuilder byte => StringBuilder ){
-  dup  0x80 < if{
+  dup 0 >= if{
     #+val+# << return ## print valid ascii-characters as character
   else
     byte value =:

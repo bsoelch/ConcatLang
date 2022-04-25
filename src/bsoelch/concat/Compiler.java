@@ -209,7 +209,7 @@ public class Compiler {
                             }else if (value.type == Type.CODEPOINT()) {
                                 writeLine(writer, level,prefix+"0x"+Long.toHexString(value.asLong()) + ";");
                             }else if (value.type == Type.BYTE()) {
-                                writeLine(writer, level,prefix+"0x"+Integer.toHexString(value.asByte()) + ";");
+                                writeLine(writer, level,prefix+"0x"+Integer.toHexString(value.asByte()&0xff) + ";");
                             }else if (value.type == Type.BOOL) {
                                 writeLine(writer, level,prefix+(value.asBool()?"true":"false")+";");
                             }else {

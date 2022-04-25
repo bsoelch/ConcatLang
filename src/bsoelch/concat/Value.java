@@ -506,12 +506,12 @@ public abstract class Value {
 
         @Override
         public long asLong(){
-            return byteValue&0xff;
+            return byteValue;
         }
 
         @Override
         public double asDouble(){
-            return byteValue&0xff;
+            return byteValue;
         }
 
         @Override
@@ -522,13 +522,13 @@ public abstract class Value {
         @Override
         public Value castTo(Type newType) throws ConcatRuntimeError {
             if(newType ==Type.INT()){
-                return ofInt(byteValue&0xff,false);
+                return ofInt(byteValue,false);
             }else if(newType ==Type.UINT()){
-                return ofInt(byteValue&0xff,true);
+                return ofInt(byteValue,true);
             }else if(newType ==Type.CODEPOINT()){
-                return ofChar(byteValue&0xff);
+                return ofChar(byteValue);
             }else if(newType ==Type.FLOAT){
-                return ofFloat(byteValue&0xff);
+                return ofFloat(byteValue);
             }else{
                 return super.castTo(newType);
             }
@@ -1476,8 +1476,8 @@ public abstract class Value {
                     (values) -> new Value[]{values[0].clone(true,null)},false));
         }
 
-        Type unsigned = Type.UnionType.create(new Type[]{Type.BYTE(),Type.CODEPOINT(),Type.UINT()});
-        Type integer = Type.UnionType.create(new Type[]{unsigned,Type.INT()});
+        Type unsigned = Type.UnionType.create(new Type[]{Type.UINT()});
+        Type integer = Type.UnionType.create(new Type[]{unsigned,Type.BYTE(),Type.CODEPOINT(),Type.INT()});
         Type number  = Type.UnionType.create(new Type[]{integer,Type.FLOAT});
 
         procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!",
