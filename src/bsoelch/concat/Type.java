@@ -31,20 +31,17 @@ public class Type {
     public static class IntType extends Type{
         static final ArrayList<IntType> intTypes = new ArrayList<>();
 
-        public static final IntType BYTE = new IntType("byte",8,false,false);
-        public static final IntType CODEPOINT = new IntType("codepoint",32,false,false);
-        public static final IntType INT = new IntType("int",64,true,true);
-        public static final IntType UINT = new IntType("uint",64,false,true);
+        public static final IntType BYTE = new IntType("byte",8,false);
+        public static final IntType CODEPOINT = new IntType("codepoint",32,false);
+        public static final IntType INT = new IntType("int",64,true);
+        public static final IntType UINT = new IntType("uint",64,false);
         final int bits;
         final boolean signed;
         /**true if this type can be cast to/from floats*/
-        final boolean floatCompatible;
-
-        private IntType(String name, int bits, boolean signed, boolean floatCompatible) {
+        private IntType(String name, int bits, boolean signed) {
             super(name, baseTypeFromBits(bits), true);
             this.bits = bits;
             this.signed = signed;
-            this.floatCompatible = floatCompatible;
 
             for(IntType t:intTypes){
                 if(t.bits==bits&&t.signed==signed)//ensure each combination of sign and bit-count only exists once
@@ -58,13 +55,31 @@ public class Type {
             return t instanceof IntType&&((IntType) t).bits==bits&&((IntType) t).signed==signed;
         }
 
+        /**find a IntType that can contain values of both a and b*/
+        static Optional<IntType> commonSuperType(IntType a, IntType b){
+            int n=Math.max(a.bits,b.bits);
+            boolean signed=a.signed|b.signed;
+            if(n==a.bits&&signed!=a.signed)
+                n*=2;
+            if(n==b.bits&&signed!=b.signed)
+                n*=2;
+            return switch (n) {
+                case 8 -> Optional.of(signed ? INT : BYTE);
+                case 16, 32 -> Optional.of(signed ? INT : CODEPOINT);
+                case 64 -> Optional.of(signed ? INT : UINT);
+                case 128 -> Optional.empty();
+                default -> throw new RuntimeException("unexpected bit count:" + n);
+            };
+        }
+
         @Override
         protected CastType canCastTo(Type t, BoundMaps bounds) {
             if(t.equals(this))
                 return CastType.ASSIGN;
             if(t instanceof IntType)
-                return CastType.CAST;
-            if(t==FLOAT&&floatCompatible)
+                return ((signed==((IntType) t).signed&&bits<=((IntType) t).bits)||
+                        (((IntType) t).signed&&bits<((IntType) t).bits))?CastType.CONVERT:CastType.RESTRICT;
+            if(t==FLOAT)
                 return CastType.CAST;
             return super.canCastTo(t, bounds);
         }
@@ -85,7 +100,7 @@ public class Type {
     public static final Type FLOAT = new Type("float",BITS64,false) {
         @Override
         public CastType canCastTo(Type t, BoundMaps bounds) {
-            return (t instanceof IntType&&((IntType) t).floatCompatible)?CastType.CAST:super.canCastTo(t,bounds);
+            return t instanceof IntType?CastType.RESTRICT:super.canCastTo(t,bounds);
         }
     };
 
@@ -190,10 +205,9 @@ public class Type {
             }else if(deRef&&b.isReference()&&a.canAssignTo(b.content())){
                 return Optional.of(b.content());
             }else if((!strict)&&(a instanceof IntType&&b instanceof IntType)){
-                //TODO better handling of implicit casting of numbers
-                return Optional.of(UnionType.create(new Type[]{a,b}));
-            }else if((!strict)&&((a==FLOAT&&(b instanceof IntType&&((IntType) b).floatCompatible))
-                    ||(b==FLOAT&&(a instanceof IntType&&((IntType) a).floatCompatible)))){
+                Optional<IntType> t=IntType.commonSuperType((IntType) a,(IntType)b);
+                return Optional.of(t.isPresent()?t.get():UnionType.create(new Type[]{a,b}));
+            }else if((!strict)&&((a==FLOAT&&b instanceof IntType)||(b==FLOAT&&a instanceof IntType))){
                 return Optional.of(FLOAT);
             }else if((!strict)&&a.baseType==b.baseType){
                 return Optional.of(a.baseType);

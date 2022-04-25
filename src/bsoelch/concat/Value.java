@@ -439,7 +439,11 @@ public abstract class Value {
         @Override
         public long asLong() {
             return codePoint;
+        }@Override
+        public double asDouble(){
+            return codePoint;
         }
+
 
         @Override
         Object rawData(Type argType) {
@@ -454,6 +458,8 @@ public abstract class Value {
                 return ofInt(codePoint,false);
             }else if(newType ==Type.UINT()){
                 return ofInt(codePoint,true);
+            }else if(newType ==Type.FLOAT){
+                return ofFloat(codePoint);
             }else{
                 return super.castTo(newType);
             }
@@ -504,6 +510,11 @@ public abstract class Value {
         }
 
         @Override
+        public double asDouble(){
+            return byteValue&0xff;
+        }
+
+        @Override
         Object rawData(Type argType) {
             return byteValue;
         }
@@ -515,7 +526,9 @@ public abstract class Value {
             }else if(newType ==Type.UINT()){
                 return ofInt(byteValue&0xff,true);
             }else if(newType ==Type.CODEPOINT()){
-                return ofChar(byteValue);
+                return ofChar(byteValue&0xff);
+            }else if(newType ==Type.FLOAT){
+                return ofFloat(byteValue&0xff);
             }else{
                 return super.castTo(newType);
             }
@@ -1502,18 +1515,27 @@ public abstract class Value {
         procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},">>",
                 (values) -> new Value[]{ofInt(values[0].asLong()>>values[1].asLong(),false)},true));
 
-        procs.add(new InternalProcedure(new Type[]{Type.INT()},new Type[]{Type.INT()},"-_",
-                (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false)},true));
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"-_",
                 (values) -> new Value[]{Value.ofFloat(-(values[0].asDouble()))},true));
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT},new Type[]{Type.FLOAT},"/_",
                 (values) -> new Value[]{Value.ofFloat(1.0/values[0].asDouble())},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"+",
-                (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"+",
-                (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"+",
+
+        for(Type.IntType aInt: Type.IntType.intTypes){
+            if(aInt.signed){
+                procs.add(new InternalProcedure(new Type[]{aInt},new Type[]{aInt},"-_",
+                        (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false).castTo(aInt)},true));
+            }
+            for(Type.IntType bInt: Type.IntType.intTypes){
+                Type.IntType target= Type.IntType.commonSuperType(aInt,bInt).orElse(aInt.signed?Type.IntType.INT:Type.IntType.UINT);
+                procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"+",
+                        (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),
+                                !target.signed).castTo(target)},
+                        true));
+            }
+        }
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT,Type.FLOAT},new Type[]{Type.FLOAT},"+",
                 (values) -> new Value[]{ofFloat(values[0].asDouble()+values[1].asDouble())},true));
+
         procs.add(new InternalProcedure(new Type[]{Type.UINT(),integer},new Type[]{Type.UINT()},"-",
                 (values)-> new Value[]{ofInt(values[0].asLong()-values[1].asLong(),true)},true));
         procs.add(new InternalProcedure(new Type[]{integer,integer},new Type[]{Type.INT()},"-",
