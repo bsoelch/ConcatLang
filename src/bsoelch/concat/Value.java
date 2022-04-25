@@ -215,15 +215,8 @@ public abstract class Value {
                     return ofInt(intValue,true);
                 }
             }else if(newType ==Type.BYTE()){
-                if(intValue<0||intValue>0xff){
-                    throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to byte");
-                }
                 return Value.ofByte((byte)intValue);
-
             }else if(newType ==Type.CODEPOINT()){
-                if(intValue<0||intValue>Character.MAX_CODE_POINT){
-                    throw new ConcatRuntimeError("cannot cast 0x"+Long.toHexString(intValue)+" to char");
-                }
                 return Value.ofChar((int)intValue);
             }else if(newType ==Type.FLOAT){
                 return ofFloat(intValue);
@@ -467,7 +460,8 @@ public abstract class Value {
 
         @Override
         public String stringValue() {
-            return String.valueOf(Character.toChars(codePoint));
+            return String.valueOf(codePoint>=0&&codePoint<Character.MAX_CODE_POINT?
+                Character.toChars(codePoint):new char[]{(char)-1});
         }
 
         @Override
@@ -934,7 +928,12 @@ public abstract class Value {
             }else if(type.content()==Type.CODEPOINT()){
                 StringBuilder str=new StringBuilder();
                 for(int i=offset;i<offset+length;i++){
-                    str.append(Character.toChars(((CodepointValue)data[i]).getChar()));
+                    int aChar = ((CodepointValue) data[i]).getChar();
+                    if(aChar>=0&&aChar<Character.MAX_CODE_POINT){
+                        str.append(Character.toChars(aChar));
+                    }else{
+                        str.append((char)-1);
+                    }
                 }
                 return str.toString();
             }
