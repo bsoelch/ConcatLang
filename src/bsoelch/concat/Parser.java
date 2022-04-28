@@ -5121,6 +5121,7 @@ public class Parser {
                 if(test.l.size()>0){
                     IdentityHashMap<Type.GenericParameter, Type.GenericBound> l = test.l;
                     matchesParam = resolveGenericParams(l, implicitGenerics);
+                    l.clear();//generic parameters have been processed
                     //update generics in generic parameters
                     for(Map.Entry<Type.GenericParameter, Type.GenericBound> p:test.r.entrySet()){
                         Type min = p.getValue().min();
@@ -5166,6 +5167,8 @@ public class Parser {
         callBounds =matchBounds.get(0);
         return callBounds;
     }
+    /**resolves the generic parameters in {@code bounds} and appends the parameter values to {@code implicitGenerics}
+     * */
     private static boolean resolveGenericParams(IdentityHashMap<Type.GenericParameter, Type.GenericBound> bounds,
                                          IdentityHashMap<Type.GenericParameter, Type> implicitGenerics) {
         for(Map.Entry<Type.GenericParameter, Type.GenericBound> e: bounds.entrySet()){
