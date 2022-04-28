@@ -1534,30 +1534,40 @@ public abstract class Value {
                         (values) -> new Value[]{ofInt(values[0].asLong()-values[1].asLong(),
                                 !target.signed).castTo(target)},
                         true));
+                procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"*",
+                        (values) -> new Value[]{ofInt(values[0].asLong()*values[1].asLong(),
+                                !target.signed).castTo(target)},
+                        true));
+                if(target.signed){
+                    procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"/",
+                            (values) -> new Value[]{ofInt(values[0].asLong()/values[1].asLong(),
+                                    false).castTo(target)},
+                            true));
+                    procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"%",
+                            (values) -> new Value[]{ofInt(values[0].asLong()%values[1].asLong(),
+                                    false).castTo(target)},
+                            true));
+                }else{
+                    procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"/",
+                            (values) -> new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),
+                                    true).castTo(target)},
+                            true));
+                    procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"%",
+                            (values) -> new Value[]{ofInt(Long.remainderUnsigned(values[0].asLong(),values[1].asLong()),
+                                    true).castTo(target)},
+                            true));
+                }
             }
         }
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT,Type.FLOAT},new Type[]{Type.FLOAT},"+",
                 (values) -> new Value[]{ofFloat(values[0].asDouble()+values[1].asDouble())},true));
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT,Type.FLOAT},new Type[]{Type.FLOAT},"-",
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()-values[1].asDouble())},true));
-
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"*",
-                (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"*",
-                (values) ->  new Value[]{ofInt(values[0].asLong()*values[1].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"*",
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT,Type.FLOAT},new Type[]{Type.FLOAT},"*",
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()*values[1].asDouble())},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"/",
-                (values) ->  new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"/",
-                (values) ->  new Value[]{ofInt(values[0].asLong()/values[1].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"/",
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT,Type.FLOAT},new Type[]{Type.FLOAT},"/",
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()/values[1].asDouble())},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"%",
-                (values) ->  new Value[]{ofInt(Long.remainderUnsigned(values[0].asLong(),values[1].asLong()),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"%",
-                (values) ->  new Value[]{ofInt(values[0].asLong()%values[1].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.FLOAT},"%",
+        procs.add(new InternalProcedure(new Type[]{Type.FLOAT,Type.FLOAT},new Type[]{Type.FLOAT},"%",
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()%values[1].asDouble())},true));
 
         procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">",
