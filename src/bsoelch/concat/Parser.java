@@ -3225,7 +3225,6 @@ public class Parser {
                                             RandomAccessStack<TypeFrame> typeStack, HashMap<VariableId,ValueInfo> variables,
                                             Type[] expectedReturnTypes,FilePosition blockEnd, IOContext ioContext) throws SyntaxError {
         TypeCheckState tState=new TypeCheckState(globalConstants,ioContext,tokens,context, typeStack, variables);
-        Token prev;
         for(tState.index=0;tState.index<tokens.size();tState.index++){
             Token t=tokens.get(tState.index);
             if(t instanceof CompilerToken){
@@ -3292,44 +3291,12 @@ public class Parser {
                         }
                     }
                 }
-                case CAST -> {
-                    if(tState.ret.size()==0){
-                        throw new SyntaxError("missing type parameter for 'cast'",t.pos);
-                    }else if(!((prev=tState.ret.remove(tState.ret.size()-1))instanceof ValueToken)||
-                            ((ValueToken) prev).value.type!=Type.TYPE){
-                        throw new SyntaxError("token before 'cast' has to be a type",prev.pos);
-                    }else if(tState.typeStack.pop().type!=Type.TYPE){
-                        throw new SyntaxError("type stack out of sync with tokens",t.pos);
-                    }
-                    TypeFrame f=tState.typeStack.pop();
-                    Type target=((ValueToken) prev).value.asType();
-                    if(target.mutability==Mutability.DEFAULT){
-                        target=target.setMutability(f.type.mutability);
-                    }
-                    typeCheckCast(f.type,1,target, tState, t.pos);
-                    tState.typeStack.push(new TypeFrame(target,new ValueInfo(OwnerInfo.STACK),t.pos));
-                }
-                case DEREFERENCE -> {
-                    TypeFrame f=tState.typeStack.pop();
-                    if(!f.type.isReference()){
-                        throw new SyntaxError("unexpected type for dereference:"+f.type,t.pos);
-                    }
-                    //TODO update valueInfo
-                    tState.typeStack.push(new TypeFrame(f.type.content(),f.valueInfo,f.pushedAt));
-                    tState.ret.add(new TypedToken(TokenType.DEREFERENCE,f.type.content(),t.pos));
-                }
-                case ASSIGN -> {
-                    Type target=tState.typeStack.pop().type;
-                    if(!target.isReference()){
-                        throw new SyntaxError("unexpected target-type for assign:"+target,t.pos);
-                    }
-                    if(!target.isMutable()){
-                        throw new SyntaxError("cannot assign value to non-mutable reference:"+target,t.pos);
-                    }
-                    Type src=tState.typeStack.pop().type;
-                    typeCheckCast(src,2,target.content(), tState, t.pos);
-                    tState.ret.add(new TypedToken(TokenType.ASSIGN,target.content(),t.pos));
-                }
+                case CAST ->
+                    typeCheckExplicitCast(tState, t);
+                case DEREFERENCE ->
+                    typeCheckDereference(tState, t);
+                case ASSIGN ->
+                    typeCheckAssign(tState, t);
                 case STACK_DROP -> {
                     assert t instanceof StackModifierToken;
                     typeCheckDrop((StackModifierToken)t, tState.typeStack, tState.ret);
@@ -3989,7 +3956,6 @@ public class Parser {
         }
         tState.index=j;
     }
-
     private static void typeCheckAssert( Token t,TypeCheckState tState)
             throws RandomAccessStack.StackUnderflow, SyntaxError, TypeError {
         Token prev;
@@ -4016,6 +3982,47 @@ public class Parser {
             tState.ret.add(t);
         }
     }
+    private static void typeCheckExplicitCast(TypeCheckState tState, Token t) throws SyntaxError, RandomAccessStack.StackUnderflow, TypeError {
+        Token prev;
+        if(tState.ret.size()==0){
+            throw new SyntaxError("missing type parameter for 'cast'", t.pos);
+        }else if(!((prev= tState.ret.remove(tState.ret.size()-1))instanceof ValueToken)||
+                ((ValueToken) prev).value.type!=Type.TYPE){
+            throw new SyntaxError("token before 'cast' has to be a type",prev.pos);
+        }else if(tState.typeStack.pop().type!=Type.TYPE){
+            throw new SyntaxError("type stack out of sync with tokens", t.pos);
+        }
+        TypeFrame f= tState.typeStack.pop();
+        Type target=((ValueToken) prev).value.asType();
+        if(target.mutability==Mutability.DEFAULT){
+            target=target.setMutability(f.type.mutability);
+        }
+        typeCheckCast(f.type,1,target, tState, t.pos);
+        tState.typeStack.push(new TypeFrame(target,new ValueInfo(OwnerInfo.STACK), t.pos));
+    }
+    private static void typeCheckDereference(TypeCheckState tState, Token t) throws RandomAccessStack.StackUnderflow, SyntaxError {
+        TypeFrame f= tState.typeStack.pop();
+        if(!f.type.isReference()){
+            throw new SyntaxError("unexpected type for dereference:"+f.type, t.pos);
+        }
+        //TODO update valueInfo
+        tState.typeStack.push(new TypeFrame(f.type.content(),f.valueInfo,f.pushedAt));
+        tState.ret.add(new TypedToken(TokenType.DEREFERENCE,f.type.content(), t.pos));
+    }
+    private static void typeCheckAssign(TypeCheckState tState, Token t) throws RandomAccessStack.StackUnderflow, SyntaxError {
+        Type target= tState.typeStack.pop().type;
+        if(!target.isReference()){
+            throw new SyntaxError("unexpected target-type for assign:"+target, t.pos);
+        }
+        if(!target.isMutable()){
+            throw new SyntaxError("cannot assign value to non-mutable reference:"+target, t.pos);
+        }
+        Type src= tState.typeStack.pop().type;
+        typeCheckCast(src,2,target.content(), tState, t.pos);
+        tState.ret.add(new TypedToken(TokenType.ASSIGN,target.content(), t.pos));
+    }
+
+
     private static int getInt(String baseName,String argName, boolean allowSigned,RandomAccessStack<TypeFrame> typeStack,
                               ArrayList<Token> tokens, FilePosition pos) throws SyntaxError, RandomAccessStack.StackUnderflow {
         if(tokens.size()<1||typeStack.size()<1){
