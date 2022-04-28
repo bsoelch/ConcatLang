@@ -1452,8 +1452,6 @@ public class Type {
             }
         }
         public void setFields(StructField[] fields,Type[] elements) {
-            this.elements = elements;
-            initializeFields(fields);
             for(Type t:withMutability()){//update elements of all mutabilities
                 assert t instanceof Struct;
                 if(((Struct)t).elements==null){
