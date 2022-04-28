@@ -129,13 +129,10 @@ public class Parser {
         }
         Mutability mutability(){
             switch (flags&MUTABILITY_MASK){
-                case MUTABILITY_DEFAULT ->{
-                    return type==IdentifierType.IMPLICIT_DECLARE?Mutability.UNDECIDED:Mutability.IMMUTABLE;
-                }
                 case MUTABILITY_MUTABLE ->{
                     return Mutability.MUTABLE;
                 }
-                case MUTABILITY_IMMUTABLE ->{
+                case MUTABILITY_DEFAULT, MUTABILITY_IMMUTABLE ->{
                     return Mutability.IMMUTABLE;
                 }
             }
