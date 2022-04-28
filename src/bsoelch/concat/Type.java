@@ -254,6 +254,7 @@ public class Type {
 
     record GenericTraitImplementation(Trait trait, GenericParameter[] params, Value.Procedure[] values,
                                       FilePosition implementedAt,HashMap<Parser.VariableId, Value> globalConstants,
+                                      HashMap<Parser.VariableId, Parser.ValueInfo> variables,
                                       IOContext ioContext){}
     record TraitFieldPosition(Trait trait, int offset){}
     interface TraitImplementation{
@@ -591,7 +592,8 @@ public class Type {
     }
 
     void implementGenericTrait(Trait trait, GenericParameter[] params, Value.Procedure[] implementation,
-                               FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants, IOContext ioContext)
+                               FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
+                               HashMap<Parser.VariableId, Parser.ValueInfo> variables,IOContext ioContext)
             throws SyntaxError {
         throw new UnsupportedOperationException("cannot implement generic traits for "+this);
     }
@@ -790,7 +792,7 @@ public class Type {
                     implementTrait(t.trait.replaceGenerics(generics), updated, t.implementedAt);
                     if (!(contentType instanceof GenericParameter)) {
                         for (Value.Procedure callable : updated) {
-                            Parser.typeCheckProcedure(callable, t.globalConstants, t.ioContext);
+                            Parser.typeCheckProcedure(callable, t.globalConstants, t.variables, t.ioContext);
                         }
                     }
                 }
@@ -835,6 +837,7 @@ public class Type {
         @Override
         void implementGenericTrait(Trait trait, GenericParameter[] params, Value.Procedure[] implementation,
                                    FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
+                                   HashMap<Parser.VariableId, Parser.ValueInfo> variables,
                                    IOContext ioContext) throws SyntaxError {
             if(params.length!=1){
                 throw new IllegalArgumentException("generic traits of "+wrapperName+" have to have exactly one generic parameter");
@@ -842,7 +845,7 @@ public class Type {
             IdentityHashMap<GenericParameter,Type> generics=new IdentityHashMap<>();
             Collection<WrapperType> types;
             final GenericTraitImplementation impl = new GenericTraitImplementation(trait, params, implementation,
-                    implementedAt, globalConstants, ioContext);
+                    implementedAt, globalConstants,variables, ioContext);
             switch(wrapperName){
                 case ARRAY -> {
                     arrayTraits.add(impl);
@@ -872,7 +875,7 @@ public class Type {
                 t.implementTrait(trait.replaceGenerics(generics),updated,implementedAt);
                 if(!(t.contentType instanceof GenericParameter)){
                     for (Value.Procedure callable : updated) {
-                        Parser.typeCheckProcedure(callable, globalConstants, ioContext);
+                        Parser.typeCheckProcedure(callable, globalConstants,variables,ioContext);
                     }
                 }
             }
@@ -1314,8 +1317,8 @@ public class Type {
                 implementTrait(trait.trait().replaceGenerics(update), updated, trait.implementedAt());
                 if(nonGeneric){
                     for (Value.Procedure callable : updated) {
-                        Parser.typeCheckProcedure(callable, trait.globalConstants(),
-                                trait.ioContext());
+                        Parser.typeCheckProcedure(callable, trait.globalConstants,
+                                trait.variables,trait.ioContext);
                     }
                 }
             }
@@ -1394,6 +1397,7 @@ public class Type {
         @Override
         void implementGenericTrait(Trait trait, GenericParameter[] params, Value.Procedure[] implementation,
                                    FilePosition implementedAt, HashMap<Parser.VariableId, Value> globalConstants,
+                                   HashMap<Parser.VariableId, Parser.ValueInfo> variables,
                                    IOContext ioContext) throws SyntaxError {
             if(params.length!=genericArgs.length){
                 throw new IllegalArgumentException("wrong number of generic parameters: "+params.length+
@@ -1420,12 +1424,12 @@ public class Type {
                 s.implementTrait(trait.replaceGenerics(update), updated, implementedAt);
                 if(nonGeneric){
                     for (Value.Procedure callable : updated) {
-                        Parser.typeCheckProcedure(callable, globalConstants,ioContext);
+                        Parser.typeCheckProcedure(callable,globalConstants,variables, ioContext);
                     }
                 }
             }
             cached.genericTraits.add(new Type.GenericTraitImplementation(trait,params,implementation,implementedAt,
-                    globalConstants,ioContext));
+                    globalConstants,variables,ioContext));
         }
 
         @Override
