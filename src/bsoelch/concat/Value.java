@@ -1532,7 +1532,8 @@ public abstract class Value {
                         (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false).castTo(aInt)},true));
             }
             for(Type.IntType bInt: Type.IntType.intTypes){
-                Type.IntType target= Type.IntType.commonSuperType(aInt,bInt).orElse(aInt.signed?Type.IntType.INT:Type.IntType.UINT);
+                Optional<Type.IntType> commonSuper = Type.IntType.commonSuperType(aInt, bInt);
+                Type.IntType target= commonSuper.orElse(aInt.signed?Type.IntType.INT:Type.IntType.UINT);
                 procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"+",
                         (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),
                                 !target.signed).castTo(target)},
@@ -1578,11 +1579,41 @@ public abstract class Value {
                     procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"/",
                             (values) -> new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),
                                     true).castTo(target)},
-                            true));
+                            true).compileTo(gen->
+                            gen.changeStackPointer(-1)
+                                    .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" % ")
+                                    .getPrimitiveAs(0,bInt,target).append(")")
+                    ));
                     procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"%",
                             (values) -> new Value[]{ofInt(Long.remainderUnsigned(values[0].asLong(),values[1].asLong()),
                                     true).castTo(target)},
-                            true));
+                            true).compileTo(gen->
+                            gen.changeStackPointer(-1)
+                                    .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" % ")
+                                    .getPrimitiveAs(0,bInt,target).append(")")
+                    ));
+                }
+
+                for(String op:cmpOps) {
+                    if(commonSuper.isPresent()){
+                        procs.add(new InternalProcedure(new Type[]{aInt, bInt}, new Type[]{Type.BOOL}, op,
+                                (values) -> new Value[]{compareNumbers(values[0], values[1],op) ? TRUE : FALSE}, true)
+                                .compileTo(gen->
+                                gen.changeStackPointer(-1)
+                                        .assignPrimitive(1,Type.BOOL).append("(").getPrimitiveAs(1,aInt,target)
+                                        .append(" "+op+" ").getPrimitiveAs(0,bInt,target).append(")")
+                        ));
+                    }else{
+                        assert aInt.signed != bInt.signed;
+                        procs.add(new InternalProcedure(new Type[]{aInt, bInt}, new Type[]{Type.BOOL}, op,
+                                (values) -> new Value[]{compareNumbers(values[0], values[1],op) ? TRUE : FALSE}, true)
+                                .compileTo(gen->
+                                        gen.changeStackPointer(-1)
+                                                .assignPrimitive(1,Type.BOOL).append("(")
+                                                .getPrimitive(aInt.signed?1:0,aInt.signed?aInt:bInt).append(sgnCheck(op,aInt.signed))
+                                                .getPrimitive(1,aInt).append(" "+op+" ").getPrimitive(0,bInt).append(")")
+                                ));
+                    }
                 }
             }
         }
@@ -1596,19 +1627,10 @@ public abstract class Value {
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()/values[1].asDouble())},true));
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT,Type.FLOAT},new Type[]{Type.FLOAT},"%",
                 (values) ->  new Value[]{ofFloat(values[0].asDouble()%values[1].asDouble())},true));
-
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])>0?TRUE:FALSE},true));
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},">=",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])>=0?TRUE:FALSE},true));
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])<0?TRUE:FALSE},true));
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"<=",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])<=0?TRUE:FALSE},true));
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"==",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])==0?TRUE:FALSE},true));
-        procs.add(new InternalProcedure(new Type[]{number,number},new Type[]{Type.BOOL},"!=",
-                (values) ->  new Value[]{compareNumbers(values[0],values[1])!=0?TRUE:FALSE},true));
+        for(String op:cmpOps) {
+            procs.add(new InternalProcedure(new Type[]{Type.FLOAT,Type.FLOAT}, new Type[]{Type.BOOL}, op,
+                    (values) -> new Value[]{compareNumbers(values[0], values[1],op) ? TRUE : FALSE}, true));
+        }
 
         procs.add(new InternalProcedure(new Type[]{Type.TYPE,Type.TYPE},new Type[]{Type.BOOL},"<=",
                 (values) ->  new Value[]{values[0].asType().canConvertTo(values[1].asType())?TRUE:FALSE},true));
@@ -2086,28 +2108,59 @@ public abstract class Value {
 
     }
 
-    static int compareNumbers(Value n1,Value n2) throws ConcatRuntimeError{
+    static final String[] cmpOps={"<","<=","!=",">",">=","=="};
+    static String sgnCheck(String op,boolean lSgn){
+        if(lSgn){
+            return switch (op){
+                case "<","<=","!=" -> " <  0 || ";
+                case ">",">=","==" -> " >= 0 && ";
+                default ->
+                        throw new IllegalArgumentException("unsupported comparison operator: " + op);
+            };
+        }else{
+            return switch (op){
+                case ">",">=","!=" -> " <  0 || ";
+                case "<","<=","==" -> " >= 0 && ";
+                default ->
+                        throw new IllegalArgumentException("unsupported comparison operator: " + op);
+            };
+        }
+    }
+
+
+    static boolean cmpToBool(int cmp,String op){
+        return switch (op) {
+            case "<"  -> cmp <  0;
+            case "<=" -> cmp <= 0;
+            case ">"  -> cmp >  0;
+            case ">=" -> cmp >= 0;
+            case "==" -> cmp == 0;
+            case "!=" -> cmp != 0;
+            default -> throw new IllegalArgumentException("unsupported comparison operator: " + op);
+        };
+    }
+    static boolean compareNumbers(Value n1,Value n2,String op) throws ConcatRuntimeError{
         if(n1 instanceof ByteValue||n1 instanceof CodepointValue||n1 instanceof IntValue){
             if(n2 instanceof ByteValue||n2 instanceof CodepointValue||n2 instanceof IntValue){
                 if(n1.type==Type.UINT()){
                     if(n2.type==Type.UINT()){
-                        return Long.compareUnsigned(n1.asLong(),n2.asLong());
+                        return cmpToBool(Long.compareUnsigned(n1.asLong(),n2.asLong()),op);
                     }else{
-                        return n2.asLong()<0?1:Long.compareUnsigned(n1.asLong(),n2.asLong());
+                        return cmpToBool(n2.asLong()<0?1:Long.compareUnsigned(n1.asLong(),n2.asLong()),op);
                     }
                 }else{
                     if(n2.type==Type.UINT()){
-                        return n1.asLong()<0?-1:Long.compareUnsigned(n1.asLong(),n2.asLong());
+                        return cmpToBool(n1.asLong()<0?-1:Long.compareUnsigned(n1.asLong(),n2.asLong()),op);
                     }else{
-                        return Long.compare(n1.asLong(),n2.asLong());
+                        return cmpToBool(Long.compare(n1.asLong(),n2.asLong()),op);
                     }
                 }
             }else if(n2 instanceof FloatValue){
-                return Double.compare(n1.asDouble(),n2.asDouble());
+                return cmpToBool(Double.compare(n1.asDouble(),n2.asDouble()),op);
             }
         }else if(n1 instanceof FloatValue){
             if(n2 instanceof ByteValue||n2 instanceof CodepointValue||n2 instanceof IntValue||n2 instanceof FloatValue){
-                return Double.compare(n1.asDouble(),n2.asDouble());
+                return cmpToBool(Double.compare(n1.asDouble(),n2.asDouble()),op);
             }
         }
         throw new ConcatRuntimeError("cannot compare "+n1.type+" and "+n2.type);

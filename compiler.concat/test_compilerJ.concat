@@ -38,10 +38,27 @@ main public proc( => ){
     dup debugPrint
   } drop drop
   ' ' debugPrint
-  true true while{
-    false rot3 dup debugPrint
-  do } drop drop
+  5 while{
+    dup debugPrint
+    1 - dup 0 >
+  do } drop
   y 1 + debugPrint
   2u y - debugPrint
+
+  -1  1u cmpCheck
+   1  2u cmpCheck
+   0  1u cmpCheck
+   1  0u cmpCheck
+   1 -1u cmpCheck
 }
 
+cmpCheck proc( int uint => ){
+  y =::
+  x =::
+  x y <  debugPrint
+  x y <= debugPrint
+  x y >  debugPrint
+  x y >= debugPrint
+  x y == debugPrint
+  x y != debugPrint
+}
