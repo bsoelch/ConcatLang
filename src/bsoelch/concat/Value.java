@@ -1484,14 +1484,9 @@ public abstract class Value {
 
         Type unsigned = Type.UnionType.create(new Type[]{Type.UINT()});
         Type integer = Type.UnionType.create(new Type[]{unsigned,Type.BYTE(),Type.CODEPOINT(),Type.INT()});
-        Type number  = Type.UnionType.create(new Type[]{integer,Type.FLOAT});
 
         procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!",
                 (values) -> new Value[]{values[0].asBool()?FALSE:TRUE},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT()},new Type[]{Type.INT()},"~",
-                (values) -> new Value[]{ofInt(~values[0].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.UINT()},new Type[]{Type.UINT()},"~",
-                (values) -> new Value[]{ofInt(~values[0].asLong(),true)},true));
 
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"&",
                 (values) -> new Value[]{values[0].asBool()&&values[1].asBool()?TRUE:FALSE},true));
@@ -1499,18 +1494,6 @@ public abstract class Value {
                 (values) -> new Value[]{values[0].asBool()||values[1].asBool()?TRUE:FALSE},true));
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"xor",
                 (values) -> new Value[]{values[0].asBool()^values[1].asBool()?TRUE:FALSE},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"&",
-                (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"&",
-                (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"|",
-                (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"|",
-                (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),false)},true));
-        procs.add(new InternalProcedure(new Type[]{unsigned,integer},new Type[]{Type.UINT()},"xor",
-                (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),true)},true));
-        procs.add(new InternalProcedure(new Type[]{Type.INT(),integer},new Type[]{Type.INT()},"xor",
-                (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),false)},true));
 
         procs.add(new InternalProcedure(new Type[]{Type.UINT(),integer},new Type[]{Type.UINT()},"<<",
                 (values) -> new Value[]{ofInt(values[0].asLong()<<values[1].asLong(),true)},true));
@@ -1529,11 +1512,42 @@ public abstract class Value {
         for(Type.IntType aInt: Type.IntType.intTypes){
             if(aInt.signed){
                 procs.add(new InternalProcedure(new Type[]{aInt},new Type[]{aInt},"-_",
-                        (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false).castTo(aInt)},true));
+                        (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false).castTo(aInt)},true)
+                        .compileTo(gen->gen.assignPrimitive(1,aInt).append(" - ").getPrimitive(1,aInt)));
             }
+            procs.add(new InternalProcedure(new Type[]{aInt},new Type[]{aInt},"~",
+                    (values) -> new Value[]{ofInt(~values[0].asLong(),!aInt.signed).castTo(aInt)},true)
+                    .compileTo(gen->gen.assignPrimitive(1,aInt).append(" ~ ").getPrimitive(1,aInt)));
+
             for(Type.IntType bInt: Type.IntType.intTypes){
                 Optional<Type.IntType> commonSuper = Type.IntType.commonSuperType(aInt, bInt);
                 Type.IntType target= commonSuper.orElse(aInt.signed?Type.IntType.INT:Type.IntType.UINT);
+
+                procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"&",
+                        (values) -> new Value[]{ofInt(values[0].asLong()&values[1].asLong(),
+                                !target.signed).castTo(target)},
+                        true).compileTo(gen->
+                        gen.changeStackPointer(-1)
+                                .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" & ")
+                                .getPrimitiveAs(0,bInt,target).append(")")
+                ));
+                procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"|",
+                        (values) -> new Value[]{ofInt(values[0].asLong()|values[1].asLong(),
+                                !target.signed).castTo(target)},
+                        true).compileTo(gen->
+                        gen.changeStackPointer(-1)
+                                .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" | ")
+                                .getPrimitiveAs(0,bInt,target).append(")")
+                ));
+                procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"xor",
+                        (values) -> new Value[]{ofInt(values[0].asLong()^values[1].asLong(),
+                                !target.signed).castTo(target)},
+                        true).compileTo(gen->
+                        gen.changeStackPointer(-1)
+                                .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" ^ ")
+                                .getPrimitiveAs(0,bInt,target).append(")")
+                ));
+
                 procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"+",
                         (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),
                                 !target.signed).castTo(target)},
@@ -1615,6 +1629,7 @@ public abstract class Value {
                                 ));
                     }
                 }
+
             }
         }
         procs.add(new InternalProcedure(new Type[]{Type.FLOAT,Type.FLOAT},new Type[]{Type.FLOAT},"+",

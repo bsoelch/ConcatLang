@@ -45,20 +45,30 @@ main public proc( => ){
   y 1 + debugPrint
   2u y - debugPrint
 
-  -1  1u cmpCheck
-   1  2u cmpCheck
-   0  1u cmpCheck
-   1  0u cmpCheck
-   1 -1u cmpCheck
+  -1  1u cmpCheck debugPrint
+   1  2u cmpCheck debugPrint
+   0  1u cmpCheck debugPrint
+   1  0u cmpCheck debugPrint
+   1 -1u cmpCheck debugPrint
+   one ~ debugPrint
+   one -_ ~ debugPrint
+   one two | three & four xor debugPrint
 }
 
-cmpCheck proc( int uint => ){
+one proc( => int ){ 1 }
+two proc( => int ){ 2 }
+three proc( => int ){ 3 }
+four proc( => int ){ 4 }
+
+cmpCheck proc( int uint => int ){
   y =::
   x =::
-  x y <  debugPrint
-  x y <= debugPrint
-  x y >  debugPrint
-  x y >= debugPrint
-  x y == debugPrint
-  x y != debugPrint
+  0 res mut =::
+  x y <  if{ 1 else 0 } res .. 10 * | res =
+  x y <= if{ 1 else 0 } res .. 10 * | res =
+  x y >  if{ 1 else 0 } res .. 10 * | res =
+  x y >= if{ 1 else 0 } res .. 10 * | res =
+  x y == if{ 1 else 0 } res .. 10 * | res =
+  x y != if{ 1 else 0 } res .. 10 * | res =
+  res ..
 }
