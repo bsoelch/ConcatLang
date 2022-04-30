@@ -433,7 +433,8 @@ public abstract class Value {
         @Override
         public long asLong() {
             return codePoint;
-        }@Override
+        }
+        @Override
         public double asDouble(){
             return codePoint;
         }
