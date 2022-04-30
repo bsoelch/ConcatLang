@@ -23,6 +23,10 @@ public interface CodeGenerator {
     CodeGenerator getPrimitive(int offset, Type type) throws IOException;
     CodeGenerator getReference(int offset, Type type) throws IOException;
     CodeGenerator getPrimitiveAs(int offset, Type src, Type target) throws IOException;
+    CodeGenerator appendInt(long value,boolean signed) throws IOException;
+    CodeGenerator appendCodepoint(int value) throws IOException;
+    CodeGenerator appendByte(byte value) throws IOException;
+    CodeGenerator appendBool(boolean value) throws IOException;
     CodeGenerator append(String s) throws IOException;
 
     CodeGenerator newLine() throws IOException;

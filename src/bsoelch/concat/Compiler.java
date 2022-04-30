@@ -193,6 +193,27 @@ public class Compiler {
         }
 
         @Override
+        public CodeGenerator appendBool(boolean value) throws IOException {
+            out.write(value?"true":"false");
+            return this;
+        }
+        @Override
+        public CodeGenerator appendByte(byte value) throws IOException {
+            out.write("0x"+Integer.toHexString(value&0xff));
+            return this;
+        }
+        @Override
+        public CodeGenerator appendInt(long value, boolean signed) throws IOException {
+            out.write(signed? value +"LL": Long.toUnsignedString(value)+"ULL");
+            return this;
+        }
+        @Override
+        public CodeGenerator appendCodepoint(int value) throws IOException {
+            out.write("0x"+Integer.toHexString(value));
+            return this;
+        }
+
+        @Override
         public CodeGenerator append(String s) throws IOException {
             if(!unfinishedLine)
                 startLine();
@@ -369,15 +390,15 @@ public class Compiler {
                         Value value = ((Parser.ValueToken) next).value;
                         if(primitives.containsKey(value.type)){
                             if (value.type == Type.INT()) {
-                                generator.pushPrimitive(value.type).append(value.asLong() + "LL").endLine();
+                                generator.pushPrimitive(value.type).appendInt(value.asLong(),true).endLine();
                             }else if (value.type == Type.UINT()) {
-                                generator.pushPrimitive(value.type).append(value.asLong() + "ULL").endLine();
+                                generator.pushPrimitive(value.type).appendInt(value.asLong(),false).endLine();
                             }else if (value.type == Type.CODEPOINT()) {
-                                generator.pushPrimitive(value.type).append("0x"+Long.toHexString(value.asLong())).endLine();
+                                generator.pushPrimitive(value.type).appendCodepoint((int)value.asLong()).endLine();
                             }else if (value.type == Type.BYTE()) {
-                                generator.pushPrimitive(value.type).append("0x"+Integer.toHexString(value.asByte()&0xff)).endLine();
+                                generator.pushPrimitive(value.type).appendByte(value.asByte()).endLine();
                             }else if (value.type == Type.BOOL) {
-                                generator.pushPrimitive(value.type).append((value.asBool()?"true":"false")).endLine();
+                                generator.pushPrimitive(value.type).appendBool(value.asBool()).endLine();
                             }else {
                                 throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
                             }
