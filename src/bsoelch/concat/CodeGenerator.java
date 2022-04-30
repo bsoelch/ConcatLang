@@ -1,0 +1,30 @@
+package bsoelch.concat;
+
+import java.io.IOException;
+
+@SuppressWarnings("UnusedReturnValue")//all methods return this object for chaining
+public interface CodeGenerator {
+    CodeGenerator indent();
+    CodeGenerator dedent();
+    CodeGenerator changeStackPointer(int k) throws IOException;
+
+    CodeGenerator lineComment(String str) throws IOException;
+    CodeGenerator blockComment(String str) throws IOException;
+
+    CodeGenerator startLine() throws IOException;
+    CodeGenerator pushPrimitive(Type target) throws IOException;
+    CodeGenerator pushReference(Type target) throws IOException;
+    CodeGenerator assignPrimitive(int offset, Type target) throws IOException;
+    CodeGenerator assignReference(int offset, Type target, boolean assignValue) throws IOException;
+
+    CodeGenerator popPrimitive(Type type) throws IOException;
+
+    CodeGenerator getPrimitive(int offset, Type type) throws IOException;
+    CodeGenerator getReference(int offset, Type type) throws IOException;
+    CodeGenerator getPrimitiveAs(int offset, Type src, Type target) throws IOException;
+    CodeGenerator append(String s) throws IOException;
+
+    CodeGenerator newLine() throws IOException;
+
+    CodeGenerator endLine() throws IOException;
+}

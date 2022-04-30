@@ -30,6 +30,160 @@ public class Compiler {
 
     static final String DUP_VAR_NAME="dup_tmp";
 
+    private static class CodeGeneratorImpl implements CodeGenerator {
+        final BufferedWriter out;
+        private int indent;
+
+        /**true if in the previous line has not been finished*/
+        private boolean unfinishedLine = false;
+
+        private CodeGeneratorImpl(BufferedWriter out) {
+            this.out = out;
+        }
+
+        @SuppressWarnings("SameParameterValue")
+        void setIndent(int indent){
+            this.indent=indent;
+        }
+
+        @Override
+        public CodeGenerator indent() {
+            indent++;
+            return this;
+        }
+        @Override
+        public CodeGenerator dedent() {
+            indent--;
+            return this;
+        }
+
+        @Override
+        public CodeGenerator changeStackPointer(int k) throws IOException {
+            startLine();
+            if(k<0){
+                out.write(STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-="+(-k));
+            }else{
+                out.write(STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"+="+k);
+            }
+            return endLine();
+        }
+
+        @Override
+        public CodeGenerator lineComment(String str) throws IOException {
+            if(unfinishedLine){
+                endLine();
+            }
+            startLine();
+            out.write("// "+str.replace('\n',' ').replace('\r',' '));
+            newLine();
+            return this;
+        }
+        @Override
+        public CodeGenerator blockComment(String str) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("/*");
+            out.write(str.replace("*/","* /"));
+            out.write("*/");
+            return this;
+        }
+
+        @Override
+        public CodeGenerator startLine() throws IOException {
+            if(unfinishedLine)
+                endLine();
+            unfinishedLine = true;
+            writeIndent(out,indent);
+            return this;
+        }
+        @Override
+        public CodeGenerator pushPrimitive(Type target) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++)->"+typeWrapperName(target)+" = ");
+            return this;
+        }
+        @Override
+        public CodeGenerator pushReference(Type target) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++)->"+typeRefName(target)+" = ");
+            return this;
+        }
+        @Override
+        public CodeGenerator assignPrimitive(int offset, Type target) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("(("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")-"+offset+")->"+typeWrapperName(target)+" = ");
+            return this;
+        }
+        @Override
+        public CodeGenerator assignReference(int offset, Type target, boolean assignValue) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write((assignValue?"*":"")+
+                    "(("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")-"+offset+")->"+typeRefName(target)+" = ");
+            return this;
+        }
+
+        @Override
+        public CodeGenerator newLine() throws IOException {
+            if(unfinishedLine){
+                out.newLine();
+                unfinishedLine = false;
+            }
+            return this;
+        }
+        @Override
+        public CodeGenerator endLine() throws IOException {
+            if(unfinishedLine){
+                out.write(";");
+                out.newLine();
+                unfinishedLine = false;
+            }
+            return this;
+        }
+        @Override
+        public CodeGenerator popPrimitive(Type type) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("((--("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"))->"+typeWrapperName(type)+")");
+            return this;
+        }
+        @Override
+        public CodeGenerator getPrimitive(int offset, Type type) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("((("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")-"+offset+")->"+typeWrapperName(type)+")");
+            return this;
+        }
+        @Override
+        public CodeGenerator getReference(int offset, Type type) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("((("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")-"+offset+")->"+typeRefName(type)+")");
+            return this;
+        }
+
+        @Override
+        public CodeGenerator getPrimitiveAs(int offset, Type src, Type target) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            //TODO check if C-cast is allowed
+            out.write("(("+primitives.get(target)+")");
+            getPrimitive(offset,src);
+            out.write(")");
+            return this;
+        }
+
+        @Override
+        public CodeGenerator append(String s) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write(s);
+            return this;
+        }
+    }
 
     public static void compile(Parser.Program prog, File out) throws IOException {
         try(BufferedWriter writer = new BufferedWriter(new FileWriter(out))){
@@ -71,20 +225,16 @@ public class Compiler {
         writer.write(line);
         writer.newLine();
     }
-    private static void writeComment(BufferedWriter writer,int indent,String comment) throws IOException {
-        String[] parts=comment.split("[\n\r]");
-        for(String line:parts){
-            writeIndent(writer, indent);
-            writer.write("// "+ line);
-            writer.newLine();
-        }
-    }
 
     private static void writeLine(BufferedWriter writer,String line) throws IOException {
         writeLine(writer,0,line);
     }
-    private static void writeComment(BufferedWriter writer,String line) throws IOException {
-        writeComment(writer,0,line);
+    private static void writeComment(BufferedWriter writer,String comment) throws IOException {
+        String[] parts=comment.split("[\n\r]");
+        for(String line:parts){
+            writer.write("// "+ line);
+            writer.newLine();
+        }
     }
 
     private static String typeWrapperName(Type primitive){
@@ -165,12 +315,14 @@ public class Compiler {
     }
 
     private static void printProcedureBodies(BufferedWriter writer, Parser.Program prog) throws IOException {
+        CodeGeneratorImpl generator=new CodeGeneratorImpl(writer);
         for(Map.Entry<String, Parser.Declareable> dec:prog.rootContext().declareables()){
             if(dec.getValue().declarableType() == Parser.DeclareableType.PROCEDURE){
                 writeComment(writer,"procedure "+dec.getKey()+" "+((Parser.Callable)dec.getValue()).type());
                 writeLine(writer,CONCAT_PROC_OUT+ " " + PUBLIC_PROC_PREFIX +idOf(dec.getValue())
                         +CONCAT_PROC_NAMED_SIGNATURE+"{");
-                compileCodeSection(writer,(Parser.CodeSection)dec.getValue());
+                generator.setIndent(1);
+                compileCodeSection(generator,(Parser.CodeSection)dec.getValue());
                 writeLine(writer,"}");
             }
         }
@@ -180,38 +332,36 @@ public class Compiler {
                         " in "+dec.getKey().fileId());
                 writeLine(writer,CONCAT_PROC_OUT+ " " + PRIVATE_PROC_PREFIX +idOf(dec.getValue())
                         +CONCAT_PROC_NAMED_SIGNATURE+"{");
-                compileCodeSection(writer,(Parser.CodeSection)dec.getValue());
+                generator.setIndent(1);
+                compileCodeSection(generator,(Parser.CodeSection)dec.getValue());
                 writeLine(writer,"}");
             }
         }
         writer.newLine();
     }
 
-    private static void compileCodeSection(BufferedWriter writer, Parser.CodeSection section) throws IOException {
-        int level=1;
+    //addLater optimize code (merge consecutive push and pop operations)
+    private static void compileCodeSection(CodeGenerator generator, Parser.CodeSection section) throws IOException {
         boolean hasDupTmpVar=false;
-        //addLater optimize code (merge consecutive push and pop operations)
         for(Parser.Token next:section.tokens()){
-            writeComment(writer,level,next.toString());
+            generator.lineComment(next.toString());
             try {
                 switch (next.tokenType) {
-                    case NOP -> {
-                    }
+                    case NOP, CONTEXT_OPEN, CONTEXT_CLOSE -> {}
                     case LAMBDA, VALUE, GLOBAL_VALUE -> {
                         assert next instanceof Parser.ValueToken;
                         Value value = ((Parser.ValueToken) next).value;
                         if(primitives.containsKey(value.type)){
-                            String prefix="("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++)->"+typeWrapperName(value.type)+" = ";
                             if (value.type == Type.INT()) {
-                                writeLine(writer, level,prefix+value.asLong() + "LL;");
+                                generator.pushPrimitive(value.type).append(value.asLong() + "LL").endLine();
                             }else if (value.type == Type.UINT()) {
-                                writeLine(writer, level,prefix+value.asLong() + "ULL;");
+                                generator.pushPrimitive(value.type).append(value.asLong() + "ULL").endLine();
                             }else if (value.type == Type.CODEPOINT()) {
-                                writeLine(writer, level,prefix+"0x"+Long.toHexString(value.asLong()) + ";");
+                                generator.pushPrimitive(value.type).append("0x"+Long.toHexString(value.asLong())).endLine();
                             }else if (value.type == Type.BYTE()) {
-                                writeLine(writer, level,prefix+"0x"+Integer.toHexString(value.asByte()&0xff) + ";");
+                                generator.pushPrimitive(value.type).append("0x"+Integer.toHexString(value.asByte()&0xff)).endLine();
                             }else if (value.type == Type.BOOL) {
-                                writeLine(writer, level,prefix+(value.asBool()?"true":"false")+";");
+                                generator.pushPrimitive(value.type).append((value.asBool()?"true":"false")).endLine();
                             }else {
                                 throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
                             }
@@ -222,90 +372,80 @@ public class Compiler {
                     case CALL_PROC -> {
                         assert next instanceof Parser.CallToken;
                         Value.Procedure called=(Value.Procedure) ((Parser.CallToken) next).called;
-                        writeLine(writer, level,called.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX +idOf(called)+
-                                "("+STACK_ARG_NAME+", NULL);");
+                        generator.append(called.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX +idOf(called)+
+                                "("+STACK_ARG_NAME+", NULL)").endLine();
                     }
                     case STACK_DUP -> {
-                        writeLine(writer, level,(hasDupTmpVar?"":STACK_DATA_TYPE+" ")+DUP_VAR_NAME+
+                        generator.startLine().append((hasDupTmpVar?"":STACK_DATA_TYPE+" ")+DUP_VAR_NAME+
                                 " = *("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+
-                                "-"+((Parser.StackModifierToken)next).args[0]+");");
-                        writeLine(writer, level,
-                                "*("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++) = "+DUP_VAR_NAME+";");
+                                "-"+((Parser.StackModifierToken)next).args[0]+")").endLine()
+                        .append("*("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++) = "+DUP_VAR_NAME).endLine();
                         hasDupTmpVar=true;
                     }
                     case STACK_DROP -> {
                         int offset=((Parser.StackModifierToken)next).args[0];
                         int count=((Parser.StackModifierToken)next).args[1];
                         if(offset>0){
-                            writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+(offset+count)+","+
+                            generator.append("memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+(offset+count)+","+
                                     STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+offset+"," +
-                                    offset+"*sizeof("+STACK_DATA_TYPE+"));");
+                                    offset+"*sizeof("+STACK_DATA_TYPE+"))").endLine();
                         }
-                        writeLine(writer, level,STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-="+count+";");
+                        generator.changeStackPointer(-count);
                     }
                     case STACK_ROT -> {
                         int count=((Parser.StackModifierToken)next).args[0];
                         int steps=((Parser.StackModifierToken)next).args[1];
-                        writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+" ," +
+                        generator.append("memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+" ," +
                                 STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+count+","+
-                                steps+"*sizeof("+STACK_DATA_TYPE+"));");
-                        writeLine(writer, level,"memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+count+"," +
+                                steps+"*sizeof("+STACK_DATA_TYPE+"))").endLine()
+                        .append("memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+count+"," +
                                 STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+(count-steps)+
-                                ","+count+"*sizeof("+STACK_DATA_TYPE+"));");
+                                ","+count+"*sizeof("+STACK_DATA_TYPE+"))").endLine();
                     }
                     case DEBUG_PRINT ->{
                         Type t=((Parser.TypedToken)next).target;
-                        String popElement = "(--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))";
                         if(t==Type.BYTE()){
-                            writeLine(writer, level, "printf(\"'%1$c' (%1$\"PRIx8\")\\n\", " + popElement +
-                                    "->" + typeWrapperName(t) + ");");
+                            generator.append("printf(\"'%1$c' (%1$\"PRIx8\")\\n\", ").popPrimitive(t).append(")").endLine();
                         }else if(t==Type.CODEPOINT()){
-                            writeLine(writer, level, "printf(\"U+%\"PRIx32\"\\n\", " + popElement +
-                                    "->" + typeWrapperName(t) + ");");
+                            generator.append("printf(\"U+%\"PRIx32\"\\n\", ").popPrimitive(t).append(")").endLine();
                         }else if(t instanceof Type.IntType){
-                            writeLine(writer, level, "printf(\"%\"PRI"+(((Type.IntType) t).signed?"i":"u")+((Type.IntType) t).bits+
-                                    "\"\\n\", " + popElement +
-                                    "->" + typeWrapperName(t) + ");");
+                            generator.append( "printf(\"%\"PRI"+(((Type.IntType) t).signed?"i":"u")+((Type.IntType) t).bits+
+                                    "\"\\n\", ").popPrimitive(t).append(")").endLine();
                         }else if(t==Type.BOOL){
-                            writeLine(writer, level, "puts((" + popElement +
-                                    "->" + typeWrapperName(t) + ") ? \"true\" : \"false\");");
+                            generator.append( "puts((").popPrimitive(t).append(") ? \"true\" : \"false\")").endLine();
                         }else{
                             System.err.println("unsupported type in debugPrint:"+t);
                             //TODO better output for debug print
-                            writeLine(writer, level,"printf(\"%\"PRIx64\"\\n\", "+popElement +
-                                    "->" +typeWrapperName(Type.UINT())+");");
+                            generator.append("printf(\"%\"PRIx64\"\\n\", ").popPrimitive(Type.UINT()).append(")").endLine();
                         }
                     }
-                    case CONTEXT_OPEN, CONTEXT_CLOSE -> {}
                     case BLOCK_TOKEN -> {
                         switch(((Parser.BlockToken)next).blockType){
                             case IF,_IF ->
-                                writeLine(writer, level++, "if((--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))->"
-                                        + typeWrapperName(Type.BOOL) + "){");
+                                generator.append("if(").popPrimitive(Type.BOOL).append("){").indent().newLine();
                             case IF_OPTIONAL,_IF_OPTIONAL ->
-                                    throw new UnsupportedOperationException("compiling IF_OPTIONAL  is currently not implemented");
+                                throw new UnsupportedOperationException("compiling IF_OPTIONAL  is currently not implemented");
                             case ELSE ->
-                                writeLine(writer,level-1,"}else{");
+                                generator.dedent().append("}else{").indent().newLine();
                             case END_IF ->{
                                 int elseCount=((Parser.BlockToken) next).delta;
                                 if(elseCount==0)
                                     elseCount=1;
                                 while (elseCount-->0){
-                                    writeLine(writer,--level,"}");
+                                    generator.dedent().append("}").newLine();
                                 }
                             }
                             case WHILE -> //concat while loops are best represented by do{ ... if(pop()) break; ... }while(true);
-                                writeLine(writer,level++,"do{");
+                                generator.append("do{").indent().newLine();
                             case DO ->
-                                writeLine(writer, level-1, "if(!((--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))->"
-                                        + typeWrapperName(Type.BOOL) + ")) break; //exit while loop");
+                                generator.dedent().append( "if(!").popPrimitive(Type.BOOL).append(") break; //exit while loop")
+                                        .indent().newLine();
                             case DO_OPTIONAL ->
                                     throw new UnsupportedOperationException("compiling DO_OPTIONAL  is currently not implemented");
                             case END_WHILE ->
-                                writeLine(writer,--level,"}while(true);");
+                                generator.dedent().append("}while(true)").endLine();
                             case DO_WHILE ->
-                                writeLine(writer, --level, "}while(((--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))->"
-                                        + typeWrapperName(Type.BOOL) + "));");
+                                generator.dedent().append("}while(").popPrimitive(Type.BOOL).append(")").endLine();
                             case END_CASE ->
                                 throw new UnsupportedOperationException("compiling BREAK  is currently not implemented");
                             case FOR_ARRAY_PREPARE ->
@@ -324,9 +464,9 @@ public class Compiler {
                         }
                     }
                     case CAST ->
-                        compileCast(writer, level, ((Parser.CastToken)next).src,  ((Parser.CastToken)next).target, 1);
+                        compileCast(generator, ((Parser.CastToken)next).src,  ((Parser.CastToken)next).target, 1);
                     case CAST_ARG ->
-                        compileCast(writer, level, ((Parser.ArgCastToken)next).src,  ((Parser.ArgCastToken)next).target,
+                        compileCast(generator, ((Parser.ArgCastToken)next).src,  ((Parser.ArgCastToken)next).target,
                                 ((Parser.ArgCastToken)next).offset);
                     case VARIABLE -> {
                         assert next instanceof Parser.VariableToken;
@@ -337,15 +477,12 @@ public class Compiler {
                         }
                         switch (asVar.accessType){
                             case DECLARE ->
-                                writeLine(writer,level,primitives.get(asVar.id.type)+" "+idName+
-                                        " = (--("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"))->"+
-                                                typeWrapperName(asVar.id.type)+";");
+                                generator.append(primitives.get(asVar.id.type)+" "+idName+" = ")
+                                        .popPrimitive(asVar.id.type).endLine();
                             case READ ->
-                                    writeLine(writer,level,"("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"++)->"+
-                                            typeWrapperName(asVar.id.type)+" = "+idName+";");
+                                generator.pushPrimitive(asVar.id.type).append(idName).endLine();
                             case REFERENCE_TO ->
-                                    writeLine(writer,level,"("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"++)->"+
-                                            typeRefName(asVar.id.type)+" = &"+idName+";");
+                                generator.pushReference(asVar.id.type).append("&"+idName).endLine();
                         }
                     }
                     case DEREFERENCE -> {
@@ -353,19 +490,17 @@ public class Compiler {
                         if(!primitives.containsKey(content)){
                             throw new UnsupportedEncodingException("dereferencing "+content+" is currently not implemented");
                         }
-                        writeLine(writer,level,"(("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +")-1)->"+
-                                typeWrapperName(content)+" = "+"*((("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +")-1)->"+
-                                typeRefName(content)+");");
+                        generator.assignPrimitive(1,content)
+                                .append("*").getReference(1,content).endLine();
                     }
                     case ASSIGN -> {
                         Type content=((Parser.TypedToken)next).target;
                         if(!primitives.containsKey(content)){
                             throw new UnsupportedEncodingException("assigning to "+content+" is currently not implemented");
                         }
-                        writeLine(writer,level,"*((("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +")-1)->"+
-                                typeRefName(content)+") = "+"(("+STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +")-2)->"+
-                                typeWrapperName(content)+";");
-                        writeLine(writer,level,STACK_ARG_NAME + "->" +STACK_FIELD_POINTER +"-=2;");
+                        generator.assignReference(1,content,true)
+                                .getPrimitive(2,content).endLine();
+                        generator.changeStackPointer(-2);
                     }
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
@@ -391,12 +526,10 @@ public class Compiler {
         }
     }
 
-    private static void compileCast(BufferedWriter writer,int indent,Type src, Type target, int offset) throws IOException {
+    private static void compileCast(CodeGenerator generator, Type src, Type target, int offset) throws IOException {
         if(primitives.containsKey(src)&&primitives.containsKey(target)){
             //TODO check if direct C-cast is allowed
-            writeLine(writer,indent,"("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+(offset>1?"-"+(offset-1):"")+")->"+
-                typeWrapperName(target)+" = ("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+(offset>1?"-"+(offset-1):"")+")->"+
-            typeWrapperName(src)+";");
+            generator.assignPrimitive(offset,target).getPrimitive(offset,src).endLine();
         }else{
             throw new UnsupportedEncodingException("casting from "+src+" to "+target+" is currently not supported");
         }
