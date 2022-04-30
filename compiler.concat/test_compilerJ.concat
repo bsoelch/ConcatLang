@@ -53,6 +53,14 @@ main public proc( => ){
    one ~ debugPrint
    one -_ ~ debugPrint
    one two | three & four xor debugPrint
+
+   bool debugPrint
+   byte debugPrint
+   codepoint debugPrint
+   int debugPrint
+   uint debugPrint
+   float debugPrint
+   type debugPrint
 }
 
 one proc( => int ){ 1 }

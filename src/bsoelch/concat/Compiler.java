@@ -7,14 +7,27 @@ import java.util.Map;
 
 public class Compiler {
     static final HashMap<Type,String> primitives =new HashMap<>();
+    static final HashMap<Type,Integer> typeIds =new HashMap<>();
 
+    static int ilog2(int i){
+        int n=-1;
+        while(i!=0){
+            i>>>=1;
+            n++;
+        }
+        return n;
+    }
     static{
         primitives.put(Type.BOOL,"bool");
+        typeIds.put(Type.BOOL,1);
         for(Type.IntType t:Type.IntType.intTypes) {
             primitives.put(t, (t.signed?"int":"uint")+t.bits+"_t");
+            typeIds.put(t,((ilog2(t.bits/8)+1)<<1)|(t.signed?1:0));
         }
         primitives.put(Type.FLOAT,"float64_t");
         primitives.put(Type.TYPE,"type_t");
+        typeIds.put(Type.FLOAT,0b10000);
+        typeIds.put(Type.TYPE,0b10001);
     }
     static final String CONCAT_PROC_OUT="void";
     static final String CONCAT_PROC_SIGNATURE="(Stack*, value_t*)";
@@ -82,9 +95,9 @@ public class Compiler {
         public CodeGenerator blockComment(String str) throws IOException {
             if(!unfinishedLine)
                 startLine();
-            out.write("/*");
+            out.write("/* ");
             out.write(str.replace("*/","* /"));
-            out.write("*/");
+            out.write(" */");
             return this;
         }
 
@@ -210,6 +223,17 @@ public class Compiler {
         @Override
         public CodeGenerator appendCodepoint(int value) throws IOException {
             out.write("0x"+Integer.toHexString(value));
+            return this;
+        }
+
+        @Override
+        public CodeGenerator appendType(Type type) throws IOException {
+            if(!primitives.containsKey(type)){
+                throw new UnsupportedEncodingException("currently only primitive types are supported");
+            }
+            int id=typeIds.get(type);
+            out.write(""+id);
+            blockComment(type.name);
             return this;
         }
 
@@ -399,6 +423,8 @@ public class Compiler {
                                 generator.pushPrimitive(value.type).appendByte(value.asByte()).endLine();
                             }else if (value.type == Type.BOOL) {
                                 generator.pushPrimitive(value.type).appendBool(value.asBool()).endLine();
+                            }else if (value.type == Type.TYPE) {
+                                generator.pushPrimitive(value.type).appendType(value.asType()).endLine();
                             }else {
                                 throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
                             }

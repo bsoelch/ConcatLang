@@ -27,6 +27,7 @@ public interface CodeGenerator {
     CodeGenerator appendCodepoint(int value) throws IOException;
     CodeGenerator appendByte(byte value) throws IOException;
     CodeGenerator appendBool(boolean value) throws IOException;
+    CodeGenerator appendType(Type value) throws IOException;
     CodeGenerator append(String s) throws IOException;
 
     CodeGenerator newLine() throws IOException;
