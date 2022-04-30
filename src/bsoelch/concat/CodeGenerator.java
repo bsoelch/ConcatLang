@@ -19,6 +19,7 @@ public interface CodeGenerator {
 
     CodeGenerator popPrimitive(Type type) throws IOException;
 
+    CodeGenerator getRaw(int offset) throws IOException;
     CodeGenerator getPrimitive(int offset, Type type) throws IOException;
     CodeGenerator getReference(int offset, Type type) throws IOException;
     CodeGenerator getPrimitiveAs(int offset, Type src, Type target) throws IOException;

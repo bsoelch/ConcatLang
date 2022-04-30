@@ -30,7 +30,7 @@ public class Compiler {
 
     static final String DUP_VAR_NAME="dup_tmp";
 
-    private static class CodeGeneratorImpl implements CodeGenerator {
+    private static final class CodeGeneratorImpl implements CodeGenerator {
         final BufferedWriter out;
         private int indent;
 
@@ -61,9 +61,9 @@ public class Compiler {
         public CodeGenerator changeStackPointer(int k) throws IOException {
             startLine();
             if(k<0){
-                out.write(STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-="+(-k));
+                out.write(STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+" -= "+(-k));
             }else{
-                out.write(STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"+="+k);
+                out.write(STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+" += "+k);
             }
             return endLine();
         }
@@ -151,20 +151,36 @@ public class Compiler {
             return this;
         }
         @Override
+        public CodeGenerator getRaw(int offset) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            if(offset<0){
+                out.write("(("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")+"+(-offset)+")");
+            }else if(offset>0){
+                out.write("(("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")-"+offset+")");
+            }else{
+                out.write("("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")");
+            }
+            return this;
+        }
+        @Override
         public CodeGenerator getPrimitive(int offset, Type type) throws IOException {
             if(!unfinishedLine)
                 startLine();
-            out.write("((("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")-"+offset+")->"+typeWrapperName(type)+")");
+            out.write("(");
+            getRaw(offset);
+            out.write("->"+typeWrapperName(type)+")");
             return this;
         }
         @Override
         public CodeGenerator getReference(int offset, Type type) throws IOException {
             if(!unfinishedLine)
                 startLine();
-            out.write("((("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")-"+offset+")->"+typeRefName(type)+")");
+            out.write("(");
+            getRaw(offset);
+            out.write("->"+typeRefName(type)+")");
             return this;
         }
-
         @Override
         public CodeGenerator getPrimitiveAs(int offset, Type src, Type target) throws IOException {
             if(!unfinishedLine)
