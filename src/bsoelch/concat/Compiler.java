@@ -387,9 +387,20 @@ public class Compiler {
                     }
                     case CALL_PROC -> {
                         assert next instanceof Parser.CallToken;
-                        Value.Procedure called=(Value.Procedure) ((Parser.CallToken) next).called;
-                        generator.append(called.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX +idOf(called)+
-                                "("+STACK_ARG_NAME+", NULL)").endLine();
+                        Parser.CallToken callToken = (Parser.CallToken) next;
+                        if(callToken.called instanceof Value.Procedure called){
+                            generator.append(called.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX +idOf(called)+
+                                    "("+STACK_ARG_NAME+", NULL)").endLine();
+                        }else if(callToken.called instanceof Value.InternalProcedure iProc){
+                            if(iProc.compile==null){
+                                throw new UnsupportedOperationException("compilation of internal procedure "+iProc.name+
+                                        " is not supported");
+                            }
+                            iProc.compile.accept(generator);
+                        }else{
+                            throw new UnsupportedOperationException("compilation of procedures of type "+
+                                    callToken.called.getClass()+" is not supported");
+                        }
                     }
                     case STACK_DUP -> {
                         generator.startLine().append((hasDupTmpVar?"":STACK_DATA_TYPE+" ")+DUP_VAR_NAME+

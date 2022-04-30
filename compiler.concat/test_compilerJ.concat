@@ -41,5 +41,7 @@ main public proc( => ){
   true true while{
     false rot3 dup debugPrint
   do } drop drop
+  y 1 + debugPrint
+  2u y - debugPrint
 }
 

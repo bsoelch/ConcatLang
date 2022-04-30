@@ -77,7 +77,7 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   // DEBUG_PRINT: byte
   printf("'%1$c' (%1$"PRIx8")\n", ((--(stack->ptr))->asByte));
   // STACK_DROP at lib/stack:9:26 expanded at test/compiler:11:3
-  stack->ptr-=1;
+  stack->ptr -= 1;
   // DEBUG_PRINT: uint
   printf("%"PRIu64"\n", ((--(stack->ptr))->asUint));
   // DEBUG_PRINT: byte
@@ -149,7 +149,7 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   (stack->ptr++)->asByteRef = &local_var_0_0;
   // ASSIGN: byte
   *((stack->ptr)-1)->asByteRef = (((stack->ptr)-2)->asByte);
-  stack->ptr-=2;
+  stack->ptr -= 2;
   // LOCAL_REFERENCE_TO:0 (x)
   (stack->ptr++)->asByteRef = &local_var_0_0;
   // DEREFERENCE: byte
@@ -181,9 +181,9 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
     // END_WHILE: -10
   }while(true);
   // STACK_DROP at lib/stack:9:26 expanded at test/compiler:39:5
-  stack->ptr-=1;
+  stack->ptr -= 1;
   // STACK_DROP at lib/stack:9:26 expanded at test/compiler:39:10
-  stack->ptr-=1;
+  stack->ptr -= 1;
   // VALUE: byte: 
   (stack->ptr++)->asByte = 0x20;
   // DEBUG_PRINT: byte
@@ -209,9 +209,27 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
     // DO_WHILE: -6
   }while(((--(stack->ptr))->asBool));
   // STACK_DROP at lib/stack:9:26 expanded at test/compiler:43:8
-  stack->ptr-=1;
+  stack->ptr -= 1;
   // STACK_DROP at lib/stack:9:26 expanded at test/compiler:43:13
-  stack->ptr-=1;
+  stack->ptr -= 1;
+  // LOCAL_READ:1 (y)
+  (stack->ptr++)->asInt = local_var_0_1;
+  // VALUE: int:1
+  (stack->ptr++)->asInt = 1LL;
+  // CALL_PROC: ( int int => int ):+
+  stack->ptr -= 1;
+  ((stack->ptr)-1)->asInt = (((int64_t)(((stack->ptr)-1)->asInt)) + ((int64_t)((stack->ptr)->asInt)));
+  // DEBUG_PRINT: int
+  printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
+  // VALUE: uint:2
+  (stack->ptr++)->asUint = 2ULL;
+  // LOCAL_READ:1 (y)
+  (stack->ptr++)->asInt = local_var_0_1;
+  // CALL_PROC: ( uint int => uint ):-
+  stack->ptr -= 1;
+  ((stack->ptr)-1)->asUint = (((uint64_t)(((stack->ptr)-1)->asUint)) - ((uint64_t)((stack->ptr)->asInt)));
+  // DEBUG_PRINT: uint
+  printf("%"PRIu64"\n", ((--(stack->ptr))->asUint));
 }
 // procedure test ( int => byte ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried){

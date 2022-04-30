@@ -1,6 +1,7 @@
 package bsoelch.concat;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -1379,6 +1380,7 @@ public abstract class Value {
         public static final FilePosition POSITION = new FilePosition("internal","internal", 0, 0);
 
         final ThrowingFunction<Value[],Value[],ConcatRuntimeError> action;
+        ThrowingConsumer<CodeGenerator, IOException> compile = null;
         final boolean compileTime;
 
         InternalProcedure(Type[] inTypes, Type[] outTypes, String name,
@@ -1394,6 +1396,10 @@ public abstract class Value {
             super(type, name, POSITION);
             this.action = action;
             this.compileTime = compileTime;
+        }
+        public InternalProcedure compileTo(ThrowingConsumer<CodeGenerator, IOException> compile) {
+            this.compile = compile;
+            return this;
         }
 
         @Override
@@ -1529,24 +1535,44 @@ public abstract class Value {
                 procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"+",
                         (values) -> new Value[]{ofInt(values[0].asLong()+values[1].asLong(),
                                 !target.signed).castTo(target)},
-                        true));
+                        true).compileTo(gen->
+                            gen.changeStackPointer(-1)
+                                    .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" + ")
+                                    .getPrimitiveAs(0,bInt,target).append(")")
+                ));
                 procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"-",
                         (values) -> new Value[]{ofInt(values[0].asLong()-values[1].asLong(),
                                 !target.signed).castTo(target)},
-                        true));
+                        true).compileTo(gen->
+                        gen.changeStackPointer(-1)
+                                .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" - ")
+                                .getPrimitiveAs(0,bInt,target).append(")")
+                ));
                 procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"*",
                         (values) -> new Value[]{ofInt(values[0].asLong()*values[1].asLong(),
                                 !target.signed).castTo(target)},
-                        true));
+                        true).compileTo(gen->
+                        gen.changeStackPointer(-1)
+                                .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" * ")
+                                .getPrimitiveAs(0,bInt,target).append(")")
+                ));
                 if(target.signed){
                     procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"/",
                             (values) -> new Value[]{ofInt(values[0].asLong()/values[1].asLong(),
                                     false).castTo(target)},
-                            true));
+                            true).compileTo(gen->
+                            gen.changeStackPointer(-1)
+                                    .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" / ")
+                                    .getPrimitiveAs(0,bInt,target).append(")")
+                    ));
                     procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"%",
                             (values) -> new Value[]{ofInt(values[0].asLong()%values[1].asLong(),
                                     false).castTo(target)},
-                            true));
+                            true).compileTo(gen->
+                            gen.changeStackPointer(-1)
+                                    .assignPrimitive(1,target).append("(").getPrimitiveAs(1,aInt,target).append(" % ")
+                                    .getPrimitiveAs(0,bInt,target).append(")")
+                    ));
                 }else{
                     procs.add(new InternalProcedure(new Type[]{aInt,bInt},new Type[]{target},"/",
                             (values) -> new Value[]{ofInt(Long.divideUnsigned(values[0].asLong(),values[1].asLong()),
