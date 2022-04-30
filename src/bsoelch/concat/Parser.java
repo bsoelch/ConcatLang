@@ -23,7 +23,6 @@ public class Parser {
         VARIABLE,
         CONTEXT_OPEN,CONTEXT_CLOSE,
         CALL_PROC, CALL_PTR,
-        CALL_NATIVE_PROC,
         RETURN,
         DEBUG_PRINT,ASSERT,UNREACHABLE,//debug operations, may be removed at compile time
         BLOCK_TOKEN,//jump commands only for internal representation
@@ -3338,7 +3337,7 @@ public class Parser {
                     tState.typeStack.push(new TypeFrame(size.type,new ValueInfo(size),t.pos));
                 }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
-                        CALL_PROC,CALL_NATIVE_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_REFERENCE_TO, TUPLE_SET_INDEX,
+                        CALL_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_REFERENCE_TO, TUPLE_SET_INDEX,
                         TRAIT_FIELD_ACCESS ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }

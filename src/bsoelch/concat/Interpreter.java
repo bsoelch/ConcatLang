@@ -265,7 +265,7 @@ public class Interpreter {
                             return e;
                         }
                     }
-                    case CALL_NATIVE_PROC ,CALL_PROC, CALL_PTR -> {
+                    case CALL_PROC, CALL_PTR -> {
                         Parser.Callable called;
                         if(next.tokenType== Parser.TokenType.CALL_PROC){
                             assert next instanceof Parser.CallToken;
