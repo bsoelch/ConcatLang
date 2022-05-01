@@ -13,8 +13,6 @@ public class Type {
     static final Type MULTIBLOCK4 = new Type("bits256",null,false);
     static final Type PTR         = new Type("bitsPtr",null,false);
 
-
-
     static Type baseTypeFromBits(int bits) {
         if(bits<=8){
             return BITS8;
@@ -741,11 +739,7 @@ public class Type {
                 case ARRAY,MEMORY,REFERENCE:
                     return PTR;// data,len
                 case OPTIONAL:
-                    if (contentBase == BITS8) {
-                        return BITS16;
-                    } else if (contentBase == BITS16) {
-                        return BITS32;
-                    } else if (contentBase == BITS32) {
+                    if (contentBase == BITS8||contentBase == BITS16||contentBase == BITS32) {
                         return BITS64;
                     } else if (contentBase == BITS64) {
                         return MULTIBLOCK2;
