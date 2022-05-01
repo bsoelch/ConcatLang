@@ -4,14 +4,16 @@ lib/stack :
 core #namespace
 
 ##drop without offset
-?drop public #define   0 ??drop #end
+?drop public #define     0 ??drop #end
+##dup element at given index in stack
+?dup  public #define 1 - 1 ??dup  #end
 ##drop top element
-drop  public #define 1 0 ??drop #end
-dup   public #define   1 ?dup   #end
-over  public #define   2 ?dup   #end
-2over public #define   3 ?dup   #end
-swap  public #define 2 1 ??rot  #end
-rot3  public #define 3 1 ??rot  #end
+drop  public #define  1 0 ??drop #end
+dup   public #define  0 1 ??dup  #end
+over  public #define  1 1 ??dup  #end
+over2 public #define  2 1 ??dup  #end
+swap  public #define  2 1 ??rot  #end
+rot3  public #define  3 1 ??rot  #end
 
 #end ##core
 

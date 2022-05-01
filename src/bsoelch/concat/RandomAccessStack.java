@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**Stack that supports random access of elements*/
 public class RandomAccessStack<T> implements Cloneable,Iterable<T>{
@@ -74,13 +75,13 @@ public class RandomAccessStack<T> implements Cloneable,Iterable<T>{
         size-=count;
         return ret;
     }
-    public void dup(int src) throws StackUnderflow {
-        if(src>size){
+    public void dup(int offset,int count) throws StackUnderflow {
+        if(offset+count>size){
             throw new StackUnderflow();
         }
-        ensureCap(size+1);
-        data[size]=data[size-src];
-        size++;
+        ensureCap(size+count);
+        System.arraycopy(data,size-(offset+count),data,size,count);
+        size+=count;
     }
     public void rotate(int count,int steps) throws StackUnderflow {
         if(count<1){
@@ -107,6 +108,16 @@ public class RandomAccessStack<T> implements Cloneable,Iterable<T>{
         }
         //noinspection unchecked
         return (T) data[size-i];
+    }
+
+    public T[] get(int offset,int count,Class<T[]> tClass) throws StackUnderflow {
+        if(offset<0||count<0){
+            throw new IndexOutOfBoundsException("offset and count have to be >= 0");
+        }
+        if(offset+count>size){
+            throw new StackUnderflow();
+        }
+        return Arrays.copyOfRange(data,size-(offset+count),size-offset,tClass);
     }
     public void set(int i,T val){
         if(i<1||i>size){

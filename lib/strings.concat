@@ -10,7 +10,7 @@ lexCmp public proc( A <?> A array A array => int ){
   a =::
   a .length b .length min l =::
   0 while{ dup l < do
-    a over [] b 2over [] - c =::
+    a over [] b over2 [] - c =::
     c 0 != if{ drop
       c return
     }
@@ -39,7 +39,7 @@ startsWith public proc( A <?> A array A array => bool ){
   a =::
   a .length b .length < if{ false return }
   0 while{ dup b .length < do
-    a over [] b 2over [] != if{ drop
+    a over [] b over2 [] != if{ drop
       false return
     }
     1 +
@@ -52,7 +52,7 @@ endsWith public proc( A <?> A array A array => bool ){
   a .length b .length - int off =:
   off 0 < if{ false return }
   0 while{ dup b .length < do
-    a over off + [] b 2over [] != if{ drop
+    a over off + [] b over2 [] != if{ drop
       false return
     }
     1 +

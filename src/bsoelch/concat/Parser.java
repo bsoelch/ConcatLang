@@ -2243,8 +2243,8 @@ public class Parser {
 
                 //stack modifiers
                 case "??drop" -> tokens.add(new StackModifierToken(TokenType.STACK_DROP,null,pos));
-                case "?dup" -> tokens.add(new StackModifierToken(TokenType.STACK_DUP,null,pos));
-                case "??rot" -> tokens.add(new StackModifierToken(TokenType.STACK_ROT,null,pos));
+                case "??dup"  -> tokens.add(new StackModifierToken(TokenType.STACK_DUP,null,pos));
+                case "??rot"  -> tokens.add(new StackModifierToken(TokenType.STACK_ROT,null,pos));
 
                 //identifiers
                 case "=:"->  parseDeclare(false, str,tokens,prev, prevId, pos);
@@ -4049,7 +4049,7 @@ public class Parser {
     }
     private static void typeCheckDrop(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack,ArrayList<Token> ret)
             throws RandomAccessStack.StackUnderflow, SyntaxError {
-        //offset: number of elements on top of the stack that will be kepts
+        //offset: number of elements on top of the stack that will be kept
         int offset = getInt("drop","offset", false, typeStack, ret,t.pos);
         //count: number of dropped elements
         int count = getInt("drop","count", false, typeStack, ret,t.pos);
@@ -4073,18 +4073,19 @@ public class Parser {
     }
     private static void typeCheckDup(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack,
                                      ArrayList<Token> ret) throws SyntaxError, RandomAccessStack.StackUnderflow {
-        //offset of duplicated value
+        //number of duplicated elements
+        int count =  getInt("dup","count", false,typeStack, ret, t.pos);
+        //offset: number of elements between the top of the stack and the first duplicated value
         int offset = getInt("dup","offset", false,typeStack, ret, t.pos);
-        TypeFrame duped= typeStack.get(offset);
-        duped.valueInfo.stackReferences++;
-        if(duped.type instanceof Type.OverloadedProcedurePointer opp){
-            typeStack.push(new TypeFrame(new Type.OverloadedProcedurePointer(opp.proc,opp.genArgs, ret.size(),opp.pushedAt),
-                    duped.valueInfo, t.pos));
-            ret.add(new Token(TokenType.OVERLOADED_PROC_PTR, t.pos));
-        }else{
-            duped=new TypeFrame(duped.type,duped.valueInfo, t.pos);
-            typeStack.push(duped);
-            ret.add(new StackModifierToken(TokenType.STACK_DUP,new int[]{offset},t.pos));
+        TypeFrame[] duped= typeStack.get(offset,count,TypeFrame[].class);
+        ret.add(new StackModifierToken(TokenType.STACK_DUP,new int[]{offset,count},t.pos));
+        for(TypeFrame f:duped){
+            f.valueInfo.stackReferences++;
+            typeStack.push(f);
+            if(f.type instanceof Type.OverloadedProcedurePointer opp){
+                //TODO handle duped opps
+                System.err.println("Warning: duped opp "+opp);
+            }
         }
     }
     private static void typeCheckStackRot(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack, ArrayList<Token> ret)

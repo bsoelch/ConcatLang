@@ -162,7 +162,7 @@ public class Interpreter {
                     }
                     case STACK_DUP -> {
                         assert next instanceof Parser.StackModifierToken;
-                        stack.dup(((Parser.StackModifierToken)next).args[0]);
+                        stack.dup(((Parser.StackModifierToken)next).args[0],((Parser.StackModifierToken)next).args[1]);
                     }
                     case STACK_ROT -> {
                         assert next instanceof Parser.StackModifierToken;
