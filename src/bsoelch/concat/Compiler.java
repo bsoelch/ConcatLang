@@ -576,14 +576,14 @@ public class Compiler {
                                 .getPrimitive(2,content).endLine();
                         generator.changeStackPointer(-2);
                     }
+                    case RETURN -> generator.startLine().append("return").endLine();
+                    case EXIT -> generator.startLine().append("exit((int)").getPrimitive(1,Type.INT()).append(")").endLine();
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
                     case CALL_PTR -> throw new UnsupportedOperationException("compiling CALL_PTR  is currently not implemented");
-                    case RETURN -> throw new UnsupportedOperationException("compiling RETURN  is currently not implemented");
                     case ASSERT -> throw new UnsupportedOperationException("compiling ASSERT  is currently not implemented");
                     case SWITCH -> throw new UnsupportedOperationException("compiling SWITCH  is currently not implemented");
-                    case EXIT -> throw new UnsupportedOperationException("compiling EXIT  is currently not implemented");
                     case TUPLE_GET_INDEX -> throw new UnsupportedOperationException("compiling TUPLE_GET_INDEX  is currently not implemented");
                     case TUPLE_REFERENCE_TO -> throw new UnsupportedOperationException("compiling TUPLE_REFERENCE_TO  is currently not implemented");
                     case TUPLE_SET_INDEX -> throw new UnsupportedOperationException("compiling TUPLE_SET_INDEX  is currently not implemented");
