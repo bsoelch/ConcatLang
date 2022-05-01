@@ -660,7 +660,8 @@ public abstract class Value {
 
         @Override
         public Value castTo(Type newType) throws ConcatRuntimeError {
-            if (this.type.canAssignTo(newType)) {
+            if (this.type.canAssignTo(newType)||
+                    (type.isMemory()&&newType.isArray()&&type.content().canAssignTo(newType.content()))){
                 return this;
             }else if((newType.isArray()|| newType.isMemory())&&(this.type.canCastTo(newType)!= Type.CastType.NONE)){
                 Type newContent= newType.content();//addLater keep current capacity?
@@ -1727,7 +1728,7 @@ public abstract class Value {
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),
-                    Type.UINT(),Type.arrayOf(a).mutable(), Type.UINT(),Type.UINT()}, new Type[]{},"copy",
+                    Type.UINT(),Type.arrayOf(a).mutable(), Type.INT(),Type.UINT()}, new Type[]{},"copy",
                     (values) ->  {
                         //src srcOff target targetOff count
                         ArrayLike src=(ArrayLike)values[0];

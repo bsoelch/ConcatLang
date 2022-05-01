@@ -207,6 +207,12 @@ public class Type {
                 return Optional.of(t.isPresent()?t.get():UnionType.create(new Type[]{a,b}));
             }else if((!strict)&&((a==FLOAT&&b instanceof IntType)||(b==FLOAT&&a instanceof IntType))){
                 return Optional.of(FLOAT);
+            }else if((!strict)&&((a.isArray()&&b.isMemory())||(a.isMemory()&&b.isArray()))){
+                Mutability mut=a.mutabilityIncompatible(b)?b.mutabilityIncompatible(a)?null:a.mutability:b.mutability;
+                if(mut==null)
+                    return Optional.empty();
+                Optional<Type> content=commonSuperType(a.content(),b.content(), false,deRef);
+                return content.map(t->arrayOf(t).setMutability(mut));
             }else if((!strict)&&a.baseType==b.baseType){
                 return Optional.of(a.baseType);
             }else if((!strict)&&a.isValid()&&b.isValid()){
@@ -956,8 +962,7 @@ public class Type {
 
         @Override
         public boolean canAssignTo(Type t, BoundMaps bounds) {
-            if(t instanceof WrapperType&&(((WrapperType)t).wrapperName.equals(wrapperName)||
-                    wrapperName.equals(MEMORY)&&((WrapperType)t).wrapperName.equals(ARRAY))){
+            if(t instanceof WrapperType&&(((WrapperType)t).wrapperName.equals(wrapperName))){
                 if(t.mutability!=Mutability.UNDECIDED){
                     if(Mutability.isDifferent(t.mutability,mutability)){
                         return false;//incompatible mutability
@@ -976,12 +981,15 @@ public class Type {
         public CastType canCastTo(Type t, BoundMaps bounds) {
             if (hasTrait(t, bounds))
                 return CastType.CONVERT;
-            if(t instanceof WrapperType&&((((WrapperType)t).wrapperName.equals(wrapperName))||
-                    ((isArray()||isMemory())&&(t.isArray()||t.isMemory())))){
+            if(t instanceof WrapperType&&((WrapperType)t).wrapperName.equals(wrapperName)){
+                if (mutabilityIncompatible(t))
+                    return CastType.NONE;//incompatible mutability
+                return content().canCastTo(t.content(),bounds);
+            }else if(isMemory()&&t.isArray()){
                 if (mutabilityIncompatible(t))
                     return CastType.NONE;//incompatible mutability
                 CastType ct=content().canCastTo(t.content(),bounds);
-                return ((ct==CastType.ASSIGN||ct==CastType.CONVERT)&&isArray()&& t.isMemory())?CastType.CAST:ct;
+                return ct==CastType.ASSIGN?CastType.CONVERT:ct;
             }else if(wrapperName.equals(REFERENCE)){
                 BoundMaps newBounds=bounds.copy();
                 CastType castType = content().canCastTo(t, newBounds);
