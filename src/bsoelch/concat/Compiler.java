@@ -43,7 +43,11 @@ public class Compiler {
 
     public static final String FPTR_NAME = "asFPtr";
     public static final String FPTR_REF_NAME = FPTR_NAME+"Ref";
-    public static final String PTR_NAME = "asPtr";
+    public static final String RAW_PTR_NAME = "asPtr";
+
+    private static final String PROC_PTR_STRUCT_NAME = "CurriedProcPtr";
+    private static final String PROC_PTR_FIELD_PROC_ID = "procId";
+    private static final String PROC_PTR_FIELD_CURRIED = "curried";
 
     private static final class CodeGeneratorImpl implements CodeGenerator {
         final BufferedWriter out;
@@ -136,25 +140,43 @@ public class Compiler {
             return this;
         }
         @Override
+        public CodeGenerator pushFPtrRef() throws IOException {
+            pushRaw();
+            out.write("->"+FPTR_REF_NAME+" = ");
+            return this;
+        }
+        @Override
         public CodeGenerator pushPtr() throws IOException {
             pushRaw();
-            out.write("->"+PTR_NAME+" = ");
+            out.write("->"+ RAW_PTR_NAME +" = ");
             return this;
         }
 
         @Override
         public CodeGenerator assignPrimitive(int offset, Type target) throws IOException {
-            if(!unfinishedLine)
-                startLine();
-            out.write("(("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")-"+offset+")->"+typeWrapperName(target)+" = ");
+            getRaw(offset);
+            out.write("->"+typeWrapperName(target)+" = ");
             return this;
         }
         @Override
         public CodeGenerator assignReference(int offset, Type target, boolean assignValue) throws IOException {
             if(!unfinishedLine)
                 startLine();
-            out.write((assignValue?"*":"")+
-                    "(("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+")-"+offset+")->"+typeRefName(target)+" = ");
+            out.write((assignValue?"*":""));
+            getRaw(offset);
+            out.write("->"+typeRefName(target)+" = ");
+            return this;
+        }
+        @Override
+        public CodeGenerator assignPtr(int offset) throws IOException {
+            getRaw(offset);
+            out.write("->"+RAW_PTR_NAME+" = ");
+            return this;
+        }
+        @Override
+        public CodeGenerator assignFPtr(int offset) throws IOException {
+            getRaw(offset);
+            out.write("->"+FPTR_NAME+" = ");
             return this;
         }
 
@@ -195,7 +217,7 @@ public class Compiler {
                 startLine();
             out.write("(");
             popRaw();
-            out.write("->"+PTR_NAME+")");
+            out.write("->"+ RAW_PTR_NAME +")");
             return this;
         }
         @Override
@@ -258,12 +280,21 @@ public class Compiler {
             return this;
         }
         @Override
+        public CodeGenerator getFPtrRef(int offset) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("(");
+            getRaw(offset);
+            out.write("->"+FPTR_REF_NAME+")");
+            return this;
+        }
+        @Override
         public CodeGenerator getPtr(int offset) throws IOException {
             if(!unfinishedLine)
                 startLine();
             out.write("(");
             getRaw(offset);
-            out.write("->"+PTR_NAME+")");
+            out.write("->"+ RAW_PTR_NAME +")");
             return this;
         }
 
@@ -376,6 +407,7 @@ public class Compiler {
         writeLine(writer,"#include \"stdio.h\"");
         writeLine(writer,"#include \"string.h\"");
         writer.newLine();
+        writeComment(writer,"internal types");
         writeLine(writer,"typedef union "+STACK_DATA_TYPE+"_Impl "+STACK_DATA_TYPE+";");
         writer.newLine();
         writeLine(writer,"typedef struct{"); //addLater? replace cap with data+cap
@@ -389,14 +421,19 @@ public class Compiler {
         writeLine(writer,"typedef "+CONCAT_PROC_OUT+"(*fptr_t)"+CONCAT_PROC_SIGNATURE+";");
         writeLine(writer,"typedef void* ptr_t;");
         writer.newLine();
+        writeLine(writer,"typedef struct{");
+        writeLine(writer,1,"fptr_t "+PROC_PTR_FIELD_PROC_ID+";");
+        writeLine(writer,1,STACK_DATA_TYPE+"* "+PROC_PTR_FIELD_CURRIED+";");
+        writeLine(writer,"}"+PROC_PTR_STRUCT_NAME+";");
+        writer.newLine();
         writeLine(writer,"union "+STACK_DATA_TYPE+"_Impl {");
         for(Map.Entry<Type, String> e:primitives.entrySet()){//addLater text alignment
             writeLine(writer,1,e.getValue()+"  "+typeWrapperName(e.getKey())+";");
             writeLine(writer,1,e.getValue()+"* "+typeRefName(e.getKey())+";");
         }
         writeLine(writer,1, "fptr_t  "+FPTR_NAME+";");
-        writeLine(writer,1, "fptr_t* "+FPTR_REF_NAME+";");
-        writeLine(writer,1, "ptr_t   "+PTR_NAME+";");
+        writeLine(writer,1, PROC_PTR_STRUCT_NAME+"* "+FPTR_REF_NAME+";");
+        writeLine(writer,1, "ptr_t   "+ RAW_PTR_NAME +";");
         writeLine(writer,"};");
         writer.newLine();
     }
@@ -635,35 +672,59 @@ public class Compiler {
                         assert next instanceof Parser.VariableToken;
                         Parser.VariableToken asVar=(Parser.VariableToken) next;
                         String idName=asVar.variableType.name().toLowerCase()+"_var_"+asVar.id.level+"_"+asVar.id.id;
-                        if(!primitives.containsKey(asVar.id.type)){
+                        if(primitives.containsKey(asVar.id.type)){
+                            switch (asVar.accessType){
+                                case DECLARE ->
+                                        generator.append(primitives.get(asVar.id.type)+" "+idName+" = ")
+                                                .popPrimitive(asVar.id.type).endLine();
+                                case READ ->
+                                        generator.pushPrimitive(asVar.id.type).append(idName).endLine();
+                                case REFERENCE_TO ->
+                                        generator.pushReference(asVar.id.type).append("&"+idName).endLine();
+                            }
+                        }else if(asVar.id.type instanceof Type.Procedure){
+                            switch (asVar.accessType){
+                                case DECLARE ->
+                                        generator.changeStackPointer(-2)
+                                                .append(PROC_PTR_STRUCT_NAME+" "+idName+" = { ."+PROC_PTR_FIELD_PROC_ID+" = ")
+                                                .getFPtr(0).append(", ."+PROC_PTR_FIELD_CURRIED+" = ")
+                                                .getPtr(-1).append("}").endLine();
+                                case READ ->
+                                        generator.pushFPtr().append(idName+"."+PROC_PTR_FIELD_PROC_ID).endLine()
+                                                 .pushPtr().append(idName+"."+PROC_PTR_FIELD_CURRIED).endLine();
+                                case REFERENCE_TO ->
+                                        generator.pushFPtrRef().append("&"+idName).endLine();
+                            }
+                        }else{
                             throw new UnsupportedEncodingException("variables of type "+asVar.id.type+" are currently not supported");
-                        }
-                        switch (asVar.accessType){
-                            case DECLARE ->
-                                generator.append(primitives.get(asVar.id.type)+" "+idName+" = ")
-                                        .popPrimitive(asVar.id.type).endLine();
-                            case READ ->
-                                generator.pushPrimitive(asVar.id.type).append(idName).endLine();
-                            case REFERENCE_TO ->
-                                generator.pushReference(asVar.id.type).append("&"+idName).endLine();
                         }
                     }
                     case DEREFERENCE -> {
                         Type content=((Parser.TypedToken)next).target;
-                        if(!primitives.containsKey(content)){
+                        if(primitives.containsKey(content)){
+                            generator.assignPrimitive(1,content)
+                                    .append("*").getReference(1,content).endLine();
+                        }else if(content instanceof Type.Procedure){
+                            generator.assignPtr(0).getFPtrRef(1).append("->"+PROC_PTR_FIELD_CURRIED).endLine()
+                                    .assignFPtr(1).getFPtrRef(1).append("->"+PROC_PTR_FIELD_PROC_ID).endLine()
+                                    .changeStackPointer(1).endLine();
+                        }else{
                             throw new UnsupportedEncodingException("dereferencing "+content+" is currently not implemented");
                         }
-                        generator.assignPrimitive(1,content)
-                                .append("*").getReference(1,content).endLine();
                     }
                     case ASSIGN -> {
                         Type content=((Parser.TypedToken)next).target;
-                        if(!primitives.containsKey(content)){
+                        if(primitives.containsKey(content)){
+                            generator.assignReference(1,content,true)
+                                    .getPrimitive(2,content).endLine();
+                            generator.changeStackPointer(-2);
+                        }else if(content instanceof Type.Procedure){
+                            generator.getFPtrRef(1).append("->"+PROC_PTR_FIELD_PROC_ID+" = ").getFPtr(3).endLine()
+                                     .getFPtrRef(1).append("->"+PROC_PTR_FIELD_CURRIED+" = ").getPtr(2).endLine()
+                                    .changeStackPointer(-3).endLine();
+                        }else{
                             throw new UnsupportedEncodingException("assigning to "+content+" is currently not implemented");
                         }
-                        generator.assignReference(1,content,true)
-                                .getPrimitive(2,content).endLine();
-                        generator.changeStackPointer(-2);
                     }
                     case RETURN -> generator.startLine().append("return").endLine();
                     case EXIT -> generator.startLine().append("exit((int)").getPrimitive(1,Type.INT()).append(")").endLine();

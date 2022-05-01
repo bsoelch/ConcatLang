@@ -16,8 +16,11 @@ public interface CodeGenerator {
     CodeGenerator pushReference(Type target) throws IOException;
     CodeGenerator pushPtr() throws IOException;
     CodeGenerator pushFPtr() throws IOException;
+    CodeGenerator pushFPtrRef() throws IOException;
     CodeGenerator assignPrimitive(int offset, Type target) throws IOException;
     CodeGenerator assignReference(int offset, Type target, boolean assignValue) throws IOException;
+    CodeGenerator assignPtr(int offset) throws IOException;
+    CodeGenerator assignFPtr(int offset) throws IOException;
 
     CodeGenerator popPrimitive(Type type) throws IOException;
     CodeGenerator popPtr() throws IOException;
@@ -27,8 +30,9 @@ public interface CodeGenerator {
     CodeGenerator getPrimitive(int offset, Type type) throws IOException;
     CodeGenerator getReference(int offset, Type type) throws IOException;
     CodeGenerator getPrimitiveAs(int offset, Type src, Type target) throws IOException;
-    CodeGenerator getFPtr(int offset) throws IOException;
     CodeGenerator getPtr(int offset) throws IOException;
+    CodeGenerator getFPtr(int offset) throws IOException;
+    CodeGenerator getFPtrRef(int offset) throws IOException;
     CodeGenerator appendInt(long value,boolean signed) throws IOException;
     CodeGenerator appendCodepoint(int value) throws IOException;
     CodeGenerator appendByte(byte value) throws IOException;

@@ -5,6 +5,25 @@ core  #import
 
 test proc( int => byte ){ byte cast }
 
+
+one proc( => int ){ 1 }
+two proc( => int ){ 2 }
+three proc( => int ){ 3 }
+four proc( => int ){ 4 }
+
+cmpCheck proc( int uint => int ){
+  y =::
+  x =::
+  0 res mut =::
+  x y <  if{ 1 else 0 } res .. 10 * | res =
+  x y <= if{ 1 else 0 } res .. 10 * | res =
+  x y >  if{ 1 else 0 } res .. 10 * | res =
+  x y >= if{ 1 else 0 } res .. 10 * | res =
+  x y == if{ 1 else 0 } res .. 10 * | res =
+  x y != if{ 1 else 0 } res .. 10 * | res =
+  res ..
+}
+
 main public proc( => ){
   1 2u '3' u'💻' swap rot3 over dup
   debugPrint
@@ -62,23 +81,8 @@ main public proc( => ){
    float debugPrint
    type debugPrint
    @one dup () debugPrint debugPrint
-   2 lambda( int ){ dup * } () debugPrint
-}
-
-one proc( => int ){ 1 }
-two proc( => int ){ 2 }
-three proc( => int ){ 3 }
-four proc( => int ){ 4 }
-
-cmpCheck proc( int uint => int ){
-  y =::
-  x =::
-  0 res mut =::
-  x y <  if{ 1 else 0 } res .. 10 * | res =
-  x y <= if{ 1 else 0 } res .. 10 * | res =
-  x y >  if{ 1 else 0 } res .. 10 * | res =
-  x y >= if{ 1 else 0 } res .. 10 * | res =
-  x y == if{ 1 else 0 } res .. 10 * | res =
-  x y != if{ 1 else 0 } res .. 10 * | res =
-  res ..
+   lambda( int ){ dup * } f mut =::
+   2 f () debugPrint
+   lambda( int ){ dup dup * * } f =
+   2 f () debugPrint
 }
