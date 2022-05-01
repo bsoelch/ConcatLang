@@ -4143,20 +4143,24 @@ public class Parser {
 
 
     private static void typeCheckCallPtr(TypeCheckState tState, FilePosition pos) throws RandomAccessStack.StackUnderflow, SyntaxError {
-        TypeFrame f= tState.typeStack.pop();
-        if(f.type instanceof Type.Procedure){
-            typeCheckCall("call-ptr",(Type.Procedure) f.type,pos,true,tState);
+        Type type= tState.typeStack.pop().type;
+        if(type.isReference()){//resolve references
+            type=type.content();
+            tState.ret.add(new TypedToken(TokenType.DEREFERENCE,type, pos));
+        }//no else
+        if(type instanceof Type.Procedure){
+            typeCheckCall("call-ptr",(Type.Procedure) type,pos,true,tState);
             tState.ret.add(new Token(TokenType.CALL_PTR, pos));
-        }else if(f.type instanceof Type.OverloadedProcedurePointer){
+        }else if(type instanceof Type.OverloadedProcedurePointer){
             CallMatch call = typeCheckOverloadedCall("call-ptr",
-                    ((Type.OverloadedProcedurePointer) f.type).proc,
-                    ((Type.OverloadedProcedurePointer) f.type).genArgs, pos,tState);
+                    ((Type.OverloadedProcedurePointer) type).proc,
+                    ((Type.OverloadedProcedurePointer) type).genArgs, pos,tState);
             Callable proc=call.called;
             proc.markAsUsed();
-            setOverloadedProcPtr(tState.ret,((Type.OverloadedProcedurePointer) f.type), (Value) proc);
+            setOverloadedProcPtr(tState.ret,((Type.OverloadedProcedurePointer) type), (Value) proc);
             tState.ret.add(new Token(TokenType.CALL_PTR, pos));
         }else{
-            throw new SyntaxError("invalid argument for operator '()': "+f.type, pos);
+            throw new SyntaxError("invalid argument for operator '()': "+type, pos);
         }
     }
 
