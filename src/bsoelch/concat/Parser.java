@@ -4053,6 +4053,8 @@ public class Parser {
         int offset = getInt("drop","offset", false, typeStack, ret,t.pos);
         //count: number of dropped elements
         int count = getInt("drop","count", false, typeStack, ret,t.pos);
+        int trueOffset = typeStack.count(0, offset, f->f.type.blockCount());
+        int trueCount  = typeStack.count(offset, count, f->f.type.blockCount());
         for(TypeFrame dropped: typeStack.drop(offset,count)){
             dropped.valueInfo.stackReferences--;
             if(dropped.type instanceof Type.OverloadedProcedurePointer opp){
@@ -4068,7 +4070,7 @@ public class Parser {
             */
         }
         if(count>0){
-            ret.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{offset,count},t.pos));
+            ret.add(new StackModifierToken(TokenType.STACK_DROP,new int[]{offset,count,trueOffset,trueCount},t.pos));
         }
     }
     private static void typeCheckDup(StackModifierToken t, RandomAccessStack<TypeFrame> typeStack,
@@ -4077,8 +4079,10 @@ public class Parser {
         int count =  getInt("dup","count", false,typeStack, ret, t.pos);
         //offset: number of elements between the top of the stack and the first duplicated value
         int offset = getInt("dup","offset", false,typeStack, ret, t.pos);
+        int trueOffset = typeStack.count(0, offset, f->f.type.blockCount());
+        int trueCount  = typeStack.count(offset, count, f->f.type.blockCount());
         TypeFrame[] duped= typeStack.get(offset,count,TypeFrame[].class);
-        ret.add(new StackModifierToken(TokenType.STACK_DUP,new int[]{offset,count},t.pos));
+        ret.add(new StackModifierToken(TokenType.STACK_DUP,new int[]{offset,count,trueOffset,trueCount},t.pos));
         for(TypeFrame f:duped){
             f.valueInfo.stackReferences++;
             typeStack.push(f);
@@ -4094,8 +4098,10 @@ public class Parser {
         int steps = getInt("rot","steps", true,typeStack, ret, t.pos);
         //number of rotated elements
         int count = getInt("rot","count", false,typeStack, ret, t.pos);
+        int trueCount = typeStack.count(0, count, f->f.type.blockCount());
+        int trueSteps = typeStack.count(count-steps, steps, f->f.type.blockCount());
         typeStack.rotate(count,steps);
-        ret.add(new StackModifierToken(TokenType.STACK_ROT,new int[]{count,steps},t.pos));
+        ret.add(new StackModifierToken(TokenType.STACK_ROT,new int[]{count,steps,trueCount,trueSteps},t.pos));
     }
     private static void typeCheckTypeModifier(String name, ThrowingFunction<Type,Value,SyntaxError> modifier, ArrayList<Token> ret,
                                        RandomAccessStack<TypeFrame> typeStack, FilePosition pos) throws SyntaxError,

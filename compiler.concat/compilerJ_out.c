@@ -72,21 +72,21 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   (stack->ptr++)->asByte = 0x33;
   // VALUE: codepoint:💻
   (stack->ptr++)->asCodepoint = 0x1f4bb;
-  // STACK_ROT at lib/stack:13:26 expanded at test/compiler:9:18
+  // STACK_ROT at lib/stack:15:27 expanded at test/compiler:9:18
   memmove(stack->ptr ,stack->ptr-2,1*sizeof(value_t));
   memmove(stack->ptr-2,stack->ptr-1,2*sizeof(value_t));
-  // STACK_ROT at lib/stack:14:26 expanded at test/compiler:9:23
+  // STACK_ROT at lib/stack:16:27 expanded at test/compiler:9:23
   memmove(stack->ptr ,stack->ptr-3,1*sizeof(value_t));
   memmove(stack->ptr-3,stack->ptr-2,3*sizeof(value_t));
-  // STACK_DUP at lib/stack:11:26 expanded at test/compiler:9:28
-  value_t dup_tmp = *(stack->ptr-2);
-  *(stack->ptr++) = dup_tmp;
-  // STACK_DUP at lib/stack:10:26 expanded at test/compiler:9:33
-  dup_tmp = *(stack->ptr-1);
-  *(stack->ptr++) = dup_tmp;
+  // STACK_DUP at lib/stack:13:27 expanded at test/compiler:9:28
+  memmove(stack->ptr,stack->ptr-2,1*sizeof(value_t));
+  stack->ptr += 1;
+  // STACK_DUP at lib/stack:12:27 expanded at test/compiler:9:33
+  memmove(stack->ptr,stack->ptr-1,1*sizeof(value_t));
+  stack->ptr += 1;
   // DEBUG_PRINT: byte
   printf("'%1$c' (%1$"PRIx8")\n", ((--(stack->ptr))->asByte));
-  // STACK_DROP at lib/stack:9:26 expanded at test/compiler:11:3
+  // STACK_DROP at lib/stack:11:27 expanded at test/compiler:11:3
   stack->ptr -= 1;
   // DEBUG_PRINT: uint
   printf("%"PRIu64"\n", ((--(stack->ptr))->asUint));
@@ -130,9 +130,9 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   (stack->ptr++)->asInt = 66LL;
   // CALL_PROC: ( int => byte ):@(test/compiler:6:6)
   concat_private_procedure_test0x2F_compiler_6_6(stack, NULL);
-  // STACK_DUP at lib/stack:10:26 expanded at test/compiler:28:3
-  dup_tmp = *(stack->ptr-1);
-  *(stack->ptr++) = dup_tmp;
+  // STACK_DUP at lib/stack:12:27 expanded at test/compiler:28:3
+  memmove(stack->ptr,stack->ptr-1,1*sizeof(value_t));
+  stack->ptr += 1;
   // LOCAL_DECLARE:0 (x)
   int8_t local_var_0_0 = ((--(stack->ptr))->asByte);
   // CAST at test/compiler:30:7
@@ -175,24 +175,24 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
     // CONTEXT_OPEN at test/compiler:37:13
     // VALUE: bool:false
     (stack->ptr++)->asBool = false;
-    // STACK_ROT at lib/stack:14:26 expanded at test/compiler:37:26
+    // STACK_ROT at lib/stack:16:27 expanded at test/compiler:37:26
     memmove(stack->ptr ,stack->ptr-3,1*sizeof(value_t));
     memmove(stack->ptr-3,stack->ptr-2,3*sizeof(value_t));
     // CONTEXT_CLOSE at test/compiler:37:31
     // DO: +6
   if(!((--(stack->ptr))->asBool)) break; //exit while loop
     // CONTEXT_OPEN at test/compiler:37:31
-    // STACK_DUP at lib/stack:10:26 expanded at test/compiler:38:5
-    dup_tmp = *(stack->ptr-1);
-    *(stack->ptr++) = dup_tmp;
+    // STACK_DUP at lib/stack:12:27 expanded at test/compiler:38:5
+    memmove(stack->ptr,stack->ptr-1,1*sizeof(value_t));
+    stack->ptr += 1;
     // DEBUG_PRINT: bool
     puts((((--(stack->ptr))->asBool)) ? "true" : "false");
     // CONTEXT_CLOSE at test/compiler:39:3
     // END_WHILE: -10
   }while(true);
-  // STACK_DROP at lib/stack:9:26 expanded at test/compiler:39:5
+  // STACK_DROP at lib/stack:11:27 expanded at test/compiler:39:5
   stack->ptr -= 1;
-  // STACK_DROP at lib/stack:9:26 expanded at test/compiler:39:10
+  // STACK_DROP at lib/stack:11:27 expanded at test/compiler:39:10
   stack->ptr -= 1;
   // VALUE: byte: 
   (stack->ptr++)->asByte = 0x20;
@@ -203,9 +203,9 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   // WHILE: -1
   do{
     // CONTEXT_OPEN at test/compiler:41:5
-    // STACK_DUP at lib/stack:10:26 expanded at test/compiler:42:5
-    dup_tmp = *(stack->ptr-1);
-    *(stack->ptr++) = dup_tmp;
+    // STACK_DUP at lib/stack:12:27 expanded at test/compiler:42:5
+    memmove(stack->ptr,stack->ptr-1,1*sizeof(value_t));
+    stack->ptr += 1;
     // DEBUG_PRINT: int
     printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
     // VALUE: int:1
@@ -213,9 +213,9 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
     // CALL_PROC: ( int int => int ):-
     stack->ptr -= 1;
     ((stack->ptr)-1)->asInt = (((int64_t)(((stack->ptr)-1)->asInt)) - ((int64_t)((stack->ptr)->asInt)));
-    // STACK_DUP at lib/stack:10:26 expanded at test/compiler:43:9
-    dup_tmp = *(stack->ptr-1);
-    *(stack->ptr++) = dup_tmp;
+    // STACK_DUP at lib/stack:12:27 expanded at test/compiler:43:9
+    memmove(stack->ptr,stack->ptr-1,1*sizeof(value_t));
+    stack->ptr += 1;
     // VALUE: int:0
     (stack->ptr++)->asInt = 0LL;
     // CALL_PROC: ( int int => bool ):>
@@ -224,7 +224,7 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
     // CONTEXT_CLOSE at test/compiler:44:6
     // DO_WHILE: -9
   }while(((--(stack->ptr))->asBool));
-  // STACK_DROP at lib/stack:9:26 expanded at test/compiler:44:8
+  // STACK_DROP at lib/stack:11:27 expanded at test/compiler:44:8
   stack->ptr -= 1;
   // LOCAL_READ:1 (y)
   (stack->ptr++)->asInt = local_var_0_1;

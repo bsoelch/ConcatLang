@@ -63,6 +63,20 @@ public class RandomAccessStack<T> implements Cloneable,Iterable<T>{
         return Arrays.toString(Arrays.copyOf(data,size));
     }
 
+    int count(int offset, int count, Function<T,Integer> val) throws StackUnderflow {
+        if(offset<0||count<0){
+            throw new IllegalArgumentException("offset:"+offset+" count:"+count+" size:"+size);
+        }
+        if(offset+count>size){
+            throw new StackUnderflow();
+        }
+        int res=0;
+        for(int i=0;i<count;i++){
+            //noinspection unchecked
+            res+=val.apply((T) data[size-(offset+i+1)]);
+        }
+        return res;
+    }
     public List<T> drop(int offset,int count) throws StackUnderflow {
         if(offset+count>size){
             throw new StackUnderflow();

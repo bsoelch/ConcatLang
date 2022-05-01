@@ -41,8 +41,6 @@ public class Compiler {
     static final String STACK_FIELD_POINTER="ptr";
     static final String STACK_FIELD_CAPACITY="capacity";
 
-    static final String DUP_VAR_NAME="dup_tmp";
-
     private static final class CodeGeneratorImpl implements CodeGenerator {
         final BufferedWriter out;
         private int indent;
@@ -403,7 +401,6 @@ public class Compiler {
 
     //addLater optimize code (merge consecutive push and pop operations)
     private static void compileCodeSection(CodeGenerator generator, Parser.CodeSection section) throws IOException {
-        boolean hasDupTmpVar=false;
         for(Parser.Token next:section.tokens()){
             generator.lineComment(next.toString());
             try {
@@ -450,15 +447,16 @@ public class Compiler {
                         }
                     }
                     case STACK_DUP -> {
-                        generator.startLine().append((hasDupTmpVar?"":STACK_DATA_TYPE+" ")+DUP_VAR_NAME+
-                                " = *("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+
-                                "-"+((Parser.StackModifierToken)next).args[0]+")").endLine()
-                        .append("*("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++) = "+DUP_VAR_NAME).endLine();
-                        hasDupTmpVar=true;
+                        int offset=((Parser.StackModifierToken)next).args[2];
+                        int count=((Parser.StackModifierToken)next).args[3];
+                        generator.append("memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+","+
+                                STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+(offset+count)+"," +
+                                count+"*sizeof("+STACK_DATA_TYPE+"))").endLine();
+                        generator.changeStackPointer(count);
                     }
                     case STACK_DROP -> {
-                        int offset=((Parser.StackModifierToken)next).args[0];
-                        int count=((Parser.StackModifierToken)next).args[1];
+                        int offset=((Parser.StackModifierToken)next).args[2];
+                        int count=((Parser.StackModifierToken)next).args[3];
                         if(offset>0){
                             generator.append("memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+(offset+count)+","+
                                     STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+offset+"," +
@@ -467,8 +465,8 @@ public class Compiler {
                         generator.changeStackPointer(-count);
                     }
                     case STACK_ROT -> {
-                        int count=((Parser.StackModifierToken)next).args[0];
-                        int steps=((Parser.StackModifierToken)next).args[1];
+                        int count=((Parser.StackModifierToken)next).args[2];
+                        int steps=((Parser.StackModifierToken)next).args[3];
                         generator.append("memmove("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+" ," +
                                 STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"-"+count+","+
                                 steps+"*sizeof("+STACK_DATA_TYPE+"))").endLine()

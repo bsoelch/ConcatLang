@@ -344,6 +344,20 @@ public class Type {
         return baseType!=PTR;
     }
 
+    int blockCount(){
+        if(baseType==BITS8||baseType==BITS16||baseType==BITS32||baseType==BITS64||baseType==PTR){
+            return 1;
+        }else if(baseType==MULTIBLOCK2){
+            return 2;
+        }else if(baseType==MULTIBLOCK3){
+            return 3;
+        }else if(baseType==MULTIBLOCK4){
+            return 4;
+        }else{
+            throw new UnsupportedOperationException("unexpected base-type: "+baseType);
+        }
+    }
+
     FilePosition declaredAt(){
         return Value.InternalProcedure.POSITION;
     }
