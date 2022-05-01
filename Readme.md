@@ -374,8 +374,9 @@ interacting with the specific values.
 The values in the stack are 1-indexed 
 counting from the top element 
 
-- `<offset> ?dup` pushes the element at offset `<offset>`
-  (1 indexed) in the stack
+- `<offset> <count> ??dup` pushes a (shallow) copy of the stack elements
+  with indices between `<offset>` (excluded) and
+  `<offset>+<count>` (included) on top of the stack
 - `<count> <offset> ??drop` removes all elements 
   with indices between `<offset>` (excluded) and
   `<offset>+<count>` (included) from the stack 
@@ -385,14 +386,16 @@ counting from the top element
 simple stack actions: (can be included with `stack #include`)
 
 - `dup`  duplicates the top element on the stack
+- `over` copies the 2nd element on the stack
+  to the top
+- `over2` copies the 3rd element on the stack
+  to the top
+- `<n> ?dup` copies the n-th element on the stack
+  to the top
 - `drop` removes the top element from the stack
 - `<count> ?drop` removes the top `<count>`
  elements from the stack
 - `swap` swaps the top 2 element on the stack
-- `over` copies the 2nd element on the stack 
-  to the top
-- `2over` copies the 3rd element on the stack
-  to the top
 - `rot3` rotates the top 3 elements
   ( `A B C`  -> `B C A` )
 
