@@ -436,6 +436,11 @@ public class Compiler {
                         +CONCAT_PROC_NAMED_SIGNATURE+";");
             }
         }
+        for(Map.Entry<FilePosition, Value.Procedure> dec:prog.rootContext().lambdas()){
+            writeComment(writer,"lambda "+((Parser.Callable)dec.getValue()).type()+" at "+dec.getKey());
+            writeLine(writer,CONCAT_PROC_OUT+ " " + PRIVATE_PROC_PREFIX+idOf(dec.getValue())
+                    +CONCAT_PROC_NAMED_SIGNATURE+";");
+        }
         writer.newLine();
     }
 
@@ -461,6 +466,14 @@ public class Compiler {
                 compileCodeSection(generator,(Parser.CodeSection)dec.getValue());
                 writeLine(writer,"}");
             }
+        }
+        for(Map.Entry<FilePosition, Value.Procedure> dec:prog.rootContext().lambdas()){
+            writeComment(writer,"lambda "+((Parser.Callable)dec.getValue()).type()+" at "+dec.getKey());
+            writeLine(writer,CONCAT_PROC_OUT+ " " + PRIVATE_PROC_PREFIX +idOf(dec.getValue())
+                    +CONCAT_PROC_NAMED_SIGNATURE+"{");
+            generator.setIndent(1);
+            compileCodeSection(generator, dec.getValue());
+            writeLine(writer,"}");
         }
         writer.newLine();
     }
@@ -511,6 +524,7 @@ public class Compiler {
                                         " is not supported");
                             }
                             iProc.compile.accept(generator);
+                            generator.endLine();
                         }else{
                             throw new UnsupportedOperationException("compilation of procedures of type "+
                                     callToken.called.getClass()+" is not supported");

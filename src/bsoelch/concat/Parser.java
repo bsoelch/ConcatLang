@@ -1093,6 +1093,7 @@ public class Parser {
     }
 
     static abstract class VariableContext{
+        abstract RootContext root();
         int variables=0;
 
         public int varCount() {
@@ -1174,8 +1175,6 @@ public class Parser {
 
     private static abstract  class TopLevelContext extends VariableContext{
         final ArrayList<String> imports=new ArrayList<>();
-
-        abstract RootContext root();
 
         void addImport(String path,FilePosition pos) throws SyntaxError {
             if(namespaces().contains(path)){
@@ -1288,6 +1287,7 @@ public class Parser {
         private final HashMap<String,Declareable> elements =new HashMap<>();
 
         private final HashMap<PrivateDefinitionId,Declareable> localDefinitions =new HashMap<>();
+        private final HashMap<FilePosition,Value.Procedure> lambdaDefinitions =new HashMap<>();
         HashSet<String> namespaces=new HashSet<>();
 
         RootContext() throws SyntaxError {
@@ -1310,9 +1310,13 @@ public class Parser {
         Iterable<Map.Entry<String,Declareable>> declareables(){
             return elements.entrySet();
         }
-        Set<Map.Entry<PrivateDefinitionId, Declareable>> localDeclareables(){
+        Iterable<Map.Entry<PrivateDefinitionId, Declareable>> localDeclareables(){
             return localDefinitions.entrySet();
         }
+        Iterable<Map.Entry<FilePosition, Value.Procedure>> lambdas(){
+            return lambdaDefinitions.entrySet();
+        }
+
         @Override
         RootContext root() {
             return this;
@@ -1433,6 +1437,11 @@ public class Parser {
         public BlockContext(VariableContext parent) {
             this.parent = parent;
             assert parent!=null;
+        }
+
+        @Override
+        RootContext root() {
+            return parent.root();
         }
 
         BlockContext copyWithParent(VariableContext newParent){
@@ -4207,6 +4216,7 @@ public class Parser {
                 Type.GenericProcedureType.create(t.generics.toArray(new Type.GenericParameter[0]),inTypes,outTypes,t.pos):
                 Type.Procedure.create(inTypes, outTypes,t.pos);
         Value.Procedure lambda=Value.createProcedure(null,false,procType,res.tokens,t.pos,t.endPos, newContext);
+        tState.context.root().lambdaDefinitions.put(t.pos,lambda);
         lambda.typeCheckState = Value.TypeCheckState.CHECKED;//mark lambda as checked
         //push type information
         ValueInfo lambdaOwner = new ValueInfo(lambda);

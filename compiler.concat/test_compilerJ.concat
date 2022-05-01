@@ -62,6 +62,7 @@ main public proc( => ){
    float debugPrint
    type debugPrint
    @one dup () debugPrint debugPrint
+   2 lambda( int ){ dup * } () debugPrint
 }
 
 one proc( => int ){ 1 }
