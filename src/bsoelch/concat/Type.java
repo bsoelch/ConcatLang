@@ -1980,7 +1980,7 @@ public class Type {
         }
 
         private Procedure(String name, Type[] inTypes, Type[] outTypes, FilePosition declaredAt) {
-            super(name,PTR, false);
+            super(name,MULTIBLOCK2/*ptr,curried*/, false);
             this.inTypes=inTypes;
             this.outTypes=outTypes;
             this.declaredAt = declaredAt;
@@ -2610,7 +2610,7 @@ public class Type {
         final FilePosition pushedAt;
 
         OverloadedProcedurePointer(OverloadedProcedure proc, Type[] genArgs, int tokenPos, FilePosition pushedAt) {
-            super(proc.name+" .type",PTR, false);
+            super(proc.name+" .type",MULTIBLOCK2/*ptr,curried*/, false);
             this.proc = proc;
             this.genArgs = genArgs;
             this.tokenPos = tokenPos;
