@@ -750,8 +750,10 @@ public class Type {
 
         private static Type getBaseType(String wrapperName, Type contentBase) {
             switch (wrapperName) {
-                case ARRAY,MEMORY,REFERENCE:
-                    return PTR;// data,len
+                case ARRAY:
+                    return MULTIBLOCK2;// data,len
+                case MEMORY,REFERENCE:
+                    return PTR;
                 case OPTIONAL:
                     if (contentBase == BITS8||contentBase == BITS16||contentBase == BITS32) {
                         return BITS64;

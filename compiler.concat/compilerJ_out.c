@@ -68,7 +68,9 @@ void concat_private_procedure_test0x2F_compiler_84_4(Stack* stack, value_t* curr
 // lambda ( int => int ) at test/compiler:86:4
 void concat_private_procedure_test0x2F_compiler_86_4(Stack* stack, value_t* curried);
 
-// global variables
+// constant arrays/global variables
+int8_t concat_const_array_test0x2F_compiler_88_4[4];
+int8_t concat_const_array_test0x2F_compiler_89_4[5];
 
 // procedure bodies
 
@@ -410,6 +412,27 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   ((stack->ptr)->asFPtr)(stack, (((stack->ptr)+1)->asPtr));
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
+  // GLOBAL_VALUE: byte array mut~:Test
+  (stack->ptr++)->asPtr = &concat_const_array_test0x2F_compiler_88_4;
+  (stack->ptr++)->asUint = 4ULL;
+  // DEBUG_PRINT: byte array mut~
+  stack->ptr -= 2;
+  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asPtr),(((stack->ptr)+1)->asUint));
+  // GLOBAL_VALUE: byte array mut~:Test2
+  (stack->ptr++)->asPtr = &concat_const_array_test0x2F_compiler_89_4;
+  (stack->ptr++)->asUint = 5ULL;
+  // GLOBAL_VALUE: byte array mut~:Test
+  (stack->ptr++)->asPtr = &concat_const_array_test0x2F_compiler_88_4;
+  (stack->ptr++)->asUint = 4ULL;
+  // STACK_ROT at lib/stack:15:27 expanded at test/compiler:89:19
+  memmove(stack->ptr ,stack->ptr-4,2*sizeof(value_t));
+  memmove(stack->ptr-4,stack->ptr-2,4*sizeof(value_t));
+  // DEBUG_PRINT: byte array mut~
+  stack->ptr -= 2;
+  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asPtr),(((stack->ptr)+1)->asUint));
+  // DEBUG_PRINT: byte array mut~
+  stack->ptr -= 2;
+  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asPtr),(((stack->ptr)+1)->asUint));
 }
 // procedure two ( => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_10_5(Stack* stack, value_t* curried){

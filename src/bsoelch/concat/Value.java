@@ -588,6 +588,7 @@ public abstract class Value {
     }
     //addLater ByteArray,  other primitive arrays?
     interface ArrayLike{
+        Type contentType();
         Value[] elements();
         int length();
         int capacity();//addLater rename capacity (capacity does not really return the capacity)
@@ -633,6 +634,11 @@ public abstract class Value {
             Arrays.fill(data,content);
             offset=0;
             length=capacity;
+        }
+
+        @Override
+        public Type contentType() {
+            return type.content();
         }
 
         @Override

@@ -8,6 +8,7 @@ import java.util.Map;
 public class Compiler {
     static final HashMap<Type,String> primitives =new HashMap<>();
     static final HashMap<Type,Integer> typeIds =new HashMap<>();
+    public static final String CONST_ARRAY_PREFIX = "concat_const_array_";
 
     static int ilog2(int i){
         int n=-1;
@@ -350,9 +351,14 @@ public class Compiler {
             writeComment(writer,"procedure definitions");
             writer.newLine();
             printProcedureDefinitions(writer,prog);
-            writeComment(writer,"global variables");
-            writer.newLine();
+            writeComment(writer,"constant arrays/global variables");
+            for(Map.Entry<Value.ArrayLike, FilePosition> e:prog.rootContext().constArrays().entrySet()){
+                Value.ArrayLike array=e.getKey();
+                String primType=primitives.get(array.contentType());
+                writeLine(writer,primType==null?STACK_DATA_TYPE:primType+ " " + CONST_ARRAY_PREFIX +idOf(e.getValue())+"["+array.length()+"];");
+            }
             // addLater global variables
+            writer.newLine();
             writeComment(writer,"procedure bodies");
             writer.newLine();
             printProcedureBodies(writer,prog);
@@ -452,8 +458,10 @@ public class Compiler {
         return id.toString();
     }
     private static String idOf(Parser.Declareable dec) {
-        FilePosition pos=dec.declaredAt();
-        return toCIdentifier(pos.fileId)+"_"+pos.line+"_"+pos.posInLine;
+        return idOf(dec.declaredAt());
+    }
+    private static String idOf(FilePosition pos) {
+        return toCIdentifier(pos.fileId) + "_" + pos.line + "_" + pos.posInLine;
     }
 
     //TODO overloaded procedures
@@ -545,6 +553,13 @@ public class Compiler {
                             generator.pushFPtr().append("&"+(proc.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX)+idOf(proc))
                                     .endLine();
                             generator.pushPtr().append("NULL").endLine();
+                        }else if(value instanceof Value.ArrayLike){
+                            FilePosition firstDeclaration=section.context().root().constArrays().get(value);
+                            if(firstDeclaration==null){
+                                throw new UnsupportedEncodingException("currently only constant arrays are supported");
+                            }
+                            generator.pushPtr().append("&"+CONST_ARRAY_PREFIX+idOf(firstDeclaration)).endLine();
+                            generator.pushPrimitive(Type.UINT()).appendInt(value.length(),false).endLine();
                         }else{
                             throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
                         }
@@ -613,6 +628,10 @@ public class Compiler {
                             generator.changeStackPointer(-2)
                                     .append("printf(\"procedure @%p (curried: @%p)\\n\", ").getFPtr(0).
                                     append(",").getPtr(-1).append(")").endLine();
+                        }else if(t.isArray()&&!t.isMutable()){
+                            generator.changeStackPointer(-2)
+                                    .append("printf(\"array @%p length: %\"PRIu64\"\\n\", ").getPtr(0).
+                                    append(",").getPrimitive(-1,Type.UINT()).append(")").endLine();
                         }else{
                             System.err.println("unsupported type in debugPrint:"+t);
                             //TODO better output for debug print

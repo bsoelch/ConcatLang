@@ -1288,6 +1288,7 @@ public class Parser {
 
         private final HashMap<PrivateDefinitionId,Declareable> localDefinitions =new HashMap<>();
         private final HashMap<FilePosition,Value.Procedure> lambdaDefinitions =new HashMap<>();
+        private final HashMap<Value.ArrayLike,FilePosition> constArrays =new HashMap<>();
         HashSet<String> namespaces=new HashSet<>();
 
         RootContext() throws SyntaxError {
@@ -1315,6 +1316,9 @@ public class Parser {
         }
         Iterable<Map.Entry<FilePosition, Value.Procedure>> lambdas(){
             return lambdaDefinitions.entrySet();
+        }
+        Map<Value.ArrayLike, FilePosition> constArrays() {
+            return constArrays;
         }
 
         @Override
@@ -2050,7 +2054,7 @@ public class Parser {
                 }
                 return;
             }
-            if(parseConstant(str,tokens,pos))
+            if(parseConstant(pState,str,pos))
                 return;
             if(str.startsWith("#define:")){
                 long argCount;
@@ -2110,8 +2114,9 @@ public class Parser {
                 case "#loc" ->{ // pushes the current location on the stack
                     FilePosition basePos=pos;
                     while(basePos.expandedAt!=null){basePos=basePos.expandedAt;}
-                    tokens.add(new ValueToken(Value.ofString(FilePosition.ID_MODE? basePos.fileId :basePos.path,
-                            false),pos));
+                    Value string = Value.ofString(FilePosition.ID_MODE ? basePos.fileId : basePos.path,false);
+                    tokens.add(new ValueToken(string,pos));
+                    pState.rootContext.constArrays.putIfAbsent((Value.ArrayLike) string,pos);
                     tokens.add(new ValueToken(Value.ofInt(basePos.line,true),pos));
                     tokens.add(new ValueToken(Value.ofInt(basePos.posInLine,true),pos));
                 }
@@ -2344,13 +2349,13 @@ public class Parser {
                 System.out.println("unknown compiler command: "+commands[0]);
         }
     }
-    private static boolean parseConstant(String str, ArrayList<Token> tokens, FilePosition pos) throws SyntaxError {
+    private static boolean parseConstant(ParserState pState,String str, FilePosition pos) throws SyntaxError {
         if(str.charAt(0)=='\''){//unicode char literal
             str=str.substring(1);
             if(str.codePoints().count()==1){
                 int codePoint = str.codePointAt(0);
                 if(codePoint<0x7f){
-                    tokens.add(new ValueToken(Value.ofByte((byte)codePoint), pos));
+                    pState.uncheckedCode.add(new ValueToken(Value.ofByte((byte)codePoint), pos));
                 }else{
                     throw new SyntaxError("codePoint "+codePoint+
                             "does not fit in one byte " +
@@ -2364,37 +2369,41 @@ public class Parser {
             str=str.substring(2);
             if(str.codePoints().count()==1){
                 int codePoint = str.codePointAt(0);
-                tokens.add(new ValueToken(Value.ofChar(codePoint), pos));
+                pState.uncheckedCode.add(new ValueToken(Value.ofChar(codePoint), pos));
             }else{
                 throw new SyntaxError("A char-literal must contain exactly one codepoint", pos);
             }
             return true;
         }else if(str.charAt(0)=='"'){
             str=str.substring(1);
-            tokens.add(new ValueToken(TokenType.GLOBAL_VALUE,Value.ofString(str,false),  pos));
+            Value string = Value.ofString(str, false);
+            pState.uncheckedCode.add(new ValueToken(TokenType.GLOBAL_VALUE, string,  pos));
+            pState.rootContext.constArrays.putIfAbsent((Value.ArrayLike) string,pos);
             return true;
         }else if(str.startsWith("u\"")){
             str=str.substring(2);
-            tokens.add(new ValueToken(TokenType.GLOBAL_VALUE,Value.ofString(str,true),  pos));
+            Value string = Value.ofString(str, true);
+            pState.uncheckedCode.add(new ValueToken(TokenType.GLOBAL_VALUE,Value.ofString(str,true),  pos));
+            pState.rootContext.constArrays.putIfAbsent((Value.ArrayLike) string,pos);
             return true;
         }
         try{
-            if (tryParseInt(tokens, str,pos)) {
+            if (tryParseInt(pState.uncheckedCode, str,pos)) {
                 return true;
             }else if(floatDec.matcher(str).matches()){
                 //dez-Float
                 double d = Double.parseDouble(str);
-                tokens.add(new ValueToken(Value.ofFloat(d), pos));
+                pState.uncheckedCode.add(new ValueToken(Value.ofFloat(d), pos));
                 return true;
             }else if(floatBin.matcher(str).matches()){
                 //bin-Float
                 double d= Value.parseFloat(str.substring(BIN_PREFIX.length()),2);
-                tokens.add(new ValueToken(Value.ofFloat(d), pos));
+                pState.uncheckedCode.add(new ValueToken(Value.ofFloat(d), pos));
                 return true;
             }else if(floatHex.matcher(str).matches()){
                 //hex-Float
                 double d=Value.parseFloat(str.substring(BIN_PREFIX.length()),16);
-                tokens.add(new ValueToken(Value.ofFloat(d), pos));
+                pState.uncheckedCode.add(new ValueToken(Value.ofFloat(d), pos));
                 return true;
             }
         }catch(ConcatRuntimeError|NumberFormatException e){
@@ -3705,6 +3714,7 @@ public class Parser {
                                 }
                                 Value array = Value.createArray(Type.arrayOf(type), values.toArray(Value[]::new));
                                 tState.typeStack.push(new TypeFrame(array.type,new ValueInfo(OwnerInfo.OUT_OF_SCOPE, array),pos));
+                                tState.context.root().constArrays.putIfAbsent((Value.ArrayLike) array,pos);
 
                                 ret.add(new ValueToken(array, open.startPos));
                             } catch (ConcatRuntimeError e) {

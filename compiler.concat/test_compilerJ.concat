@@ -85,4 +85,6 @@ main public proc( => ){
    2 f () debugPrint
    lambda( int ){ dup dup * * } f =
    2 f () debugPrint
+   "Test" debugPrint
+   "Test2" "Test" swap debugPrint debugPrint
 }
