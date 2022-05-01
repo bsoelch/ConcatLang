@@ -46,17 +46,17 @@ union value_t_Impl {
 // procedure main ( => )
 void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curried);
 // procedure two ( => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_67_5(Stack* stack, value_t* curried);
+void concat_private_procedure_test0x2F_compiler_68_5(Stack* stack, value_t* curried);
 // procedure cmpCheck ( int uint => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_71_10(Stack* stack, value_t* curried);
+void concat_private_procedure_test0x2F_compiler_72_10(Stack* stack, value_t* curried);
 // procedure three ( => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_68_7(Stack* stack, value_t* curried);
+void concat_private_procedure_test0x2F_compiler_69_7(Stack* stack, value_t* curried);
 // procedure test ( int => byte ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curried);
 // procedure one ( => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_66_5(Stack* stack, value_t* curried);
+void concat_private_procedure_test0x2F_compiler_67_5(Stack* stack, value_t* curried);
 // procedure four ( => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_69_6(Stack* stack, value_t* curried);
+void concat_private_procedure_test0x2F_compiler_70_6(Stack* stack, value_t* curried);
 
 // global variables
 
@@ -248,70 +248,70 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   (stack->ptr++)->asInt = -1LL;
   // VALUE: uint:1
   (stack->ptr++)->asUint = 1ULL;
-  // CALL_PROC: ( int uint => int ):@(test/compiler:71:10)
-  concat_private_procedure_test0x2F_compiler_71_10(stack, NULL);
+  // CALL_PROC: ( int uint => int ):@(test/compiler:72:10)
+  concat_private_procedure_test0x2F_compiler_72_10(stack, NULL);
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
   // VALUE: int:1
   (stack->ptr++)->asInt = 1LL;
   // VALUE: uint:2
   (stack->ptr++)->asUint = 2ULL;
-  // CALL_PROC: ( int uint => int ):@(test/compiler:71:10)
-  concat_private_procedure_test0x2F_compiler_71_10(stack, NULL);
+  // CALL_PROC: ( int uint => int ):@(test/compiler:72:10)
+  concat_private_procedure_test0x2F_compiler_72_10(stack, NULL);
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
   // VALUE: int:0
   (stack->ptr++)->asInt = 0LL;
   // VALUE: uint:1
   (stack->ptr++)->asUint = 1ULL;
-  // CALL_PROC: ( int uint => int ):@(test/compiler:71:10)
-  concat_private_procedure_test0x2F_compiler_71_10(stack, NULL);
+  // CALL_PROC: ( int uint => int ):@(test/compiler:72:10)
+  concat_private_procedure_test0x2F_compiler_72_10(stack, NULL);
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
   // VALUE: int:1
   (stack->ptr++)->asInt = 1LL;
   // VALUE: uint:0
   (stack->ptr++)->asUint = 0ULL;
-  // CALL_PROC: ( int uint => int ):@(test/compiler:71:10)
-  concat_private_procedure_test0x2F_compiler_71_10(stack, NULL);
+  // CALL_PROC: ( int uint => int ):@(test/compiler:72:10)
+  concat_private_procedure_test0x2F_compiler_72_10(stack, NULL);
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
   // VALUE: int:1
   (stack->ptr++)->asInt = 1LL;
   // VALUE: uint:18446744073709551615
   (stack->ptr++)->asUint = 18446744073709551615ULL;
-  // CALL_PROC: ( int uint => int ):@(test/compiler:71:10)
-  concat_private_procedure_test0x2F_compiler_71_10(stack, NULL);
+  // CALL_PROC: ( int uint => int ):@(test/compiler:72:10)
+  concat_private_procedure_test0x2F_compiler_72_10(stack, NULL);
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
-  // CALL_PROC: ( => int ):@(test/compiler:66:5)
-  concat_private_procedure_test0x2F_compiler_66_5(stack, NULL);
+  // CALL_PROC: ( => int ):@(test/compiler:67:5)
+  concat_private_procedure_test0x2F_compiler_67_5(stack, NULL);
   // CALL_PROC: ( int => int ):~
   ((stack->ptr)-1)->asInt =  ~ (((stack->ptr)-1)->asInt);
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
-  // CALL_PROC: ( => int ):@(test/compiler:66:5)
-  concat_private_procedure_test0x2F_compiler_66_5(stack, NULL);
+  // CALL_PROC: ( => int ):@(test/compiler:67:5)
+  concat_private_procedure_test0x2F_compiler_67_5(stack, NULL);
   // CALL_PROC: ( int => int ):-_
   ((stack->ptr)-1)->asInt =  - (((stack->ptr)-1)->asInt);
   // CALL_PROC: ( int => int ):~
   ((stack->ptr)-1)->asInt =  ~ (((stack->ptr)-1)->asInt);
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
-  // CALL_PROC: ( => int ):@(test/compiler:66:5)
-  concat_private_procedure_test0x2F_compiler_66_5(stack, NULL);
   // CALL_PROC: ( => int ):@(test/compiler:67:5)
   concat_private_procedure_test0x2F_compiler_67_5(stack, NULL);
+  // CALL_PROC: ( => int ):@(test/compiler:68:5)
+  concat_private_procedure_test0x2F_compiler_68_5(stack, NULL);
   // CALL_PROC: ( int int => int ):|
   stack->ptr -= 1;
   ((stack->ptr)-1)->asInt = (((int64_t)(((stack->ptr)-1)->asInt)) | ((int64_t)((stack->ptr)->asInt)));
-  // CALL_PROC: ( => int ):@(test/compiler:68:7)
-  concat_private_procedure_test0x2F_compiler_68_7(stack, NULL);
+  // CALL_PROC: ( => int ):@(test/compiler:69:7)
+  concat_private_procedure_test0x2F_compiler_69_7(stack, NULL);
   // CALL_PROC: ( int int => int ):&
   stack->ptr -= 1;
   ((stack->ptr)-1)->asInt = (((int64_t)(((stack->ptr)-1)->asInt)) & ((int64_t)((stack->ptr)->asInt)));
-  // CALL_PROC: ( => int ):@(test/compiler:69:6)
-  concat_private_procedure_test0x2F_compiler_69_6(stack, NULL);
+  // CALL_PROC: ( => int ):@(test/compiler:70:6)
+  concat_private_procedure_test0x2F_compiler_70_6(stack, NULL);
   // CALL_PROC: ( int int => int ):xor
   stack->ptr -= 1;
   ((stack->ptr)-1)->asInt = (((int64_t)(((stack->ptr)-1)->asInt)) ^ ((int64_t)((stack->ptr)->asInt)));
@@ -345,14 +345,28 @@ void concat_public_procedure_test0x2F_compiler_8_13(Stack* stack, value_t* curri
   (stack->ptr++)->asType = 17/* type */;
   // DEBUG_PRINT: type
   printf("%"PRIx64"\n", ((--(stack->ptr))->asUint));
+  // VALUE: ( => int ):@(test/compiler:67:5)
+  (stack->ptr++)->asFPtr = &concat_private_procedure_test0x2F_compiler_67_5;
+  (stack->ptr++)->asPtr = NULL;
+  // STACK_DUP at lib/stack:12:27 expanded at test/compiler:64:9
+  memmove(stack->ptr,stack->ptr-2,2*sizeof(value_t));
+  stack->ptr += 2;
+  // CALL_PTR at test/compiler:64:13
+  stack->ptr -= 2;
+  ((stack->ptr)->asFPtr)(stack, (((stack->ptr)+1)->asPtr));
+  // DEBUG_PRINT: int
+  printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
+  // DEBUG_PRINT: ( => int )
+  stack->ptr -= 2;
+  printf("procedure @%p (curried: @%p)\n", ((stack->ptr)->asFPtr),(((stack->ptr)+1)->asPtr));
 }
 // procedure two ( => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_67_5(Stack* stack, value_t* curried){
+void concat_private_procedure_test0x2F_compiler_68_5(Stack* stack, value_t* curried){
   // VALUE: int:2
   (stack->ptr++)->asInt = 2LL;
 }
 // procedure cmpCheck ( int uint => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_71_10(Stack* stack, value_t* curried){
+void concat_private_procedure_test0x2F_compiler_72_10(Stack* stack, value_t* curried){
   // LOCAL_DECLARE:0 (y)
   uint64_t local_var_0_0 = ((--(stack->ptr))->asUint);
   // LOCAL_DECLARE:1 (x)
@@ -368,44 +382,6 @@ void concat_private_procedure_test0x2F_compiler_71_10(Stack* stack, value_t* cur
   // CALL_PROC: ( int uint => bool ):<
   stack->ptr -= 1;
   ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) <  0 || (((stack->ptr)-1)->asInt) < ((stack->ptr)->asUint));
-  // IF: +5
-  if(((--(stack->ptr))->asBool)){
-    // CONTEXT_OPEN at test/compiler:75:10
-    // VALUE: int:1
-    (stack->ptr++)->asInt = 1LL;
-    // CONTEXT_CLOSE at test/compiler:75:16
-    // ELSE: +4
-  }else{
-    // CONTEXT_OPEN at test/compiler:75:16
-    // VALUE: int:0
-    (stack->ptr++)->asInt = 0LL;
-    // CONTEXT_CLOSE at test/compiler:75:23
-    // END_IF: +1
-  }
-  // LOCAL_REFERENCE_TO:2 (res)
-  (stack->ptr++)->asIntRef = &local_var_0_2;
-  // DEREFERENCE: int
-  ((stack->ptr)-1)->asInt = *(((stack->ptr)-1)->asIntRef);
-  // VALUE: int:10
-  (stack->ptr++)->asInt = 10LL;
-  // CALL_PROC: ( int int => int ):*
-  stack->ptr -= 1;
-  ((stack->ptr)-1)->asInt = (((int64_t)(((stack->ptr)-1)->asInt)) * ((int64_t)((stack->ptr)->asInt)));
-  // CALL_PROC: ( int int => int ):|
-  stack->ptr -= 1;
-  ((stack->ptr)-1)->asInt = (((int64_t)(((stack->ptr)-1)->asInt)) | ((int64_t)((stack->ptr)->asInt)));
-  // LOCAL_REFERENCE_TO:2 (res)
-  (stack->ptr++)->asIntRef = &local_var_0_2;
-  // ASSIGN: int
-  *((stack->ptr)-1)->asIntRef = (((stack->ptr)-2)->asInt);
-  stack->ptr -= 2;
-  // LOCAL_READ:1 (x)
-  (stack->ptr++)->asInt = local_var_0_1;
-  // LOCAL_READ:0 (y)
-  (stack->ptr++)->asUint = local_var_0_0;
-  // CALL_PROC: ( int uint => bool ):<=
-  stack->ptr -= 1;
-  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) <  0 || (((stack->ptr)-1)->asInt) <= ((stack->ptr)->asUint));
   // IF: +5
   if(((--(stack->ptr))->asBool)){
     // CONTEXT_OPEN at test/compiler:76:10
@@ -441,9 +417,9 @@ void concat_private_procedure_test0x2F_compiler_71_10(Stack* stack, value_t* cur
   (stack->ptr++)->asInt = local_var_0_1;
   // LOCAL_READ:0 (y)
   (stack->ptr++)->asUint = local_var_0_0;
-  // CALL_PROC: ( int uint => bool ):>
+  // CALL_PROC: ( int uint => bool ):<=
   stack->ptr -= 1;
-  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) >= 0 && (((stack->ptr)-1)->asInt) > ((stack->ptr)->asUint));
+  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) <  0 || (((stack->ptr)-1)->asInt) <= ((stack->ptr)->asUint));
   // IF: +5
   if(((--(stack->ptr))->asBool)){
     // CONTEXT_OPEN at test/compiler:77:10
@@ -479,9 +455,9 @@ void concat_private_procedure_test0x2F_compiler_71_10(Stack* stack, value_t* cur
   (stack->ptr++)->asInt = local_var_0_1;
   // LOCAL_READ:0 (y)
   (stack->ptr++)->asUint = local_var_0_0;
-  // CALL_PROC: ( int uint => bool ):>=
+  // CALL_PROC: ( int uint => bool ):>
   stack->ptr -= 1;
-  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) >= 0 && (((stack->ptr)-1)->asInt) >= ((stack->ptr)->asUint));
+  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) >= 0 && (((stack->ptr)-1)->asInt) > ((stack->ptr)->asUint));
   // IF: +5
   if(((--(stack->ptr))->asBool)){
     // CONTEXT_OPEN at test/compiler:78:10
@@ -517,9 +493,9 @@ void concat_private_procedure_test0x2F_compiler_71_10(Stack* stack, value_t* cur
   (stack->ptr++)->asInt = local_var_0_1;
   // LOCAL_READ:0 (y)
   (stack->ptr++)->asUint = local_var_0_0;
-  // CALL_PROC: ( int uint => bool ):==
+  // CALL_PROC: ( int uint => bool ):>=
   stack->ptr -= 1;
-  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) >= 0 && (((stack->ptr)-1)->asInt) == ((stack->ptr)->asUint));
+  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) >= 0 && (((stack->ptr)-1)->asInt) >= ((stack->ptr)->asUint));
   // IF: +5
   if(((--(stack->ptr))->asBool)){
     // CONTEXT_OPEN at test/compiler:79:10
@@ -555,9 +531,9 @@ void concat_private_procedure_test0x2F_compiler_71_10(Stack* stack, value_t* cur
   (stack->ptr++)->asInt = local_var_0_1;
   // LOCAL_READ:0 (y)
   (stack->ptr++)->asUint = local_var_0_0;
-  // CALL_PROC: ( int uint => bool ):!=
+  // CALL_PROC: ( int uint => bool ):==
   stack->ptr -= 1;
-  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) <  0 || (((stack->ptr)-1)->asInt) != ((stack->ptr)->asUint));
+  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) >= 0 && (((stack->ptr)-1)->asInt) == ((stack->ptr)->asUint));
   // IF: +5
   if(((--(stack->ptr))->asBool)){
     // CONTEXT_OPEN at test/compiler:80:10
@@ -589,13 +565,51 @@ void concat_private_procedure_test0x2F_compiler_71_10(Stack* stack, value_t* cur
   // ASSIGN: int
   *((stack->ptr)-1)->asIntRef = (((stack->ptr)-2)->asInt);
   stack->ptr -= 2;
+  // LOCAL_READ:1 (x)
+  (stack->ptr++)->asInt = local_var_0_1;
+  // LOCAL_READ:0 (y)
+  (stack->ptr++)->asUint = local_var_0_0;
+  // CALL_PROC: ( int uint => bool ):!=
+  stack->ptr -= 1;
+  ((stack->ptr)-1)->asBool = ((((stack->ptr)-1)->asInt) <  0 || (((stack->ptr)-1)->asInt) != ((stack->ptr)->asUint));
+  // IF: +5
+  if(((--(stack->ptr))->asBool)){
+    // CONTEXT_OPEN at test/compiler:81:10
+    // VALUE: int:1
+    (stack->ptr++)->asInt = 1LL;
+    // CONTEXT_CLOSE at test/compiler:81:16
+    // ELSE: +4
+  }else{
+    // CONTEXT_OPEN at test/compiler:81:16
+    // VALUE: int:0
+    (stack->ptr++)->asInt = 0LL;
+    // CONTEXT_CLOSE at test/compiler:81:23
+    // END_IF: +1
+  }
+  // LOCAL_REFERENCE_TO:2 (res)
+  (stack->ptr++)->asIntRef = &local_var_0_2;
+  // DEREFERENCE: int
+  ((stack->ptr)-1)->asInt = *(((stack->ptr)-1)->asIntRef);
+  // VALUE: int:10
+  (stack->ptr++)->asInt = 10LL;
+  // CALL_PROC: ( int int => int ):*
+  stack->ptr -= 1;
+  ((stack->ptr)-1)->asInt = (((int64_t)(((stack->ptr)-1)->asInt)) * ((int64_t)((stack->ptr)->asInt)));
+  // CALL_PROC: ( int int => int ):|
+  stack->ptr -= 1;
+  ((stack->ptr)-1)->asInt = (((int64_t)(((stack->ptr)-1)->asInt)) | ((int64_t)((stack->ptr)->asInt)));
+  // LOCAL_REFERENCE_TO:2 (res)
+  (stack->ptr++)->asIntRef = &local_var_0_2;
+  // ASSIGN: int
+  *((stack->ptr)-1)->asIntRef = (((stack->ptr)-2)->asInt);
+  stack->ptr -= 2;
   // LOCAL_REFERENCE_TO:2 (res)
   (stack->ptr++)->asIntRef = &local_var_0_2;
   // DEREFERENCE: int
   ((stack->ptr)-1)->asInt = *(((stack->ptr)-1)->asIntRef);
 }
 // procedure three ( => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_68_7(Stack* stack, value_t* curried){
+void concat_private_procedure_test0x2F_compiler_69_7(Stack* stack, value_t* curried){
   // VALUE: int:3
   (stack->ptr++)->asInt = 3LL;
 }
@@ -605,12 +619,12 @@ void concat_private_procedure_test0x2F_compiler_6_6(Stack* stack, value_t* curri
   ((stack->ptr)-1)->asByte = (((stack->ptr)-1)->asInt);
 }
 // procedure one ( => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_66_5(Stack* stack, value_t* curried){
+void concat_private_procedure_test0x2F_compiler_67_5(Stack* stack, value_t* curried){
   // VALUE: int:1
   (stack->ptr++)->asInt = 1LL;
 }
 // procedure four ( => int ) in test/compiler
-void concat_private_procedure_test0x2F_compiler_69_6(Stack* stack, value_t* curried){
+void concat_private_procedure_test0x2F_compiler_70_6(Stack* stack, value_t* curried){
   // VALUE: int:4
   (stack->ptr++)->asInt = 4LL;
 }

@@ -41,6 +41,10 @@ public class Compiler {
     static final String STACK_FIELD_POINTER="ptr";
     static final String STACK_FIELD_CAPACITY="capacity";
 
+    public static final String FPTR_NAME = "asFPtr";
+    public static final String FPTR_REF_NAME = FPTR_NAME+"Ref";
+    public static final String PTR_NAME = "asPtr";
+
     private static final class CodeGeneratorImpl implements CodeGenerator {
         final BufferedWriter out;
         private int indent;
@@ -107,20 +111,37 @@ public class Compiler {
             writeIndent(out,indent);
             return this;
         }
+
+        void pushRaw() throws IOException {
+            if (!unfinishedLine)
+                startLine();
+            out.write("(" + STACK_ARG_NAME + "->" + STACK_FIELD_POINTER + "++)");
+        }
         @Override
         public CodeGenerator pushPrimitive(Type target) throws IOException {
-            if(!unfinishedLine)
-                startLine();
-            out.write("("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++)->"+typeWrapperName(target)+" = ");
+            pushRaw();
+            out.write("->"+typeWrapperName(target)+" = ");
             return this;
         }
         @Override
         public CodeGenerator pushReference(Type target) throws IOException {
-            if(!unfinishedLine)
-                startLine();
-            out.write("("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"++)->"+typeRefName(target)+" = ");
+            pushRaw();
+            out.write("->"+typeRefName(target)+" = ");
             return this;
         }
+        @Override
+        public CodeGenerator pushFPtr() throws IOException {
+            pushRaw();
+            out.write("->"+FPTR_NAME+" = ");
+            return this;
+        }
+        @Override
+        public CodeGenerator pushPtr() throws IOException {
+            pushRaw();
+            out.write("->"+PTR_NAME+" = ");
+            return this;
+        }
+
         @Override
         public CodeGenerator assignPrimitive(int offset, Type target) throws IOException {
             if(!unfinishedLine)
@@ -154,11 +175,36 @@ public class Compiler {
             }
             return this;
         }
+        void popRaw() throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("(--("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"))");
+        }
         @Override
         public CodeGenerator popPrimitive(Type type) throws IOException {
             if(!unfinishedLine)
                 startLine();
-            out.write("((--("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"))->"+typeWrapperName(type)+")");
+            out.write("(");
+            popRaw();
+            out.write("->"+typeWrapperName(type)+")");
+            return this;
+        }
+        @Override
+        public CodeGenerator popPtr() throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("(");
+            popRaw();
+            out.write("->"+PTR_NAME+")");
+            return this;
+        }
+        @Override
+        public CodeGenerator popFPtr() throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("(");
+            popRaw();
+            out.write("->"+FPTR_NAME+")");
             return this;
         }
         @Override
@@ -200,6 +246,24 @@ public class Compiler {
             out.write("(("+primitives.get(target)+")");
             getPrimitive(offset,src);
             out.write(")");
+            return this;
+        }
+        @Override
+        public CodeGenerator getFPtr(int offset) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("(");
+            getRaw(offset);
+            out.write("->"+FPTR_NAME+")");
+            return this;
+        }
+        @Override
+        public CodeGenerator getPtr(int offset) throws IOException {
+            if(!unfinishedLine)
+                startLine();
+            out.write("(");
+            getRaw(offset);
+            out.write("->"+PTR_NAME+")");
             return this;
         }
 
@@ -297,6 +361,8 @@ public class Compiler {
     }
 
     private static String typeWrapperName(Type primitive){
+        if(!primitives.containsKey(primitive))
+            throw new IllegalArgumentException(primitive+" is no primitive type");
         return "as"+Character.toUpperCase(primitive.name.charAt(0))+primitive.name.substring(1);
     }
     private static String typeRefName(Type primitive){
@@ -328,9 +394,9 @@ public class Compiler {
             writeLine(writer,1,e.getValue()+"  "+typeWrapperName(e.getKey())+";");
             writeLine(writer,1,e.getValue()+"* "+typeRefName(e.getKey())+";");
         }
-        writeLine(writer,1,"fptr_t  asFPtr;");
-        writeLine(writer,1,"fptr_t* asFPtrRef;");
-        writeLine(writer,1,"ptr_t   asPtr;");
+        writeLine(writer,1, "fptr_t  "+FPTR_NAME+";");
+        writeLine(writer,1, "fptr_t* "+FPTR_REF_NAME+";");
+        writeLine(writer,1, "ptr_t   "+PTR_NAME+";");
         writeLine(writer,"};");
         writer.newLine();
     }
@@ -425,7 +491,11 @@ public class Compiler {
                             }else {
                                 throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
                             }
-                        }else {
+                        }else if(value instanceof Value.Procedure proc){
+                            generator.pushFPtr().append("&"+(proc.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX)+idOf(proc))
+                                    .endLine();
+                            generator.pushPtr().append("NULL").endLine();
+                        }else{
                             throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
                         }
                     }
@@ -446,6 +516,9 @@ public class Compiler {
                                     callToken.called.getClass()+" is not supported");
                         }
                     }
+                    case CALL_PTR ->
+                        generator.changeStackPointer(-2)
+                                .getFPtr(0).append("("+STACK_ARG_NAME+", ").getPtr(-1).append(")").endLine();
                     case STACK_DUP -> {
                         int offset=((Parser.StackModifierToken)next).args[2];
                         int count=((Parser.StackModifierToken)next).args[3];
@@ -485,6 +558,10 @@ public class Compiler {
                                     "\"\\n\", ").popPrimitive(t).append(")").endLine();
                         }else if(t==Type.BOOL){
                             generator.append( "puts((").popPrimitive(t).append(") ? \"true\" : \"false\")").endLine();
+                        }else if(t instanceof Type.Procedure){
+                            generator.changeStackPointer(-2)
+                                    .append("printf(\"procedure @%p (curried: @%p)\\n\", ").getFPtr(0).
+                                    append(",").getPtr(-1).append(")").endLine();
                         }else{
                             System.err.println("unsupported type in debugPrint:"+t);
                             //TODO better output for debug print
@@ -579,7 +656,6 @@ public class Compiler {
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
-                    case CALL_PTR -> throw new UnsupportedOperationException("compiling CALL_PTR  is currently not implemented");
                     case ASSERT -> throw new UnsupportedOperationException("compiling ASSERT  is currently not implemented");
                     case SWITCH -> throw new UnsupportedOperationException("compiling SWITCH  is currently not implemented");
                     case TUPLE_GET_INDEX -> throw new UnsupportedOperationException("compiling TUPLE_GET_INDEX  is currently not implemented");
@@ -601,6 +677,8 @@ public class Compiler {
         if(primitives.containsKey(src)&&primitives.containsKey(target)){
             //TODO check if direct C-cast is allowed
             generator.assignPrimitive(offset,target).getPrimitive(offset,src).endLine();
+        }else if(src instanceof Type.Procedure&&target instanceof Type.Procedure){
+            assert src.canCastTo(target)!= Type.CastType.NONE;//casting between procedures only changes type-info
         }else{
             throw new UnsupportedEncodingException("casting from "+src+" to "+target+" is currently not supported");
         }

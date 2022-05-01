@@ -61,6 +61,7 @@ main public proc( => ){
    uint debugPrint
    float debugPrint
    type debugPrint
+   @one dup () debugPrint debugPrint
 }
 
 one proc( => int ){ 1 }
