@@ -13,26 +13,20 @@ public interface CodeGenerator {
 
     CodeGenerator startLine() throws IOException;
     CodeGenerator pushPrimitive(Type target) throws IOException;
-    CodeGenerator pushReference(Type target) throws IOException;
-    CodeGenerator pushPtr() throws IOException;
+    CodeGenerator pushPointer(Type target) throws IOException;
     CodeGenerator pushFPtr() throws IOException;
-    CodeGenerator pushFPtrRef() throws IOException;
     CodeGenerator assignPrimitive(int offset, Type target) throws IOException;
-    CodeGenerator assignReference(int offset, Type target, boolean assignValue) throws IOException;
-    CodeGenerator assignPtr(int offset) throws IOException;
+    CodeGenerator assignPointer(int offset, Type target, boolean assignValue) throws IOException;
     CodeGenerator assignFPtr(int offset) throws IOException;
 
     CodeGenerator popPrimitive(Type type) throws IOException;
-    CodeGenerator popPtr() throws IOException;
     CodeGenerator popFPtr() throws IOException;
 
     CodeGenerator getRaw(int offset) throws IOException;
     CodeGenerator getPrimitive(int offset, Type type) throws IOException;
-    CodeGenerator getReference(int offset, Type type) throws IOException;
+    CodeGenerator getPointer(int offset, Type type) throws IOException;
     CodeGenerator getPrimitiveAs(int offset, Type src, Type target) throws IOException;
-    CodeGenerator getPtr(int offset) throws IOException;
     CodeGenerator getFPtr(int offset) throws IOException;
-    CodeGenerator getFPtrRef(int offset) throws IOException;
 
     CodeGenerator getField(String name,boolean isPtr) throws IOException;
     CodeGenerator appendInt(long value,boolean signed) throws IOException;

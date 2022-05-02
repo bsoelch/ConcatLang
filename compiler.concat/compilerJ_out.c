@@ -42,7 +42,7 @@ union value_t_Impl {
   type_t* asTypeRef;
   fptr_t  asFPtr;
   CurriedProcPtr* asFPtrRef;
-  ptr_t   asPtr;
+  value_t*   asAny;
 };
 
 // type definitions
@@ -359,80 +359,80 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   printf("%"PRIx64"\n", ((--(stack->ptr))->asUint));
   // VALUE: ( => int ):@(test/compiler:9:5)
   (stack->ptr++)->asFPtr = &concat_private_procedure_test0x2F_compiler_9_5;
-  (stack->ptr++)->asPtr = NULL;
+  (stack->ptr++)->asAny = NULL;
   // STACK_DUP at lib/stack:12:27 expanded at test/compiler:83:9
   memmove(stack->ptr,stack->ptr-2,2*sizeof(value_t));
   stack->ptr += 2;
   // CALL_PTR at test/compiler:83:13
   stack->ptr -= 2;
-  ((stack->ptr)->asFPtr)(stack, (((stack->ptr)+1)->asPtr));
+  ((stack->ptr)->asFPtr)(stack, (((stack->ptr)+1)->asAny));
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
   // DEBUG_PRINT: ( => int )
   stack->ptr -= 2;
-  printf("procedure @%p (curried: @%p)\n", ((stack->ptr)->asFPtr),(((stack->ptr)+1)->asPtr));
+  printf("procedure @%p (curried: @%p)\n", ((stack->ptr)->asFPtr),(((stack->ptr)+1)->asAny));
   // LAMBDA: ( int => int ):@(test/compiler:84:4)
   (stack->ptr++)->asFPtr = &concat_private_procedure_test0x2F_compiler_84_4;
-  (stack->ptr++)->asPtr = NULL;
+  (stack->ptr++)->asAny = NULL;
   // LOCAL_DECLARE:2 (f)
   stack->ptr -= 2;
-  CurriedProcPtr local_var_0_2 = { .procId = ((stack->ptr)->asFPtr), .curried = (((stack->ptr)+1)->asPtr)};
+  CurriedProcPtr local_var_0_2 = { .procId = ((stack->ptr)->asFPtr), .curried = (((stack->ptr)+1)->asAny)};
   // VALUE: int:2
   (stack->ptr++)->asInt = 2LL;
   // LOCAL_REFERENCE_TO:2 (f)
   (stack->ptr++)->asFPtrRef = &local_var_0_2;
   // DEREFERENCE: ( int => int )
-  (stack->ptr)->asPtr = (((stack->ptr)-1)->asFPtrRef)->curried;
+  (stack->ptr)->asAny = (((stack->ptr)-1)->asFPtrRef)->curried;
   ((stack->ptr)-1)->asFPtr = (((stack->ptr)-1)->asFPtrRef)->procId;
   stack->ptr += 1;
   // CALL_PTR at test/compiler:85:8
   stack->ptr -= 2;
-  ((stack->ptr)->asFPtr)(stack, (((stack->ptr)+1)->asPtr));
+  ((stack->ptr)->asFPtr)(stack, (((stack->ptr)+1)->asAny));
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
   // LAMBDA: ( int => int ):@(test/compiler:86:4)
   (stack->ptr++)->asFPtr = &concat_private_procedure_test0x2F_compiler_86_4;
-  (stack->ptr++)->asPtr = NULL;
+  (stack->ptr++)->asAny = NULL;
   // LOCAL_REFERENCE_TO:2 (f)
   (stack->ptr++)->asFPtrRef = &local_var_0_2;
   // ASSIGN: ( int => int )
   (((stack->ptr)-1)->asFPtrRef)->procId = (((stack->ptr)-3)->asFPtr);
-  (((stack->ptr)-1)->asFPtrRef)->curried = (((stack->ptr)-2)->asPtr);
+  (((stack->ptr)-1)->asFPtrRef)->curried = (((stack->ptr)-2)->asAny);
   stack->ptr -= 3;
   // VALUE: int:2
   (stack->ptr++)->asInt = 2LL;
   // LOCAL_REFERENCE_TO:2 (f)
   (stack->ptr++)->asFPtrRef = &local_var_0_2;
   // DEREFERENCE: ( int => int )
-  (stack->ptr)->asPtr = (((stack->ptr)-1)->asFPtrRef)->curried;
+  (stack->ptr)->asAny = (((stack->ptr)-1)->asFPtrRef)->curried;
   ((stack->ptr)-1)->asFPtr = (((stack->ptr)-1)->asFPtrRef)->procId;
   stack->ptr += 1;
   // CALL_PTR at test/compiler:87:8
   stack->ptr -= 2;
-  ((stack->ptr)->asFPtr)(stack, (((stack->ptr)+1)->asPtr));
+  ((stack->ptr)->asFPtr)(stack, (((stack->ptr)+1)->asAny));
   // DEBUG_PRINT: int
   printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
   // GLOBAL_VALUE: byte array mut~:Test
-  (stack->ptr++)->asPtr = &concat_const_array_test0x2F_compiler_88_4;
+  (stack->ptr++)->asByteRef = concat_const_array_test0x2F_compiler_88_4;
   (stack->ptr++)->asUint = 4ULL;
   // DEBUG_PRINT: byte array mut~
   stack->ptr -= 2;
-  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asPtr),(((stack->ptr)+1)->asUint));
+  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asByteRef),(((stack->ptr)+1)->asUint));
   // GLOBAL_VALUE: byte array mut~:Test2
-  (stack->ptr++)->asPtr = &concat_const_array_test0x2F_compiler_89_4;
+  (stack->ptr++)->asByteRef = concat_const_array_test0x2F_compiler_89_4;
   (stack->ptr++)->asUint = 5ULL;
   // GLOBAL_VALUE: byte array mut~:Test
-  (stack->ptr++)->asPtr = &concat_const_array_test0x2F_compiler_88_4;
+  (stack->ptr++)->asByteRef = concat_const_array_test0x2F_compiler_88_4;
   (stack->ptr++)->asUint = 4ULL;
   // STACK_ROT at lib/stack:15:27 expanded at test/compiler:89:19
   memmove(stack->ptr ,stack->ptr-4,2*sizeof(value_t));
   memmove(stack->ptr-4,stack->ptr-2,4*sizeof(value_t));
   // DEBUG_PRINT: byte array mut~
   stack->ptr -= 2;
-  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asPtr),(((stack->ptr)+1)->asUint));
+  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asByteRef),(((stack->ptr)+1)->asUint));
   // DEBUG_PRINT: byte array mut~
   stack->ptr -= 2;
-  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asPtr),(((stack->ptr)+1)->asUint));
+  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asByteRef),(((stack->ptr)+1)->asUint));
 }
 // procedure two ( => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_10_5(Stack* stack, value_t* curried){
