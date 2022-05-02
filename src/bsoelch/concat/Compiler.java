@@ -300,6 +300,12 @@ public class Compiler {
         }
 
         @Override
+        public CodeGenerator getField(String fieldName, boolean isPtr) throws IOException {
+            out.write((isPtr?"->":".")+fieldName);
+            return this;
+        }
+
+        @Override
         public CodeGenerator appendBool(boolean value) throws IOException {
             out.write(value?"true":"false");
             return this;
@@ -709,8 +715,8 @@ public class Compiler {
                                                 .getFPtr(0).append(", ."+PROC_PTR_FIELD_CURRIED+" = ")
                                                 .getPtr(-1).append("}").endLine();
                                 case READ ->
-                                        generator.pushFPtr().append(idName+"."+PROC_PTR_FIELD_PROC_ID).endLine()
-                                                 .pushPtr().append(idName+"."+PROC_PTR_FIELD_CURRIED).endLine();
+                                        generator.pushFPtr().append(idName).getField(PROC_PTR_FIELD_PROC_ID,false).endLine()
+                                                 .pushPtr().append(idName).getField(PROC_PTR_FIELD_CURRIED,false).endLine();
                                 case REFERENCE_TO ->
                                         generator.pushFPtrRef().append("&"+idName).endLine();
                             }
@@ -724,8 +730,8 @@ public class Compiler {
                             generator.assignPrimitive(1,content)
                                     .append("*").getReference(1,content).endLine();
                         }else if(content instanceof Type.Procedure){
-                            generator.assignPtr(0).getFPtrRef(1).append("->"+PROC_PTR_FIELD_CURRIED).endLine()
-                                    .assignFPtr(1).getFPtrRef(1).append("->"+PROC_PTR_FIELD_PROC_ID).endLine()
+                            generator.assignPtr(0).getFPtrRef(1).getField(PROC_PTR_FIELD_CURRIED,true).endLine()
+                                    .assignFPtr(1).getFPtrRef(1).getField(PROC_PTR_FIELD_PROC_ID,true).endLine()
                                     .changeStackPointer(1).endLine();
                         }else{
                             throw new UnsupportedEncodingException("dereferencing "+content+" is currently not implemented");
@@ -738,8 +744,8 @@ public class Compiler {
                                     .getPrimitive(2,content).endLine();
                             generator.changeStackPointer(-2);
                         }else if(content instanceof Type.Procedure){
-                            generator.getFPtrRef(1).append("->"+PROC_PTR_FIELD_PROC_ID+" = ").getFPtr(3).endLine()
-                                     .getFPtrRef(1).append("->"+PROC_PTR_FIELD_CURRIED+" = ").getPtr(2).endLine()
+                            generator.getFPtrRef(1).getField(PROC_PTR_FIELD_PROC_ID,true).append(" = ").getFPtr(3).endLine()
+                                     .getFPtrRef(1).getField(PROC_PTR_FIELD_CURRIED,true).append(" = ").getPtr(2).endLine()
                                     .changeStackPointer(-3).endLine();
                         }else{
                             throw new UnsupportedEncodingException("assigning to "+content+" is currently not implemented");
