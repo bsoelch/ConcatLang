@@ -714,8 +714,10 @@ public class Compiler {
                             throw new UnsupportedEncodingException("assigning to "+content+" is currently not implemented");
                         }
                     }
-                    case RETURN -> generator.startLine().append("return").endLine();
-                    case EXIT -> generator.startLine().append("exit((int)").getPrimitive(1,Type.INT()).append(")").endLine();
+                    case RETURN ->
+                            generator.startLine().append("return").endLine();
+                    case EXIT ->
+                            generator.startLine().append("exit((int)").getPrimitive(1,Type.INT()).append(")").endLine();
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
