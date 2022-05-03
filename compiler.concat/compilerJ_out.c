@@ -69,9 +69,9 @@ void concat_private_procedure_test0x2F_compiler_84_4(Stack* stack, value_t* curr
 void concat_private_procedure_test0x2F_compiler_86_4(Stack* stack, value_t* curried);
 
 // constant arrays/global variables
-int8_t concat_const_array_test0x2F_compiler_88_4[4];
-int64_t concat_const_array_test0x2F_compiler_90_12[3];
-int8_t concat_const_array_test0x2F_compiler_89_4[5];
+int8_t concat_const_array_test0x2F_compiler_88_4[] = {0x54, 0x65, 0x73, 0x74};
+int64_t concat_const_array_test0x2F_compiler_90_12[] = {1LL, 2LL, 3LL};
+int8_t concat_const_array_test0x2F_compiler_89_4[] = {0x54, 0x65, 0x73, 0x74, 0x32};
 
 // procedure bodies
 
@@ -440,7 +440,7 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // FOR_ARRAY_PREPARE: -1
   ((stack->ptr)-1)->asIntRef = (((stack->ptr)-2)->asIntRef)+(((stack->ptr)-1)->asUint);
   // FOR_ARRAY_LOOP: +5
-  for( ; (((stack->ptr)-2)->asIntRef) < (((stack->ptr)-1)->asIntRef); (((stack->ptr)-2)->asIntRef)++){
+  for(; (((stack->ptr)-2)->asIntRef) < (((stack->ptr)-1)->asIntRef); (((stack->ptr)-2)->asIntRef)++){
     (stack->ptr)->asInt = *(((stack->ptr)-2)->asIntRef);
     stack->ptr += 1;
     // CONTEXT_OPEN at test/compiler:90:14

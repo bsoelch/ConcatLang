@@ -316,7 +316,41 @@ public class Compiler {
             for(Map.Entry<Value.ArrayLike, FilePosition> e:prog.rootContext().constArrays().entrySet()){
                 Value.ArrayLike array=e.getKey();
                 String primType=primitives.get(array.contentType());
-                writeLine(writer,primType==null?STACK_DATA_TYPE:primType+ " " + CONST_ARRAY_PREFIX +idOf(e.getValue())+"["+array.length()+"];");
+                if(primType==null){
+                    throw new UnsupportedEncodingException("arrays of type "+array.contentType()+" are currently not supported");
+                }
+                StringBuilder declaration=new StringBuilder(primType+ " " + CONST_ARRAY_PREFIX +idOf(e.getValue())+"[] = {");
+                for(int i=0;i< array.length();i++){
+                    if(i>0)
+                        declaration.append(", ");
+                    try {
+                        Value elt = array.get(i);
+                        //TODO merge with CodeGenerator append...
+                        if (elt.type == Type.INT()) {
+                            declaration.append(elt.asLong()).append("LL");
+                        }else if (elt.type == Type.UINT()) {
+                            declaration.append(Long.toUnsignedString(elt.asLong())).append("ULL");
+                        }else if (elt.type == Type.CODEPOINT()) {
+                            declaration.append("0x").append(Long.toHexString(elt.asLong()));
+                        }else if (elt.type == Type.BYTE()) {
+                            declaration.append("0x").append(Integer.toHexString(elt.asByte()&0xff));
+                        }else if (elt.type == Type.BOOL) {
+                            declaration.append(elt.asBool()?"true":"false");
+                        }else if (elt.type == Type.TYPE) {
+                            Type type=elt.asType();
+                            if(!primitives.containsKey(type)){
+                                throw new UnsupportedEncodingException("currently only primitive types are supported");
+                            }
+                            int id=typeIds.get(type);
+                            declaration.append(id).append("/* ").append(type.name).append(" */");
+                        }else {
+                            throw new UnsupportedOperationException("values of type " + array.contentType() + " are currently not supported");
+                        }
+                    } catch (ConcatRuntimeError ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+                writeLine(writer, declaration.append("};").toString());
             }
             // addLater global variables
             writer.newLine();
