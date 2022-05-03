@@ -87,4 +87,7 @@ main public proc( => ){
    2 f () debugPrint
    "Test" debugPrint
    "Test2" "Test" swap debugPrint debugPrint
+   { 1 2 3 } for{
+     debugPrint
+   }
 }

@@ -633,12 +633,27 @@ public class Compiler {
                                 generator.dedent().append("}while(").popPrimitive(Type.BOOL).append(")").endLine();
                             case END_CASE ->
                                 throw new UnsupportedOperationException("compiling BREAK  is currently not implemented");
-                            case FOR_ARRAY_PREPARE ->
-                                throw new UnsupportedOperationException("compiling FOR_ARRAY_PREPARE  is currently not implemented");
-                            case FOR_ARRAY_LOOP ->
-                                throw new UnsupportedOperationException("compiling FOR_ARRAY_LOOP  is currently not implemented");
+                            case FOR_ARRAY_PREPARE ->{
+                                assert next instanceof Parser.ForArrayStart;
+                                Type contentType=((Parser.ForArrayStart) next).arrayType.content();
+                                if(!(((Parser.ForArrayStart) next).arrayType.isArray()&&
+                                        primitives.containsKey(contentType))){
+                                    throw new UnsupportedOperationException("compiling FOR_ARRAY_PREPARE for "+
+                                            ((Parser.ForArrayStart) next).arrayType+" is currently not supported");
+                                }
+                                generator.assignPointer(1,contentType,false).
+                                        getPointer(2,contentType).append("+").getPrimitive(1,Type.UINT()).endLine();
+                            }
+                            case FOR_ARRAY_LOOP -> {
+                                assert next instanceof Parser.ForArrayStart;
+                                Type contentType = ((Parser.ForArrayStart) next).arrayType.content();
+                                generator.append("for(; ").getPointer(2,contentType).append(" < ").getPointer(1,contentType)
+                                        .append("; ").getPointer(2,contentType).append("++){").newLine().indent()
+                                        .assignPrimitive(0,contentType).append("*").getPointer(2,contentType).endLine()
+                                        .changeStackPointer(1).endLine();
+                            }
                             case FOR_ARRAY_END ->
-                                throw new UnsupportedOperationException("compiling FOR_ARRAY_END  is currently not implemented");
+                                generator.dedent().append("}").newLine().changeStackPointer(-2).endLine();
                             case FOR_ITERATOR_LOOP ->
                                 throw new UnsupportedOperationException("compiling FOR_ITERATOR_LOOP  is currently not implemented");
                             case FOR_ITERATOR_END ->

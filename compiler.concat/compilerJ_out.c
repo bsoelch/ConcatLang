@@ -70,6 +70,7 @@ void concat_private_procedure_test0x2F_compiler_86_4(Stack* stack, value_t* curr
 
 // constant arrays/global variables
 int8_t concat_const_array_test0x2F_compiler_88_4[4];
+int64_t concat_const_array_test0x2F_compiler_90_12[3];
 int8_t concat_const_array_test0x2F_compiler_89_4[5];
 
 // procedure bodies
@@ -433,6 +434,22 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // DEBUG_PRINT: byte array mut~
   stack->ptr -= 2;
   printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asByteRef),(((stack->ptr)+1)->asUint));
+  // VALUE: int array:[int:1, int:2, int:3]
+  (stack->ptr++)->asIntRef = concat_const_array_test0x2F_compiler_90_12;
+  (stack->ptr++)->asUint = 3ULL;
+  // FOR_ARRAY_PREPARE: -1
+  ((stack->ptr)-1)->asIntRef = (((stack->ptr)-2)->asIntRef)+(((stack->ptr)-1)->asUint);
+  // FOR_ARRAY_LOOP: +5
+  for( ; (((stack->ptr)-2)->asIntRef) < (((stack->ptr)-1)->asIntRef); (((stack->ptr)-2)->asIntRef)++){
+    (stack->ptr)->asInt = *(((stack->ptr)-2)->asIntRef);
+    stack->ptr += 1;
+    // CONTEXT_OPEN at test/compiler:90:14
+    // DEBUG_PRINT: int
+    printf("%"PRIi64"\n", ((--(stack->ptr))->asInt));
+    // CONTEXT_CLOSE at test/compiler:92:4
+    // FOR_ARRAY_END: -4
+  }
+  stack->ptr -= 2;
 }
 // procedure two ( => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_10_5(Stack* stack, value_t* curried){

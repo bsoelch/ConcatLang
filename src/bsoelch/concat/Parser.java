@@ -180,6 +180,13 @@ public class Parser {
             return blockType.toString()+": "+(delta>0?"+":"")+delta;
         }
     }
+    static class ForArrayStart extends BlockToken{
+        final Type arrayType;
+        ForArrayStart(BlockTokenType blockType, Type arrayType, FilePosition pos) {
+            super(blockType, pos,-1);
+            this.arrayType = arrayType;
+        }
+    }
     static class ForIteratorLoop extends BlockToken{
         final Type.TraitFieldPosition itrNext;
         ForIteratorLoop(Type.TraitFieldPosition itrNext,FilePosition pos) {
@@ -3585,7 +3592,7 @@ public class Parser {
                 TypeFrame iterable = tState.typeStack.pop();
                 Type iterableType= iterable.type;
                 if(iterableType.isArray()||iterableType.isMemory()){
-                    ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_PREPARE, pos, -1));
+                    ret.add(new ForArrayStart(BlockTokenType.FOR_ARRAY_PREPARE,iterableType, pos));
                     ForBlock forBlock = new ForBlock(true, ret.size(), pos, tState.context);
                     forBlock.iterableType = iterableType;
                     forBlock.prevTypes = tState.typeStack;
@@ -3595,7 +3602,7 @@ public class Parser {
 
                     openBlocks.add(forBlock);
                     tState.context= forBlock.context();
-                    ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_LOOP, pos, -1));
+                    ret.add(new ForArrayStart(BlockTokenType.FOR_ARRAY_LOOP,iterableType, pos));
                     ret.add(new ContextOpen(tState.context,pos));
                     break;
                 }
