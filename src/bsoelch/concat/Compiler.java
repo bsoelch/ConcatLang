@@ -2,11 +2,9 @@ package bsoelch.concat;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class Compiler {
-    static final HashMap<Type,String> primitives =new HashMap<>();
     static final HashMap<Type,Integer> typeIds =new HashMap<>();
     public static final String CONST_ARRAY_PREFIX = "concat_const_array_";
 
@@ -19,14 +17,10 @@ public class Compiler {
         return n;
     }
     static{
-        primitives.put(Type.BOOL,"bool");
         typeIds.put(Type.BOOL,1);
         for(Type.IntType t:Type.IntType.intTypes) {
-            primitives.put(t, (t.signed?"int":"uint")+t.bits+"_t");
             typeIds.put(t,((ilog2(t.bits/8)+1)<<1)|(t.signed?1:0));
         }
-        primitives.put(Type.FLOAT,"float64_t");
-        primitives.put(Type.TYPE,"type_t");
         typeIds.put(Type.FLOAT,0b10000);
         typeIds.put(Type.TYPE,0b10001);
     }
@@ -41,14 +35,6 @@ public class Compiler {
     static final String STACK_DATA_TYPE="value_t";
     static final String STACK_FIELD_POINTER="ptr";
     static final String STACK_FIELD_CAPACITY="capacity";
-
-    public static final String FPTR_NAME = "asFPtr";
-    public static final String FPTR_REF_NAME = FPTR_NAME+"Ref";
-    public static final String ANY_NAME = "asAny";
-
-    private static final String PROC_PTR_STRUCT_NAME = "CurriedProcPtr";
-    private static final String PROC_PTR_FIELD_PROC_ID = "procId";
-    private static final String PROC_PTR_FIELD_CURRIED = "curried";
 
     private static final class CodeGeneratorImpl implements CodeGenerator {
         final BufferedWriter out;
@@ -123,7 +109,7 @@ public class Compiler {
             out.write("(" + STACK_ARG_NAME + "->" + STACK_FIELD_POINTER + "++)");
         }
         @Override
-        public CodeGenerator pushPrimitive(Type target) throws IOException {
+        public CodeGenerator pushPrimitive(BaseType.StackValue target) throws IOException {
             pushRaw();
             out.write("->"+typeWrapperName(target)+" = ");
             return this;
@@ -131,13 +117,7 @@ public class Compiler {
         @Override
         public CodeGenerator pushPointer(Type target) throws IOException {
             pushRaw();
-            out.write("->"+typeRefName(target)+" = ");
-            return this;
-        }
-        @Override
-        public CodeGenerator pushFPtr() throws IOException {
-            pushRaw();
-            out.write("->"+FPTR_NAME+" = ");
+            out.write("->"+typeWrapperName(target.baseType.pointerTo())+" = ");
             return this;
         }
 
@@ -153,13 +133,7 @@ public class Compiler {
                 startLine();
             out.write((assignValue?"*":""));
             getRaw(offset);
-            out.write("->"+typeRefName(target)+" = ");
-            return this;
-        }
-        @Override
-        public CodeGenerator assignFPtr(int offset) throws IOException {
-            getRaw(offset);
-            out.write("->"+FPTR_NAME+" = ");
+            out.write("->"+typeWrapperName(target.baseType.pointerTo())+" = ");
             return this;
         }
 
@@ -195,15 +169,6 @@ public class Compiler {
             return this;
         }
         @Override
-        public CodeGenerator popFPtr() throws IOException {
-            if(!unfinishedLine)
-                startLine();
-            out.write("(");
-            popRaw();
-            out.write("->"+FPTR_NAME+")");
-            return this;
-        }
-        @Override
         public CodeGenerator getRaw(int offset) throws IOException {
             if(!unfinishedLine)
                 startLine();
@@ -217,7 +182,7 @@ public class Compiler {
             return this;
         }
         @Override
-        public CodeGenerator getPrimitive(int offset, Type type) throws IOException {
+        public CodeGenerator getPrimitive(int offset, BaseType.StackValue type) throws IOException {
             if(!unfinishedLine)
                 startLine();
             out.write("(");
@@ -231,7 +196,7 @@ public class Compiler {
                 startLine();
             out.write("(");
             getRaw(offset);
-            out.write("->"+typeRefName(type)+")");
+            out.write("->"+typeWrapperName(type.baseType.pointerTo())+")");
             return this;
         }
         @Override
@@ -239,18 +204,9 @@ public class Compiler {
             if(!unfinishedLine)
                 startLine();
             //TODO check if C-cast is allowed
-            out.write("(("+primitives.get(target)+")");
-            getPrimitive(offset,src);
+            out.write("(("+((BaseType.Primitive)target.baseType).cType+")");
+            getPrimitive(offset,(BaseType.StackValue) src.baseType);
             out.write(")");
-            return this;
-        }
-        @Override
-        public CodeGenerator getFPtr(int offset) throws IOException {
-            if(!unfinishedLine)
-                startLine();
-            out.write("(");
-            getRaw(offset);
-            out.write("->"+FPTR_NAME+")");
             return this;
         }
 
@@ -283,7 +239,7 @@ public class Compiler {
 
         @Override
         public CodeGenerator appendType(Type type) throws IOException {
-            if(!primitives.containsKey(type)){
+            if(!type.isPrimitive()){
                 throw new UnsupportedEncodingException("currently only primitive types are supported");
             }
             int id=typeIds.get(type);
@@ -315,10 +271,10 @@ public class Compiler {
             writeComment(writer,"constant arrays/global variables");
             for(Map.Entry<Value.ArrayLike, FilePosition> e:prog.rootContext().constArrays().entrySet()){
                 Value.ArrayLike array=e.getKey();
-                String primType=primitives.get(array.contentType());
-                if(primType==null){
+                if(!array.contentType().isPrimitive()){
                     throw new UnsupportedEncodingException("arrays of type "+array.contentType()+" are currently not supported");
                 }
+                String primType=((BaseType.StackValue)array.contentType().baseType).cType;
                 StringBuilder declaration=new StringBuilder(primType+ " " + CONST_ARRAY_PREFIX +idOf(e.getValue())+"[] = {");
                 for(int i=0;i< array.length();i++){
                     if(i>0)
@@ -338,7 +294,7 @@ public class Compiler {
                             declaration.append(elt.asBool()?"true":"false");
                         }else if (elt.type == Type.TYPE) {
                             Type type=elt.asType();
-                            if(!primitives.containsKey(type)){
+                            if(!type.isPrimitive()){
                                 throw new UnsupportedEncodingException("currently only primitive types are supported");
                             }
                             int id=typeIds.get(type);
@@ -393,17 +349,16 @@ public class Compiler {
     }
 
     private static String typeWrapperName(Type primitive){
-        if(primitives.containsKey(primitive))
-            return "as"+Character.toUpperCase(primitive.name.charAt(0))+primitive.name.substring(1);
-        if(primitive instanceof Type.Procedure)
-            return "asFPtr";
-        throw new IllegalArgumentException("type "+primitive+" is not supported as primitve type");
+        BaseType base=primitive.baseType;
+        return typeWrapperName(base);
     }
-    private static String typeRefName(Type primitive){
-        if(primitive==Type.ANY)
-            return ANY_NAME;
-        return typeWrapperName(primitive)+"Ref";
+    private static String typeWrapperName(BaseType base) {
+        if(base instanceof BaseType.StackValue)
+            return "as" + Character.toUpperCase(((BaseType.StackValue) base).name.charAt(0))
+                    + ((BaseType.StackValue) base).name.substring(1);
+        return "as" + BaseType.StackValue.PTR.cType;
     }
+
     private static void printFileHeader(BufferedWriter writer) throws IOException {
         //include required library files
         writeLine(writer,"#include \"stdbool.h\"");
@@ -426,19 +381,12 @@ public class Compiler {
         writeLine(writer,"typedef "+CONCAT_PROC_OUT+"(*fptr_t)"+CONCAT_PROC_SIGNATURE+";");
         writeLine(writer,"typedef void* ptr_t;");
         writer.newLine();
-        writeLine(writer,"typedef struct{");
-        writeLine(writer,1,"fptr_t "+PROC_PTR_FIELD_PROC_ID+";");
-        writeLine(writer,1,STACK_DATA_TYPE+"* "+PROC_PTR_FIELD_CURRIED+";");
-        writeLine(writer,"}"+PROC_PTR_STRUCT_NAME+";");
-        writer.newLine();
         writeLine(writer,"union "+STACK_DATA_TYPE+"_Impl {");
-        for(Map.Entry<Type, String> e:primitives.entrySet()){//addLater text alignment
-            writeLine(writer,1,e.getValue()+"  "+typeWrapperName(e.getKey())+";");
-            writeLine(writer,1,e.getValue()+"* "+typeRefName(e.getKey())+";");
+        List<BaseType.StackValue> values = new ArrayList<>(BaseType.StackValue.values());
+        values.sort(Comparator.comparing(t->t.cType));
+        for(BaseType.StackValue e: values){//addLater text alignment
+            writeLine(writer,1,e.cType+"  "+typeWrapperName(e)+";");
         }
-        writeLine(writer,1, "fptr_t  "+FPTR_NAME+";");
-        writeLine(writer,1, PROC_PTR_STRUCT_NAME+"* "+FPTR_REF_NAME+";");
-        writeLine(writer,1, STACK_DATA_TYPE+"*   "+ ANY_NAME +";");
         writeLine(writer,"};");
         writer.newLine();
     }
@@ -532,24 +480,27 @@ public class Compiler {
                     case LAMBDA, VALUE, GLOBAL_VALUE -> {
                         assert next instanceof Parser.ValueToken;
                         Value value = ((Parser.ValueToken) next).value;
-                        if(primitives.containsKey(value.type)){
-                            if (value.type == Type.INT()) {
-                                generator.pushPrimitive(value.type).appendInt(value.asLong(),true).endLine();
-                            }else if (value.type == Type.UINT()) {
-                                generator.pushPrimitive(value.type).appendInt(value.asLong(),false).endLine();
-                            }else if (value.type == Type.CODEPOINT()) {
-                                generator.pushPrimitive(value.type).appendCodepoint((int)value.asLong()).endLine();
-                            }else if (value.type == Type.BYTE()) {
-                                generator.pushPrimitive(value.type).appendByte(value.asByte()).endLine();
-                            }else if (value.type == Type.BOOL) {
-                                generator.pushPrimitive(value.type).appendBool(value.asBool()).endLine();
-                            }else if (value.type == Type.TYPE) {
-                                generator.pushPrimitive(value.type).appendType(value.asType()).endLine();
-                            }else {
-                                throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
-                            }
+                        if (value.type == Type.INT()) {
+                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                                    .appendInt(value.asLong(),true).endLine();
+                        }else if (value.type == Type.UINT()) {
+                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                                    .appendInt(value.asLong(),false).endLine();
+                        }else if (value.type == Type.CODEPOINT()) {
+                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                                    .appendCodepoint((int)value.asLong()).endLine();
+                        }else if (value.type == Type.BYTE()) {
+                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                                    .appendByte(value.asByte()).endLine();
+                        }else if (value.type == Type.BOOL) {
+                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                                    .appendBool(value.asBool()).endLine();
+                        }else if (value.type == Type.TYPE) {
+                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                                    .appendType(value.asType()).endLine();
                         }else if(value instanceof Value.Procedure proc){
-                            generator.pushFPtr().append("&"+(proc.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX)+idOf(proc))
+                            generator.pushPrimitive(BaseType.StackValue.F_PTR)
+                                    .append("&"+(proc.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX)+idOf(proc))
                                     .endLine();
                             generator.pushPointer(Type.ANY).append("NULL").endLine();
                         }else if(value instanceof Value.ArrayLike){
@@ -559,7 +510,8 @@ public class Compiler {
                             }
                             generator.pushPointer(((Value.ArrayLike) value).contentType())
                                     .append(CONST_ARRAY_PREFIX+idOf(firstDeclaration)).endLine();
-                            generator.pushPrimitive(Type.UINT()).appendInt(value.length(),false).endLine();
+                            generator.pushPrimitive((BaseType.StackValue) Type.UINT().baseType)
+                                    .appendInt(value.length(),false).endLine();
                         }else{
                             throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
                         }
@@ -584,7 +536,8 @@ public class Compiler {
                     }
                     case CALL_PTR ->
                         generator.changeStackPointer(-2)
-                                .getFPtr(0).append("("+STACK_ARG_NAME+", ").getPointer(-1,Type.ANY).append(")").endLine();
+                                .getPrimitive(0, BaseType.StackValue.F_PTR).append("("+STACK_ARG_NAME+", ")
+                                .getPointer(-1,Type.ANY).append(")").endLine();
                     case STACK_DUP -> {
                         int offset=((Parser.StackModifierToken)next).args[2];
                         int count=((Parser.StackModifierToken)next).args[3];
@@ -626,12 +579,13 @@ public class Compiler {
                             generator.append( "puts((").popPrimitive(t).append(") ? \"true\" : \"false\")").endLine();
                         }else if(t instanceof Type.Procedure){
                             generator.changeStackPointer(-2)
-                                    .append("printf(\"procedure @%p (curried: @%p)\\n\", ").getFPtr(0).
+                                    .append("printf(\"procedure @%p (curried: @%p)\\n\", ")
+                                    .getPrimitive(0, BaseType.StackValue.F_PTR).
                                     append(",").getPointer(-1,Type.ANY).append(")").endLine();
                         }else if(t.isArray()&&!t.isMutable()){
                             generator.changeStackPointer(-2)
                                     .append("printf(\"array @%p length: %\"PRIu64\"\\n\", ").getPointer(0,t.content()).
-                                    append(",").getPrimitive(-1,Type.UINT()).append(")").endLine();
+                                    append(",").getPrimitive(-1,(BaseType.StackValue)Type.UINT().baseType).append(")").endLine();
                         }else{
                             System.err.println("unsupported type in debugPrint:"+t);
                             //TODO better output for debug print
@@ -670,13 +624,13 @@ public class Compiler {
                             case FOR_ARRAY_PREPARE ->{
                                 assert next instanceof Parser.ForArrayStart;
                                 Type contentType=((Parser.ForArrayStart) next).arrayType.content();
-                                if(!(((Parser.ForArrayStart) next).arrayType.isArray()&&
-                                        primitives.containsKey(contentType))){
+                                if(!(((Parser.ForArrayStart) next).arrayType.isArray()&&contentType.isPrimitive())){
                                     throw new UnsupportedOperationException("compiling FOR_ARRAY_PREPARE for "+
                                             ((Parser.ForArrayStart) next).arrayType+" is currently not supported");
                                 }
                                 generator.assignPointer(1,contentType,false).
-                                        getPointer(2,contentType).append("+").getPrimitive(1,Type.UINT()).endLine();
+                                        getPointer(2,contentType).append("+")
+                                        .getPrimitive(1,(BaseType.StackValue)Type.UINT().baseType).endLine();
                             }
                             case FOR_ARRAY_LOOP -> {
                                 assert next instanceof Parser.ForArrayStart;
@@ -706,67 +660,64 @@ public class Compiler {
                         assert next instanceof Parser.VariableToken;
                         Parser.VariableToken asVar=(Parser.VariableToken) next;
                         String idName=asVar.variableType.name().toLowerCase()+"_var_"+asVar.id.level+"_"+asVar.id.id;
-                        if(primitives.containsKey(asVar.id.type)){
+                        BaseType baseType = asVar.id.type.baseType;
+                        if(baseType instanceof BaseType.StackValue){
                             switch (asVar.accessType){
                                 case DECLARE ->
-                                        generator.append(primitives.get(asVar.id.type)+" "+idName+" = ")
+                                        generator.append(((BaseType.StackValue) baseType).cType+" "+idName+" = ")
                                                 .popPrimitive(asVar.id.type).endLine();
                                 case READ ->
-                                        generator.pushPrimitive(asVar.id.type).append(idName).endLine();
-                                case REFERENCE_TO ->
-                                        generator.pushPointer(asVar.id.type).append("&"+idName).endLine();
-                            }
-                        }else if(asVar.id.type instanceof Type.Procedure){
-                            switch (asVar.accessType){
-                                case DECLARE ->
-                                        generator.changeStackPointer(-2)
-                                                .append(PROC_PTR_STRUCT_NAME+" "+idName+" = { ."+PROC_PTR_FIELD_PROC_ID+" = ")
-                                                .getFPtr(0).append(", ."+PROC_PTR_FIELD_CURRIED+" = ")
-                                                .getPointer(-1,Type.ANY).append("}").endLine();
-                                case READ ->
-                                        generator.pushFPtr().append(idName).getField(PROC_PTR_FIELD_PROC_ID,false).endLine()
-                                                 .pushPointer(Type.ANY).append(idName).getField(PROC_PTR_FIELD_CURRIED,false).endLine();
+                                        generator.pushPrimitive((BaseType.StackValue)baseType).append(idName).endLine();
                                 case REFERENCE_TO ->
                                         generator.pushPointer(asVar.id.type).append("&"+idName).endLine();
                             }
                         }else{
-                            throw new UnsupportedEncodingException("variables of type "+asVar.id.type+" are currently not supported");
+                            switch (asVar.accessType){
+                                case DECLARE ->
+                                        generator.changeStackPointer(-baseType.blockCount()).endLine()
+                                                .append(STACK_DATA_TYPE+" "+idName+"["+baseType.blockCount()+"]").endLine()
+                                                .append("memcpy("+idName+", ").getRaw(0)
+                                                .append(", "+baseType.blockCount()+"*sizeof("+STACK_DATA_TYPE+"))").endLine();
+                                case READ ->
+                                        generator.append("memcpy(").getRaw(0)
+                                                .append(", "+idName+", "+baseType.blockCount()+"*sizeof("+STACK_DATA_TYPE+"))").endLine()
+                                                 .changeStackPointer(baseType.blockCount()).endLine();
+                                case REFERENCE_TO ->
+                                        generator.pushPointer(asVar.id.type).append(idName).endLine();
+                            }
                         }
                     }
                     case DEREFERENCE -> {
                         Type content=((Parser.TypedToken)next).target;
-                        if(primitives.containsKey(content)){
+                        BaseType baseType=content.baseType;
+                        if(baseType instanceof BaseType.StackValue){
                             generator.assignPrimitive(1,content)
                                     .append("*").getPointer(1,content).endLine();
-                        }else if(content instanceof Type.Procedure){
-                            generator.assignPointer(0,Type.ANY,false)
-                                    .getPointer(1,content).getField(PROC_PTR_FIELD_CURRIED,true).endLine()
-                                    .assignFPtr(1).getPointer(1,content).getField(PROC_PTR_FIELD_PROC_ID,true).endLine()
-                                    .changeStackPointer(1).endLine();
                         }else{
-                            throw new UnsupportedEncodingException("dereferencing "+content+" is currently not implemented");
+                            generator.append("memcpy(").getRaw(1).append(", ").getPointer(1,content)
+                                    .append(", "+baseType.blockCount()+"*sizeof("+STACK_DATA_TYPE+"))").endLine()
+                                    .changeStackPointer(baseType.blockCount()-1).endLine();
                         }
                     }
                     case ASSIGN -> {
                         Type content=((Parser.TypedToken)next).target;
-                        if(primitives.containsKey(content)){
+                        BaseType baseType=content.baseType;
+                        if(baseType instanceof BaseType.StackValue){
                             generator.assignPointer(1,content,true)
-                                    .getPrimitive(2,content).endLine();
+                                    .getPrimitive(2,(BaseType.StackValue) baseType).endLine();
                             generator.changeStackPointer(-2);
-                        }else if(content instanceof Type.Procedure){
-                            generator.getPointer(1, content).getField(PROC_PTR_FIELD_PROC_ID,true)
-                                        .append(" = ").getFPtr(3).endLine()
-                                     .getPointer(1, content).getField(PROC_PTR_FIELD_CURRIED,true)
-                                        .append(" = ").getPointer(2,Type.ANY).endLine()
-                                    .changeStackPointer(-3).endLine();
                         }else{
-                            throw new UnsupportedEncodingException("assigning to "+content+" is currently not implemented");
+                            generator.append("memcpy(").getPointer(1,content).append(", ")
+                                    .getRaw(baseType.blockCount()+1)
+                                    .append(", "+baseType.blockCount()+"*sizeof("+STACK_DATA_TYPE+"))").endLine()
+                                    .changeStackPointer(-(baseType.blockCount()+1)).endLine();
                         }
                     }
                     case RETURN ->
                             generator.startLine().append("return").endLine();
                     case EXIT ->
-                            generator.startLine().append("exit((int)").getPrimitive(1,Type.INT()).append(")").endLine();
+                            generator.startLine().append("exit((int)")
+                                    .getPrimitive(1,(BaseType.StackValue) Type.INT().baseType).append(")").endLine();
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
@@ -788,9 +739,9 @@ public class Compiler {
     }
 
     private static void compileCast(CodeGenerator generator, Type src, Type target, int offset) throws IOException {
-        if(primitives.containsKey(src)&&primitives.containsKey(target)){
+        if(src.isPrimitive()&&target.isPrimitive()){
             //TODO check if direct C-cast is allowed
-            generator.assignPrimitive(offset,target).getPrimitive(offset,src).endLine();
+            generator.assignPrimitive(offset,target).getPrimitive(offset,(BaseType.StackValue) src.baseType).endLine();
         }else if(src instanceof Type.Procedure&&target instanceof Type.Procedure){
             assert src.canCastTo(target)!= Type.CastType.NONE;//casting between procedures only changes type-info
         }else{

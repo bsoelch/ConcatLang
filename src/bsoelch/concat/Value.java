@@ -1520,11 +1520,13 @@ public abstract class Value {
             if(aInt.signed){
                 procs.add(new InternalProcedure(new Type[]{aInt},new Type[]{aInt},"-_",
                         (values) -> new Value[]{Value.ofInt(-(values[0].asLong()),false).castTo(aInt)},true)
-                        .compileTo(gen->gen.assignPrimitive(1,aInt).append(" - ").getPrimitive(1,aInt)));
+                        .compileTo(gen->gen.assignPrimitive(1,aInt).append(" - ")
+                                .getPrimitive(1,(BaseType.StackValue) aInt.baseType)));
             }
             procs.add(new InternalProcedure(new Type[]{aInt},new Type[]{aInt},"~",
                     (values) -> new Value[]{ofInt(~values[0].asLong(),!aInt.signed).castTo(aInt)},true)
-                    .compileTo(gen->gen.assignPrimitive(1,aInt).append(" ~ ").getPrimitive(1,aInt)));
+                    .compileTo(gen->gen.assignPrimitive(1,aInt).append(" ~ ")
+                            .getPrimitive(1,(BaseType.StackValue) aInt.baseType)));
 
             for(Type.IntType bInt: Type.IntType.intTypes){
                 Optional<Type.IntType> commonSuper = Type.IntType.commonSuperType(aInt, bInt);
@@ -1631,8 +1633,11 @@ public abstract class Value {
                                 .compileTo(gen->
                                         gen.changeStackPointer(-1)
                                                 .assignPrimitive(1,Type.BOOL).append("(")
-                                                .getPrimitive(aInt.signed?1:0,aInt.signed?aInt:bInt).append(sgnCheck(op,aInt.signed))
-                                                .getPrimitive(1,aInt).append(" "+op+" ").getPrimitive(0,bInt).append(")")
+                                                .getPrimitive(aInt.signed?1:0,
+                                                        (BaseType.StackValue) (aInt.signed?aInt:bInt).baseType)
+                                                .append(sgnCheck(op,aInt.signed))
+                                                .getPrimitive(1,(BaseType.StackValue) aInt.baseType).append(" "+op+" ")
+                                                .getPrimitive(0,(BaseType.StackValue) bInt.baseType).append(")")
                                 ));
                     }
                 }

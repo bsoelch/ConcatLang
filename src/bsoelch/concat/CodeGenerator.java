@@ -12,21 +12,17 @@ public interface CodeGenerator {
     CodeGenerator blockComment(String str) throws IOException;
 
     CodeGenerator startLine() throws IOException;
-    CodeGenerator pushPrimitive(Type target) throws IOException;
+    CodeGenerator pushPrimitive(BaseType.StackValue target) throws IOException;
     CodeGenerator pushPointer(Type target) throws IOException;
-    CodeGenerator pushFPtr() throws IOException;
     CodeGenerator assignPrimitive(int offset, Type target) throws IOException;
     CodeGenerator assignPointer(int offset, Type target, boolean assignValue) throws IOException;
-    CodeGenerator assignFPtr(int offset) throws IOException;
 
     CodeGenerator popPrimitive(Type type) throws IOException;
-    CodeGenerator popFPtr() throws IOException;
 
     CodeGenerator getRaw(int offset) throws IOException;
-    CodeGenerator getPrimitive(int offset, Type type) throws IOException;
+    CodeGenerator getPrimitive(int offset, BaseType.StackValue type) throws IOException;
     CodeGenerator getPointer(int offset, Type type) throws IOException;
     CodeGenerator getPrimitiveAs(int offset, Type src, Type target) throws IOException;
-    CodeGenerator getFPtr(int offset) throws IOException;
 
     CodeGenerator getField(String name,boolean isPtr) throws IOException;
     CodeGenerator appendInt(long value,boolean signed) throws IOException;

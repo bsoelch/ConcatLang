@@ -4,8 +4,8 @@ import java.util.*;
 
 public abstract class BaseType {
     public abstract int blockCount();
-    public abstract BaseType[] blocks();
-    public BaseType pointerTo() {
+    public abstract StackValue[] blocks();
+    public StackValue pointerTo() {
         throw new UnsupportedOperationException("pointerTo() is not supported for internal base types");
     }
 
@@ -14,10 +14,10 @@ public abstract class BaseType {
     public static abstract class StackValue extends BaseType{
         private static final ArrayList<StackValue> stackValues = new ArrayList<>();
 
-        public static StackValue F_PTR = new StackValue("procPtr") {};
-        public static StackValue PTR = new StackValue("any") {
+        public static StackValue F_PTR = new StackValue("procPtr", "fptr_t") {};
+        public static StackValue PTR = new StackValue("any", "value_t*") {
             @Override
-            public BaseType pointerTo() {
+            public StackValue pointerTo() {
                 return this;
             }
         };
@@ -26,9 +26,13 @@ public abstract class BaseType {
         public static List<StackValue> values(){
             return Collections.unmodifiableList(stackValues);
         }
+        /**name of the base type*/
         final String name;
-        StackValue(String name){
+        /**name of the target-type in compiled code*/
+        final String cType;
+        StackValue(String name, String cType){
             this.name = name;
+            this.cType = cType;
             stackValues.add(this);
         }
 
@@ -38,8 +42,8 @@ public abstract class BaseType {
         }
 
         @Override
-        public final BaseType[] blocks() {
-            return new BaseType[]{this};
+        public final StackValue[] blocks() {
+            return new StackValue[]{this};
         }
     }
     public static class Primitive extends StackValue {
@@ -87,17 +91,25 @@ public abstract class BaseType {
                     asPtr=new Int(type,true,64,true);
                     prev =new Int(type,false,64,true);
                 }
-                case BOOL,TYPE,FLOAT -> {
-                   asPtr=new Primitive(type, true);
-                   prev=new Primitive(type, false);
+                case BOOL -> {
+                    asPtr=new Primitive(type, true,"bool");
+                    prev=new Primitive(type, false,"bool");
+                }
+                case TYPE -> {
+                    asPtr=new Primitive(type, true,"type_t");
+                    prev=new Primitive(type, false,"type_t");
+                }
+                case FLOAT -> {
+                   asPtr=new Primitive(type, true,"float64_t");
+                   prev=new Primitive(type, false,"float64_t");
                 }
             }
             primitives.put(type,prev);
             primitivePointers.put(type,asPtr);
             return prev;
         }
-        private Primitive(PrimitiveType type, boolean isPtr) {
-            super(type.name().toLowerCase()+(isPtr?"Ptr":""));
+        private Primitive(PrimitiveType type, boolean isPtr,String name) {
+            super(type.name().toLowerCase()+(isPtr?"Ptr":""), name+(isPtr?"*":""));
             this.type = type;
             this.isPtr = isPtr;
         }
@@ -105,14 +117,14 @@ public abstract class BaseType {
             public final int bitCount;
             public final boolean unsigned;
             private Int(PrimitiveType type, boolean isPtr, int bitCount, boolean unsigned) {
-                super(type, isPtr);
+                super(type, isPtr,(unsigned?"uint":"int")+bitCount+"_t");
                 this.bitCount = bitCount;
                 this.unsigned = unsigned;
             }
         }
 
         @Override
-        public BaseType pointerTo() {
+        public StackValue pointerTo() {
             if(isPtr)
                 return super.pointerTo();
             return primitivePointers.get(type);
@@ -123,16 +135,22 @@ public abstract class BaseType {
         return new BaseType.Composite(content.pointerTo(),BaseType.Primitive.get(BaseType.PrimitiveType.U64));// data,len
     }
     public static BaseType optionalOf(BaseType content){
-        return StackValue.PTR;//TODO special handling for optionals
+        //TODO special handling for optionals of non-null pointers
+        if(content instanceof StackValue){
+            return new BaseType.Composite((StackValue)content,BaseType.Primitive.get(BaseType.PrimitiveType.U64));// data,optional-count
+        }else{
+            //TODO optionals of composites
+            return StackValue.PTR;
+        }
     }
 
     public static class Composite extends BaseType{
-        private final BaseType[] blocks;
+        private final StackValue[] blocks;
 
         public static final Composite PROC_POINTER =
                 new BaseType.Composite(BaseType.StackValue.F_PTR,BaseType.StackValue.PTR);/*ptr,curried*/
 
-        public Composite(BaseType... blocks) {
+        public Composite(StackValue... blocks) {
             this.blocks = blocks;
         }
 
@@ -142,14 +160,13 @@ public abstract class BaseType {
         }
 
         @Override
-        public BaseType[] blocks() {
+        public StackValue[] blocks() {
             return blocks;
         }
 
         @Override
-        public BaseType pointerTo() {
-            //TODO BaseType.pointerTo
-            return this;
+        public StackValue pointerTo() {
+            return StackValue.PTR;
         }
     }
 }
