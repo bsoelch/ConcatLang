@@ -5,7 +5,7 @@ core #import
 test proc( int  float => string ){ 2 ?drop "proc1" }
 ns1 #namespace
 test proc( float  int => string ){ 2 ?drop "proc2" }
-test proc( bits64 int => string ){ 2 ?drop "proc3" }
+test proc( var    int => string ){ 2 ?drop "proc3" }
 #end
 ns2 #namespace
 test proc( int     int => string ){ 2 ?drop "proc4" }

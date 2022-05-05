@@ -3,27 +3,18 @@ package bsoelch.concat;
 import java.util.*;
 
 public class Type {
-    //base types
-    static final Type BITS8       = new Type("bits8",null,false);
-    static final Type BITS16      = new Type("bits16",null,false);
-    static final Type BITS32      = new Type("bits32",null,false);
-    static final Type BITS64      = new Type("bits64",null,false);
-    static final Type MULTIBLOCK2 = new Type("bits128",null,false);
-    static final Type MULTIBLOCK3 = new Type("bits192",null,false);
-    static final Type MULTIBLOCK4 = new Type("bits256",null,false);
-    static final Type PTR         = new Type("bitsPtr",null,false);
 
-    static Type baseTypeFromBits(int bits) {
+    static BaseType getBaseType(int bits, boolean signed) {
         if(bits<=8){
-            return BITS8;
+            return BaseType.Primitive.get(signed? BaseType.PrimitiveType.I8: BaseType.PrimitiveType.U8);
         }else if(bits<=16){
-            return BITS16;
+            return BaseType.Primitive.get(signed? BaseType.PrimitiveType.I16: BaseType.PrimitiveType.U16);
         }else if(bits<=32){
-            return BITS32;
+            return BaseType.Primitive.get(signed? BaseType.PrimitiveType.I32: BaseType.PrimitiveType.U32);
         }else if(bits<=64){
-            return BITS64;
+            return BaseType.Primitive.get(signed? BaseType.PrimitiveType.I64: BaseType.PrimitiveType.U64);
         }else{
-            throw new UnsupportedOperationException("primitve types with more than 64bits are currently not supported");
+            throw new UnsupportedOperationException("primitive types with more than 64bits are currently not supported");
         }
     }
     public static class IntType extends Type{
@@ -37,7 +28,7 @@ public class Type {
         final boolean signed;
         /**true if this type can be cast to/from floats*/
         private IntType(String name, int bits, boolean signed) {
-            super(name, baseTypeFromBits(bits), true);
+            super(name, getBaseType(bits,signed), true);
             this.bits = bits;
             this.signed = signed;
 
@@ -95,14 +86,14 @@ public class Type {
     public static Type UINT(){
         return IntType.UINT;
     }
-    public static final Type FLOAT = new Type("float",BITS64,false) {
+    public static final Type FLOAT = new Type("float",BaseType.Primitive.get(BaseType.PrimitiveType.FLOAT),false) {
         @Override
         public CastType canCastTo(Type t, BoundMaps bounds) {
             return t instanceof IntType?CastType.RESTRICT:super.canCastTo(t,bounds);
         }
     };
 
-    public static final Type TYPE  = new Type("type",BITS64, true) {
+    public static final Type TYPE  = new Type("type",BaseType.Primitive.get(BaseType.PrimitiveType.TYPE), true) {
         @Override
         void initTypeFields() throws SyntaxError {
             super.initTypeFields();//addLater? make type-data getters return optional
@@ -166,10 +157,10 @@ public class Type {
                 (values) -> new Value[]{Value.ofBool(values[0].asType().isMaybeMutable())},true), declaredAt());
         }
     };
-    public static final Type BOOL  = new Type("bool",BITS8, false);
+    public static final Type BOOL  = new Type("bool",BaseType.Primitive.get(BaseType.PrimitiveType.BOOL), false);
 
     /**blank type that could contain any value*/
-    public static final Type ANY = new Type("var",PTR, false) {
+    public static final Type ANY = new Type("var",BaseType.StackValue.PTR, false) {
         @Override
         protected CastType canCastTo(Type t, BoundMaps bounds) {
             CastType ret=canCastTo0(t, bounds);
@@ -213,8 +204,6 @@ public class Type {
                     return Optional.empty();
                 Optional<Type> content=commonSuperType(a.content(),b.content(), false,deRef);
                 return content.map(t->arrayOf(t).setMutability(mut));
-            }else if((!strict)&&a.baseType==b.baseType){
-                return Optional.of(a.baseType);
             }else if((!strict)&&a.isValid()&&b.isValid()){
                 return Optional.of(ANY);
             }
@@ -283,7 +272,7 @@ public class Type {
     final String name;
     final boolean switchable;
     final Mutability mutability;
-    final Type baseType;
+    final BaseType baseType;
     /**fields that are attached to this type*/
     private final HashMap<String, Value> typeFields;
     private final HashMap<String, Parser.Callable> internalFields;
@@ -309,12 +298,12 @@ public class Type {
         }
         throw new RuntimeException("unreachable");
     }
-    private Type(String name,Type baseType, boolean switchable) {
+    private Type(String name,BaseType baseType, boolean switchable) {
         this(name,baseType,switchable,Mutability.DEFAULT);
     }
-    private Type(String name,Type baseType, boolean switchable,Mutability mutability) {
+    private Type(String name,BaseType baseType, boolean switchable,Mutability mutability) {
         this.name = name;
-        this.baseType=baseType==null?this:baseType;
+        this.baseType=baseType;
         this.switchable = switchable;
         this.mutability=mutability;
 
@@ -347,21 +336,11 @@ public class Type {
         return true;
     }
     boolean isPrimitive(){
-        return baseType!=PTR;
+        return baseType instanceof BaseType.StackValue;
     }
 
     int blockCount(){
-        if(baseType==BITS8||baseType==BITS16||baseType==BITS32||baseType==BITS64||baseType==PTR){
-            return 1;
-        }else if(baseType==MULTIBLOCK2){
-            return 2;
-        }else if(baseType==MULTIBLOCK3){
-            return 3;
-        }else if(baseType==MULTIBLOCK4){
-            return 4;
-        }else{
-            throw new UnsupportedOperationException("unexpected base-type: "+baseType);
-        }
+        return baseType.blockCount();
     }
 
     FilePosition declaredAt(){
@@ -426,7 +405,7 @@ public class Type {
                 }
             }
         }
-        return equals(t)||t==baseType;
+        return equals(t);
     }
 
     /**@return true if this type has the trait t*/
@@ -754,27 +733,14 @@ public class Type {
             this.contentType = contentType;
         }
 
-        private static Type getBaseType(String wrapperName, Type contentBase) {
-            switch (wrapperName) {
-                case ARRAY:
-                    return MULTIBLOCK2;// data,len
-                case MEMORY,REFERENCE:
-                    return PTR;
-                case OPTIONAL:
-                    if (contentBase == BITS8||contentBase == BITS16||contentBase == BITS32) {
-                        return BITS64;
-                    } else if (contentBase == BITS64) {
-                        return MULTIBLOCK2;
-                    } else if (contentBase == MULTIBLOCK2) {
-                        return MULTIBLOCK3; //addLater reduced required storage for nested optional
-                    } else if (contentBase == MULTIBLOCK3) {
-                        return MULTIBLOCK4;
-                    } else {
-                        return PTR;
-                    }
-                default:
-                    throw new IllegalArgumentException("unexpected type-wrapper : " + wrapperName);
-            }
+        private static BaseType getBaseType(String wrapperName, BaseType contentBase) {
+            return switch (wrapperName) {
+                case ARRAY -> BaseType.arrayOf(contentBase);
+                case REFERENCE -> contentBase.pointerTo();
+                case OPTIONAL -> BaseType.optionalOf(contentBase);
+                case MEMORY -> BaseType.StackValue.PTR;
+                default -> throw new IllegalArgumentException("unexpected type-wrapper : " + wrapperName);
+            };
         }
 
         private WrapperType(WrapperType src,Mutability mutability){
@@ -1022,7 +988,7 @@ public class Type {
 
     static abstract class TupleLike extends Type{
         private TupleLike(String name, boolean switchable, Mutability mutability) {
-            super(name, PTR,switchable, mutability);
+            super(name, BaseType.StackValue.PTR,switchable, mutability);//TODO store small immutable Tuples on stack
         }
         private TupleLike(String name, Type src, Mutability mutability) {
             super(name, src, mutability);
@@ -1717,7 +1683,7 @@ public class Type {
                       Type[] genericArgs, GenericParameter[] genericParameters, TraitField[] traitFields,
                       ArrayList<Parser.Token> tokens, Parser.TraitContext context, Mutability mutability,
                       FilePosition declaredAt, FilePosition endPos) {
-            super(name,PTR,false,mutability);
+            super(name,BaseType.StackValue.PTR,false,mutability);//TODO handle base-type for traits
             this.extended = extended;
             assert (traitFields==null)!=(tokens==null);
             this.baseName = baseName;
@@ -2004,7 +1970,7 @@ public class Type {
         }
 
         private Procedure(String name, Type[] inTypes, Type[] outTypes, FilePosition declaredAt) {
-            super(name,MULTIBLOCK2/*ptr,curried*/, false);
+            super(name,BaseType.Composite.PROC_POINTER, false);
             this.inTypes=inTypes;
             this.outTypes=outTypes;
             this.declaredAt = declaredAt;
@@ -2243,7 +2209,7 @@ public class Type {
         final String[] entryNames;
         public Enum(String name, boolean isPublic, String[] entryNames,FilePosition[] entryPositions,FilePosition declaredAt)
                 throws SyntaxError {
-            super(name,entryNames.length<256?BITS8:entryNames.length<0x10000?BITS16:BITS32,true);
+            super(name,BaseType.Primitive.get(BaseType.PrimitiveType.U32),true);
             this.isPublic = isPublic;
             this.entryNames =entryNames;
             for(int i=0;i<entryNames.length;i++){
@@ -2302,7 +2268,7 @@ public class Type {
     public static class NativeType extends Type{
         public final Class<?> jClass;
         NativeType(String name, Class<?> jClass) {
-            super(name,PTR,false);
+            super(name,BaseType.StackValue.PTR,false);
             this.jClass = jClass;
         }
         @Override
@@ -2318,7 +2284,7 @@ public class Type {
         final FilePosition declaredAt;
 
         public GenericParameter(String label, int id, boolean isImplicit, FilePosition pos) {
-            super("'"+id,BITS64,false);
+            super("'"+id,BaseType.StackValue.PTR,false);
             this.label = label;
             this.id=id;
             this.isImplicit = isImplicit;
@@ -2441,48 +2407,13 @@ public class Type {
     static class UnionType extends Type{
         final Type[] elements;
 
-        private static int baseLevel(Type base){
-            if(base==BITS8){
-                return 8;
-            }else if(base==BITS16){
-                return 16;
-            }else if(base==BITS32){
-                return 32;
-            }else if(base==BITS64){
-                return 64;
-            }else if(base==MULTIBLOCK2){
-                return 2*64;
-            }else if(base==MULTIBLOCK3){
-                return 3*64;
-            }else if(base==MULTIBLOCK4){
-                return 4*64;
-            }else if(base==PTR){
-                return Integer.MAX_VALUE;
-            }else{
-                throw new IllegalArgumentException("unexpected base type:"+base);
-            }
-        }
-        private static Type commonBase(Type base1, Type base2) {
-            switch (Math.max(baseLevel(base1),baseLevel(base2))){
-                case 8   -> {return BITS8;}
-                case 16  -> {return BITS16;}
-                case 32  -> {return BITS32;}
-                case 64  -> {return BITS64;}
-                case 128 -> {return MULTIBLOCK2;}
-                case 192 -> {return MULTIBLOCK3;}
-                case 256 -> {return MULTIBLOCK4;}
-                case Integer.MAX_VALUE -> {return PTR;}
-                default ->
-                        throw new IllegalArgumentException("unexpected base type: "+base1+" or "+base2);
-            }
-        }
         static Type create(Type[] elements){
             if(elements.length<=0){
                 throw new RuntimeException("unions cannot be empty");
             }
             StringBuilder name=new StringBuilder("union( ");
             ArrayList<Type> types=new ArrayList<>(elements.length);
-            Type base=BITS8;
+            //TODO union base-type
             for(Type t:elements){//TODO merge types with their supertypes
                 if(t instanceof UnionType) {
                     for(Type t1:((UnionType) t).elements){
@@ -2493,24 +2424,14 @@ public class Type {
                     types.add(t);
                     name.append(t).append(" ");
                 }
-                base=commonBase(base,t.baseType);
-            }
-            if(baseLevel(base)<=64){
-                base=MULTIBLOCK2;//type, content
-            }else if(base==MULTIBLOCK2){
-                base=MULTIBLOCK3;
-            }else if(base==MULTIBLOCK3){
-                base=MULTIBLOCK4;
-            }else if(base!=PTR){
-                throw new RuntimeException("unexpected base type:"+base);
             }
             if(types.size()==1){
                 return types.get(0);
             }//addLater? caching
-            return new UnionType(name.append(")").toString(),base,types.toArray(Type[]::new));
+            return new UnionType(name.append(")").toString(),BaseType.StackValue.PTR,types.toArray(Type[]::new));
         }
 
-        private UnionType(String name,Type baseType, Type[] elements) {
+        private UnionType(String name,BaseType baseType, Type[] elements) {
             super(name,baseType, false);
             this.elements = elements;
         }
@@ -2634,14 +2555,14 @@ public class Type {
         final FilePosition pushedAt;
 
         OverloadedProcedurePointer(OverloadedProcedure proc, Type[] genArgs, int tokenPos, FilePosition pushedAt) {
-            super(proc.name+" .type",MULTIBLOCK2/*ptr,curried*/, false);
+            super(proc.name+" .type",BaseType.Composite.PROC_POINTER, false);
             this.proc = proc;
             this.genArgs = genArgs;
             this.tokenPos = tokenPos;
             this.pushedAt=pushedAt;
         }
         OverloadedProcedurePointer(GenericProcedure proc, Type[] genArgs, int tokenPos, FilePosition pushedAt) {
-            super(proc.name()+" .type",PTR, false);
+            super(proc.name()+" .type",BaseType.Composite.PROC_POINTER, false);
             this.proc = new OverloadedProcedure(proc);
             this.genArgs = genArgs;
             this.tokenPos = tokenPos;

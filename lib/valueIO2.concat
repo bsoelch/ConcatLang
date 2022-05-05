@@ -139,30 +139,6 @@ utf8 #include
       codepoint case
         "codepoint"  <<*
         break
-      bits8 case
-        "bits8"  <<*
-        break
-      bits16 case
-        "bits16"  <<*
-        break
-      bits32 case
-        "bits32"  <<*
-        break
-      bits64 case
-        "bits64"  <<*
-        break
-      bits128 case
-        "bits128"  <<*
-        break
-      bits192 case
-        "bits192"  <<*
-        break
-      bits256 case
-        "bits256"  <<*
-        break
-      bitsPtr case
-        "bitsPtr"  <<*
-        break
       var case
         "var" <<*
         break

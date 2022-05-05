@@ -2237,15 +2237,6 @@ public class Parser {
                 case "type"       -> tokens.add(new ValueToken(Value.ofType(Type.TYPE),              pos));
                 case "var"        -> tokens.add(new ValueToken(Value.ofType(Type.ANY),               pos));
 
-                case "bits8"      -> tokens.add(new ValueToken(Value.ofType(Type.BITS8),             pos));
-                case "bits16"     -> tokens.add(new ValueToken(Value.ofType(Type.BITS16),            pos));
-                case "bits32"     -> tokens.add(new ValueToken(Value.ofType(Type.BITS32),            pos));
-                case "bits64"     -> tokens.add(new ValueToken(Value.ofType(Type.BITS64),            pos));
-                case "bits128"    -> tokens.add(new ValueToken(Value.ofType(Type.MULTIBLOCK2),       pos));
-                case "bits192"    -> tokens.add(new ValueToken(Value.ofType(Type.MULTIBLOCK3),       pos));
-                case "bits256"    -> tokens.add(new ValueToken(Value.ofType(Type.MULTIBLOCK4),       pos));
-                case "bitsPtr"    -> tokens.add(new ValueToken(Value.ofType(Type.PTR),               pos));
-
                 case "mut?"      -> tokens.add(new Token(TokenType.MARK_MAYBE_MUTABLE, pos));
                 case "mut^"      -> tokens.add(new Token(TokenType.MARK_INHERIT_MUTABILITY, pos));
                 case "array"     -> tokens.add(new Token(TokenType.ARRAY_OF,       pos));
