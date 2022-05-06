@@ -122,7 +122,7 @@ public class Compiler {
         }
 
         @Override
-        public CodeGenerator assignPrimitive(int offset, Type target) throws IOException {
+        public CodeGenerator assignPrimitive(int offset, BaseType.StackValue target) throws IOException {
             getRaw(offset);
             out.write("->"+typeWrapperName(target)+" = ");
             return this;
@@ -160,7 +160,7 @@ public class Compiler {
             out.write("(--("+STACK_ARG_NAME+"->"+STACK_FIELD_POINTER+"))");
         }
         @Override
-        public CodeGenerator popPrimitive(Type type) throws IOException {
+        public CodeGenerator popPrimitive(BaseType.StackValue type) throws IOException {
             if(!unfinishedLine)
                 startLine();
             out.write("(");
@@ -200,19 +200,13 @@ public class Compiler {
             return this;
         }
         @Override
-        public CodeGenerator getPrimitiveAs(int offset, Type src, Type target) throws IOException {
+        public CodeGenerator getPrimitiveAs(int offset, BaseType.StackValue src, BaseType.StackValue target) throws IOException {
             if(!unfinishedLine)
                 startLine();
             //TODO check if C-cast is allowed
-            out.write("(("+((BaseType.Primitive)target.baseType).cType+")");
-            getPrimitive(offset,(BaseType.StackValue) src.baseType);
+            out.write("(("+target.cType+")");
+            getPrimitive(offset,src);
             out.write(")");
-            return this;
-        }
-
-        @Override
-        public CodeGenerator getField(String fieldName, boolean isPtr) throws IOException {
-            out.write((isPtr?"->":".")+fieldName);
             return this;
         }
 
@@ -348,10 +342,6 @@ public class Compiler {
         }
     }
 
-    private static String typeWrapperName(Type primitive){
-        BaseType base=primitive.baseType;
-        return typeWrapperName(base);
-    }
     private static String typeWrapperName(BaseType base) {
         if(base instanceof BaseType.StackValue)
             return "as" + Character.toUpperCase(((BaseType.StackValue) base).name.charAt(0))
@@ -481,22 +471,22 @@ public class Compiler {
                         assert next instanceof Parser.ValueToken;
                         Value value = ((Parser.ValueToken) next).value;
                         if (value.type == Type.INT()) {
-                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                            generator.pushPrimitive(value.type)
                                     .appendInt(value.asLong(),true).endLine();
                         }else if (value.type == Type.UINT()) {
-                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                            generator.pushPrimitive(value.type)
                                     .appendInt(value.asLong(),false).endLine();
                         }else if (value.type == Type.CODEPOINT()) {
-                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                            generator.pushPrimitive(value.type)
                                     .appendCodepoint((int)value.asLong()).endLine();
                         }else if (value.type == Type.BYTE()) {
-                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                            generator.pushPrimitive(value.type)
                                     .appendByte(value.asByte()).endLine();
                         }else if (value.type == Type.BOOL) {
-                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                            generator.pushPrimitive(value.type)
                                     .appendBool(value.asBool()).endLine();
                         }else if (value.type == Type.TYPE) {
-                            generator.pushPrimitive((BaseType.StackValue) value.type.baseType)
+                            generator.pushPrimitive(value.type)
                                     .appendType(value.asType()).endLine();
                         }else if(value instanceof Value.Procedure proc){
                             generator.pushPrimitive(BaseType.StackValue.F_PTR)
@@ -510,7 +500,7 @@ public class Compiler {
                             }
                             generator.pushPointer(((Value.ArrayLike) value).contentType())
                                     .append(CONST_ARRAY_PREFIX+idOf(firstDeclaration)).endLine();
-                            generator.pushPrimitive((BaseType.StackValue) Type.UINT().baseType)
+                            generator.pushPrimitive(Type.UINT())
                                     .appendInt(value.length(),false).endLine();
                         }else{
                             throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
@@ -585,7 +575,7 @@ public class Compiler {
                         }else if(t.isArray()&&!t.isMutable()){
                             generator.changeStackPointer(-2)
                                     .append("printf(\"array @%p length: %\"PRIu64\"\\n\", ").getPointer(0,t.content()).
-                                    append(",").getPrimitive(-1,(BaseType.StackValue)Type.UINT().baseType).append(")").endLine();
+                                    append(",").getPrimitive(-1,Type.UINT()).append(")").endLine();
                         }else{
                             System.err.println("unsupported type in debugPrint:"+t);
                             //TODO better output for debug print
@@ -630,7 +620,7 @@ public class Compiler {
                                 }
                                 generator.assignPointer(1,contentType,false).
                                         getPointer(2,contentType).append("+")
-                                        .getPrimitive(1,(BaseType.StackValue)Type.UINT().baseType).endLine();
+                                        .getPrimitive(1,Type.UINT()).endLine();
                             }
                             case FOR_ARRAY_LOOP -> {
                                 assert next instanceof Parser.ForArrayStart;
@@ -717,7 +707,7 @@ public class Compiler {
                             generator.startLine().append("return").endLine();
                     case EXIT ->
                             generator.startLine().append("exit((int)")
-                                    .getPrimitive(1,(BaseType.StackValue) Type.INT().baseType).append(")").endLine();
+                                    .getPrimitive(1,Type.INT()).append(")").endLine();
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
@@ -741,7 +731,7 @@ public class Compiler {
     private static void compileCast(CodeGenerator generator, Type src, Type target, int offset) throws IOException {
         if(src.isPrimitive()&&target.isPrimitive()){
             //TODO check if direct C-cast is allowed
-            generator.assignPrimitive(offset,target).getPrimitive(offset,(BaseType.StackValue) src.baseType).endLine();
+            generator.assignPrimitive(offset,target).getPrimitive(offset,src).endLine();
         }else if(src instanceof Type.Procedure&&target instanceof Type.Procedure){
             assert src.canCastTo(target)!= Type.CastType.NONE;//casting between procedures only changes type-info
         }else{
