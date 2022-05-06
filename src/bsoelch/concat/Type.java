@@ -4,19 +4,6 @@ import java.util.*;
 
 public class Type {
 
-    static BaseType getBaseType(int bits, boolean signed) {
-        if(bits<=8){
-            return BaseType.Primitive.get(signed? BaseType.PrimitiveType.I8: BaseType.PrimitiveType.U8);
-        }else if(bits<=16){
-            return BaseType.Primitive.get(signed? BaseType.PrimitiveType.I16: BaseType.PrimitiveType.U16);
-        }else if(bits<=32){
-            return BaseType.Primitive.get(signed? BaseType.PrimitiveType.I32: BaseType.PrimitiveType.U32);
-        }else if(bits<=64){
-            return BaseType.Primitive.get(signed? BaseType.PrimitiveType.I64: BaseType.PrimitiveType.U64);
-        }else{
-            throw new UnsupportedOperationException("primitive types with more than 64bits are currently not supported");
-        }
-    }
     public static class IntType extends Type{
         static final ArrayList<IntType> intTypes = new ArrayList<>();
 
@@ -28,7 +15,7 @@ public class Type {
         final boolean signed;
         /**true if this type can be cast to/from floats*/
         private IntType(String name, int bits, boolean signed) {
-            super(name, getBaseType(bits,signed), true);
+            super(name, BaseType.Primitive.getInt(bits, !signed), true);
             this.bits = bits;
             this.signed = signed;
 
@@ -2209,7 +2196,7 @@ public class Type {
         final String[] entryNames;
         public Enum(String name, boolean isPublic, String[] entryNames,FilePosition[] entryPositions,FilePosition declaredAt)
                 throws SyntaxError {
-            super(name,BaseType.Primitive.get(BaseType.PrimitiveType.U32),true);
+            super(name,BaseType.Primitive.getInt(32,true),true);
             this.isPublic = isPublic;
             this.entryNames =entryNames;
             for(int i=0;i<entryNames.length;i++){
