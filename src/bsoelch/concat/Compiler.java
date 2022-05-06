@@ -558,29 +558,27 @@ public class Compiler {
                     }
                     case DEBUG_PRINT ->{
                         Type t=((Parser.TypedToken)next).target;
-                        if(t==Type.BYTE()){
-                            generator.append("printf(\"'%1$c' (%1$\"PRIx8\")\\n\", ").popPrimitive(t).append(")").endLine();
-                        }else if(t==Type.CODEPOINT()){
-                            generator.append("printf(\"U+%\"PRIx32\"\\n\", ").popPrimitive(t).append(")").endLine();
-                        }else if(t instanceof Type.IntType){
-                            generator.append( "printf(\"%\"PRI"+(((Type.IntType) t).signed?"i":"u")+((Type.IntType) t).bits+
-                                    "\"\\n\", ").popPrimitive(t).append(")").endLine();
-                        }else if(t==Type.BOOL){
-                            generator.append( "puts((").popPrimitive(t).append(") ? \"true\" : \"false\")").endLine();
-                        }else if(t instanceof Type.Procedure){
-                            generator.changeStackPointer(-2)
-                                    .append("printf(\"procedure @%p (curried: @%p)\\n\", ")
-                                    .getPrimitive(0, BaseType.StackValue.F_PTR).
-                                    append(",").getPointer(-1,Type.ANY).append(")").endLine();
-                        }else if(t.isArray()&&!t.isMutable()){
-                            generator.changeStackPointer(-2)
-                                    .append("printf(\"array @%p length: %\"PRIu64\"\\n\", ").getPointer(0,t.content()).
-                                    append(",").getPrimitive(-1,Type.UINT()).append(")").endLine();
+                        BaseType baseType=t.baseType;
+                        ArrayList<BaseType.StackValue> printedValues=new ArrayList<>();
+                        StringBuilder format=new StringBuilder("\""+t.name+" (");
+                        if(baseType instanceof BaseType.StackValue){
+                            addFormatModifier((BaseType.StackValue)baseType,format);
+                            printedValues.add((BaseType.StackValue)baseType);
                         }else{
-                            System.err.println("unsupported type in debugPrint:"+t);
-                            //TODO better output for debug print
-                            generator.append("printf(\"%\"PRIx64\"\\n\", ").popPrimitive(Type.UINT()).append(")").endLine();
+                            for(BaseType.StackValue s:baseType.blocks()){
+                                if(printedValues.size()>0)
+                                    format.append(" ");
+                                addFormatModifier(s,format);
+                                printedValues.add(s);
+                            }
                         }
+                        format.append(")\\n\"");
+                        generator.changeStackPointer(-printedValues.size()).endLine()
+                                .append("printf(").append(format.toString());
+                        for(int i=0;i<printedValues.size();i++){
+                            generator.append(", ").getPrimitive(-i,printedValues.get(i));
+                        }
+                        generator.append(")").endLine();
                     }
                     case BLOCK_TOKEN -> {
                         switch(((Parser.BlockToken)next).blockType){
@@ -725,6 +723,36 @@ public class Compiler {
             }catch (ConcatRuntimeError e){
                 throw new RuntimeException("while executing "+next.pos,e);
             }
+        }
+    }
+
+    private static void addFormatModifier(BaseType.StackValue baseType, StringBuilder format) {
+        if(baseType instanceof BaseType.Primitive.Int asInt){
+            if(asInt.isPtr){
+                format.append(asInt.cType).append(": %p");
+            }else{
+                format.append(asInt.cType).append(": %\"PRI").append(asInt.unsigned ? "u" : "i").append(asInt.bitCount).append("\"");
+            }
+        }else if(baseType instanceof BaseType.Primitive primitive){
+            format.append(primitive.cType);
+            if(primitive.isPtr){
+                format.append(": %p");
+            }else{
+                switch (primitive.type){
+                    case BOOL ->
+                        format.append(": %d");
+                    case FLOAT ->
+                        format.append(": %f");
+                    case TYPE ->
+                        format.append(": %\"PRIx64\"");
+                    case INTEGER ->
+                            throw new RuntimeException("unexpected Integer primitive");
+                }
+            }
+        }else if(baseType== BaseType.StackValue.F_PTR||baseType== BaseType.StackValue.PTR){
+            format.append(baseType.cType).append(": %p");
+        }else{
+            throw new UnsupportedOperationException("unexpected stackValue:"+baseType.name);
         }
     }
 

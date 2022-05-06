@@ -92,17 +92,22 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   memmove(stack->ptr,stack->ptr-1,1*sizeof(value_t));
   stack->ptr += 1;
   // DEBUG_PRINT: byte
-  printf("'%1$c' (%1$"PRIx8")\n", ((--(stack->ptr))->asI8));
+  stack->ptr -= 1;
+  printf("byte (int8_t: %"PRIi8")\n", ((stack->ptr)->asI8));
   // STACK_DROP at lib/stack:11:27 expanded at test/compiler:30:3
   stack->ptr -= 1;
   // DEBUG_PRINT: uint
-  printf("%"PRIu64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("uint (uint64_t: %"PRIu64")\n", ((stack->ptr)->asU64));
   // DEBUG_PRINT: byte
-  printf("'%1$c' (%1$"PRIx8")\n", ((--(stack->ptr))->asI8));
+  stack->ptr -= 1;
+  printf("byte (int8_t: %"PRIi8")\n", ((stack->ptr)->asI8));
   // DEBUG_PRINT: codepoint
-  printf("U+%"PRIx32"\n", ((--(stack->ptr))->asI32));
+  stack->ptr -= 1;
+  printf("codepoint (int32_t: %"PRIi32")\n", ((stack->ptr)->asI32));
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // VALUE: bool:false
   (stack->ptr++)->asBool = false;
   // IF: +5
@@ -132,7 +137,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
     }
   }
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // VALUE: int:66
   (stack->ptr++)->asI64 = 66LL;
   // CALL_PROC: ( int => byte ):@(test/compiler:6:6)
@@ -149,17 +155,20 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // LOCAL_REFERENCE_TO:0 (x)
   (stack->ptr++)->asI8Ptr = &local_var_0_0;
   // DEBUG_PRINT: byte reference mut
-  printf("%"PRIx64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("byte reference mut (int8_t*: %p)\n", ((stack->ptr)->asI8Ptr));
   // LOCAL_READ:1 (y)
   (stack->ptr++)->asI64 = local_var_0_1;
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // LOCAL_REFERENCE_TO:0 (x)
   (stack->ptr++)->asI8Ptr = &local_var_0_0;
   // DEREFERENCE: byte
   ((stack->ptr)-1)->asI8 = *(((stack->ptr)-1)->asI8Ptr);
   // DEBUG_PRINT: byte
-  printf("'%1$c' (%1$"PRIx8")\n", ((--(stack->ptr))->asI8));
+  stack->ptr -= 1;
+  printf("byte (int8_t: %"PRIi8")\n", ((stack->ptr)->asI8));
   // VALUE: byte:x
   (stack->ptr++)->asI8 = 0x78;
   // LOCAL_REFERENCE_TO:0 (x)
@@ -172,7 +181,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // DEREFERENCE: byte
   ((stack->ptr)-1)->asI8 = *(((stack->ptr)-1)->asI8Ptr);
   // DEBUG_PRINT: byte
-  printf("'%1$c' (%1$"PRIx8")\n", ((--(stack->ptr))->asI8));
+  stack->ptr -= 1;
+  printf("byte (int8_t: %"PRIi8")\n", ((stack->ptr)->asI8));
   // VALUE: bool:true
   (stack->ptr++)->asBool = true;
   // VALUE: bool:true
@@ -193,7 +203,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
     memmove(stack->ptr,stack->ptr-1,1*sizeof(value_t));
     stack->ptr += 1;
     // DEBUG_PRINT: bool
-    puts((((--(stack->ptr))->asBool)) ? "true" : "false");
+    stack->ptr -= 1;
+    printf("bool (bool: %d)\n", ((stack->ptr)->asBool));
     // CONTEXT_CLOSE at test/compiler:58:3
     // END_WHILE: -10
   }while(true);
@@ -204,7 +215,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // VALUE: byte: 
   (stack->ptr++)->asI8 = 0x20;
   // DEBUG_PRINT: byte
-  printf("'%1$c' (%1$"PRIx8")\n", ((--(stack->ptr))->asI8));
+  stack->ptr -= 1;
+  printf("byte (int8_t: %"PRIi8")\n", ((stack->ptr)->asI8));
   // VALUE: int:5
   (stack->ptr++)->asI64 = 5LL;
   // WHILE: -1
@@ -214,7 +226,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
     memmove(stack->ptr,stack->ptr-1,1*sizeof(value_t));
     stack->ptr += 1;
     // DEBUG_PRINT: int
-    printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+    stack->ptr -= 1;
+    printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
     // VALUE: int:1
     (stack->ptr++)->asI64 = 1LL;
     // CALL_PROC: ( int int => int ):-
@@ -241,7 +254,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   stack->ptr -= 1;
   ((stack->ptr)-1)->asI64 = (((int64_t)(((stack->ptr)-1)->asI64)) + ((int64_t)((stack->ptr)->asI64)));
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // VALUE: uint:2
   (stack->ptr++)->asU64 = 2ULL;
   // LOCAL_READ:1 (y)
@@ -250,7 +264,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   stack->ptr -= 1;
   ((stack->ptr)-1)->asU64 = (((uint64_t)(((stack->ptr)-1)->asU64)) - ((uint64_t)((stack->ptr)->asI64)));
   // DEBUG_PRINT: uint
-  printf("%"PRIu64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("uint (uint64_t: %"PRIu64")\n", ((stack->ptr)->asU64));
   // VALUE: int:-1
   (stack->ptr++)->asI64 = -1LL;
   // VALUE: uint:1
@@ -258,7 +273,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // CALL_PROC: ( int uint => int ):@(test/compiler:14:10)
   concat_private_procedure_test0x2F_compiler_14_10(stack, NULL);
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // VALUE: int:1
   (stack->ptr++)->asI64 = 1LL;
   // VALUE: uint:2
@@ -266,7 +282,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // CALL_PROC: ( int uint => int ):@(test/compiler:14:10)
   concat_private_procedure_test0x2F_compiler_14_10(stack, NULL);
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // VALUE: int:0
   (stack->ptr++)->asI64 = 0LL;
   // VALUE: uint:1
@@ -274,7 +291,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // CALL_PROC: ( int uint => int ):@(test/compiler:14:10)
   concat_private_procedure_test0x2F_compiler_14_10(stack, NULL);
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // VALUE: int:1
   (stack->ptr++)->asI64 = 1LL;
   // VALUE: uint:0
@@ -282,7 +300,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // CALL_PROC: ( int uint => int ):@(test/compiler:14:10)
   concat_private_procedure_test0x2F_compiler_14_10(stack, NULL);
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // VALUE: int:1
   (stack->ptr++)->asI64 = 1LL;
   // VALUE: uint:18446744073709551615
@@ -290,13 +309,15 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // CALL_PROC: ( int uint => int ):@(test/compiler:14:10)
   concat_private_procedure_test0x2F_compiler_14_10(stack, NULL);
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // CALL_PROC: ( => int ):@(test/compiler:9:5)
   concat_private_procedure_test0x2F_compiler_9_5(stack, NULL);
   // CALL_PROC: ( int => int ):~
   ((stack->ptr)-1)->asI64 =  ~ (((stack->ptr)-1)->asI64);
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // CALL_PROC: ( => int ):@(test/compiler:9:5)
   concat_private_procedure_test0x2F_compiler_9_5(stack, NULL);
   // CALL_PROC: ( int => int ):-_
@@ -304,7 +325,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   // CALL_PROC: ( int => int ):~
   ((stack->ptr)-1)->asI64 =  ~ (((stack->ptr)-1)->asI64);
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // CALL_PROC: ( => int ):@(test/compiler:9:5)
   concat_private_procedure_test0x2F_compiler_9_5(stack, NULL);
   // CALL_PROC: ( => int ):@(test/compiler:10:5)
@@ -323,35 +345,43 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   stack->ptr -= 1;
   ((stack->ptr)-1)->asI64 = (((int64_t)(((stack->ptr)-1)->asI64)) ^ ((int64_t)((stack->ptr)->asI64)));
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // VALUE: type:bool
   (stack->ptr++)->asType = 1/* bool */;
   // DEBUG_PRINT: type
-  printf("%"PRIx64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("type (type_t: %"PRIx64")\n", ((stack->ptr)->asType));
   // VALUE: type:byte
   (stack->ptr++)->asType = 3/* byte */;
   // DEBUG_PRINT: type
-  printf("%"PRIx64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("type (type_t: %"PRIx64")\n", ((stack->ptr)->asType));
   // VALUE: type:codepoint
   (stack->ptr++)->asType = 7/* codepoint */;
   // DEBUG_PRINT: type
-  printf("%"PRIx64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("type (type_t: %"PRIx64")\n", ((stack->ptr)->asType));
   // VALUE: type:int
   (stack->ptr++)->asType = 9/* int */;
   // DEBUG_PRINT: type
-  printf("%"PRIx64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("type (type_t: %"PRIx64")\n", ((stack->ptr)->asType));
   // VALUE: type:uint
   (stack->ptr++)->asType = 8/* uint */;
   // DEBUG_PRINT: type
-  printf("%"PRIx64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("type (type_t: %"PRIx64")\n", ((stack->ptr)->asType));
   // VALUE: type:float
   (stack->ptr++)->asType = 16/* float */;
   // DEBUG_PRINT: type
-  printf("%"PRIx64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("type (type_t: %"PRIx64")\n", ((stack->ptr)->asType));
   // VALUE: type:type
   (stack->ptr++)->asType = 17/* type */;
   // DEBUG_PRINT: type
-  printf("%"PRIx64"\n", ((--(stack->ptr))->asU64));
+  stack->ptr -= 1;
+  printf("type (type_t: %"PRIx64")\n", ((stack->ptr)->asType));
   // VALUE: ( => int ):@(test/compiler:9:5)
   (stack->ptr++)->asProcPtr = &concat_private_procedure_test0x2F_compiler_9_5;
   (stack->ptr++)->asAny = NULL;
@@ -362,10 +392,11 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   stack->ptr -= 2;
   ((stack->ptr)->asProcPtr)(stack, (((stack->ptr)+1)->asAny));
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // DEBUG_PRINT: ( => int )
   stack->ptr -= 2;
-  printf("procedure @%p (curried: @%p)\n", ((stack->ptr)->asProcPtr),(((stack->ptr)+1)->asAny));
+  printf("( => int ) (fptr_t: %p value_t*: %p)\n", ((stack->ptr)->asProcPtr), (((stack->ptr)+1)->asAny));
   // LAMBDA: ( int => int ):@(test/compiler:84:4)
   (stack->ptr++)->asProcPtr = &concat_private_procedure_test0x2F_compiler_84_4;
   (stack->ptr++)->asAny = NULL;
@@ -384,7 +415,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   stack->ptr -= 2;
   ((stack->ptr)->asProcPtr)(stack, (((stack->ptr)+1)->asAny));
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // LAMBDA: ( int => int ):@(test/compiler:86:4)
   (stack->ptr++)->asProcPtr = &concat_private_procedure_test0x2F_compiler_86_4;
   (stack->ptr++)->asAny = NULL;
@@ -404,13 +436,14 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   stack->ptr -= 2;
   ((stack->ptr)->asProcPtr)(stack, (((stack->ptr)+1)->asAny));
   // DEBUG_PRINT: int
-  printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
   // GLOBAL_VALUE: byte array mut~:Test
   (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_88_4;
   (stack->ptr++)->asU64 = 4ULL;
   // DEBUG_PRINT: byte array mut~
   stack->ptr -= 2;
-  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asI8Ptr),(((stack->ptr)+1)->asU64));
+  printf("byte array mut~ (int8_t*: %p uint64_t: %"PRIu64")\n", ((stack->ptr)->asI8Ptr), (((stack->ptr)+1)->asU64));
   // GLOBAL_VALUE: byte array mut~:Test2
   (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_89_4;
   (stack->ptr++)->asU64 = 5ULL;
@@ -422,10 +455,10 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
   memmove(stack->ptr-4,stack->ptr-2,4*sizeof(value_t));
   // DEBUG_PRINT: byte array mut~
   stack->ptr -= 2;
-  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asI8Ptr),(((stack->ptr)+1)->asU64));
+  printf("byte array mut~ (int8_t*: %p uint64_t: %"PRIu64")\n", ((stack->ptr)->asI8Ptr), (((stack->ptr)+1)->asU64));
   // DEBUG_PRINT: byte array mut~
   stack->ptr -= 2;
-  printf("array @%p length: %"PRIu64"\n", ((stack->ptr)->asI8Ptr),(((stack->ptr)+1)->asU64));
+  printf("byte array mut~ (int8_t*: %p uint64_t: %"PRIu64")\n", ((stack->ptr)->asI8Ptr), (((stack->ptr)+1)->asU64));
   // VALUE: int array:[int:1, int:2, int:3]
   (stack->ptr++)->asI64Ptr = concat_const_array_test0x2F_compiler_90_12;
   (stack->ptr++)->asU64 = 3ULL;
@@ -437,7 +470,8 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
     stack->ptr += 1;
     // CONTEXT_OPEN at test/compiler:90:14
     // DEBUG_PRINT: int
-    printf("%"PRIi64"\n", ((--(stack->ptr))->asI64));
+    stack->ptr -= 1;
+    printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
     // CONTEXT_CLOSE at test/compiler:92:4
     // FOR_ARRAY_END: -4
   }
