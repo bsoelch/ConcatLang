@@ -997,6 +997,18 @@ public class Type {
         private TupleLike(String name,Type src, Mutability mutability) {
             super(name,null, src, mutability);
         }
+        static BaseType tupleBaseType(Type[] elements,boolean immutable) {
+            if(immutable){
+                ArrayList<BaseType.StackValue> values=new ArrayList<>();
+                for(Type t:elements){
+                    values.addAll(Arrays.asList(t.baseType().blocks()));
+                }
+                if(values.size()<=16){
+                    return new BaseType.Composite(values.toArray(BaseType.StackValue[]::new));
+                }
+            }
+            return BaseType.StackValue.PTR;
+        }
         @Override
         void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError {
             for(int i=0;i<elementCount();i++){
@@ -1086,16 +1098,7 @@ public class Type {
 
         @Override
         BaseType initBaseType() {
-            if(Mutability.isEqual(mutability,Mutability.IMMUTABLE)){
-                ArrayList<BaseType.StackValue> values=new ArrayList<>();
-                for(Type t:elements){
-                    values.addAll(Arrays.asList(t.baseType().blocks()));
-                }
-                if(values.size()<=16){
-                    return new BaseType.Composite(values.toArray(BaseType.StackValue[]::new));
-                }
-            }
-            return BaseType.StackValue.PTR;
+            return tupleBaseType(elements,Mutability.isEqual(mutability,Mutability.IMMUTABLE));
         }
         private Tuple(String name, Type[] elements, Mutability mutability, FilePosition declaredAt){
             super(name, false,mutability);
@@ -1389,8 +1392,15 @@ public class Type {
         BaseType initBaseType() {
             if(!isTypeChecked())
                 throw new RuntimeException("initBaseType() can only be called after type-checking");
-            //TODO base-type for simple immutable structs
-            return BaseType.StackValue.PTR;
+            boolean immutable=true;
+            for(StructField f:fields){
+                if (f.mutable) {
+                    immutable = false;
+                    break;
+                }
+            }
+            immutable|=Mutability.isEqual(mutability,Mutability.IMMUTABLE);
+            return tupleBaseType(elements,immutable);
         }
 
         @Override
