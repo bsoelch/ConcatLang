@@ -260,7 +260,7 @@ public class Type {
     final boolean switchable;
     final Mutability mutability;
     private final boolean primitive;
-    private final BaseType baseType;
+    private BaseType baseType;
     /**fields that are attached to this type*/
     private final HashMap<String, Value> typeFields;
     private final HashMap<String, Parser.Callable> internalFields;
@@ -321,9 +321,18 @@ public class Type {
 
         implementedTraits=src.implementedTraits;
     }
+
+    BaseType initBaseType() {
+        throw new UnsupportedOperationException();
+    }
     BaseType baseType(){
+        if(baseType==null)
+            baseType=initBaseType();
         return baseType;
     }
+
+
+
     /**returns true if this type is a valid variable type*/
     boolean isValid(){
         return true;
@@ -720,14 +729,15 @@ public class Type {
         }
         private WrapperType(String wrapperName, Type contentType,Mutability mutability){
             super(updateChildMutability(contentType,mutability).name+" "+
-                    wrapperName+mutabilityPostfix(mutability),getBaseType(wrapperName,contentType.baseType()),
-                    ARRAY.equals(wrapperName)&&
+                    wrapperName+mutabilityPostfix(mutability),null,ARRAY.equals(wrapperName)&&
                     (contentType==IntType.BYTE||contentType==IntType.CODEPOINT),mutability,false);
             this.wrapperName = wrapperName;
             this.contentType = contentType;
         }
 
-        private static BaseType getBaseType(String wrapperName, BaseType contentBase) {
+        @Override
+        BaseType initBaseType() {
+            BaseType contentBase=contentType.baseType();
             return switch (wrapperName) {
                 case ARRAY -> BaseType.arrayOf(contentBase);
                 case REFERENCE -> contentBase.pointerTo();
@@ -739,7 +749,7 @@ public class Type {
 
         private WrapperType(WrapperType src,Mutability mutability){
             super(updateChildMutability(src.contentType,mutability).name+" "+
-                    src.wrapperName+mutabilityPostfix(mutability),src.baseType(), src,mutability);
+                    src.wrapperName+mutabilityPostfix(mutability),null, src,mutability);
             this.wrapperName = src.wrapperName;
             this.contentType = src.contentType;
         }
@@ -981,11 +991,11 @@ public class Type {
     }
 
     static abstract class TupleLike extends Type{
-        private TupleLike(String name,BaseType baseType,boolean switchable, Mutability mutability) {
-            super(name, baseType,switchable, mutability, false);
+        private TupleLike(String name,boolean switchable, Mutability mutability) {
+            super(name, null,switchable, mutability, false);
         }
-        private TupleLike(String name,BaseType baseType, Type src, Mutability mutability) {
-            super(name,baseType, src, mutability);
+        private TupleLike(String name,Type src, Mutability mutability) {
+            super(name,null, src, mutability);
         }
         @Override
         void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError {
@@ -1074,8 +1084,8 @@ public class Type {
             return sb.append(")").toString();
         }
 
-
-        private static BaseType baseTypeFor(Type[] elements, Mutability mutability) {
+        @Override
+        BaseType initBaseType() {
             if(Mutability.isEqual(mutability,Mutability.IMMUTABLE)){
                 ArrayList<BaseType.StackValue> values=new ArrayList<>();
                 for(Type t:elements){
@@ -1088,13 +1098,13 @@ public class Type {
             return BaseType.StackValue.PTR;
         }
         private Tuple(String name, Type[] elements, Mutability mutability, FilePosition declaredAt){
-            super(name, baseTypeFor(elements,mutability),false,mutability);
+            super(name, false,mutability);
             this.elements=elements;
             this.declaredAt = declaredAt;
         }
 
         private Tuple(Tuple src,Mutability mutability){
-            super(src.name, baseTypeFor(src.elements,mutability), src,mutability);
+            super(src.name,src,mutability);
             this.elements=src.elements;
             this.declaredAt=src.declaredAt;
         }
@@ -1329,7 +1339,7 @@ public class Type {
                        Type[] genArgs,GenericStruct genericVersion, Type[] elements, StructField[] fields,
                        ArrayList<Parser.Token> tokens, Parser.StructContext context,
                        Mutability mutability, FilePosition declaredAt,FilePosition endPos) {
-            super(name, BaseType.StackValue.PTR,false,mutability);//TODO base-type for simple immutable structs
+            super(name, false,mutability);
             if((elements==null)==(tokens==null)){
                 throw new RuntimeException("exactly one of elements and tokens should be non-null");
             }
@@ -1356,7 +1366,7 @@ public class Type {
             }
         }
         private Struct(Struct src,Mutability mutability){
-            super(namePrefix(src.baseName,src.genericArgs)+mutabilityPostfix(mutability),src.baseType(),src,mutability);
+            super(namePrefix(src.baseName,src.genericArgs)+mutabilityPostfix(mutability),src,mutability);
 
             declaredTypeFields=src.declaredTypeFields;
             this.isPublic = src.isPublic;
@@ -1373,6 +1383,14 @@ public class Type {
             this.context = src.context;
             fieldNames=src.fieldNames;
             indexByName=src.indexByName;
+        }
+
+        @Override
+        BaseType initBaseType() {
+            if(!isTypeChecked())
+                throw new RuntimeException("initBaseType() can only be called after type-checking");
+            //TODO base-type for simple immutable structs
+            return BaseType.StackValue.PTR;
         }
 
         @Override
@@ -1691,7 +1709,7 @@ public class Type {
                       Type[] genericArgs, GenericParameter[] genericParameters, TraitField[] traitFields,
                       ArrayList<Parser.Token> tokens, Parser.TraitContext context, Mutability mutability,
                       FilePosition declaredAt, FilePosition endPos) {
-            super(name,BaseType.StackValue.PTR,false,mutability, false);//TODO handle base-type for traits
+            super(name,null,false,mutability, false);
             this.extended = extended;
             assert (traitFields==null)!=(tokens==null);
             this.baseName = baseName;
@@ -1707,7 +1725,7 @@ public class Type {
         }
         private Trait(Trait src,Mutability newMutability){
             super(Struct.namePrefix(src.baseName,src.genericArgs)+mutabilityPostfix(newMutability),
-                    src.baseType(),src,newMutability);
+                    null,src,newMutability);
             baseName=src.baseName;
             isPublic=src.isPublic;
             extended=src.extended;
@@ -1719,6 +1737,12 @@ public class Type {
             traitFields=src.traitFields;
             tokens=src.tokens;
             context=src.context;
+        }
+
+        @Override
+        BaseType initBaseType() {
+            //TODO handle base-type for traits
+            return BaseType.StackValue.PTR;
         }
 
         TraitField[] withExtended(TraitField[] declaredFields){
@@ -2292,12 +2316,18 @@ public class Type {
         final FilePosition declaredAt;
 
         public GenericParameter(String label, int id, boolean isImplicit, FilePosition pos) {
-            super("'"+id,BaseType.StackValue.PTR,false, false);
+            super("'"+id,null,false, false);
             this.label = label;
             this.id=id;
             this.isImplicit = isImplicit;
             this.declaredAt=pos;
         }
+
+        @Override
+        BaseType baseType() {
+            throw new UnsupportedOperationException("baseType() is not supported for generic parameters");
+        }
+
         @Override
         boolean isValid() {
             return false;
@@ -2421,7 +2451,6 @@ public class Type {
             }
             StringBuilder name=new StringBuilder("union( ");
             ArrayList<Type> types=new ArrayList<>(elements.length);
-            //TODO union base-type
             for(Type t:elements){//TODO merge types with their supertypes
                 if(t instanceof UnionType) {
                     for(Type t1:((UnionType) t).elements){
@@ -2436,12 +2465,18 @@ public class Type {
             if(types.size()==1){
                 return types.get(0);
             }//addLater? caching
-            return new UnionType(name.append(")").toString(),BaseType.StackValue.PTR,types.toArray(Type[]::new));
+            return new UnionType(name.append(")").toString(),types.toArray(Type[]::new));
         }
 
-        private UnionType(String name,BaseType baseType, Type[] elements) {
-            super(name,baseType, false, Arrays.stream(elements).allMatch(e->e.primitive));
+        private UnionType(String name,Type[] elements) {
+            super(name,null, false, Arrays.stream(elements).allMatch(e->e.primitive));
             this.elements = elements;
+        }
+
+        @Override
+        BaseType initBaseType() {
+            //TODO union base-type
+            return BaseType.StackValue.PTR;
         }
 
         @Override
