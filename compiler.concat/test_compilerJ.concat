@@ -24,6 +24,11 @@ cmpCheck proc( int uint => int ){
   res ..
 }
 
+testStruct struct{ T <>
+  T :a
+  T :b
+}
+
 main public proc( => ){
   1 2u '3' u'💻' swap rot3 over dup
   debugPrint
@@ -86,11 +91,14 @@ main public proc( => ){
    lambda( int ){ dup dup * * } f =
    2 f () debugPrint
    "Test" debugPrint
-   "Test2" "Test" swap debugPrint debugPrint
+   "Test" string str =:
+   "Test2" str swap debugPrint debugPrint
    { 1 2 3 } for{
      debugPrint
    }
 
    1 y ( int int ) new debugPrint
    "Constant" "Tuple" 'A' 0x65 ( byte int ) new ( string string ( byte int ) ) new debugPrint
+   1 2 int testStruct new debugPrint
+   str "struct" string testStruct new debugPrint
 }

@@ -676,8 +676,8 @@ public class Compiler {
                         assert next instanceof Parser.TypedToken;
                         Type type=((Parser.TypedToken)next).target;
                         BaseType base=type.baseType();
-                        if(type instanceof Type.Tuple){
-                            if(base== BaseType.StackValue.PTR){
+                        if(type instanceof Type.Tuple||type instanceof Type.Struct){
+                            if(base == BaseType.StackValue.PTR){
                                 throw new UnsupportedOperationException(type+" is currently not supported in NEW");
                             }//else do nothing
                         }else{
@@ -736,7 +736,7 @@ public class Compiler {
                     .append(CONST_ARRAY_PREFIX+idOf(firstDeclaration)).endLine();
             generator.pushPrimitive(Type.UINT())
                     .appendInt(value.length(),false).endLine();
-        }else if(value.type instanceof Type.Tuple){
+        }else if(value.type instanceof Type.Tuple||value.type instanceof Type.Struct){
             if(value.type.baseType() == BaseType.StackValue.PTR){
                 throw new UnsupportedOperationException("tuples of type " + value.type + " are currently not supported");
             }
