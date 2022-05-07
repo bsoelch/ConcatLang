@@ -97,8 +97,12 @@ main public proc( => ){
      debugPrint
    }
 
-   1 y ( int int ) new debugPrint
+   1 y ( int int ) new dup debugPrint aTuple =::
    "Constant" "Tuple" 'A' 0x65 ( byte int ) new ( string string ( byte int ) ) new debugPrint
-   1 2 int testStruct new debugPrint
-   str "struct" string testStruct new debugPrint
+   1 2 int testStruct new aStruct =::
+   aStruct debugPrint
+   str "struct" string testStruct new dup debugPrint bStruct =::
+   aTuple .0 debugPrint
+   aStruct .b debugPrint
+   bStruct .a debugPrint
 }

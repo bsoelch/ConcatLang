@@ -305,13 +305,16 @@ public class Parser {
 
     }
     static class TupleElementAccess extends Token{
+        final Type.TupleLike tupleType;
         final int index;
-        TupleElementAccess(int index, boolean isReference, FilePosition pos) {
+        TupleElementAccess(Type.TupleLike tupleType, int index, boolean isReference, FilePosition pos) {
             super(isReference?TokenType.TUPLE_REFERENCE_TO:TokenType.TUPLE_GET_INDEX, pos);
+            this.tupleType = tupleType;
             this.index = index;
         }
-        TupleElementAccess(int index, FilePosition pos) {
+        TupleElementAccess(Type.TupleLike tupleType, int index, FilePosition pos) {
             super(TokenType.TUPLE_SET_INDEX, pos);
+            this.tupleType = tupleType;
             this.index = index;
         }
     }
@@ -4528,7 +4531,7 @@ public class Parser {
                         if(field.accessibility()==Accessibility.PUBLIC||field.declaredAt().path.equals(t.pos.path)){
                             if(field.mutable()){
                                 typeCheckCast(val.type,2,struct.getElement(index), tState, t.pos);
-                                ret.add(new TupleElementAccess(index,  t.pos));
+                                ret.add(new TupleElementAccess(struct, index,  t.pos));
                                 hasField=true;
                             }else{
                                 throw new SyntaxError("field "+identifier.name+" (declared at "+ field.declaredAt()+
@@ -4547,7 +4550,7 @@ public class Parser {
                             Type fieldType = tuple.getElement(index);
                             if(tuple.isMutable()){
                                 typeCheckCast(val.type,2,fieldType, tState, t.pos);
-                                ret.add(new TupleElementAccess(index,  t.pos));
+                                ret.add(new TupleElementAccess(tuple, index,  t.pos));
                                 hasField=true;
                             }else{
                                 throw new SyntaxError("tuple "+ tuple.name+
@@ -4695,7 +4698,7 @@ public class Parser {
             fieldType=Type.referenceTo(fieldType).mutable();
         }
         tState.typeStack.push(new TypeFrame(fieldType,new ValueInfo(new OwnerInfo.Container(f.valueInfo)), pos));
-        tState.ret.add(new TupleElementAccess(index, isReference, pos));
+        tState.ret.add(new TupleElementAccess(tupleType, index, isReference, pos));
     }
 
     private static void typeCheckVarRead(VariableId d, IdentifierToken identifier,

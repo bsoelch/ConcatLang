@@ -684,11 +684,31 @@ public class Compiler {
                             throw new UnsupportedOperationException(type+" is currently not supported in NEW");
                         }
                     }
+                    case TUPLE_GET_INDEX -> {
+                        assert next instanceof Parser.TupleElementAccess;
+                        Type.TupleLike type=((Parser.TupleElementAccess) next).tupleType;
+                        int index = ((Parser.TupleElementAccess) next).index;
+                        if(type.baseType() == BaseType.StackValue.PTR){
+                            throw new UnsupportedOperationException("tuple access is currently not supported for tuples of type "+type);
+                        }
+                        Type[] elements=type.getElements();
+                        int pre=0,count=elements[index].blockCount(),post=0;
+                        for(int i = 0; i< index; i++){
+                            pre+=elements[i].blockCount();
+                        }
+                        for(int i = index+1; i< elements.length; i++){
+                            post+=elements[i].blockCount();
+                        }
+                        generator.changeStackPointer(-(pre+post)).endLine();
+                        if(index>0){
+                            generator.append("memmove(").getRaw(count).append(", ").getRaw(count-pre)
+                                    .append(", "+count+"*sizeof("+STACK_DATA_TYPE+"))").endLine();
+                        }
+                    }
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
                     case ASSERT -> throw new UnsupportedOperationException("compiling ASSERT  is currently not implemented");
                     case SWITCH -> throw new UnsupportedOperationException("compiling SWITCH  is currently not implemented");
-                    case TUPLE_GET_INDEX -> throw new UnsupportedOperationException("compiling TUPLE_GET_INDEX  is currently not implemented");
                     case TUPLE_REFERENCE_TO -> throw new UnsupportedOperationException("compiling TUPLE_REFERENCE_TO  is currently not implemented");
                     case TUPLE_SET_INDEX -> throw new UnsupportedOperationException("compiling TUPLE_SET_INDEX  is currently not implemented");
                     case TRAIT_FIELD_ACCESS -> throw new UnsupportedOperationException("compiling TRAIT_FIELD_ACCESS  is currently not implemented");

@@ -66,7 +66,7 @@ void concat_private_procedure_test0x2F_compiler_89_4(Stack* stack, value_t* curr
 int8_t concat_const_array_test0x2F_compiler_101_15[] = {0x54, 0x75, 0x70, 0x6c, 0x65};
 int8_t concat_const_array_test0x2F_compiler_93_4[] = {0x54, 0x65, 0x73, 0x74};
 int8_t concat_const_array_test0x2F_compiler_101_4[] = {0x43, 0x6f, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x74};
-int8_t concat_const_array_test0x2F_compiler_103_8[] = {0x73, 0x74, 0x72, 0x75, 0x63, 0x74};
+int8_t concat_const_array_test0x2F_compiler_104_8[] = {0x73, 0x74, 0x72, 0x75, 0x63, 0x74};
 int64_t concat_const_array_test0x2F_compiler_96_12[] = {1LL, 2LL, 3LL};
 int8_t concat_const_array_test0x2F_compiler_95_4[] = {0x54, 0x65, 0x73, 0x74, 0x32};
 
@@ -491,9 +491,16 @@ void concat_public_procedure_test0x2F_compiler_32_13(Stack* stack, value_t* curr
   // LOCAL_READ:1 (y)
   (stack->ptr++)->asI64 = local_var_0_1;
   // NEW: ( int int )
+  // STACK_DUP at lib/stack:12:27 expanded at test/compiler:100:24
+  memmove(stack->ptr,stack->ptr-2,2*sizeof(value_t));
+  stack->ptr += 2;
   // DEBUG_PRINT: ( int int )
   stack->ptr -= 2;
   printf("( int int ) (int64_t: %"PRIi64" int64_t: %"PRIi64")\n", ((stack->ptr)->asI64), (((stack->ptr)+1)->asI64));
+  // LOCAL_DECLARE:4 (aTuple)
+  stack->ptr -= 2;
+  value_t local_var_0_4[2];
+  memcpy(local_var_0_4, (stack->ptr), 2*sizeof(value_t));
   // VALUE: ( byte array mut~ byte array mut~ ( byte int ) ):(byte array mut~:Constant,byte array mut~:Tuple,( byte int ):(byte:A,int:101))
   (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_101_4;
   (stack->ptr++)->asU64 = 8ULL;
@@ -507,6 +514,13 @@ void concat_public_procedure_test0x2F_compiler_32_13(Stack* stack, value_t* curr
   // VALUE: int testStruct:(int:1,int:2)
   (stack->ptr++)->asI64 = 1LL;
   (stack->ptr++)->asI64 = 2LL;
+  // LOCAL_DECLARE:5 (aStruct)
+  stack->ptr -= 2;
+  value_t local_var_0_5[2];
+  memcpy(local_var_0_5, (stack->ptr), 2*sizeof(value_t));
+  // LOCAL_READ:5 (aStruct)
+  memcpy((stack->ptr), local_var_0_5, 2*sizeof(value_t));
+  stack->ptr += 2;
   // DEBUG_PRINT: int testStruct
   stack->ptr -= 2;
   printf("int testStruct (int64_t: %"PRIi64" int64_t: %"PRIi64")\n", ((stack->ptr)->asI64), (((stack->ptr)+1)->asI64));
@@ -514,12 +528,44 @@ void concat_public_procedure_test0x2F_compiler_32_13(Stack* stack, value_t* curr
   memcpy((stack->ptr), local_var_0_3, 2*sizeof(value_t));
   stack->ptr += 2;
   // GLOBAL_VALUE: byte array mut~:struct
-  (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_103_8;
+  (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_104_8;
   (stack->ptr++)->asU64 = 6ULL;
   // NEW: byte array mut~ testStruct
+  // STACK_DUP at lib/stack:12:27 expanded at test/compiler:104:39
+  memmove(stack->ptr,stack->ptr-4,4*sizeof(value_t));
+  stack->ptr += 4;
   // DEBUG_PRINT: byte array mut~ testStruct
   stack->ptr -= 4;
   printf("byte array mut~ testStruct (int8_t*: %p uint64_t: %"PRIu64" int8_t*: %p uint64_t: %"PRIu64")\n", ((stack->ptr)->asI8Ptr), (((stack->ptr)+1)->asU64), (((stack->ptr)+2)->asI8Ptr), (((stack->ptr)+3)->asU64));
+  // LOCAL_DECLARE:6 (bStruct)
+  stack->ptr -= 4;
+  value_t local_var_0_6[4];
+  memcpy(local_var_0_6, (stack->ptr), 4*sizeof(value_t));
+  // LOCAL_READ:4 (aTuple)
+  memcpy((stack->ptr), local_var_0_4, 2*sizeof(value_t));
+  stack->ptr += 2;
+  // TUPLE_GET_INDEX at test/compiler:105:11
+  stack->ptr -= 1;
+  // DEBUG_PRINT: int
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
+  // LOCAL_READ:5 (aStruct)
+  memcpy((stack->ptr), local_var_0_5, 2*sizeof(value_t));
+  stack->ptr += 2;
+  // TUPLE_GET_INDEX at test/compiler:106:12
+  stack->ptr -= 1;
+  memmove(((stack->ptr)-1), (stack->ptr), 1*sizeof(value_t));
+  // DEBUG_PRINT: int
+  stack->ptr -= 1;
+  printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
+  // LOCAL_READ:6 (bStruct)
+  memcpy((stack->ptr), local_var_0_6, 4*sizeof(value_t));
+  stack->ptr += 4;
+  // TUPLE_GET_INDEX at test/compiler:107:12
+  stack->ptr -= 2;
+  // DEBUG_PRINT: byte array mut~
+  stack->ptr -= 2;
+  printf("byte array mut~ (int8_t*: %p uint64_t: %"PRIu64")\n", ((stack->ptr)->asI8Ptr), (((stack->ptr)+1)->asU64));
 }
 // procedure two ( => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_10_5(Stack* stack, value_t* curried){
