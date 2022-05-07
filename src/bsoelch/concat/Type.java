@@ -259,7 +259,7 @@ public class Type {
     final String name;
     final boolean switchable;
     final Mutability mutability;
-    final BaseType baseType;
+    private final BaseType baseType;
     /**fields that are attached to this type*/
     private final HashMap<String, Value> typeFields;
     private final HashMap<String, Parser.Callable> internalFields;
@@ -302,9 +302,9 @@ public class Type {
 
         implementedTraits=new HashMap<>();
     }
-    private Type(String newName,Type src,Mutability newMutability){
+    private Type(String newName,BaseType newBase,Type src,Mutability newMutability){
         this.name = newName;
-        this.baseType=src.baseType;
+        this.baseType = newBase;
         this.switchable = src.switchable;
         this.mutability = newMutability;
 
@@ -318,16 +318,19 @@ public class Type {
 
         implementedTraits=src.implementedTraits;
     }
+    BaseType baseType(){
+        return baseType;
+    }
     /**returns true if this type is a valid variable type*/
     boolean isValid(){
         return true;
     }
     boolean isPrimitive(){
-        return baseType instanceof BaseType.StackValue;
+        return baseType() instanceof BaseType.StackValue;
     }
 
     int blockCount(){
-        return baseType.blockCount();
+        return baseType().blockCount();
     }
 
     FilePosition declaredAt(){
@@ -624,7 +627,8 @@ public class Type {
         }
         return this;
     }
-    /**classes overwriting this method should create a new instance using the {@link #Type(String,Type,Mutability))} constructor*/
+    /**classes overwriting this method should create a new instance using the
+     * {@link #Type(String,BaseType,Type,Mutability)} constructor*/
     Type copyWithMutability(Mutability newMutability){ return this; }
     static Type updateChildMutability(Type t, Mutability mutability){
         if(t.mutability==Mutability.INHERIT){
@@ -713,7 +717,7 @@ public class Type {
         }
         private WrapperType(String wrapperName, Type contentType,Mutability mutability){
             super(updateChildMutability(contentType,mutability).name+" "+
-                    wrapperName+mutabilityPostfix(mutability),getBaseType(wrapperName,contentType.baseType),
+                    wrapperName+mutabilityPostfix(mutability),getBaseType(wrapperName,contentType.baseType()),
                     ARRAY.equals(wrapperName)&&
                     (contentType==IntType.BYTE||contentType==IntType.CODEPOINT),mutability);
             this.wrapperName = wrapperName;
@@ -732,7 +736,7 @@ public class Type {
 
         private WrapperType(WrapperType src,Mutability mutability){
             super(updateChildMutability(src.contentType,mutability).name+" "+
-                    src.wrapperName+mutabilityPostfix(mutability), src,mutability);
+                    src.wrapperName+mutabilityPostfix(mutability),src.baseType(), src,mutability);
             this.wrapperName = src.wrapperName;
             this.contentType = src.contentType;
         }
@@ -974,11 +978,11 @@ public class Type {
     }
 
     static abstract class TupleLike extends Type{
-        private TupleLike(String name, boolean switchable, Mutability mutability) {
-            super(name, BaseType.StackValue.PTR,switchable, mutability);//TODO store small immutable Tuples on stack
+        private TupleLike(String name,BaseType baseType,boolean switchable, Mutability mutability) {
+            super(name, baseType,switchable, mutability);
         }
-        private TupleLike(String name, Type src, Mutability mutability) {
-            super(name, src, mutability);
+        private TupleLike(String name,BaseType baseType, Type src, Mutability mutability) {
+            super(name,baseType, src, mutability);
         }
         @Override
         void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError {
@@ -1067,13 +1071,27 @@ public class Type {
             return sb.append(")").toString();
         }
 
+
+        private static BaseType baseTypeFor(Type[] elements, Mutability mutability) {
+            if(Mutability.isEqual(mutability,Mutability.IMMUTABLE)){
+                ArrayList<BaseType.StackValue> values=new ArrayList<>();
+                for(Type t:elements){
+                    values.addAll(Arrays.asList(t.baseType().blocks()));
+                }
+                if(values.size()<=16){
+                    return new BaseType.Composite(values.toArray(BaseType.StackValue[]::new));
+                }
+            }
+            return BaseType.StackValue.PTR;
+        }
         private Tuple(String name, Type[] elements, Mutability mutability, FilePosition declaredAt){
-            super(name, false,mutability);
+            super(name, baseTypeFor(elements,mutability),false,mutability);
             this.elements=elements;
             this.declaredAt = declaredAt;
         }
+
         private Tuple(Tuple src,Mutability mutability){
-            super(src.name, src,mutability);
+            super(src.name, baseTypeFor(src.elements,mutability), src,mutability);
             this.elements=src.elements;
             this.declaredAt=src.declaredAt;
         }
@@ -1308,7 +1326,7 @@ public class Type {
                        Type[] genArgs,GenericStruct genericVersion, Type[] elements, StructField[] fields,
                        ArrayList<Parser.Token> tokens, Parser.StructContext context,
                        Mutability mutability, FilePosition declaredAt,FilePosition endPos) {
-            super(name,false,mutability);
+            super(name, BaseType.StackValue.PTR,false,mutability);
             if((elements==null)==(tokens==null)){
                 throw new RuntimeException("exactly one of elements and tokens should be non-null");
             }
@@ -1335,7 +1353,7 @@ public class Type {
             }
         }
         private Struct(Struct src,Mutability mutability){
-            super(namePrefix(src.baseName,src.genericArgs)+mutabilityPostfix(mutability),src,mutability);
+            super(namePrefix(src.baseName,src.genericArgs)+mutabilityPostfix(mutability),src.baseType(),src,mutability);
 
             declaredTypeFields=src.declaredTypeFields;
             this.isPublic = src.isPublic;
@@ -1686,7 +1704,7 @@ public class Type {
         }
         private Trait(Trait src,Mutability newMutability){
             super(Struct.namePrefix(src.baseName,src.genericArgs)+mutabilityPostfix(newMutability),
-                    src,newMutability);
+                    src.baseType(),src,newMutability);
             baseName=src.baseName;
             isPublic=src.isPublic;
             extended=src.extended;

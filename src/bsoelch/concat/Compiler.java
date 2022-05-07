@@ -117,7 +117,7 @@ public class Compiler {
         @Override
         public CodeGenerator pushPointer(Type target) throws IOException {
             pushRaw();
-            out.write("->"+typeWrapperName(target.baseType.pointerTo())+" = ");
+            out.write("->"+typeWrapperName(target.baseType().pointerTo())+" = ");
             return this;
         }
 
@@ -133,7 +133,7 @@ public class Compiler {
                 startLine();
             out.write((assignValue?"*":""));
             getRaw(offset);
-            out.write("->"+typeWrapperName(target.baseType.pointerTo())+" = ");
+            out.write("->"+typeWrapperName(target.baseType().pointerTo())+" = ");
             return this;
         }
 
@@ -196,7 +196,7 @@ public class Compiler {
                 startLine();
             out.write("(");
             getRaw(offset);
-            out.write("->"+typeWrapperName(type.baseType.pointerTo())+")");
+            out.write("->"+typeWrapperName(type.baseType().pointerTo())+")");
             return this;
         }
         @Override
@@ -234,7 +234,7 @@ public class Compiler {
         @Override
         public CodeGenerator appendType(Type type) throws IOException {
             if(!type.isPrimitive()){
-                throw new UnsupportedEncodingException("currently only primitive types are supported");
+                throw new UnsupportedOperationException("currently only primitive types are supported");
             }
             int id=typeIds.get(type);
             out.write(""+id);
@@ -266,9 +266,9 @@ public class Compiler {
             for(Map.Entry<Value.ArrayLike, FilePosition> e:prog.rootContext().constArrays().entrySet()){
                 Value.ArrayLike array=e.getKey();
                 if(!array.contentType().isPrimitive()){
-                    throw new UnsupportedEncodingException("arrays of type "+array.contentType()+" are currently not supported");
+                    throw new UnsupportedOperationException("arrays of type "+array.contentType()+" are currently not supported");
                 }
-                String primType=((BaseType.StackValue)array.contentType().baseType).cType;
+                String primType=((BaseType.StackValue)array.contentType().baseType()).cType;
                 StringBuilder declaration=new StringBuilder(primType+ " " + CONST_ARRAY_PREFIX +idOf(e.getValue())+"[] = {");
                 for(int i=0;i< array.length();i++){
                     if(i>0)
@@ -289,7 +289,7 @@ public class Compiler {
                         }else if (elt.type == Type.TYPE) {
                             Type type=elt.asType();
                             if(!type.isPrimitive()){
-                                throw new UnsupportedEncodingException("currently only primitive types are supported");
+                                throw new UnsupportedOperationException("currently only primitive types are supported");
                             }
                             int id=typeIds.get(type);
                             declaration.append(id).append("/* ").append(type.name).append(" */");
@@ -470,41 +470,7 @@ public class Compiler {
                     case LAMBDA, VALUE, GLOBAL_VALUE -> {
                         assert next instanceof Parser.ValueToken;
                         Value value = ((Parser.ValueToken) next).value;
-                        if (value.type == Type.INT()) {
-                            generator.pushPrimitive(value.type)
-                                    .appendInt(value.asLong(),true).endLine();
-                        }else if (value.type == Type.UINT()) {
-                            generator.pushPrimitive(value.type)
-                                    .appendInt(value.asLong(),false).endLine();
-                        }else if (value.type == Type.CODEPOINT()) {
-                            generator.pushPrimitive(value.type)
-                                    .appendCodepoint((int)value.asLong()).endLine();
-                        }else if (value.type == Type.BYTE()) {
-                            generator.pushPrimitive(value.type)
-                                    .appendByte(value.asByte()).endLine();
-                        }else if (value.type == Type.BOOL) {
-                            generator.pushPrimitive(value.type)
-                                    .appendBool(value.asBool()).endLine();
-                        }else if (value.type == Type.TYPE) {
-                            generator.pushPrimitive(value.type)
-                                    .appendType(value.asType()).endLine();
-                        }else if(value instanceof Value.Procedure proc){
-                            generator.pushPrimitive(BaseType.StackValue.F_PTR)
-                                    .append("&"+(proc.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX)+idOf(proc))
-                                    .endLine();
-                            generator.pushPointer(Type.ANY).append("NULL").endLine();
-                        }else if(value instanceof Value.ArrayLike){
-                            FilePosition firstDeclaration=section.context().root().constArrays().get(value);
-                            if(firstDeclaration==null){
-                                throw new UnsupportedEncodingException("currently only constant arrays are supported");
-                            }
-                            generator.pushPointer(((Value.ArrayLike) value).contentType())
-                                    .append(CONST_ARRAY_PREFIX+idOf(firstDeclaration)).endLine();
-                            generator.pushPrimitive(Type.UINT())
-                                    .appendInt(value.length(),false).endLine();
-                        }else{
-                            throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
-                        }
+                        pushValue(section, generator, value);
                     }
                     case CALL_PROC -> {
                         assert next instanceof Parser.CallToken;
@@ -558,7 +524,7 @@ public class Compiler {
                     }
                     case DEBUG_PRINT ->{
                         Type t=((Parser.TypedToken)next).target;
-                        BaseType baseType=t.baseType;
+                        BaseType baseType=t.baseType();
                         ArrayList<BaseType.StackValue> printedValues=new ArrayList<>();
                         StringBuilder format=new StringBuilder("\""+t.name+" (");
                         if(baseType instanceof BaseType.StackValue){
@@ -648,7 +614,7 @@ public class Compiler {
                         assert next instanceof Parser.VariableToken;
                         Parser.VariableToken asVar=(Parser.VariableToken) next;
                         String idName=asVar.variableType.name().toLowerCase()+"_var_"+asVar.id.level+"_"+asVar.id.id;
-                        BaseType baseType = asVar.id.type.baseType;
+                        BaseType baseType = asVar.id.type.baseType();
                         if(baseType instanceof BaseType.StackValue){
                             switch (asVar.accessType){
                                 case DECLARE ->
@@ -677,7 +643,7 @@ public class Compiler {
                     }
                     case DEREFERENCE -> {
                         Type content=((Parser.TypedToken)next).target;
-                        BaseType baseType=content.baseType;
+                        BaseType baseType=content.baseType();
                         if(baseType instanceof BaseType.StackValue){
                             generator.assignPrimitive(1,content)
                                     .append("*").getPointer(1,content).endLine();
@@ -689,7 +655,7 @@ public class Compiler {
                     }
                     case ASSIGN -> {
                         Type content=((Parser.TypedToken)next).target;
-                        BaseType baseType=content.baseType;
+                        BaseType baseType=content.baseType();
                         if(baseType instanceof BaseType.StackValue){
                             generator.assignPointer(1,content,true)
                                     .getPrimitive(2,(BaseType.StackValue) baseType).endLine();
@@ -706,8 +672,19 @@ public class Compiler {
                     case EXIT ->
                             generator.startLine().append("exit((int)")
                                     .getPrimitive(1,Type.INT()).append(")").endLine();
+                    case NEW -> {
+                        assert next instanceof Parser.TypedToken;
+                        Type type=((Parser.TypedToken)next).target;
+                        BaseType base=type.baseType();
+                        if(type instanceof Type.Tuple){
+                            if(base== BaseType.StackValue.PTR){
+                                throw new UnsupportedOperationException(type+" is currently not supported in NEW");
+                            }//else do nothing
+                        }else{
+                            throw new UnsupportedOperationException(type+" is currently not supported in NEW");
+                        }
+                    }
                     case CURRIED_LAMBDA -> throw new UnsupportedOperationException("compiling CURRIED_LAMBDA  is currently not implemented");
-                    case NEW -> throw new UnsupportedOperationException("compiling NEW  is currently not implemented");
                     case NEW_ARRAY -> throw new UnsupportedOperationException("compiling NEW_ARRAY  is currently not implemented");
                     case ASSERT -> throw new UnsupportedOperationException("compiling ASSERT  is currently not implemented");
                     case SWITCH -> throw new UnsupportedOperationException("compiling SWITCH  is currently not implemented");
@@ -723,6 +700,51 @@ public class Compiler {
             }catch (ConcatRuntimeError e){
                 throw new RuntimeException("while executing "+next.pos,e);
             }
+        }
+    }
+
+    private static void pushValue(Parser.CodeSection section, CodeGenerator generator, Value value) throws IOException, TypeError {
+        if (value.type == Type.INT()) {
+            generator.pushPrimitive(value.type)
+                    .appendInt(value.asLong(),true).endLine();
+        }else if (value.type == Type.UINT()) {
+            generator.pushPrimitive(value.type)
+                    .appendInt(value.asLong(),false).endLine();
+        }else if (value.type == Type.CODEPOINT()) {
+            generator.pushPrimitive(value.type)
+                    .appendCodepoint((int) value.asLong()).endLine();
+        }else if (value.type == Type.BYTE()) {
+            generator.pushPrimitive(value.type)
+                    .appendByte(value.asByte()).endLine();
+        }else if (value.type == Type.BOOL) {
+            generator.pushPrimitive(value.type)
+                    .appendBool(value.asBool()).endLine();
+        }else if (value.type == Type.TYPE) {
+            generator.pushPrimitive(value.type)
+                    .appendType(value.asType()).endLine();
+        }else if(value instanceof Value.Procedure proc){
+            generator.pushPrimitive(BaseType.StackValue.F_PTR)
+                    .append("&"+(proc.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX)+idOf(proc))
+                    .endLine();
+            generator.pushPointer(Type.ANY).append("NULL").endLine();
+        }else if(value instanceof Value.ArrayLike){
+            FilePosition firstDeclaration= section.context().root().constArrays().get(value);
+            if(firstDeclaration==null){
+                throw new UnsupportedOperationException("currently only constant arrays are supported");
+            }
+            generator.pushPointer(((Value.ArrayLike) value).contentType())
+                    .append(CONST_ARRAY_PREFIX+idOf(firstDeclaration)).endLine();
+            generator.pushPrimitive(Type.UINT())
+                    .appendInt(value.length(),false).endLine();
+        }else if(value.type instanceof Type.Tuple){
+            if(value.type.baseType() == BaseType.StackValue.PTR){
+                throw new UnsupportedOperationException("tuples of type " + value.type + " are currently not supported");
+            }
+            for(Value v:value.getElements()){
+                pushValue(section, generator, v);
+            }
+        }else{
+            throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
         }
     }
 
@@ -757,13 +779,20 @@ public class Compiler {
     }
 
     private static void compileCast(CodeGenerator generator, Type src, Type target, int offset) throws IOException {
-        if(src.isPrimitive()&&target.isPrimitive()){
-            //TODO check if direct C-cast is allowed
-            generator.assignPrimitive(offset,target).getPrimitive(offset,src).endLine();
-        }else if(src instanceof Type.Procedure&&target instanceof Type.Procedure){
+        if(src instanceof Type.Procedure&&target instanceof Type.Procedure){
             assert src.canCastTo(target)!= Type.CastType.NONE;//casting between procedures only changes type-info
         }else{
-            throw new UnsupportedEncodingException("casting from "+src+" to "+target+" is currently not supported");
+            BaseType b1=src.baseType();
+            BaseType b2=target.baseType();
+            if(b1 instanceof BaseType.Primitive&&b2 instanceof BaseType.Primitive){
+                if(((BaseType.Primitive) b1).isPtr||((BaseType.Primitive) b2).isPtr){
+                    throw new UnsupportedOperationException("casting from "+src+" to "+target+" is currently not supported");
+                }
+                //TODO check if direct C-cast is allowed
+                generator.assignPrimitive(offset,target).getPrimitive(offset,src).endLine();
+            }else {
+                throw new UnsupportedOperationException("casting from "+src+" to "+target+" is currently not supported");
+            }
         }
     }
 

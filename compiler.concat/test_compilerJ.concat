@@ -90,4 +90,7 @@ main public proc( => ){
    { 1 2 3 } for{
      debugPrint
    }
+
+   1 y ( int int ) new debugPrint
+   "Constant" "Tuple" 'A' 0x65 ( byte int ) new ( string string ( byte int ) ) new debugPrint
 }

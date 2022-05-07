@@ -63,7 +63,9 @@ void concat_private_procedure_test0x2F_compiler_84_4(Stack* stack, value_t* curr
 void concat_private_procedure_test0x2F_compiler_86_4(Stack* stack, value_t* curried);
 
 // constant arrays/global variables
+int8_t concat_const_array_test0x2F_compiler_95_15[] = {0x54, 0x75, 0x70, 0x6c, 0x65};
 int8_t concat_const_array_test0x2F_compiler_88_4[] = {0x54, 0x65, 0x73, 0x74};
+int8_t concat_const_array_test0x2F_compiler_95_4[] = {0x43, 0x6f, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x74};
 int64_t concat_const_array_test0x2F_compiler_90_12[] = {1LL, 2LL, 3LL};
 int8_t concat_const_array_test0x2F_compiler_89_4[] = {0x54, 0x65, 0x73, 0x74, 0x32};
 
@@ -476,6 +478,24 @@ void concat_public_procedure_test0x2F_compiler_27_13(Stack* stack, value_t* curr
     // FOR_ARRAY_END: -4
   }
   stack->ptr -= 2;
+  // VALUE: int:1
+  (stack->ptr++)->asI64 = 1LL;
+  // LOCAL_READ:1 (y)
+  (stack->ptr++)->asI64 = local_var_0_1;
+  // NEW: ( int int )
+  // DEBUG_PRINT: ( int int )
+  stack->ptr -= 2;
+  printf("( int int ) (int64_t: %"PRIi64" int64_t: %"PRIi64")\n", ((stack->ptr)->asI64), (((stack->ptr)+1)->asI64));
+  // VALUE: ( byte array mut~ byte array mut~ ( byte int ) ):(byte array mut~:Constant,byte array mut~:Tuple,( byte int ):(byte:A,int:101))
+  (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_95_4;
+  (stack->ptr++)->asU64 = 8ULL;
+  (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_95_15;
+  (stack->ptr++)->asU64 = 5ULL;
+  (stack->ptr++)->asI8 = 0x41;
+  (stack->ptr++)->asI64 = 101LL;
+  // DEBUG_PRINT: ( byte array mut~ byte array mut~ ( byte int ) )
+  stack->ptr -= 6;
+  printf("( byte array mut~ byte array mut~ ( byte int ) ) (int8_t*: %p uint64_t: %"PRIu64" int8_t*: %p uint64_t: %"PRIu64" int8_t: %"PRIi8" int64_t: %"PRIi64")\n", ((stack->ptr)->asI8Ptr), (((stack->ptr)+1)->asU64), (((stack->ptr)+2)->asI8Ptr), (((stack->ptr)+3)->asU64), (((stack->ptr)+4)->asI8), (((stack->ptr)+5)->asI64));
 }
 // procedure two ( => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_10_5(Stack* stack, value_t* curried){
