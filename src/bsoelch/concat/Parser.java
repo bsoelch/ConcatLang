@@ -3113,6 +3113,13 @@ public class Parser {
                 types[i]= structContext.fields.get(i).type;
             }
             aStruct.setFields(fieldNames,types);
+            for(Type t:types){//check all contained structs and traits (after initialisation)
+                if(t instanceof Type.Struct){
+                    typeCheckStruct((Type.Struct) t,globalConstants,variables,ioContext);
+                }else if(t instanceof Type.Trait){
+                    typeCheckTrait((Type.Trait) t,globalConstants,variables,ioContext);
+                }
+            }
         }
     }
 
