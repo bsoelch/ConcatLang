@@ -3059,6 +3059,11 @@ public class Parser {
             p.typeCheckState = Value.TypeCheckState.CHECKING;
             RandomAccessStack<TypeFrame> typeStack=new RandomAccessStack<>(8);
             for(Type t:((Type.Procedure) p.type).inTypes){
+                if(t instanceof Type.Struct){//ensure all arguments are initialized
+                    typeCheckStruct((Type.Struct)t,globalConstants,variables,ioContext);
+                }else if(t instanceof Type.Trait){
+                    typeCheckTrait((Type.Trait)t,globalConstants,variables,ioContext);
+                }
                 typeStack.push(new TypeFrame(t,new ValueInfo(OwnerInfo.OUT_OF_SCOPE),p.declaredAt));
             }
             TypeCheckResult res=typeCheck(p.tokens, p.context, globalConstants,typeStack,variables,
@@ -3082,16 +3087,20 @@ public class Parser {
         }
     }
     static void typeCheckStruct(Type.Struct aStruct, TypeCheckState tState) throws SyntaxError {
+        typeCheckStruct(aStruct,tState.globalConstants,tState.variables,tState.ioContext);
+    }
+    static void typeCheckStruct(Type.Struct aStruct, HashMap<VariableId, Value> globalConstants,
+                                HashMap<VariableId, ValueInfo> variables, IOContext ioContext) throws SyntaxError {
         if(!aStruct.isTypeChecked()){
             if(aStruct.extended!=null){
                 Type.Struct extended = aStruct.extended;
-                typeCheckStruct(extended, tState);
+                typeCheckStruct(extended, globalConstants,variables,ioContext);
                 for(int i = 0; i< extended.elementCount(); i++){
                     aStruct.context.fields.add(new StructFieldWithType(extended.fields[i],extended.getElement(i)));
                 }
             }
-            TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,tState.globalConstants,new RandomAccessStack<>(8),
-                    tState.variables,null,aStruct.endPos,tState.ioContext);
+            TypeCheckResult res=typeCheck(aStruct.getTokens(),aStruct.context,globalConstants,new RandomAccessStack<>(8),
+                    variables,null,aStruct.endPos,ioContext);
             if(res.types().size()>0){
                 TypeFrame tmp=res.types().get(res.types().size());
                 throw new SyntaxError("unexpected value in struct body: "+tmp,tmp.pushedAt);
