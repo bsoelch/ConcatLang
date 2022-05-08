@@ -531,32 +531,17 @@ public class Compiler {
                     case DEBUG_PRINT ->{
                         Type t=((Parser.TypedToken)next).target;
                         BaseType baseType=t.baseType();
-                        ArrayList<BaseType.StackValue> printedValues=new ArrayList<>();
-                        StringBuilder format=new StringBuilder("\""+t.name+" (");
+                        generator.append("fputs(\""+t.name+" (\", stdout)").endLine();
+                        generator.changeStackPointer(-baseType.blockCount()).endLine();
                         if(baseType instanceof BaseType.StackValue){
-                            addFormatModifier((BaseType.StackValue)baseType,format);
-                            printedValues.add((BaseType.StackValue)baseType);
+                            printPrimitive(generator,0,(BaseType.StackValue)baseType,false);
                         }else{
+                            int i=0;
                             for(BaseType.StackValue s:baseType.blocks()){
-                                if(printedValues.size()>0)
-                                    format.append(" ");
-                                addFormatModifier(s,format);
-                                printedValues.add(s);
+                                printPrimitive(generator,i--,s,i!=0);
                             }
                         }
-                        format.append(")\\n\"");
-                        generator.changeStackPointer(-printedValues.size()).endLine()
-                                .append("printf(").append(format.toString());
-                        for(int i=0;i<printedValues.size();i++){
-                            if(printedValues.get(i)== BaseType.Primitive.OPTIONAL_I32||
-                                    printedValues.get(i) == BaseType.Primitive.OPTIONAL_U32){
-                                generator.append(", ").getPrimitive(-i,printedValues.get(i)).append("[0]");
-                                generator.append(", ").getPrimitive(-i,printedValues.get(i)).append("[1]");
-                            }else{
-                                generator.append(", ").getPrimitive(-i,printedValues.get(i));
-                            }
-                        }
-                        generator.append(")").endLine();
+                        generator.append("puts(\")\")").endLine();
                     }
                     case BLOCK_TOKEN -> {
                         switch(((Parser.BlockToken)next).blockType){
@@ -887,37 +872,47 @@ public class Compiler {
         }
     }
 
-    private static void addFormatModifier(BaseType.StackValue baseType, StringBuilder format) {
-        if(baseType instanceof BaseType.Primitive.Int asInt){
+    private static void printPrimitive(CodeGenerator generator, int offset, BaseType.StackValue value, boolean padLeft) throws IOException {
+        generator.append("printf(\""+(padLeft?" ":"")).append(value.cType);
+        if(value instanceof BaseType.Primitive.Int asInt){
             if(asInt.isPtr){
-                format.append(asInt.cType).append(": %p");
+                generator.append(": %p\"");
             }else{
-                format.append(asInt.cType).append(": %\"PRI").append(asInt.unsigned ? "u" : "i").append(asInt.bitCount).append("\"");
+                generator.append(": %\"PRI"+(asInt.unsigned ? "u" : "i")+asInt.bitCount);
             }
-        }else if(baseType instanceof BaseType.Primitive primitive){
-            format.append(primitive.cType);
+            generator.append(", ").getPrimitive(offset,value).append(")").endLine();
+        }else if(value instanceof BaseType.Primitive primitive){
             if(primitive.isPtr){
-                format.append(": %p");
+                generator.append(": %p");
             }else{
                 switch (primitive.type){
-                    case BOOL ->
-                        format.append(": %d");
+                    case BOOL -> {
+                        generator.append(": %s\", ").getPrimitive(offset, value).append(" ? \"true\" : \"false\")").endLine();
+                        return;
+                    }
                     case FLOAT ->
-                        format.append(": %f");
+                            generator.append(": %f");
                     case TYPE ->
-                        format.append(": %\"PRIx64\"");
+                            generator.append(": %\"PRIx64\"");
                     case INTEGER ->
                         throw new RuntimeException("unexpected Integer primitive");
-                    case OPTIONAL_I32 ->
-                        format.append(": %\"PRIi32\" %\"PRIi32\"");
-                    case OPTIONAL_U32 ->
-                        format.append(": %\"PRIu32\" %\"PRIu32\"");
+                    case OPTIONAL_I32 ->{
+                        generator.append(": %\"PRIi32\" %\"PRIi32, ").getPrimitive(offset,value).append("[0], ")
+                                .getPrimitive(offset,value).append("[1])").endLine();
+                        return;
+                    }
+                    case OPTIONAL_U32 -> {
+                        generator.append(": %\"PRIu32\" %\"PRIu32, ").getPrimitive(offset, value).append("[0], ")
+                                .getPrimitive(offset, value).append("[1])").endLine();
+                        return;
+                    }
                 }
             }
-        }else if(baseType== BaseType.StackValue.F_PTR||baseType== BaseType.StackValue.PTR){
-            format.append(baseType.cType).append(": %p");
+            generator.append("\", ").getPrimitive(offset,value).append(")").endLine();
+        }else if(value == BaseType.StackValue.F_PTR|| value == BaseType.StackValue.PTR){
+            generator.append(": %p\", ").getPrimitive(offset,value).append(")").endLine();
         }else{
-            throw new UnsupportedOperationException("unexpected stackValue:"+baseType.name);
+            throw new UnsupportedOperationException("unexpected stackValue:"+ value.name);
         }
     }
 
