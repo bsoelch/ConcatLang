@@ -51,9 +51,7 @@ public interface CodeGenerator {
     }
     CodeGenerator getPointer(int offset, Type type) throws IOException;
 
-    CodeGenerator appendInt(long value,boolean signed) throws IOException;
-    CodeGenerator appendCodepoint(int value) throws IOException;
-    CodeGenerator appendByte(byte value) throws IOException;
+    CodeGenerator appendInt(long value,int bits, boolean signed) throws IOException;
     CodeGenerator appendBool(boolean value) throws IOException;
     CodeGenerator appendType(Type value) throws IOException;
 

@@ -6,7 +6,6 @@ import java.util.*;
 
 public class Compiler {
     static final HashMap<Type,Integer> typeIds =new HashMap<>();
-    public static final String CONST_ARRAY_PREFIX = "concat_const_array_";
 
     static int ilog2(int i){
         int n=-1;
@@ -24,15 +23,23 @@ public class Compiler {
         typeIds.put(Type.FLOAT,0b10000);
         typeIds.put(Type.TYPE,0b10001);
     }
+    static final String STACK_DATA_TYPE="Value";
+    public static final String CTYPE_TYPE = "Type";
+    public static final String CTYPE_FLOAT = "float64_t";
+    public static final String CTYPE_FPTR = "FPtr";
+    public static final String CTYPE_OPTIONAL_I32 = "optionalI32";
+    public static final String CTYPE_OPTIONAL_U32 = "optionalU32";
+
     static final String CONCAT_PROC_OUT="void";
-    static final String CONCAT_PROC_SIGNATURE="(Stack*, value_t*)";
+    static final String CONCAT_PROC_SIGNATURE="(Stack*, "+STACK_DATA_TYPE+"*)";
     static final String STACK_ARG_NAME="stack";
-    static final String CONCAT_PROC_NAMED_SIGNATURE="(Stack* "+STACK_ARG_NAME+", value_t* curried)";
+    static final String CONCAT_PROC_NAMED_SIGNATURE="(Stack* "+STACK_ARG_NAME+", "+STACK_DATA_TYPE+"* curried)";
     public static final String PUBLIC_PROC_PREFIX = "concat_public_procedure_";
     public static final String PRIVATE_PROC_PREFIX = "concat_private_procedure_";
+    public static final String CONST_ARRAY_PREFIX = "concat_const_array_";
 
     static final String STACK_FIELD_DATA="data";
-    static final String STACK_DATA_TYPE="value_t";
+
     static final String STACK_FIELD_POINTER="ptr";
     static final String STACK_FIELD_CAPACITY="capacity";
 
@@ -215,19 +222,10 @@ public class Compiler {
             out.write(value?"true":"false");
             return this;
         }
+
         @Override
-        public CodeGenerator appendByte(byte value) throws IOException {
-            out.write("0x"+Integer.toHexString(value&0xff));
-            return this;
-        }
-        @Override
-        public CodeGenerator appendInt(long value, boolean signed) throws IOException {
+        public CodeGenerator appendInt(long value, int bits, boolean signed) throws IOException {
             out.write(signed? value +"LL": Long.toUnsignedString(value)+"ULL");
-            return this;
-        }
-        @Override
-        public CodeGenerator appendCodepoint(int value) throws IOException {
-            out.write("0x"+Integer.toHexString(value));
             return this;
         }
 
@@ -350,6 +348,11 @@ public class Compiler {
     }
 
     private static void printFileHeader(BufferedWriter writer) throws IOException {
+        //addLater only initialize primitives that are used in the program
+        for(BaseType.PrimitiveType t:BaseType.PrimitiveType.values()){
+            if(t!= BaseType.PrimitiveType.INTEGER)
+                BaseType.Primitive.get(t);//initialize all non-integral primitive types
+        }
         //include required library files
         writeLine(writer,"#include \"stdbool.h\"");
         writeLine(writer,"#include \"inttypes.h\"");
@@ -366,14 +369,15 @@ public class Compiler {
         writeLine(writer,1,STACK_DATA_TYPE+"* "+STACK_FIELD_DATA+";");
         writeLine(writer,"}Stack;");
         writer.newLine();
-        writeLine(writer,"typedef uint64_t type_t;");
-        writeLine(writer,"typedef double float64_t;");
-        writeLine(writer,"typedef "+CONCAT_PROC_OUT+"(*fptr_t)"+CONCAT_PROC_SIGNATURE+";");
-        writeLine(writer,"typedef void* ptr_t;");
+        writeLine(writer, "typedef uint64_t " + CTYPE_TYPE + ";");
+        writeLine(writer, "typedef double " + CTYPE_FLOAT + ";");
+        writeLine(writer, "typedef "+CONCAT_PROC_OUT+ "(*" + CTYPE_FPTR + ")" +CONCAT_PROC_SIGNATURE+";");
+        writeLine(writer, "typedef int32_t  " + CTYPE_OPTIONAL_I32 + "[2];");
+        writeLine(writer, "typedef uint32_t " + CTYPE_OPTIONAL_U32 + "[2];");
         writer.newLine();
         writeLine(writer,"union "+STACK_DATA_TYPE+"_Impl {");
         List<BaseType.StackValue> values = new ArrayList<>(BaseType.StackValue.values());
-        values.sort(Comparator.comparing(t->t.cType));
+        values.sort(Comparator.comparing(t->t.cType.toLowerCase()));
         for(BaseType.StackValue e: values){//addLater text alignment
             writeLine(writer,1,e.cType+"  "+typeWrapperName(e)+";");
         }
@@ -542,7 +546,13 @@ public class Compiler {
                         generator.changeStackPointer(-printedValues.size()).endLine()
                                 .append("printf(").append(format.toString());
                         for(int i=0;i<printedValues.size();i++){
-                            generator.append(", ").getPrimitive(-i,printedValues.get(i));
+                            if(printedValues.get(i)== BaseType.Primitive.OPTIONAL_I32||
+                                    printedValues.get(i) == BaseType.Primitive.OPTIONAL_U32){
+                                generator.append(", ").getPrimitive(-i,printedValues.get(i)).append("[0]");
+                                generator.append(", ").getPrimitive(-i,printedValues.get(i)).append("[1]");
+                            }else{
+                                generator.append(", ").getPrimitive(-i,printedValues.get(i));
+                            }
                         }
                         generator.append(")").endLine();
                     }
@@ -724,24 +734,37 @@ public class Compiler {
     }
 
     private static void pushValue(Parser.CodeSection section, CodeGenerator generator, Value value) throws IOException, TypeError {
-        if (value.type == Type.INT()) {
-            generator.pushPrimitive(value.type)
-                    .appendInt(value.asLong(),true).endLine();
-        }else if (value.type == Type.UINT()) {
-            generator.pushPrimitive(value.type)
-                    .appendInt(value.asLong(),false).endLine();
-        }else if (value.type == Type.CODEPOINT()) {
-            generator.pushPrimitive(value.type)
-                    .appendCodepoint((int) value.asLong()).endLine();
-        }else if (value.type == Type.BYTE()) {
-            generator.pushPrimitive(value.type)
-                    .appendByte(value.asByte()).endLine();
-        }else if (value.type == Type.BOOL) {
-            generator.pushPrimitive(value.type)
-                    .appendBool(value.asBool()).endLine();
-        }else if (value.type == Type.TYPE) {
-            generator.pushPrimitive(value.type)
-                    .appendType(value.asType()).endLine();
+        BaseType baseType = value.type.baseType();
+        if(baseType instanceof BaseType.Primitive primitive){
+            switch (primitive.type){
+                case BOOL -> generator.pushPrimitive(primitive).appendBool(value.asBool()).endLine();
+                case TYPE -> generator.pushPrimitive(primitive).appendType(value.asType()).endLine();
+                case INTEGER -> {
+                    BaseType.Primitive.Int asInt=(BaseType.Primitive.Int) primitive;
+                    generator.pushPrimitive(primitive).appendInt(value.asLong(), asInt.bitCount,!asInt.unsigned).endLine();
+                }
+                case FLOAT ->
+                        throw new UnsupportedEncodingException("float literals are currently not supported");
+                case OPTIONAL_I32,OPTIONAL_U32 -> {
+                    int depth=0;
+                    while(value.type.isOptional()&&value.hasValue()){
+                        try {
+                            value=value.unwrap();
+                        } catch (ConcatRuntimeError e) {
+                            throw new RuntimeException(e);
+                        }
+                        depth++;
+                    }
+                    boolean signed= baseType== BaseType.Primitive.OPTIONAL_I32;
+                    if(!value.type.isOptional()) {
+                        generator.getPrimitive(0, (BaseType.StackValue) baseType).append("[0] = ")
+                                .appendInt(value.asLong(), 32, signed).endLine();
+                    }
+                    generator.getPrimitive(0,(BaseType.StackValue) baseType).append("[1] = ")
+                            .appendInt(depth, 32,signed).append("").endLine()
+                            .changeStackPointer(1).endLine();
+                }
+            }
         }else if(value instanceof Value.Procedure proc){
             generator.pushPrimitive(BaseType.StackValue.F_PTR)
                     .append("&"+(proc.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX)+idOf(proc))
@@ -755,14 +778,38 @@ public class Compiler {
             generator.pushPointer(((Value.ArrayLike) value).contentType())
                     .append(CONST_ARRAY_PREFIX+idOf(firstDeclaration)).endLine();
             generator.pushPrimitive(Type.UINT())
-                    .appendInt(value.length(),false).endLine();
+                    .appendInt(value.length(),64,false).endLine();
         }else if(value.type instanceof Type.Tuple||value.type instanceof Type.Struct){
-            if(value.type.baseType() == BaseType.StackValue.PTR){
+            if(baseType == BaseType.StackValue.PTR){
                 throw new UnsupportedOperationException("tuples of type " + value.type + " are currently not supported");
             }
             for(Value v:value.getElements()){
                 pushValue(section, generator, v);
             }
+        }else if(value.type.isOptional()){
+            if(!(baseType instanceof BaseType.Composite)){
+                throw new UnsupportedOperationException("optionals of type " + value.type + " are currently not supported");
+            }
+            int depth=0;
+            while(value.type.isOptional()&&value.hasValue()){
+                try {
+                    value=value.unwrap();
+                } catch (ConcatRuntimeError e) {
+                    throw new RuntimeException(e);
+                }
+                depth++;
+            }
+            int count= baseType.blockCount();
+            if(value.type.isOptional()){
+                generator.changeStackPointer(count-1).endLine();
+            }else{
+                try {
+                    pushValue(section, generator, value);
+                } catch (ConcatRuntimeError e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            generator.pushPrimitive(Type.UINT()).appendInt(depth,64,false).endLine();
         }else{
             throw new UnsupportedOperationException("values of type " + value.type + " are currently not supported");
         }
@@ -788,7 +835,11 @@ public class Compiler {
                     case TYPE ->
                         format.append(": %\"PRIx64\"");
                     case INTEGER ->
-                            throw new RuntimeException("unexpected Integer primitive");
+                        throw new RuntimeException("unexpected Integer primitive");
+                    case OPTIONAL_I32 ->
+                        format.append(": %\"PRIi32\" %\"PRIi32\"");
+                    case OPTIONAL_U32 ->
+                        format.append(": %\"PRIu32\" %\"PRIu32\"");
                 }
             }
         }else if(baseType== BaseType.StackValue.F_PTR||baseType== BaseType.StackValue.PTR){

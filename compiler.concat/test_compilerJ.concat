@@ -104,4 +104,10 @@ main public proc( => ){
    aTuple .2 dup debugPrint
    #+ aTuple .2 +# .0 debugPrint
    aStruct .b debugPrint
+
+   codepoint empty wrap debugPrint
+   'A' wrap debugPrint
+   'B' wrap wrap wrap wrap debugPrint
+   string empty wrap debugPrint
+   "Hello" wrap debugPrint
 }

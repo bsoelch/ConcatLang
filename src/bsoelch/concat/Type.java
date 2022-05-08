@@ -741,7 +741,7 @@ public class Type {
             return switch (wrapperName) {
                 case ARRAY -> BaseType.arrayOf(contentBase);
                 case REFERENCE -> contentBase.pointerTo();
-                case OPTIONAL -> BaseType.optionalOf(contentBase);
+                case OPTIONAL -> BaseType.optionalOf(contentType);
                 case MEMORY -> BaseType.StackValue.PTR;
                 default -> throw new IllegalArgumentException("unexpected type-wrapper : " + wrapperName);
             };

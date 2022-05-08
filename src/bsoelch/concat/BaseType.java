@@ -9,13 +9,13 @@ public abstract class BaseType {
         throw new UnsupportedOperationException("pointerTo() is not supported for internal base types");
     }
 
-    public enum PrimitiveType {BOOL, INTEGER, FLOAT, TYPE}
+    public enum PrimitiveType {BOOL, INTEGER, FLOAT, TYPE, OPTIONAL_I32,OPTIONAL_U32}
 
     public static abstract class StackValue extends BaseType{
         private static final ArrayList<StackValue> stackValues = new ArrayList<>();
 
-        public static StackValue F_PTR = new StackValue("procPtr", "fptr_t") {};
-        public static StackValue PTR = new StackValue("any", "value_t*") {
+        public static StackValue F_PTR = new StackValue("procPtr", Compiler.CTYPE_FPTR) {};
+        public static StackValue PTR = new StackValue("any", Compiler.STACK_DATA_TYPE+"*") {
             @Override
             public StackValue pointerTo() {
                 return this;
@@ -53,6 +53,9 @@ public abstract class BaseType {
         private static final HashMap<IntId,Primitive> integers = new HashMap<>();
         private static final HashMap<IntId,Primitive> integerPointers = new HashMap<>();
 
+        static Primitive OPTIONAL_I32 = get(PrimitiveType.OPTIONAL_I32);
+        static Primitive OPTIONAL_U32 = get(PrimitiveType.OPTIONAL_U32);
+
 
         public final PrimitiveType type;
         public final boolean isPtr;
@@ -64,18 +67,26 @@ public abstract class BaseType {
             Primitive asPtr=null;
             switch (type){
                 case INTEGER ->
-                    throw new UnsupportedOperationException("use getInt for integral primitves");
+                    throw new UnsupportedOperationException("use getInt for integral primitives");
                 case BOOL -> {
-                    asPtr=new Primitive(type, true,"bool","bool");
-                    prev=new Primitive(type, false,"bool","bool");
+                    asPtr=new Primitive(type, true, "bool", "bool");
+                    prev=new Primitive(type, false, "bool", "bool");
                 }
                 case TYPE -> {
-                    asPtr=new Primitive(type, true,"type","type_t");
-                    prev=new Primitive(type, false,"type","type_t");
+                    asPtr=new Primitive(type, true, "type", Compiler.CTYPE_TYPE);
+                    prev=new Primitive(type, false, "type", Compiler.CTYPE_TYPE);
                 }
                 case FLOAT -> {
-                   asPtr=new Primitive(type, true,"float","float64_t");
-                   prev=new Primitive(type, false,"float","float64_t");
+                   asPtr=new Primitive(type, true, "float", Compiler.CTYPE_FLOAT);
+                   prev=new Primitive(type, false, "float", Compiler.CTYPE_FLOAT);
+                }
+                case OPTIONAL_I32 ->{
+                    asPtr=new Primitive(type, true, "optionalI32", Compiler.CTYPE_OPTIONAL_I32);
+                    prev=new Primitive(type, false, "optionalI32", Compiler.CTYPE_OPTIONAL_I32);
+                }
+                case OPTIONAL_U32 ->{
+                    asPtr=new Primitive(type, true, "optionalU32", Compiler.CTYPE_OPTIONAL_U32);
+                    prev=new Primitive(type, false, "optionalU32", Compiler.CTYPE_OPTIONAL_U32);
                 }
             }
             primitives.put(type,prev);
@@ -127,14 +138,21 @@ public abstract class BaseType {
     public static Composite arrayOf(BaseType content){
         return new BaseType.Composite(content.pointerTo(),BaseType.Primitive.getInt(64,true));// data,len
     }
-    public static BaseType optionalOf(BaseType content){
-        //TODO special handling for optionals of non-null pointers
-        if(content instanceof StackValue){
-            return new BaseType.Composite((StackValue)content,BaseType.Primitive.getInt(64,true));// data,optional-count
-        }else{
-            //TODO optionals of composites
-            return StackValue.PTR;
+    public static BaseType optionalOf(Type content){
+        BaseType contentBase= content.baseType();
+        if(contentBase instanceof Primitive.Int&&((Primitive.Int) contentBase).bitCount<=32){
+            return ((Primitive.Int) contentBase).unsigned?Primitive.OPTIONAL_U32:Primitive.OPTIONAL_I32;
+        }else if(contentBase==Primitive.OPTIONAL_I32||contentBase==Primitive.OPTIONAL_U32) {
+            return contentBase;//nested optionals
         }
+        //TODO special handling for optionals of non-null pointers
+        while(content.isOptional()&&contentBase!=StackValue.PTR){//don't unwrap if base type is (nullable) pointer
+            content=content.content();
+            contentBase=content.baseType();
+        }
+        ArrayList<StackValue> elements=new ArrayList<>(Arrays.asList(contentBase.blocks()));
+        elements.add(BaseType.Primitive.getInt(64,true));
+        return new BaseType.Composite(elements.toArray(StackValue[]::new));// data,optional-count
     }
 
     public static class Composite extends BaseType{
