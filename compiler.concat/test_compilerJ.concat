@@ -110,4 +110,12 @@ main public proc( => ){
    'B' wrap wrap wrap wrap debugPrint
    string empty wrap debugPrint
    "Hello" wrap debugPrint
+   9710642 wrap opt =::
+   byte empty if{
+     debugPrint
+   else opt if
+     debugPrint
+   else
+     "(empty)" debugPrint
+   }
 }

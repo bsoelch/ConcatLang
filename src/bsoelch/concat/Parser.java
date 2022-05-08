@@ -180,6 +180,13 @@ public class Parser {
             return blockType.toString()+": "+(delta>0?"+":"")+delta;
         }
     }
+    static class IfOrDoOptional extends BlockToken{
+        final Type optionalType;
+        IfOrDoOptional(BlockTokenType blockType, Type optionalType, FilePosition pos,int delta) {
+            super(blockType, pos,delta);
+            this.optionalType = optionalType;
+        }
+    }
     static class ForArrayStart extends BlockToken{
         final Type arrayType;
         ForArrayStart(BlockTokenType blockType, Type arrayType, FilePosition pos) {
@@ -3471,7 +3478,7 @@ public class Parser {
                 tState.typeStack = tState.typeStack.clone();
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
-                        block=new BlockToken(BlockTokenType.IF_OPTIONAL,block.pos,block.delta);
+                        block=new IfOrDoOptional(BlockTokenType.IF_OPTIONAL,f.type,block.pos,block.delta);
                         tState.typeStack.push(new TypeFrame(f.type.content(),
                                 new ValueInfo(new OwnerInfo.Container(f.valueInfo)),pos));
                     }else {
@@ -3523,7 +3530,7 @@ public class Parser {
                 }
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
-                        block=new BlockToken(BlockTokenType._IF_OPTIONAL,block.pos,block.delta);
+                        block=new IfOrDoOptional(BlockTokenType._IF_OPTIONAL,f.type,block.pos,block.delta);
                         tState.typeStack.push(new TypeFrame(f.type.content(),
                                 new ValueInfo(new OwnerInfo.Container(f.valueInfo)),pos));
                     }else {
@@ -3561,7 +3568,7 @@ public class Parser {
                 }
                 if(f.type!=Type.BOOL){
                     if(f.type.isOptional()){
-                        block=new BlockToken(BlockTokenType.DO_OPTIONAL,block.pos,block.delta);
+                        block=new IfOrDoOptional(BlockTokenType.DO_OPTIONAL,f.type,block.pos,block.delta);
                         tState.typeStack.push(new TypeFrame(f.type.content(),
                                 new ValueInfo(new OwnerInfo.Container(f.valueInfo)),pos));
                     }else {

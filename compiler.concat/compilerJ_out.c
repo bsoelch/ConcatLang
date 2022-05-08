@@ -68,6 +68,7 @@ void concat_private_procedure_test0x2F_compiler_91_4(Stack* stack, Value* currie
 void concat_private_procedure_test0x2F_compiler_89_4(Stack* stack, Value* curried);
 
 // constant arrays/global variables
+int8_t concat_const_array_test0x2F_compiler_119_6[] = {0x28, 0x65, 0x6d, 0x70, 0x74, 0x79, 0x29};
 int8_t concat_const_array_test0x2F_compiler_112_4[] = {0x48, 0x65, 0x6c, 0x6c, 0x6f};
 int8_t concat_const_array_test0x2F_compiler_101_15[] = {0x54, 0x75, 0x70, 0x6c, 0x65};
 int8_t concat_const_array_test0x2F_compiler_93_4[] = {0x54, 0x65, 0x73, 0x74};
@@ -599,6 +600,53 @@ void concat_public_procedure_test0x2F_compiler_32_13(Stack* stack, Value* currie
   // DEBUG_PRINT: byte array mut~ optional
   stack->ptr -= 3;
   printf("byte array mut~ optional (int8_t*: %p uint64_t: %"PRIu64" uint64_t: %"PRIu64")\n", ((stack->ptr)->asI8Ptr), (((stack->ptr)+1)->asU64), (((stack->ptr)+2)->asU64));
+  // VALUE: int optional:int:9710642 wrap
+  (stack->ptr++)->asI64 = 9710642LL;
+  (stack->ptr++)->asU64 = 1ULL;
+  // LOCAL_DECLARE:6 (opt)
+  stack->ptr -= 2;
+  Value local_var_0_6[2];
+  memcpy(local_var_0_6, (stack->ptr), 2*sizeof(Value));
+  // VALUE: byte optional:byte empty
+  ((stack->ptr)->asOptionalI32)[1] = 0LL;
+  stack->ptr += 1;
+  // IF_OPTIONAL: +5
+  if((((stack->ptr)-1)->asOptionalI32)[1] != 0){
+    ((stack->ptr)-1)->asI8 = (((stack->ptr)-1)->asOptionalI32)[0];
+    // CONTEXT_OPEN at test/compiler:114:15
+    // DEBUG_PRINT: byte
+    stack->ptr -= 1;
+    printf("byte (int8_t: %"PRIi8")\n", ((stack->ptr)->asI8));
+    // CONTEXT_CLOSE at test/compiler:116:4
+    // ELSE: +12
+  }else{
+    stack->ptr -= 1;
+    // CONTEXT_OPEN at test/compiler:116:4
+    // LOCAL_READ:6 (opt)
+    memcpy((stack->ptr), local_var_0_6, 2*sizeof(Value));
+    stack->ptr += 2;
+    // _IF_OPTIONAL: +6
+    if((((stack->ptr)-1)->asU64) != 0){
+      stack->ptr -= 1;
+      // CONTEXT_OPEN at test/compiler:116:13
+      // DEBUG_PRINT: int
+      stack->ptr -= 1;
+      printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
+      // CONTEXT_CLOSE at test/compiler:118:4
+      // CONTEXT_CLOSE at test/compiler:118:4
+      // ELSE: +4
+    }else{
+      stack->ptr -= 2;
+      // GLOBAL_VALUE: byte array mut~:(empty)
+      (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_119_6;
+      (stack->ptr++)->asU64 = 7ULL;
+      // DEBUG_PRINT: byte array mut~
+      stack->ptr -= 2;
+      printf("byte array mut~ (int8_t*: %p uint64_t: %"PRIu64")\n", ((stack->ptr)->asI8Ptr), (((stack->ptr)+1)->asU64));
+      // CONTEXT_CLOSE at test/compiler:120:4
+      // END_IF: +2
+    }
+  }
 }
 // procedure two ( => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_10_5(Stack* stack, Value* curried){

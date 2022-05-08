@@ -466,6 +466,8 @@ public class Compiler {
 
     //addLater optimize code (merge consecutive push and pop operations)
     private static void compileCodeSection(CodeGenerator generator, Parser.CodeSection section) throws IOException {
+        /*amount of stack-values that should be dropped at the end of the current code-blocks*/
+        ArrayDeque<Integer> dropOnEnd=new ArrayDeque<>();
         for(Parser.Token next:section.tokens()){
             generator.lineComment(next.toString());
             try {
@@ -560,16 +562,52 @@ public class Compiler {
                         switch(((Parser.BlockToken)next).blockType){
                             case IF,_IF ->
                                 generator.append("if(").popPrimitive(Type.BOOL).append("){").indent().newLine();
-                            case IF_OPTIONAL,_IF_OPTIONAL ->
-                                throw new UnsupportedOperationException("compiling IF_OPTIONAL  is currently not implemented");
-                            case ELSE ->
+                            case IF_OPTIONAL,_IF_OPTIONAL ->{
+                                assert next instanceof Parser.IfOrDoOptional;
+                                Type type=((Parser.IfOrDoOptional) next).optionalType;
+                                BaseType baseType=type.baseType();
+                                if(baseType== BaseType.Primitive.OPTIONAL_I32||baseType== BaseType.Primitive.OPTIONAL_U32){
+                                    generator.append("if(").getPrimitive(1,(BaseType.StackValue) baseType)
+                                            .append("[1] != 0){").indent().newLine();
+                                    dropOnEnd.push(1);
+                                    type=type.content();
+                                    if(type.isOptional()){
+                                        generator.getPrimitive(1,(BaseType.StackValue) baseType)
+                                                .append("[1]--").endLine();
+                                    }else{
+                                        generator.assignPrimitive(1,type)
+                                                .getPrimitive(1,(BaseType.StackValue) baseType)
+                                                .append("[0]").endLine();
+                                    }
+                                }else if(baseType instanceof BaseType.Composite){
+                                    generator.append("if(").getPrimitive(1,Type.UINT()).append(" != 0){").indent().newLine();
+                                    dropOnEnd.push(baseType.blockCount());
+                                    type=type.content();
+                                    if(type.isOptional()){
+                                        generator.getPrimitive(1,Type.UINT()).append("--").endLine();
+                                    }else{
+                                        generator.changeStackPointer(-1).endLine();
+                                    }
+                                }else{
+                                    throw new UnsupportedOperationException("compiling IF_OPTIONAL is currently " +
+                                            "not supported for type:"+type);
+                                }
+                            }
+                            case ELSE ->{
                                 generator.dedent().append("}else{").indent().newLine();
+                                if(dropOnEnd.size()>0){
+                                    generator.changeStackPointer(-dropOnEnd.pop());
+                                }
+                            }
                             case END_IF ->{
                                 int elseCount=((Parser.BlockToken) next).delta;
                                 if(elseCount==0)
                                     elseCount=1;
                                 while (elseCount-->0){
                                     generator.dedent().append("}").newLine();
+                                    if(dropOnEnd.size()>0){
+                                        generator.changeStackPointer(-dropOnEnd.pop());
+                                    }
                                 }
                             }
                             case WHILE -> //concat while loops are best represented by do{ ... if(pop()) break; ... }while(true);
