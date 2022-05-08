@@ -68,7 +68,10 @@ on the stack, the natively supported value types are
   - char-literal (of corresponding ascii-character)
   - or int-literal followed by `byte cast`
 - codepoints
+  - represents a unicode codepoint 
   - char-literal prefixed with `u`
+  - the `\u` and `\U` escape sequence allow to get a unicode character 
+    with a given id, `\u` uses a 4 digits `\U` uses 6.
 - strings (byte array)
   - string-literals
 - unicode-strings (codepoints array)
@@ -85,9 +88,10 @@ true false
 'A'
 int type
 "Hello World"
+u'\U01f4bb'
 ```
 leaves the following values on the stack:
-`string:"Hello World"` `type:type`
+`codepoint: 💻` `string:"Hello World"` `type:type`
 `type:int` `byte:A` `float:0.0625`
 `float:1E10` `int:-2` `int:1`
 `uint:18446744073709551615`
