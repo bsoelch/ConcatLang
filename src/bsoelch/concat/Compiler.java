@@ -615,10 +615,44 @@ public class Compiler {
                             case DO ->
                                 generator.dedent().append( "if(!").popPrimitive(Type.BOOL).append(") break; //exit while loop")
                                         .indent().newLine();
-                            case DO_OPTIONAL ->
-                                    throw new UnsupportedOperationException("compiling DO_OPTIONAL  is currently not implemented");
-                            case END_WHILE ->
+                            case DO_OPTIONAL -> {
+                                assert next instanceof Parser.IfOrDoOptional;
+                                Type type=((Parser.IfOrDoOptional) next).optionalType;
+                                BaseType baseType=type.baseType();
+                                if(baseType== BaseType.Primitive.OPTIONAL_I32||baseType== BaseType.Primitive.OPTIONAL_U32){
+                                    generator.append("if(").getPrimitive(1,(BaseType.StackValue) baseType)
+                                            .append("[1] == 0) break; //exit while loop").indent().newLine();
+                                    dropOnEnd.push(1);
+                                    type=type.content();
+                                    if(type.isOptional()){
+                                        generator.getPrimitive(1,(BaseType.StackValue) baseType)
+                                                .append("[1]--").endLine();
+                                    }else{
+                                        generator.assignPrimitive(1,type)
+                                                .getPrimitive(1,(BaseType.StackValue) baseType)
+                                                .append("[0]").endLine();
+                                    }
+                                }else if(baseType instanceof BaseType.Composite){
+                                    generator.append("if(").getPrimitive(1,Type.UINT())
+                                            .append(" == 0) break; //exit while loop").indent().newLine();
+                                    dropOnEnd.push(baseType.blockCount());
+                                    type=type.content();
+                                    if(type.isOptional()){
+                                        generator.getPrimitive(1,Type.UINT()).append("--").endLine();
+                                    }else{
+                                        generator.changeStackPointer(-1).endLine();
+                                    }
+                                }else{
+                                    throw new UnsupportedOperationException("compiling IF_OPTIONAL is currently " +
+                                            "not supported for type:"+type);
+                                }
+                            }
+                            case END_WHILE ->{
                                 generator.dedent().append("}while(true)").endLine();
+                                if(dropOnEnd.size()>0){
+                                    generator.changeStackPointer(-dropOnEnd.pop());
+                                }
+                            }
                             case DO_WHILE ->
                                 generator.dedent().append("}while(").popPrimitive(Type.BOOL).append(")").endLine();
                             case END_CASE ->

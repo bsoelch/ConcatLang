@@ -118,4 +118,8 @@ main public proc( => ){
    else
      "(empty)" debugPrint
    }
+   08173 wrap while{ do
+     debugPrint
+     int empty
+   }
 }

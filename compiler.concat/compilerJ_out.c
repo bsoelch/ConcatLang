@@ -647,6 +647,27 @@ void concat_public_procedure_test0x2F_compiler_32_13(Stack* stack, Value* currie
       // END_IF: +2
     }
   }
+  // VALUE: int optional:int:8173 wrap
+  (stack->ptr++)->asI64 = 8173LL;
+  (stack->ptr++)->asU64 = 1ULL;
+  // WHILE: -1
+  do{
+    // CONTEXT_OPEN at test/compiler:121:15
+    // CONTEXT_CLOSE at test/compiler:121:22
+    // DO_OPTIONAL: +6
+    if((((stack->ptr)-1)->asU64) == 0) break; //exit while loop
+      stack->ptr -= 1;
+      // CONTEXT_OPEN at test/compiler:121:22
+      // DEBUG_PRINT: int
+      stack->ptr -= 1;
+      printf("int (int64_t: %"PRIi64")\n", ((stack->ptr)->asI64));
+      // VALUE: int optional:int empty
+      stack->ptr += 1;
+      (stack->ptr++)->asU64 = 0ULL;
+      // CONTEXT_CLOSE at test/compiler:124:4
+      // END_WHILE: -8
+    }while(true);
+    stack->ptr -= 2;
 }
 // procedure two ( => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_10_5(Stack* stack, Value* curried){
