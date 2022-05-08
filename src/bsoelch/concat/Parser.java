@@ -1989,6 +1989,7 @@ public class Parser {
                                     StringBuilder tmp = new StringBuilder(l);
                                     for (int i = 0; i < l; i++) {
                                         tmp.append((char)  reader.forceNextChar());
+                                        //TODO check if given character is a valid digit (0-9a-fA-F)
                                     }
                                     reader.buffer.append(Character.toChars(Integer.parseInt(tmp.toString(), 16)));
                                 }
