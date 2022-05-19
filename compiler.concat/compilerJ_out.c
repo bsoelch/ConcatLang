@@ -797,6 +797,25 @@ void concat_public_procedure_test0x2F_compiler_32_13(Stack* stack, Value* currie
       // END_WHILE: -8
     }while(true);
     stack->ptr -= 2;
+    // VALUE: int array:[int:1, int:2, int:3]
+    (stack->ptr++)->asI64Ptr = concat_const_array_test0x2F_compiler_96_12;
+    (stack->ptr++)->asU64 = 3ULL;
+    // VALUE: int:1
+    (stack->ptr++)->asI64 = 1LL;
+    // CAST_ARG at test/compiler:125:16
+    ((stack->ptr)-1)->asU64 = (((stack->ptr)-1)->asI64);
+    // CALL_PROC: ( int array mut? uint => int ):[]
+    if((((stack->ptr)-1)->asU64) >= (((stack->ptr)-2)->asU64)){ //index>=len;
+      fprintf(stderr,"array index (%"PRIu64") out of bounds for length %"PRIu64"\n", (((stack->ptr)-1)->asU64), (((stack->ptr)-2)->asU64));
+      exit(0xa11a7);
+    }
+    ((stack->ptr)-3)->asI64 = *((((stack->ptr)-3)->asI64Ptr) + (((stack->ptr)-1)->asU64));
+    stack->ptr -= 2;
+    // DEBUG_PRINT: int
+    fputs("int (", stdout);
+    stack->ptr -= 1;
+    printf("int64_t: %"PRIi64, ((stack->ptr)->asI64));
+    puts(")");
 }
 // procedure two ( => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_10_5(Stack* stack, Value* curried){

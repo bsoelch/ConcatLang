@@ -1702,13 +1702,28 @@ public abstract class Value {
                         ArrayLike array=((ArrayLike)values[0]);
                         return new Value[]{new ReferenceValue(values[0].type.content(),()->array.get(index),
                                 val->array.set(index,val))};
-                    },false));
+                    },false)
+                    .genericCompile(types->gen->gen.append("if(").getPrimitive(1,Type.UINT()).append(" >= ")
+                        .getPrimitive(2,Type.UINT()).append("){ //index>=len").endLine().indent()
+                        .append("fprintf(stderr,\"array index (%\"PRIu64\") out of bounds for length %\"PRIu64\"\\n\", ")
+                        .getPrimitive(1,Type.UINT()).append(", ").getPrimitive(2,Type.UINT()).append(")").endLine()
+                        .append("exit(0xa11a7)").endLine().dedent().append("}").newLine()
+                        .assignPointer(2,types[0].content(),false).getPointer(2,types[0].content())
+                        .append(" + "+(types[0].content().blockCount())+" * ").getPrimitive(1,Type.UINT()).endLine().changeStackPointer(-2)));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{Type.arrayOf(a).maybeMutable(),Type.UINT()},
                     new Type[]{a},"[]",
-                    (values) ->  new Value[]{((ArrayLike)values[0]).get(values[1].asLong())},false));
+                    (values) ->  new Value[]{((ArrayLike)values[0]).get(values[1].asLong())},false)
+                    .genericCompile(types->gen->gen.append("if(").getPrimitive(1,Type.UINT()).append(" >= ")
+                            .getPrimitive(2,Type.UINT()).append("){ //index>=len").endLine().indent()
+                            .append("fprintf(stderr,\"array index (%\"PRIu64\") out of bounds for length %\"PRIu64\"\\n\", ")
+                            .getPrimitive(1,Type.UINT()).append(", ").getPrimitive(2,Type.UINT()).append(")").endLine()
+                            .append("exit(0xa11a7)").endLine().dedent().append("}").newLine()
+                            //TODO non-primitive arrays
+                            .assignPrimitive(3,types[0].content()).append("*(").getPointer(3,types[0].content())
+                            .append(" + ").getPrimitive(1,Type.UINT()).append(")").endLine().changeStackPointer(-2)));
         }
 
         {

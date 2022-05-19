@@ -122,4 +122,5 @@ main public proc( => ){
      debugPrint
      int empty
    }
+   { 1 2 3 } 1 [] debugPrint
 }
