@@ -9,6 +9,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.function.Function;
 
 public abstract class Value {
     public static final Value FALSE = new Value(Type.BOOL) {
@@ -1388,7 +1389,8 @@ public abstract class Value {
         public static final FilePosition POSITION = new FilePosition("internal","internal", 0, 0);
 
         final ThrowingFunction<Value[],Value[],ConcatRuntimeError> action;
-        ThrowingConsumer<CodeGenerator, IOException> compile = null;
+        private ThrowingFunction<CodeGenerator,CodeGenerator,IOException> compile = null;
+        private Function<Type[],ThrowingFunction<CodeGenerator,CodeGenerator,IOException>> genericCompile = null;
         final boolean compileTime;
 
         InternalProcedure(Type[] inTypes, Type[] outTypes, String name,
@@ -1405,13 +1407,41 @@ public abstract class Value {
             this.action = action;
             this.compileTime = compileTime;
         }
-        public InternalProcedure compileTo(ThrowingConsumer<CodeGenerator, IOException> compile) {
+        public InternalProcedure compileTo(ThrowingFunction<CodeGenerator,CodeGenerator,IOException> compile) {
             this.compile = compile;
             return this;
         }
+        public InternalProcedure genericCompile(Function<Type[],ThrowingFunction<CodeGenerator,CodeGenerator,IOException>> genericCompile) {
+            this.genericCompile = genericCompile;
+            return this;
+        }
+
+        public boolean canCompile(){
+            return compile!=null||genericCompile!=null;
+        }
+        public CodeGenerator compile(CodeGenerator generator) throws IOException{
+            if(compile!=null)
+                return compile.apply(generator);
+            if(genericCompile!=null)
+                return genericCompile.apply(type().inTypes).apply(generator);
+            throw new UnsupportedOperationException("no compilation method provided");
+        }
 
         @Override
-        public boolean compileTime() {
+        public Value castTo(Type newType) throws ConcatRuntimeError {
+            if(newType==type)
+                return this;
+            if((newType instanceof Type.Procedure)&&type.canCastTo(newType)!= Type.CastType.NONE){
+                InternalProcedure copy=new InternalProcedure((Type.Procedure) newType,name,action,compileTime);
+                copy.compile=compile;
+                copy.genericCompile=genericCompile;
+                return copy;
+            }
+            return super.castTo(newType);
+        }
+
+        @Override
+        public boolean isCompileTime() {
             return compileTime;
         }
 

@@ -934,7 +934,7 @@ public class Parser {
     }
     interface Callable extends NamedDeclareable{
         Type.Procedure type();
-        default boolean compileTime() {
+        default boolean isCompileTime() {
             return false;
         }
     }
@@ -4418,7 +4418,7 @@ public class Parser {
                         CallMatch match = typeCheckOverloadedCall(
                                 "procedure "+identifier.name, new OverloadedProcedure(proc),null,t.pos, tState);
                         match.called.markAsUsed();
-                        if(match.called.compileTime()&&compileTimeEvaluate(match, ret, tState,t.pos)){
+                        if(match.called.isCompileTime()&&compileTimeEvaluate(match, ret, tState,t.pos)){
                             break;
                         }
                         CallToken token = new CallToken( match.called, identifier.pos);
@@ -5141,7 +5141,15 @@ public class Parser {
                 generics.putAll(implicitGenerics);
             }//no else
             if(isMatch){
-                matchingCalls.add(new CallMatch(potentialCall,type,generics,nCasts,nRestrict,paramMatchTypes,nImplicit,opps));
+                Callable called=potentialCall;
+                if(potentialCall instanceof Value.InternalProcedure){
+                    try {
+                        called=(Callable) ((Value) potentialCall).castTo(type);
+                    } catch (ConcatRuntimeError e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                matchingCalls.add(new CallMatch(called,type,generics,nCasts,nRestrict,paramMatchTypes,nImplicit,opps));
             }
         }
     }

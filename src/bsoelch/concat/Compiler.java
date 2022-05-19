@@ -485,12 +485,11 @@ public class Compiler {
                             generator.append(called.isPublic? PUBLIC_PROC_PREFIX : PRIVATE_PROC_PREFIX +idOf(called)+
                                     "("+STACK_ARG_NAME+", NULL)").endLine();
                         }else if(callToken.called instanceof Value.InternalProcedure iProc){
-                            if(iProc.compile==null){
+                            if(!iProc.canCompile()){
                                 throw new UnsupportedOperationException("compilation of internal procedure "+iProc.name+
                                         " is not supported");
                             }
-                            iProc.compile.accept(generator);
-                            generator.endLine();
+                            iProc.compile(generator).endLine();
                         }else{
                             throw new UnsupportedOperationException("compilation of procedures of type "+
                                     callToken.called.getClass()+" is not supported");
