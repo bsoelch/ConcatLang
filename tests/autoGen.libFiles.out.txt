@@ -1,40 +1,12 @@
-numbers:
+list:
 
 Stack:
 []
-codeblocks:
+stack:
 
 Stack:
 []
-2DArray:
-
-Stack:
-[]
-math:
-
-Stack:
-[]
-arrays:
-
-Stack:
-[]
-complex:
-
-Stack:
-[]
-utf8:
-
-Stack:
-[]
-bytes:
-
-Stack:
-[]
-chars:
-
-Stack:
-[]
-refOps:
+valueIO:
 
 Stack:
 []
@@ -42,11 +14,7 @@ exception:
 
 Stack:
 []
-hashMap:
-
-Stack:
-[]
-io:
+codeblocks:
 
 Stack:
 []
@@ -58,27 +26,15 @@ valueIO2:
 
 Stack:
 []
-strings:
-
-Stack:
-[]
-valueIO:
-
-Stack:
-[]
 arraySlice:
 
 Stack:
 []
-range:
+complex:
 
 Stack:
 []
-list:
-
-Stack:
-[]
-iterator:
+chars:
 
 Stack:
 []
@@ -86,7 +42,51 @@ arrayBuilder:
 
 Stack:
 []
-stack:
+io:
+
+Stack:
+[]
+strings:
+
+Stack:
+[]
+numbers:
+
+Stack:
+[]
+math:
+
+Stack:
+[]
+arrays:
+
+Stack:
+[]
+refOps:
+
+Stack:
+[]
+range:
+
+Stack:
+[]
+hashMap:
+
+Stack:
+[]
+2DArray:
+
+Stack:
+[]
+utf8:
+
+Stack:
+[]
+bytes:
+
+Stack:
+[]
+iterator:
 
 Stack:
 []
