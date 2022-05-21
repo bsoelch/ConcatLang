@@ -130,4 +130,8 @@ main public proc( => ){
    x wrap wrap debugPrint
    "Hello" "Hello" === debugPrint
    "Hello" "World" =!= debugPrint
+   false FALSE =::
+   true  TRUE =::
+   FALSE ! TRUE & FALSE | TRUE xor debugPrint
+
 }

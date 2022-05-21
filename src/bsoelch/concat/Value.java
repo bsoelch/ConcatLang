@@ -1551,14 +1551,21 @@ public abstract class Value {
         Type integer = Type.UnionType.create(new Type[]{unsigned,Type.BYTE(),Type.CODEPOINT(),Type.INT()});
 
         procs.add(new InternalProcedure(new Type[]{Type.BOOL},new Type[]{Type.BOOL},"!",
-                (values) -> new Value[]{values[0].asBool()?FALSE:TRUE},true));
+                (values) -> new Value[]{values[0].asBool()?FALSE:TRUE},true).compileTo(gen->
+                gen.assignPrimitive(1,Type.BOOL).append("!").getPrimitive(1,Type.BOOL)));
 
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"&",
-                (values) -> new Value[]{values[0].asBool()&&values[1].asBool()?TRUE:FALSE},true));
+                (values) -> new Value[]{values[0].asBool()&&values[1].asBool()?TRUE:FALSE},true).compileTo(gen->
+                gen.changeStackPointer(-1).assignPrimitive(1,Type.BOOL).getPrimitive(1,Type.BOOL)
+                        .append(" && ").getPrimitive(0,Type.BOOL).endLine()));
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"|",
-                (values) -> new Value[]{values[0].asBool()||values[1].asBool()?TRUE:FALSE},true));
+                (values) -> new Value[]{values[0].asBool()||values[1].asBool()?TRUE:FALSE},true).compileTo(gen->
+                gen.changeStackPointer(-1).assignPrimitive(1,Type.BOOL).getPrimitive(1,Type.BOOL)
+                        .append(" || ").getPrimitive(0,Type.BOOL).endLine()));
         procs.add(new InternalProcedure(new Type[]{Type.BOOL,Type.BOOL},new Type[]{Type.BOOL},"xor",
-                (values) -> new Value[]{values[0].asBool()^values[1].asBool()?TRUE:FALSE},true));
+                (values) -> new Value[]{values[0].asBool()^values[1].asBool()?TRUE:FALSE},true).compileTo(gen->
+                gen.changeStackPointer(-1).assignPrimitive(1,Type.BOOL).getPrimitive(1,Type.BOOL)
+                        .append(" ^ ").getPrimitive(0,Type.BOOL).endLine()));
 
         procs.add(new InternalProcedure(new Type[]{Type.UINT(),integer},new Type[]{Type.UINT()},"<<",
                 (values) -> new Value[]{ofInt(values[0].asLong()<<values[1].asLong(),true)},true));

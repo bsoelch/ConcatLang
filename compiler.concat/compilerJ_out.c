@@ -889,6 +889,38 @@ void concat_public_procedure_test0x2F_compiler_32_13(Stack* stack, Value* currie
     stack->ptr -= 1;
     printf("bool: %s", ((stack->ptr)->asBool) ? "true" : "false");
     puts(")");
+    // VALUE: bool:false
+    (stack->ptr++)->asBool = false;
+    // LOCAL_DECLARE:7 (FALSE)
+    bool local_var_0_7 = ((--(stack->ptr))->asBool);
+    // VALUE: bool:true
+    (stack->ptr++)->asBool = true;
+    // LOCAL_DECLARE:8 (TRUE)
+    bool local_var_0_8 = ((--(stack->ptr))->asBool);
+    // LOCAL_READ:7 (FALSE)
+    (stack->ptr++)->asBool = local_var_0_7;
+    // CALL_PROC: ( bool => bool ):!
+    ((stack->ptr)-1)->asBool = !(((stack->ptr)-1)->asBool);
+    // LOCAL_READ:8 (TRUE)
+    (stack->ptr++)->asBool = local_var_0_8;
+    // CALL_PROC: ( bool bool => bool ):&
+    stack->ptr -= 1;
+    ((stack->ptr)-1)->asBool = (((stack->ptr)-1)->asBool) && ((stack->ptr)->asBool);
+    // LOCAL_READ:7 (FALSE)
+    (stack->ptr++)->asBool = local_var_0_7;
+    // CALL_PROC: ( bool bool => bool ):|
+    stack->ptr -= 1;
+    ((stack->ptr)-1)->asBool = (((stack->ptr)-1)->asBool) || ((stack->ptr)->asBool);
+    // LOCAL_READ:8 (TRUE)
+    (stack->ptr++)->asBool = local_var_0_8;
+    // CALL_PROC: ( bool bool => bool ):xor
+    stack->ptr -= 1;
+    ((stack->ptr)-1)->asBool = (((stack->ptr)-1)->asBool) ^ ((stack->ptr)->asBool);
+    // DEBUG_PRINT: bool
+    fputs("bool (", stdout);
+    stack->ptr -= 1;
+    printf("bool: %s", ((stack->ptr)->asBool) ? "true" : "false");
+    puts(")");
 }
 // procedure two ( => int ) in test/compiler
 void concat_private_procedure_test0x2F_compiler_10_5(Stack* stack, Value* curried){
