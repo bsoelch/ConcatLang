@@ -774,47 +774,89 @@ void concat_public_procedure_test0x2F_compiler_32_13(Stack* stack, Value* currie
       // END_IF: +2
     }
   }
-  // VALUE: int optional:int:8173 wrap
-  (stack->ptr++)->asI64 = 8173LL;
+  // VALUE: int array:[int:1, int:2, int:3]
+  (stack->ptr++)->asI64Ptr = concat_const_array_test0x2F_compiler_96_12;
+  (stack->ptr++)->asU64 = 3ULL;
+  // VALUE: int:1
+  (stack->ptr++)->asI64 = 1LL;
+  // CAST_ARG at test/compiler:121:16
+  ((stack->ptr)-1)->asU64 = (((stack->ptr)-1)->asI64);
+  // CALL_PROC: ( int array mut? uint => int ):[]
+  if((((stack->ptr)-1)->asU64) >= (((stack->ptr)-2)->asU64)){ //index>=len;
+    fprintf(stderr,"array index (%"PRIu64") out of bounds for length %"PRIu64"\n", (((stack->ptr)-1)->asU64), (((stack->ptr)-2)->asU64));
+    exit(0xa11a7);
+  }
+  ((stack->ptr)-3)->asI64 = *((((stack->ptr)-3)->asI64Ptr) + (((stack->ptr)-1)->asU64));
+  stack->ptr -= 2;
+  // DEBUG_PRINT: int
+  fputs("int (", stdout);
+  stack->ptr -= 1;
+  printf("int64_t: %"PRIi64, ((stack->ptr)->asI64));
+  puts(")");
+  // VALUE: int optional:int:5 wrap
+  (stack->ptr++)->asI64 = 5LL;
   (stack->ptr++)->asU64 = 1ULL;
   // WHILE: -1
   do{
-    // CONTEXT_OPEN at test/compiler:121:15
-    // CONTEXT_CLOSE at test/compiler:121:22
-    // DO_OPTIONAL: +6
+    // CONTEXT_OPEN at test/compiler:122:11
+    // CONTEXT_CLOSE at test/compiler:122:18
+    // DO_OPTIONAL: +21
     if((((stack->ptr)-1)->asU64) == 0) break; //exit while loop
       stack->ptr -= 1;
-      // CONTEXT_OPEN at test/compiler:121:22
+      // CONTEXT_OPEN at test/compiler:122:18
+      // STACK_DUP at lib/stack:12:27 expanded at test/compiler:123:6
+      memmove(stack->ptr,stack->ptr-1,1*sizeof(Value));
+      stack->ptr += 1;
       // DEBUG_PRINT: int
       fputs("int (", stdout);
       stack->ptr -= 1;
       printf("int64_t: %"PRIi64, ((stack->ptr)->asI64));
       puts(")");
-      // VALUE: int optional:int empty
+      // STACK_DUP at lib/stack:12:27 expanded at test/compiler:124:6
+      memmove(stack->ptr,stack->ptr-1,1*sizeof(Value));
       stack->ptr += 1;
-      (stack->ptr++)->asU64 = 0ULL;
-      // CONTEXT_CLOSE at test/compiler:124:4
-      // END_WHILE: -8
+      // VALUE: int:0
+      (stack->ptr++)->asI64 = 0LL;
+      // CALL_PROC: ( int int => bool ):>
+      stack->ptr -= 1;
+      ((stack->ptr)-1)->asBool = (((int64_t)(((stack->ptr)-1)->asI64)) > ((int64_t)((stack->ptr)->asI64)));
+      // IF: +7
+      if(((--(stack->ptr))->asBool)){
+        // CONTEXT_OPEN at test/compiler:124:14
+        // VALUE: int:1
+        (stack->ptr++)->asI64 = 1LL;
+        // CALL_PROC: ( int int => int ):-
+        stack->ptr -= 1;
+        ((stack->ptr)-1)->asI64 = (((int64_t)(((stack->ptr)-1)->asI64)) - ((int64_t)((stack->ptr)->asI64)));
+        // CALL_PROC: ( int => int optional ):wrap
+        (stack->ptr++)->asU64 = 1ULL;
+        // CONTEXT_CLOSE at test/compiler:126:6
+        // ELSE: +5
+      }else{
+        stack->ptr -= 2;
+        // CONTEXT_OPEN at test/compiler:126:6
+        // STACK_DROP at lib/stack:11:27 expanded at test/compiler:126:11
+        stack->ptr -= 1;
+        // VALUE: int optional:int empty
+        stack->ptr += 1;
+        (stack->ptr++)->asU64 = 0ULL;
+        // CONTEXT_CLOSE at test/compiler:128:6
+        // END_IF: +1
+      }
+      // CONTEXT_CLOSE at test/compiler:129:4
+      // END_WHILE: -23
     }while(true);
+    // LOCAL_REFERENCE_TO:0 (x)
+    (stack->ptr++)->asI8Ptr = &local_var_0_0;
+    // CALL_PROC: ( byte reference mut => byte reference mut optional ):wrap
+    (stack->ptr++)->asU64 = 1ULL;
+    // CALL_PROC: ( byte reference mut optional => byte reference mut optional optional ):wrap
+    (((stack->ptr)-1)->asU64)++;
+    // DEBUG_PRINT: byte reference mut optional optional
+    fputs("byte reference mut optional optional (", stdout);
     stack->ptr -= 2;
-    // VALUE: int array:[int:1, int:2, int:3]
-    (stack->ptr++)->asI64Ptr = concat_const_array_test0x2F_compiler_96_12;
-    (stack->ptr++)->asU64 = 3ULL;
-    // VALUE: int:1
-    (stack->ptr++)->asI64 = 1LL;
-    // CAST_ARG at test/compiler:125:16
-    ((stack->ptr)-1)->asU64 = (((stack->ptr)-1)->asI64);
-    // CALL_PROC: ( int array mut? uint => int ):[]
-    if((((stack->ptr)-1)->asU64) >= (((stack->ptr)-2)->asU64)){ //index>=len;
-      fprintf(stderr,"array index (%"PRIu64") out of bounds for length %"PRIu64"\n", (((stack->ptr)-1)->asU64), (((stack->ptr)-2)->asU64));
-      exit(0xa11a7);
-    }
-    ((stack->ptr)-3)->asI64 = *((((stack->ptr)-3)->asI64Ptr) + (((stack->ptr)-1)->asU64));
-    stack->ptr -= 2;
-    // DEBUG_PRINT: int
-    fputs("int (", stdout);
-    stack->ptr -= 1;
-    printf("int64_t: %"PRIi64, ((stack->ptr)->asI64));
+    printf(" int8_t*: %p", ((stack->ptr)->asI8Ptr));
+    printf(" uint64_t: %"PRIu64, (((stack->ptr)+1)->asU64));
     puts(")");
 }
 // procedure two ( => int ) in test/compiler

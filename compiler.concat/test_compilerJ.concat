@@ -118,9 +118,14 @@ main public proc( => ){
    else
      "(empty)" debugPrint
    }
-   08173 wrap while{ do
-     debugPrint
-     int empty
-   }
    { 1 2 3 } 1 [] debugPrint
+   5 wrap while{ do
+     dup debugPrint
+     dup 0 > if{
+       1 - wrap
+     else drop
+       int empty
+     }
+   }
+   x wrap wrap debugPrint
 }

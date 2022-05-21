@@ -1730,7 +1730,14 @@ public abstract class Value {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
             procs.add(new InternalProcedure(new Type.GenericParameter[]{a},new Type[]{a},new Type[]{Type.optionalOf(a)},
                     "wrap",
-                    (values) ->  new Value[]{wrap(values[0])},true));
+                    (values) ->  new Value[]{wrap(values[0])},true).genericCompile(types->gen->{
+                        if(types[0].isOptional()&&types[0].baseType() instanceof BaseType.Composite){
+                            gen.getPrimitive(1,Type.UINT()).append("++").endLine();
+                        }else{
+                            gen.pushPrimitive(Type.UINT()).appendInt(1,64,false).endLine();
+                        }
+                        return gen;
+            }));
         }
         {
             Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
