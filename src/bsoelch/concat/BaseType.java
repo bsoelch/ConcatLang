@@ -140,7 +140,7 @@ public abstract class BaseType {
     }
     public static BaseType optionalOf(Type content){
         BaseType contentBase= content.baseType();
-        if(contentBase instanceof Primitive.Int&&((Primitive.Int) contentBase).bitCount<=32){
+        if(contentBase instanceof Primitive.Int&&!((Primitive.Int) contentBase).isPtr&&((Primitive.Int) contentBase).bitCount<=32){
             return ((Primitive.Int) contentBase).unsigned?Primitive.OPTIONAL_U32:Primitive.OPTIONAL_I32;
         }else if(contentBase==Primitive.OPTIONAL_I32||contentBase==Primitive.OPTIONAL_U32) {
             return contentBase;//nested optionals
