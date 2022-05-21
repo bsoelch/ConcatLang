@@ -76,6 +76,7 @@ int8_t concat_const_array_test0x2F_compiler_101_4[] = {0x43, 0x6f, 0x6e, 0x73, 0
 int8_t concat_const_array_test0x2F_compiler_103_8[] = {0x73, 0x74, 0x72, 0x75, 0x63, 0x74};
 int64_t concat_const_array_test0x2F_compiler_96_12[] = {1LL, 2LL, 3LL};
 int8_t concat_const_array_test0x2F_compiler_95_4[] = {0x54, 0x65, 0x73, 0x74, 0x32};
+int8_t concat_const_array_test0x2F_compiler_132_12[] = {0x57, 0x6f, 0x72, 0x6c, 0x64};
 
 // procedure bodies
 
@@ -857,6 +858,36 @@ void concat_public_procedure_test0x2F_compiler_32_13(Stack* stack, Value* currie
     stack->ptr -= 2;
     printf(" int8_t*: %p", ((stack->ptr)->asI8Ptr));
     printf(" uint64_t: %"PRIu64, (((stack->ptr)+1)->asU64));
+    puts(")");
+    // GLOBAL_VALUE: byte array mut~:Hello
+    (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_112_4;
+    (stack->ptr++)->asU64 = 5ULL;
+    // GLOBAL_VALUE: byte array mut~:Hello
+    (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_112_4;
+    (stack->ptr++)->asU64 = 5ULL;
+    // CALL_PROC: ( byte array mut~ byte array mut~ => bool ):===
+    stack->ptr -= 4;
+    (stack->ptr)->asBool = memcmp((stack->ptr), ((stack->ptr)+2), 2)==0;
+    stack->ptr += 1;
+    // DEBUG_PRINT: bool
+    fputs("bool (", stdout);
+    stack->ptr -= 1;
+    printf("bool: %s", ((stack->ptr)->asBool) ? "true" : "false");
+    puts(")");
+    // GLOBAL_VALUE: byte array mut~:Hello
+    (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_112_4;
+    (stack->ptr++)->asU64 = 5ULL;
+    // GLOBAL_VALUE: byte array mut~:World
+    (stack->ptr++)->asI8Ptr = concat_const_array_test0x2F_compiler_132_12;
+    (stack->ptr++)->asU64 = 5ULL;
+    // CALL_PROC: ( byte array mut~ byte array mut~ => bool ):=!=
+    stack->ptr -= 4;
+    (stack->ptr)->asBool = memcmp((stack->ptr), ((stack->ptr)+2), 2)!=0;
+    stack->ptr += 1;
+    // DEBUG_PRINT: bool
+    fputs("bool (", stdout);
+    stack->ptr -= 1;
+    printf("bool: %s", ((stack->ptr)->asBool) ? "true" : "false");
     puts(")");
 }
 // procedure two ( => int ) in test/compiler

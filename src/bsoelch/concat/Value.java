@@ -1474,10 +1474,38 @@ public abstract class Value {
         ArrayList<InternalProcedure> procs=new ArrayList<>();
         procs.add(new InternalProcedure(new Type[]{Type.ANY},new Type[]{Type.UINT()},"refId",
                 (values) -> new Value[]{Value.ofInt(values[0].id(),true)},false));
-        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"===",
-                (values) -> new Value[]{values[0].isEqualTo(values[1])?TRUE:FALSE},false));
-        procs.add(new InternalProcedure(new Type[]{Type.ANY,Type.ANY},new Type[]{Type.BOOL},"=!=",
-                (values) -> new Value[]{values[0].isEqualTo(values[1])?FALSE:TRUE},false));
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            Type.GenericParameter b=new Type.GenericParameter("B", 1,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type[]{a,b}, new Type[]{Type.BOOL}, "===",
+                    (values) -> new Value[]{values[0].isEqualTo(values[1]) ? TRUE : FALSE}, false).genericCompile(types -> gen -> {
+                gen.changeStackPointer(-(types[0].blockCount() + types[1].blockCount())).endLine()
+                        .assignPrimitive(0,Type.BOOL);
+                if (types[0].equals(types[1])) {
+                    gen.append("memcmp(").getRaw(0).append(", ").getRaw(-types[0].blockCount()).append(", " + types[0].blockCount())
+                            .append(")==0");
+                } else {
+                    gen.append("false");
+                }
+                return gen.endLine().changeStackPointer(1);
+            }));
+        }
+        {
+            Type.GenericParameter a=new Type.GenericParameter("A", 0,true,InternalProcedure.POSITION);
+            Type.GenericParameter b=new Type.GenericParameter("B", 1,true,InternalProcedure.POSITION);
+            procs.add(new InternalProcedure(new Type[]{a, b}, new Type[]{Type.BOOL}, "=!=",
+                    (values) -> new Value[]{values[0].isEqualTo(values[1]) ? FALSE : TRUE}, false).genericCompile(types -> gen -> {
+                gen.changeStackPointer(-(types[0].blockCount() + types[1].blockCount())).endLine()
+                        .assignPrimitive(0,Type.BOOL);
+                if (types[0].equals(types[1])) {
+                    gen.append("memcmp(").getRaw(0).append(", ").getRaw(-types[0].blockCount()).append(", " + types[0].blockCount())
+                            .append(")!=0");
+                } else {
+                    gen.append("true");
+                }
+                return gen.endLine().changeStackPointer(1);
+            }));
+        }
         //addLater? implement equals in standard library
 
         {

@@ -128,4 +128,6 @@ main public proc( => ){
      }
    }
    x wrap wrap debugPrint
+   "Hello" "Hello" === debugPrint
+   "Hello" "World" =!= debugPrint
 }
