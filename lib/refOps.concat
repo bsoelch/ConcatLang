@@ -4,10 +4,10 @@ core #namespace
 
 stack #include
 
-++ public proc( A <?> A reference mut => ){
+++ public proc( A <?> A ref mut => ){
   dup .. 1 + swap =
 }
--- public proc( A <?> A reference mut => ){
+-- public proc( A <?> A ref mut => ){
   dup .. 1 - swap =
 }
 

@@ -55,7 +55,7 @@ columns public proc( A <?> A Matrix mut => A array mut array mut~ ){
 
 
 
-[,] public proc( A <?> A Matrix mut uint uint => A reference mut ){
+[,] public proc( A <?> A Matrix mut uint uint => A ref mut ){
   y =::
   x =::
   mat =::
