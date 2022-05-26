@@ -4652,8 +4652,6 @@ public class Parser {
     }
 
     private static boolean isMutableField(Type.TupleLike tuple,int index,FilePosition pos){
-        if(!tuple.isMutable())
-            return false;
         if(tuple instanceof Type.Tuple)
             return true;
         assert tuple instanceof Type.Struct;
@@ -4664,7 +4662,7 @@ public class Parser {
         Type fieldType = tupleType.getElement(index);
         if(f.type.isReference()){
             fieldType=Type.referenceTo(fieldType);
-            if(isMutableField(tupleType, index, pos)){
+            if(f.type.isMutable()&&isMutableField(tupleType, index, pos)){
                 fieldType=fieldType.mutable();
             }
         }
