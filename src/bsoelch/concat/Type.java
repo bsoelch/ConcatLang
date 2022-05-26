@@ -994,17 +994,12 @@ public class Type {
         private TupleLike(String name,boolean switchable) {
             super(name, null,switchable, Mutability.IMMUTABLE, false);
         }
-        static BaseType tupleBaseType(Type[] elements,boolean immutable) {
-            if(immutable){
-                ArrayList<BaseType.StackValue> values=new ArrayList<>();
-                for(Type t:elements){
-                    values.addAll(Arrays.asList(t.baseType().blocks()));
-                }
-                if(values.size()<=16){
-                    return new BaseType.Composite(values.toArray(BaseType.StackValue[]::new));
-                }
+        static BaseType tupleBaseType(Type[] elements) {
+            ArrayList<BaseType.StackValue> values=new ArrayList<>();
+            for(Type t:elements){
+                values.addAll(Arrays.asList(t.baseType().blocks()));
             }
-            return BaseType.StackValue.PTR;
+            return new BaseType.Composite(values.toArray(BaseType.StackValue[]::new));
         }
         @Override
         void forEachStruct(ThrowingConsumer<Struct,SyntaxError> action) throws SyntaxError {
@@ -1092,7 +1087,7 @@ public class Type {
 
         @Override
         BaseType initBaseType() {
-            return tupleBaseType(elements,Mutability.isEqual(mutability,Mutability.IMMUTABLE));
+            return tupleBaseType(elements);
         }
         private Tuple(String name, Type[] elements, FilePosition declaredAt){
             super(name, false);
@@ -1354,15 +1349,7 @@ public class Type {
         BaseType initBaseType() {
             if(!isTypeChecked())
                 throw new RuntimeException("initBaseType() can only be called after type-checking");
-            boolean immutable=true;
-            for(StructField f:fields){
-                if (f.mutable) {
-                    immutable = false;
-                    break;
-                }
-            }
-            immutable|=Mutability.isEqual(mutability,Mutability.IMMUTABLE);
-            return tupleBaseType(elements,immutable);
+            return tupleBaseType(elements);
         }
 
         @Override
