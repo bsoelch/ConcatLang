@@ -387,17 +387,11 @@ public class Interpreter {
                     }
                     case TUPLE_REFERENCE_TO -> {
                         assert next instanceof Parser.TupleElementAccess;
-                        Value tuple = stack.pop();
+                        Value tuple = ((Value.ReferenceValue)stack.pop()).get();
                         int index = ((Parser.TupleElementAccess) next).index;
                         stack.push(new Value.ReferenceValue(((Type.TupleLike)tuple.type).getElement(index),
                                 ()->tuple.getField(index),(val)->tuple.set(index,val)
                         ));
-                    }
-                    case TUPLE_SET_INDEX -> {
-                        assert next instanceof Parser.TupleElementAccess;
-                        Value tuple = stack.pop();
-                        Value val  = stack.pop();
-                        tuple.set(((Parser.TupleElementAccess) next).index, val);
                     }
                 }
             }catch(ConcatRuntimeError|RandomAccessStack.StackUnderflow  e){
