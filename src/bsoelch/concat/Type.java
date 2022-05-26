@@ -991,11 +991,8 @@ public class Type {
     }
 
     static abstract class TupleLike extends Type{
-        private TupleLike(String name,boolean switchable, Mutability mutability) {
-            super(name, null,switchable, mutability, false);
-        }
-        private TupleLike(String name,Type src, Mutability mutability) {
-            super(name,null, src, mutability);
+        private TupleLike(String name,boolean switchable) {
+            super(name, null,switchable, Mutability.IMMUTABLE, false);
         }
         static BaseType tupleBaseType(Type[] elements,boolean immutable) {
             if(immutable){
@@ -1075,16 +1072,13 @@ public class Type {
         final Type[] elements;
         final FilePosition declaredAt;
 
-        public static Tuple create(Type[] elements,FilePosition declaredAt){
-            return create(elements, Mutability.DEFAULT,declaredAt);
-        }
-        private static Tuple create(Type[] elements,Mutability mutability,FilePosition declaredAt) {
+        public static Tuple create(Type[] elements,FilePosition declaredAt) {
             Tuple cached=tupleCache.get(Arrays.asList(elements));
             if(cached!=null){
-                return cached.setMutability(mutability);
+                return cached;
             }
             String typeName = getTypeName(elements);
-            Tuple tuple=new Tuple(typeName+mutabilityPostfix(mutability),elements, mutability, declaredAt);
+            Tuple tuple=new Tuple(typeName,elements, declaredAt);
             tupleCache.put(Arrays.asList(elements),tuple);
             return tuple;
         }
@@ -1100,16 +1094,10 @@ public class Type {
         BaseType initBaseType() {
             return tupleBaseType(elements,Mutability.isEqual(mutability,Mutability.IMMUTABLE));
         }
-        private Tuple(String name, Type[] elements, Mutability mutability, FilePosition declaredAt){
-            super(name, false,mutability);
+        private Tuple(String name, Type[] elements, FilePosition declaredAt){
+            super(name, false);
             this.elements=elements;
             this.declaredAt = declaredAt;
-        }
-
-        private Tuple(Tuple src,Mutability mutability){
-            super(src.name,src,mutability);
-            this.elements=src.elements;
-            this.declaredAt=src.declaredAt;
         }
 
         @Override
@@ -1147,7 +1135,7 @@ public class Type {
                     changed =true;
                 }
             }
-            return changed ? create(newElements,mutability,declaredAt) : this;
+            return changed ? create(newElements,declaredAt) : this;
         }
 
         @Override
@@ -1155,7 +1143,7 @@ public class Type {
             return (Tuple) super.setMutability(newMutability);
         }
         Tuple copyWithMutability(Mutability newMutability) {
-            return new Tuple(this,newMutability);
+            return this;
         }
 
         @Override
@@ -1255,24 +1243,19 @@ public class Type {
         static Struct create(String name,boolean isPublic,Struct extended,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
                              FilePosition declaredAt,FilePosition endPos) throws SyntaxError {
-            return create(name, isPublic, extended, new Type[0],null,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
-        }
-        static Struct create(String name,boolean isPublic,Struct extended,Type[] genericArgs,GenericStruct genericVersion,
-                             ArrayList<Parser.Token> tokens, Parser.StructContext context,
-                             FilePosition declaredAt,FilePosition endPos) throws SyntaxError {
-           return create(name, isPublic, extended, genericArgs,genericVersion,tokens,context,Mutability.DEFAULT,declaredAt,endPos);
+            return create(name, isPublic, extended, new Type[0],null,tokens,context,declaredAt,endPos);
         }
         static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,GenericStruct genericVersion,
                              ArrayList<Parser.Token> tokens, Parser.StructContext context,
-                             Mutability mutability, FilePosition declaredAt, FilePosition endPos) throws SyntaxError {
+                             FilePosition declaredAt, FilePosition endPos) throws SyntaxError {
             CachedStruct cached=cache.get(declaredAt);
             Struct prev;
             prev=cached==null?null:cached.versions.get(Arrays.asList(genericArgs));
             if(prev!=null){
-                return prev.setMutability(mutability);
+                return prev;
             }
-            prev=new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
-                    extended, genericArgs,genericVersion,null,null,tokens,context,mutability,declaredAt,endPos);
+            prev=new Struct(namePrefix(name,genericArgs), name, isPublic,
+                    extended, genericArgs,genericVersion,null,null,tokens,context,declaredAt,endPos);
             if(cached==null){
                 cached=new CachedStruct(new HashMap<>(),new ArrayList<>());
                 cache.put(declaredAt,cached);
@@ -1282,8 +1265,7 @@ public class Type {
             return prev;
         }
         private static Struct create(String name, boolean isPublic, Struct extended, Type[] genericArgs,GenericStruct genericVersion,
-                                     StructField[] fields, Type[] types, Mutability mutability,
-                                     FilePosition declaredAt, FilePosition endPos) throws SyntaxError {
+                                     StructField[] fields, Type[] types,FilePosition declaredAt, FilePosition endPos) throws SyntaxError {
             if(fields.length!=types.length){
                 throw new IllegalArgumentException("fields and types have to have the same length");
             }
@@ -1291,10 +1273,10 @@ public class Type {
             Struct prev;
             prev=cached==null?null:cached.versions.get(Arrays.asList(genericArgs));
             if(prev!=null){
-                return prev.setMutability(mutability);
+                return prev;
             }
-            prev = new Struct(namePrefix(name,genericArgs)+mutabilityPostfix(mutability), name, isPublic,
-                    extended, genericArgs,genericVersion,types,fields,null, null,mutability, declaredAt,endPos);
+            prev = new Struct(namePrefix(name,genericArgs), name, isPublic,
+                    extended, genericArgs,genericVersion,types,fields,null, null,declaredAt,endPos);
             if(cached==null){
                 cached=new CachedStruct(new HashMap<>(),new ArrayList<>());
                 cache.put(declaredAt,cached);
@@ -1340,9 +1322,8 @@ public class Type {
 
         private Struct(String name, String baseName, boolean isPublic, Struct extended,
                        Type[] genArgs,GenericStruct genericVersion, Type[] elements, StructField[] fields,
-                       ArrayList<Parser.Token> tokens, Parser.StructContext context,
-                       Mutability mutability, FilePosition declaredAt,FilePosition endPos) {
-            super(name, false,mutability);
+                       ArrayList<Parser.Token> tokens, Parser.StructContext context, FilePosition declaredAt,FilePosition endPos) {
+            super(name, false);
             if((elements==null)==(tokens==null)){
                 throw new RuntimeException("exactly one of elements and tokens should be non-null");
             }
@@ -1367,25 +1348,6 @@ public class Type {
                 fieldNames=null;
                 indexByName=null;
             }
-        }
-        private Struct(Struct src,Mutability mutability){
-            super(namePrefix(src.baseName,src.genericArgs)+mutabilityPostfix(mutability),src,mutability);
-
-            declaredTypeFields=src.declaredTypeFields;
-            this.isPublic = src.isPublic;
-            this.declaredAt = src.declaredAt;
-            this.endPos = src.endPos;
-            this.extended = src.extended==null?null:src.extended.setMutability(mutability);
-            this.baseName = src.baseName;
-            this.genericArgs = src.genericArgs;
-            this.genericVersion = src.genericVersion;
-
-            this.elements = src.elements;
-            this.fields=src.fields;
-            this.tokens = src.tokens;
-            this.context = src.context;
-            fieldNames=src.fieldNames;
-            indexByName=src.indexByName;
         }
 
         @Override
@@ -1525,7 +1487,7 @@ public class Type {
         }
         @Override
         Struct copyWithMutability(Mutability newMutability) {
-            return new Struct(this,newMutability);
+            return this;
         }
 
         @Override
@@ -1578,7 +1540,7 @@ public class Type {
                 ArrayList<Parser.Token> newTokens=new ArrayList<>(tokens);
                 Parser.StructContext newContext=context.replaceGenerics(generics);
                 return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                        newArgs,genericVersion,newTokens,newContext,mutability,declaredAt,endPos):this;
+                        newArgs,genericVersion,newTokens,newContext,declaredAt,endPos):this;
             }
             Type[] newElements=new Type[elements.length];
             for(int i=0;i<elements.length;i++){
@@ -1588,7 +1550,7 @@ public class Type {
                 }
             }
             return changed?create(baseName, isPublic,extended==null?null:extended.replaceGenerics(generics),
-                            newArgs,genericVersion,fields,newElements,mutability,declaredAt,endPos):this;
+                            newArgs,genericVersion,fields,newElements,declaredAt,endPos):this;
         }
 
         @Override
