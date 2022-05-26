@@ -2248,6 +2248,10 @@ public class Parser {
                 case "array"     -> tokens.add(new Token(TokenType.ARRAY_OF,       pos));
                 case "memory"    -> tokens.add(new Token(TokenType.MEMORY_OF,      pos));
                 case "ref"       -> tokens.add(new Token(TokenType.REFERENCE_TO,   pos));
+                case "ref!"      -> {//mutable reference
+                    tokens.add(new Token(TokenType.REFERENCE_TO,   pos));
+                    tokens.add(new Token(TokenType.MARK_MUTABLE,   pos));
+                }
                 case "optional"  -> tokens.add(new Token(TokenType.OPTIONAL_OF,    pos));
                 case "empty"     -> tokens.add(new Token(TokenType.EMPTY_OPTIONAL, pos));
 
