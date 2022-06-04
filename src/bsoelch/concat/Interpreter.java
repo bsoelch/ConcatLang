@@ -290,7 +290,7 @@ public class Interpreter {
                                     incIp = false;
                                 }
                             }
-                            case ELSE,END_WHILE, END_CASE -> {
+                            case ELSE,END_WHILE,FOR_ITERATOR_END,END_CASE -> {
                                 ip+=((Parser.BlockToken) next).delta;
                                 incIp = false;
                             }
@@ -316,6 +316,27 @@ public class Interpreter {
                                 stack.push(Value.ofInt(index+1,true));
                                 ip+=((Parser.BlockToken) next).delta;
                                 incIp = false;
+                            }
+                            case FOR_ITERATOR_PREPARE ->
+                                    throw new UnsupportedOperationException("unimplemented");
+                            case FOR_ITERATOR_LOOP -> {
+                                call(((Parser.ForIterator)next).itrNext,next,stack,globalVariables,variables,ioContext);
+                                Value c = stack.pop();
+                                if(((Parser.ForIterator)next).isOptional()){
+                                    if(c.hasValue()){
+                                        stack.push(c.unwrap());
+                                    }else{
+                                        stack.pop();//iterator
+                                        ip+=((Parser.BlockToken) next).delta;
+                                        incIp = false;
+                                    }
+                                }else{
+                                    if (c.asBool()) {
+                                        stack.pop();//iterator
+                                        ip+=((Parser.BlockToken) next).delta;
+                                        incIp = false;
+                                    }
+                                }
                             }
                             case FOR,SWITCH,CASE,DEFAULT, ARRAY, END, UNION_TYPE,TUPLE_TYPE,PROC_TYPE,ARROW,END_TYPE ->
                                     throw new RuntimeException("blocks of type "+((Parser.BlockToken)next).blockType+

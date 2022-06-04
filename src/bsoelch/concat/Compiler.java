@@ -662,6 +662,12 @@ public class Compiler {
                             }
                             case FOR_ARRAY_END ->
                                 generator.dedent().append("}").newLine().changeStackPointer(-2).endLine();
+                            case FOR_ITERATOR_PREPARE ->
+                                    throw new UnsupportedOperationException("compiling FOR_ITERATOR_PREPARE  is currently not implemented");
+                            case FOR_ITERATOR_LOOP ->
+                                    throw new UnsupportedOperationException("compiling FOR_ITERATOR_LOOP  is currently not implemented");
+                            case FOR_ITERATOR_END ->
+                                    throw new UnsupportedOperationException("compiling FOR_ITERATOR_END  is currently not implemented");
                             case FOR,SWITCH,CASE,DEFAULT, ARRAY, END, UNION_TYPE,TUPLE_TYPE,PROC_TYPE,ARROW,END_TYPE ->
                                     throw new RuntimeException("blocks of type "+((Parser.BlockToken)next).blockType+
                                             " should be eliminated at compile time");

@@ -3,6 +3,9 @@ is a stack-based [Concatenative programming language](https://en.wikipedia.org/w
 
 !!! this language is currently in early development !!!
 
+!!!the standard library is currently broken, 
+it will be fixed once there is a replacement for traits!!!
+
 ## Examples
 
 Hello World:

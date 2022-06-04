@@ -5,6 +5,8 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 public class Parser {
+    public static final String FOR_ITERATOR_NEXT = "^>";
+
     private Parser() {}//container class
 
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
@@ -161,7 +163,8 @@ public class Parser {
         IF, IF_OPTIONAL, ELSE, _IF,_IF_OPTIONAL,END_IF, WHILE, DO, DO_OPTIONAL, END_WHILE, DO_WHILE,
         SWITCH,CASE, END_CASE,DEFAULT, ARRAY, END,
         TUPLE_TYPE, PROC_TYPE,ARROW, UNION_TYPE, END_TYPE,
-        FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END
+        FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END,
+        FOR_ITERATOR_PREPARE,FOR_ITERATOR_LOOP,FOR_ITERATOR_END
     }
     static class BlockToken extends Token{
         final BlockTokenType blockType;
@@ -188,6 +191,17 @@ public class Parser {
         ForArrayStart(BlockTokenType blockType, Type arrayType, FilePosition pos) {
             super(blockType, pos,-1);
             this.arrayType = arrayType;
+        }
+    }
+    static class ForIterator extends BlockToken{
+        final Callable itrNext;
+        ForIterator(BlockTokenType blockType, Callable itrNext, FilePosition pos) {
+            super(blockType, pos,-1);
+            this.itrNext = itrNext;
+        }
+
+        public boolean isOptional() {
+            return itrNext.type().outTypes[itrNext.type().outTypes.length-1].isOptional();
         }
     }
     static class ContextOpen extends Token{
@@ -3216,7 +3230,8 @@ public class Parser {
                 ret.add(block);
                 ret.add(new ContextOpen(tState.context,pos));
             }
-            case END_IF,END_WHILE,FOR_ARRAY_PREPARE, FOR_ARRAY_LOOP,FOR_ARRAY_END,IF_OPTIONAL,_IF_OPTIONAL,DO_OPTIONAL ->
+            case END_IF,END_WHILE,FOR_ARRAY_PREPARE, FOR_ARRAY_LOOP,FOR_ARRAY_END,FOR_ITERATOR_PREPARE,FOR_ITERATOR_LOOP,FOR_ITERATOR_END,
+                    IF_OPTIONAL,_IF_OPTIONAL,DO_OPTIONAL ->
                     throw new RuntimeException("block tokens of type "+block.blockType+
                             " should not exist at this stage of compilation");
             case WHILE -> {
@@ -3297,9 +3312,31 @@ public class Parser {
                     ret.add(new ContextOpen(tState.context,pos));
                     break;
                 }
-                //TODO for-iterable loops: (requires procedure):
-                // - ^> ( <itType> => <itType> ? optional )
-                throw new SyntaxError("'for' is currently only supported for arrays",pos);
+                Callable itrNext=getItrNext(iterableType,tState.context);
+                //TODO iterables
+                // ^_ ( iterableType -> iteratorType )
+                if(itrNext!=null){
+                    if(itrNext instanceof Value.Procedure) {//ensure itrNext is type-checked
+                        typeCheckProcedure((Value.Procedure) itrNext, tState.globalConstants, tState.variables, tState.ioContext);
+                    }
+                    ForBlock forBlock = new ForBlock(false, ret.size(), pos, tState.context);
+                    forBlock.iterableType = iterableType;
+                    forBlock.prevTypes = tState.typeStack;
+                    tState.typeStack=new RandomAccessStack<>(8);
+                    Type[] outTypes = itrNext.type().outTypes;
+                    for(int i = 1; i< outTypes.length-1; i++){
+                        tState.typeStack.push(new TypeFrame(outTypes[i],new ValueInfo(OwnerInfo.OUT_OF_SCOPE),pos));
+                    }
+                    if(outTypes[outTypes.length-1].isOptional()){
+                        tState.typeStack.push(new TypeFrame(outTypes[outTypes.length-1].content(),new ValueInfo(OwnerInfo.OUT_OF_SCOPE),pos));
+                    }
+                    openBlocks.add(forBlock);
+                    tState.context= forBlock.context();
+                    ret.add(new ForIterator(BlockTokenType.FOR_ITERATOR_LOOP,itrNext, pos));
+                    ret.add(new ContextOpen(tState.context,pos));
+                    break;
+                }
+                throw new SyntaxError("for-loops are not supported for type "+iterableType,pos);
             }
             case SWITCH -> {
                 Type switchType=tState.typeStack.pop().type;
@@ -3454,7 +3491,7 @@ public class Parser {
                         tState.typeStack=((ForBlock)open).prevTypes;
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                         tState.closeContext();
-                        ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_END,
+                        ret.add(new BlockToken(((ForBlock)open).isArray?BlockTokenType.FOR_ARRAY_END:BlockTokenType.FOR_ITERATOR_END,
                                 pos, open.start - ret.size()));
                         tmp=ret.get(open.start);
                         ((BlockToken)tmp).delta=ret.size()- open.start;
@@ -3568,6 +3605,36 @@ public class Parser {
                 }
             }
         }
+    }
+
+    private static boolean isIteratorFor(Type iterableType, Type.Procedure type) {
+        if(type.inTypes.length!=1|| type.outTypes.length<2)
+            return true;//right number of parameters
+        if(!type.inTypes[0].equals(type.outTypes[0]))
+            return true;//input-type does not change
+        if(iterableType.canCastTo(type.inTypes[0]) == Type.CastType.NONE)
+            return true;//iterable can be used as input
+        //last output parameter is truthy
+        return type.outTypes[type.outTypes.length - 1].isOptional() || type.outTypes[type.outTypes.length - 1] == Type.BOOL;
+    }
+    private static Callable getItrNext(Type iterableType, VariableContext context) {
+        Declareable nxt=context.getDeclareable(FOR_ITERATOR_NEXT);
+        if(nxt instanceof Callable){
+            return isIteratorFor(iterableType, ((Callable) nxt).type())?(Callable) nxt:null;
+        }else if(nxt instanceof OverloadedProcedure){
+            ArrayList<Callable> itrs=new ArrayList<>(((OverloadedProcedure) nxt).procedures.size());
+            for(Callable c:((OverloadedProcedure) nxt).procedures){
+                if(isIteratorFor(iterableType,c.type()))
+                    itrs.add(c);
+            }
+            if(itrs.isEmpty())
+                return null;
+            if(itrs.size()>1)
+                //TODO find best match
+                throw new UnsupportedOperationException("unimplemented");
+            return itrs.get(0);
+        }
+        return null;
     }
 
     private static void endCase(SwitchCaseBlock switchBlock, TypeCheckState tState, FilePosition pos) throws SyntaxError {
