@@ -112,8 +112,6 @@ public abstract class Value {
     public Value castTo(Type newType) throws ConcatRuntimeError {
         if(type.canAssignTo(newType)||newType==Type.ANY){
             return this;
-        }else if(newType instanceof Type.Trait&&type.hasTrait((Type.Trait) newType)){
-            return new TraitValue((Type.Trait) newType,this);
         }else{
             throw new TypeError("cannot cast from "+type+" to "+newType);
         }
@@ -2101,79 +2099,6 @@ public abstract class Value {
         }
     }
 
-    static class TraitValue extends Value{
-        final Value wrapped;
-
-        protected TraitValue(Type.Trait type,Value wrapped) {
-            super(type);
-            this.wrapped=wrapped;
-        }
-
-        @Override
-        public Type valueType() {
-            return wrapped.valueType();
-        }
-
-        //addLater isEqualTo, rawData,updateFrom,equals
-
-        @Override
-        public Value clone(boolean deep, Type targetType) {//addLater handle targetType
-            return new TraitValue((Type.Trait)type,wrapped.clone(deep, targetType));
-        }
-
-        @Override
-        public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
-            return new TraitValue((Type.Trait) type.replaceGenerics(genericParams),wrapped.replaceGenerics(genericParams));
-        }
-
-        @Override
-        public long id() {
-            return wrapped.id();
-        }
-        @Override
-        public boolean asBool() throws TypeError {
-            return wrapped.asBool();
-        }
-        @Override
-        public byte asByte() throws TypeError {
-            return wrapped.asByte();
-        }
-        @Override
-        public long asLong() throws TypeError {
-            return wrapped.asLong();
-        }
-        @Override
-        public double asDouble() throws TypeError {
-            return wrapped.asDouble();
-        }
-        @Override
-        public Type asType() throws TypeError {
-            return wrapped.asType();
-        }
-        @Override
-        public boolean isString() {
-            return wrapped.isString();
-        }
-
-        @Override
-        public Value castTo(Type newType) throws ConcatRuntimeError {
-            if(type.canAssignTo(newType)){
-                return this;
-            }else{
-                return wrapped.castTo(newType);
-            }
-        }
-
-        @Override
-        public String toString() {
-            return wrapped.type+" as "+type+":"+stringValue();
-        }
-
-        @Override
-        public String stringValue() {
-            return wrapped.stringValue();
-        }
-    }
     static class ReferenceValue extends Value{
         private final ThrowingSupplier<Value,ConcatRuntimeError> get;
         private final ThrowingConsumer<Value,ConcatRuntimeError> set;

@@ -662,10 +662,6 @@ public class Compiler {
                             }
                             case FOR_ARRAY_END ->
                                 generator.dedent().append("}").newLine().changeStackPointer(-2).endLine();
-                            case FOR_ITERATOR_LOOP ->
-                                throw new UnsupportedOperationException("compiling FOR_ITERATOR_LOOP  is currently not implemented");
-                            case FOR_ITERATOR_END ->
-                                throw new UnsupportedOperationException("compiling FOR_ITERATOR_END  is currently not implemented");
                             case FOR,SWITCH,CASE,DEFAULT, ARRAY, END, UNION_TYPE,TUPLE_TYPE,PROC_TYPE,ARROW,END_TYPE ->
                                     throw new RuntimeException("blocks of type "+((Parser.BlockToken)next).blockType+
                                             " should be eliminated at compile time");
@@ -776,7 +772,6 @@ public class Compiler {
                     case ASSERT -> throw new UnsupportedOperationException("compiling ASSERT  is currently not implemented");
                     case SWITCH -> throw new UnsupportedOperationException("compiling SWITCH  is currently not implemented");
                     case TUPLE_REFERENCE_TO -> throw new UnsupportedOperationException("compiling TUPLE_REFERENCE_TO  is currently not implemented");
-                    case TRAIT_FIELD_ACCESS -> throw new UnsupportedOperationException("compiling TRAIT_FIELD_ACCESS  is currently not implemented");
                     case DECLARE_LAMBDA, IDENTIFIER, REFERENCE_TO, OPTIONAL_OF, EMPTY_OPTIONAL, UNREACHABLE, OVERLOADED_PROC_PTR,
                             MARK_MUTABLE, MARK_MAYBE_MUTABLE, MARK_IMMUTABLE, MARK_INHERIT_MUTABILITY, ARRAY_OF, MEMORY_OF, STACK_SIZE ->
                             throw new RuntimeException("Tokens of type " + next.tokenType +

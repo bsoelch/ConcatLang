@@ -245,26 +245,6 @@ public class Interpreter {
                         }
                         variables.remove(variables.size()-1);
                     }
-                    case TRAIT_FIELD_ACCESS -> {
-                        assert next instanceof Parser.TraitFieldAccess;
-                        Value val = stack.peek();
-                        Parser.Callable called;
-                        if(((Parser.TraitFieldAccess) next).isDirect) {
-                            called=val.type.getTraitField(((Parser.TraitFieldAccess) next).id);
-                        }else{
-                            if (!(val instanceof Value.TraitValue tv)) {
-                                throw new RuntimeException("trait field access on non-trait value");
-                            }
-                            stack.pop();//call trait on unwrapped value
-                            stack.push(tv.wrapped);
-
-                            called=tv.wrapped.type.getTraitField(((Parser.TraitFieldAccess) next).id);
-                        }
-                        ExitType e=call(called, next, stack, globalVariables, variables, ioContext);
-                        if(e!=ExitType.NORMAL){
-                            return e;
-                        }
-                    }
                     case CALL_PROC, CALL_PTR -> {
                         Parser.Callable called;
                         if(next.tokenType== Parser.TokenType.CALL_PROC){
@@ -310,7 +290,7 @@ public class Interpreter {
                                     incIp = false;
                                 }
                             }
-                            case ELSE,END_WHILE, END_CASE,FOR_ITERATOR_END -> {
+                            case ELSE,END_WHILE, END_CASE -> {
                                 ip+=((Parser.BlockToken) next).delta;
                                 incIp = false;
                             }
@@ -336,23 +316,6 @@ public class Interpreter {
                                 stack.push(Value.ofInt(index+1,true));
                                 ip+=((Parser.BlockToken) next).delta;
                                 incIp = false;
-                            }
-                            case FOR_ITERATOR_LOOP -> {
-                                Value.TraitValue itr=(Value.TraitValue)stack.pop();
-                                stack.push(itr.wrapped);//call trait on unwrapped value
-                                Parser.Callable called=itr.wrapped.type.getTraitField(((Parser.ForIteratorLoop) next).itrNext);
-                                ExitType e=call(called, next, stack, globalVariables, variables, ioContext);
-                                if(e!=ExitType.NORMAL){
-                                    return e;
-                                }
-                                Value nextValue=stack.pop();
-                                if(nextValue.hasValue()){
-                                    stack.push(nextValue.unwrap());
-                                }else{
-                                    stack.pop();//iterator
-                                    ip+=((Parser.BlockToken) next).delta;
-                                    incIp = false;
-                                }
                             }
                             case FOR,SWITCH,CASE,DEFAULT, ARRAY, END, UNION_TYPE,TUPLE_TYPE,PROC_TYPE,ARROW,END_TYPE ->
                                     throw new RuntimeException("blocks of type "+((Parser.BlockToken)next).blockType+

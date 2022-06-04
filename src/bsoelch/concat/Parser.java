@@ -5,9 +5,6 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 public class Parser {
-
-    public static final String ITERATOR_NEXT = "^>";
-
     private Parser() {}//container class
 
     public static final String DEFAULT_FILE_EXTENSION = ".concat";
@@ -30,7 +27,6 @@ public class Parser {
         EXIT,
         CAST_ARG, //internal operation to cast function arguments without putting them to the top of the stack
         TUPLE_GET_INDEX,TUPLE_REFERENCE_TO,//direct access to tuple elements
-        TRAIT_FIELD_ACCESS,
         //compile time operations
         ARRAY_OF,MEMORY_OF,REFERENCE_TO,OPTIONAL_OF,EMPTY_OPTIONAL,STACK_SIZE,
         MARK_MUTABLE,MARK_MAYBE_MUTABLE,MARK_IMMUTABLE,MARK_INHERIT_MUTABILITY,//mutability modifiers
@@ -165,7 +161,7 @@ public class Parser {
         IF, IF_OPTIONAL, ELSE, _IF,_IF_OPTIONAL,END_IF, WHILE, DO, DO_OPTIONAL, END_WHILE, DO_WHILE,
         SWITCH,CASE, END_CASE,DEFAULT, ARRAY, END,
         TUPLE_TYPE, PROC_TYPE,ARROW, UNION_TYPE, END_TYPE,
-        FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END,FOR_ITERATOR_LOOP,FOR_ITERATOR_END
+        FOR,FOR_ARRAY_PREPARE,FOR_ARRAY_LOOP,FOR_ARRAY_END
     }
     static class BlockToken extends Token{
         final BlockTokenType blockType;
@@ -192,13 +188,6 @@ public class Parser {
         ForArrayStart(BlockTokenType blockType, Type arrayType, FilePosition pos) {
             super(blockType, pos,-1);
             this.arrayType = arrayType;
-        }
-    }
-    static class ForIteratorLoop extends BlockToken{
-        final Type.TraitFieldPosition itrNext;
-        ForIteratorLoop(Type.TraitFieldPosition itrNext,FilePosition pos) {
-            super(BlockTokenType.FOR_ITERATOR_LOOP, pos,-1);
-            this.itrNext = itrNext;
         }
     }
     static class ContextOpen extends Token{
@@ -356,16 +345,6 @@ public class Parser {
         }
     }
 
-    static class TraitFieldAccess extends Token{
-        final boolean isDirect;
-        final Type.TraitFieldPosition id;
-
-        TraitFieldAccess(boolean isDirect,FilePosition pos, Type.TraitFieldPosition id) {
-            super(TokenType.TRAIT_FIELD_ACCESS, pos);
-            this.isDirect=isDirect;
-            this.id = id;
-        }
-    }
 
     enum CompilerTokenType{TOKENS,BLOCKS, GLOBAL_CONSTANTS,TYPES,CONTEXT}
     static class CompilerToken extends Token{
@@ -380,7 +359,6 @@ public class Parser {
 
     enum BlockType{
         PROCEDURE,IF,WHILE,FOR,SWITCH_CASE,ENUM,ANONYMOUS_TUPLE,PROC_TYPE, CONST_ARRAY,UNION,STRUCT,
-        TRAIT, IMPLEMENT
     }
     static abstract class CodeBlock{
         final int start;
@@ -710,53 +688,6 @@ public class Parser {
             return context;
         }
     }
-    private static class TraitBlock extends CodeBlock{
-        final String name;
-        final boolean isPublic;
-        final TraitContext context;
-
-        TraitBlock(String name,boolean isPublic,int start, FilePosition startPos, VariableContext parentContext) {
-            super(start, BlockType.TRAIT, startPos, parentContext);
-            this.name=name;
-            this.isPublic=isPublic;
-            context=new TraitContext(parentContext);
-        }
-
-        @Override
-        TraitContext context() {
-            return context;
-        }
-    }
-    private static class ImplementBlock extends CodeBlock{
-        final ImplementContext context;
-
-        Type target;
-        Type.Trait trait;
-
-        ImplementBlock(int start, FilePosition startPos, VariableContext parentContext) {
-            super(start, BlockType.IMPLEMENT, startPos, parentContext);
-            context=new ImplementContext(parentContext);
-        }
-
-        /**@return true if the types are already set*/
-        boolean setTypes(Type.Trait trait, Type target){
-            if(this.target!=null)
-                return true;
-            this.target=target;
-            this.trait=trait;
-            context.trait= trait;
-            context.implementations=new Value.Procedure[trait.traitFields.length];
-            for(int i=0;i<trait.traitFields.length;i++){
-                context.fieldIds.put(trait.traitFields[i].name(),i);
-            }
-            return false;
-        }
-
-        @Override
-        GenericContext context() {
-            return context;
-        }
-    }
 
     static class ForBlock extends CodeBlock{
         final boolean isArray;
@@ -865,7 +796,6 @@ public class Parser {
     enum DeclareableType{
         VARIABLE,CURRIED_VARIABLE,MACRO,PROCEDURE,ENUM, TUPLE, GENERIC, NATIVE_PROC,
         GENERIC_STRUCT, OVERLOADED_PROCEDURE, STRUCT, GENERIC_PROCEDURE,CONSTANT,
-        TRAIT
     }
     static String declarableName(DeclareableType t, boolean a){
         switch (t){
@@ -908,9 +838,6 @@ public class Parser {
             case GENERIC_STRUCT -> {
                 return a?"a generic struct":"generic struct";
             }
-            case TRAIT -> {
-                return a?"a trait":"trait";
-            }
         }
         throw new RuntimeException("unreachable");
     }
@@ -939,7 +866,7 @@ public class Parser {
                 return true;
             }
             case VARIABLE,CURRIED_VARIABLE,MACRO, ENUM,TUPLE,GENERIC,
-                    GENERIC_STRUCT,STRUCT,CONSTANT,TRAIT -> {
+                    GENERIC_STRUCT,STRUCT,CONSTANT -> {
                 return false;
             }
         }
@@ -1657,55 +1584,6 @@ public class Parser {
             return copy;
         }
     }
-    static class TraitContext extends GenericContext{
-        final ArrayList<Type.Trait> extended=new ArrayList<>();
-
-        final ArrayList<Type.TraitField> fields = new ArrayList<>();
-
-        TraitContext(VariableContext parent) {
-            super(parent, false);
-        }
-
-        TraitContext copyWithParent(VariableContext newParent){
-            return new TraitContext(newParent);
-        }
-        @Override
-        TraitContext replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
-            TraitContext copy=(TraitContext)super.replaceGenerics(genericParams);
-            copy.fields.addAll(fields);
-            return copy;
-        }
-
-
-        public void checkName(Type.TraitField traitField, FilePosition pos) throws SyntaxError {
-            for(Type.TraitField f:fields){
-                if(f.name().equals(traitField.name()))
-                    throw new SyntaxError("trait field: "+traitField.name()+" (declared at "+
-                            traitField.declaredAt()+") shadows existing trait field at "+f.declaredAt(),pos);
-            }
-            for(Type.Trait t:extended){
-                for(Type.TraitField f:t.traitFields) {
-                    if (f.name().equals(traitField.name()))
-                        throw new SyntaxError("trait field: "+traitField.name()+" (declared at "+
-                                traitField.declaredAt() + ") shadows existing trait field at "+f.declaredAt(),pos);
-                }
-            }
-        }
-        public void addField(Type.TraitField traitField) throws SyntaxError {
-            checkName(traitField,traitField.declaredAt());
-            fields.add(traitField);
-        }
-    }
-    static class ImplementContext extends GenericContext{
-        final HashMap<String,Integer> fieldIds = new HashMap<>();
-        Type.Trait trait;
-        Value.Procedure[] implementations;
-
-        ImplementContext(VariableContext parent) {
-            super(parent, false);
-        }
-    }
-
     interface CodeSection{
         ArrayList<Token> tokens();
         VariableContext context();
@@ -2136,9 +2014,8 @@ public class Parser {
                 case "#stackSize" ->// pushes the current stack size on the stack
                     tokens.add(new Token(TokenType.STACK_SIZE,pos));
                 case "enum{"              -> parseStartEnum(tokens, pState, pos);
-                case "trait{"             -> parseStartTrait(tokens, pState, pos);
-                case "implement{"         -> parseStartImplementBlock(pState, pos);
-                case "for"                -> parseImplementFor(str, tokens, pState, pos);
+                case "trait{","implement{","for"
+                        -> throw new SyntaxError("traits are no longer supported",pos);
                 case "struct{"            -> parseStartStruct(tokens, pState, pos);
                 case "extend"             -> parseExtentStatement(str, tokens, pState, pos);
                 case "proc(","procedure(" -> parseStartProc(str, tokens, pState, pos);
@@ -2471,72 +2348,6 @@ public class Parser {
         String name = ((IdentifierToken) prev).name;
         pState.openBlocks.add(new EnumBlock(name,((IdentifierToken) prev).isPublicReadable(), 0, pos, pState.topLevelContext()));
     }
-    private static void parseStartTrait(ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
-        Token prev;
-        if(pState.openBlocks.size()>0){
-            throw new SyntaxError("traits can only be declared at root level", pos);
-        }
-        if(tokens.size()==0){
-            throw new SyntaxError("missing trait name", pos);
-        }
-        prev= tokens.remove(tokens.size()-1);
-        finishParsing(pState, pos);
-        if(!(prev instanceof IdentifierToken)||((IdentifierToken) prev).type!=IdentifierType.WORD){
-            throw new SyntaxError("token before trait has to be an identifier", pos);
-        }
-        String name = ((IdentifierToken) prev).name;
-        TraitBlock traitBlock = new TraitBlock(name,((IdentifierToken) prev).isPublicReadable(),
-                0, pos, pState.topLevelContext());
-        pState.openBlocks.add(traitBlock);
-        pState.openedContexts.add(traitBlock.context());
-    }
-    private static void parseStartImplementBlock(ParserState pState, FilePosition pos) throws SyntaxError {
-        if(pState.openBlocks.size()>0){
-            throw new SyntaxError("implement can only be used at root level", pos);
-        }
-        finishParsing(pState, pos);
-        ImplementBlock implBlock = new ImplementBlock(0, pos, pState.topLevelContext());
-        pState.openBlocks.add(implBlock);
-        pState.openedContexts.add(implBlock.context());
-    }
-    private static void parseImplementFor(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
-        CodeBlock block = pState.openBlocks.peekLast();
-        if(block instanceof ImplementBlock impl){
-            List<Token> ins = tokens.subList(block.start, tokens.size());
-            Type[] args = ProcedureBlock.getSignature(typeCheck(ins,block.context(), pState.globalConstants,
-                    new RandomAccessStack<>(8),pState.variables,null, pos, pState.ioContext).tokens,
-                    "implement");
-            if(args.length!=2){
-                throw new SyntaxError("implement expects exactly 2 arguments (trait and targetType)", pos);
-            }
-            ins.clear();
-            impl.context.lock();//don't allow declaring generics in body
-            if(!(args[0] instanceof Type.Trait)){
-                throw new SyntaxError("cannot implement "+args[0]+" (not a trait)", pos);
-            }
-            Set<Type.GenericParameter> unboundGenerics=args[1].unboundGenerics();
-            for(Type.GenericParameter p:impl.context.generics){
-                if(!unboundGenerics.contains(p)){
-                    throw new SyntaxError("the generic parameter "+p.label+" (declared at "+p.declaredAt+
-                            ") is not used in the target type", pos);
-                }
-            }
-            if(impl.context.generics.size()>0&&
-                    !new HashSet<>(impl.context.generics).equals(new HashSet<>(args[1].genericArguments()))){
-                throw new SyntaxError("invalid generic arguments for trait target: "+args[1].genericArguments()+
-                        " The generic parameters of the target type have to be either all generic "+
-                        "or all non-generic", pos);
-            }
-            //ensure trait is type-checked before implementation
-            typeCheckTrait((Type.Trait) args[0], pState.globalConstants,pState.variables, pState.ioContext);
-            if(impl.setTypes((Type.Trait) args[0],args[1])){
-                throw new SyntaxError("duplicate '"+ str +"' in implement-block '"+ str +"' " +
-                        "can only appear after 'implement'", pos);
-            }
-        }else{
-            throw new SyntaxError("'"+ str +"' can only be used in implement blocks ", pos);
-        }
-    }
     private static void parseStartStruct(ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
         Token prev;
         if(pState.openBlocks.size()>0){
@@ -2559,66 +2370,37 @@ public class Parser {
     private static void parseExtentStatement(String str, ArrayList<Token> tokens, ParserState pState,
                                              FilePosition pos) throws SyntaxError {
         CodeBlock block= pState.openBlocks.peek();
-        if(!(block instanceof StructBlock||block instanceof TraitBlock)){
-            throw new SyntaxError("'"+ str +"' can only be used in struct or trait blocks", pos);
+        if(!(block instanceof StructBlock)){
+            throw new SyntaxError("'"+ str +"' can only be used in struct blocks", pos);
         }
         List<Token> subList = tokens.subList(block.start, tokens.size());
         //extended struct has to be known before type-checking
         TypeCheckResult r=typeCheck(subList, pState.getContext(), pState.globalConstants,
                 new RandomAccessStack<>(8),pState.variables, null, pos, pState.ioContext);
         subList.clear();
-        if(block instanceof StructBlock){
-            if(((StructBlock) block).context.fields.size()>0){
-                throw new SyntaxError("'"+ str +"' cannot appear after a field declaration", pos);
+        if(((StructBlock) block).context.fields.size()>0){
+            throw new SyntaxError("'"+ str +"' cannot appear after a field declaration", pos);
+        }
+        if(((StructBlock) block).extended!=null){
+            throw new SyntaxError("structs can only contain one '"+ str +"' statement", pos);
+        }
+        if(r.types().size()!=1||r.types().get(1).type!=Type.TYPE||r.types().get(1).value()==null){
+            throw new SyntaxError("value before '"+ str +"' has to be one constant type", pos);
+        }
+        try {
+            Type extended=r.types().get(1).value().asType();
+            if(!(extended instanceof Type.Struct)){
+                throw new SyntaxError("extended type has to be a struct got: "+extended, pos);
             }
-            if(((StructBlock) block).extended!=null){
-                throw new SyntaxError("structs can only contain one '"+ str +"' statement", pos);
-            }
-            if(r.types().size()!=1||r.types().get(1).type!=Type.TYPE||r.types().get(1).value()==null){
-                throw new SyntaxError("value before '"+ str +"' has to be one constant type", pos);
-            }
-            try {
-                Type extended=r.types().get(1).value().asType();
-                if(!(extended instanceof Type.Struct)){
-                    throw new SyntaxError("extended type has to be a struct got: "+extended, pos);
-                }
-                ((StructBlock) block).extended=(Type.Struct) extended;
-            } catch (TypeError e) {
-                throw new SyntaxError(e, pos);
-            }
-        }else /*if(block instanceof TraitBlock)*/{
-            assert block instanceof TraitBlock;
-            TraitContext context = ((TraitBlock) block).context;
-            if(context.fields.size()>0){
-                throw new SyntaxError("'"+ str +"' cannot appear after a field declaration", pos);
-            }
-            try {
-                for(TypeFrame f:r.types()){
-                    Type extended = f.value().asType();
-                    if(f.type!=Type.TYPE||(!(extended instanceof Type.Trait trait))){
-                        throw new SyntaxError("values before '"+ str +"' have to be constant trait-types", pos);
-                    }
-                    //ensure trait is initialized
-                    typeCheckTrait(trait, pState.globalConstants,pState.variables, pState.ioContext);
-
-                    for(Type.TraitField inherited:trait.traitFields){
-                        context.checkName(inherited,f.pushedAt);
-                    }
-                    context.extended.add(trait);
-                }
-            } catch (TypeError e) {
-                throw new SyntaxError(e, pos);
-            }
+            ((StructBlock) block).extended=(Type.Struct) extended;
+        } catch (TypeError e) {
+            throw new SyntaxError(e, pos);
         }
     }
     private static void parseStartProc(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
         Token prev;
-        boolean implement=false;
         if(pState.openBlocks.size()>0){
-            if(!(pState.openBlocks.peekLast() instanceof ImplementBlock)){
-                throw new SyntaxError("procedures can only be declared at root level or in implement blocks", pos);
-            }
-            implement=true;
+            throw new SyntaxError("procedures can only be declared at root level", pos);
         }
         if(tokens.size()==0){
             throw new SyntaxError("missing procedure name", pos);
@@ -2630,26 +2412,13 @@ public class Parser {
             throw new SyntaxError("token before '"+ str +"' has to be an identifier", pos);
         }else if(((IdentifierToken) prev).isNative()){
             isNative=true;
-            if(implement){
-                throw new SyntaxError("procedures in implement blocks cannot be native", pos);
-            }
         }else if(((IdentifierToken) prev).type!=IdentifierType.WORD){
             throw new SyntaxError("token before '"+ str +"' has to be an unmodified identifier", pos);
         }
         String name = ((IdentifierToken) prev).name;
-        if(implement){
-            ImplementBlock iBlock = (ImplementBlock) pState.openBlocks.peekLast();
-            assert iBlock!=null;
-            if(!iBlock.context.fieldIds.containsKey(name)){
-                throw new SyntaxError(iBlock.trait+" does not have a field "+name, pos);
-            }
-        }
         ProcedureBlock proc = new ProcedureBlock(name, ((IdentifierToken) prev).isPublicReadable(), 0,
                 pos, pState.getContext(), isNative);
         pState.openBlocks.add(proc);
-        if(implement){
-            proc.context().lock();//procedures in implement blocks cannot have generic arguments
-        }
         pState.openedContexts.add(proc.context());
     }
     private static void parseStartLambda(ArrayList<Token> tokens, ParserState pState, FilePosition pos) {
@@ -2766,34 +2535,6 @@ public class Parser {
                             Value.Procedure proc=Value.createProcedure(procBlock.name,
                                     procBlock.isPublic,procType, content,block.startPos, pos,context);
                             assert context.curried.isEmpty();
-                            if(pState.openBlocks.peekLast() instanceof ImplementBlock iBlock){
-                                ImplementContext ic=iBlock.context;
-                                Integer id=ic.fieldIds.get(proc.name);
-                                if(id==null){
-                                    throw new SyntaxError("trait "+ic.trait+" does not have a field "+
-                                            proc.name, pos);
-                                }
-                                if(ic.implementations[id]!=null){
-                                    throw new SyntaxError("field "+proc.name+" already has been implemented", pos);
-                                }
-                                Type.Procedure expectedType = ic.trait.traitFields[id].procType();
-                                for(int i=0;i<proc.type().inTypes.length-1;i++){
-                                    if(!expectedType.inTypes[i].canAssignTo(proc.type().inTypes[i])){
-                                        throw new SyntaxError("invalid signature for "+
-                                                ic.trait.traitFields[id].name()+": "+proc.type()
-                                                +" expected: "+expectedType, pos) ;
-                                    }
-                                }
-                                for(int i=0;i<proc.type().outTypes.length;i++){
-                                    if(!proc.type().outTypes[i].canAssignTo(expectedType.outTypes[i])){
-                                        throw new SyntaxError("invalid signature for "+
-                                                ic.trait.traitFields[id].name()+": "+proc.type()
-                                                +" expected: "+expectedType, pos) ;
-                                    }
-                                }
-                                ic.implementations[id]=proc;
-                                break;
-                            }
                             pState.topLevelContext().declareProcedure(proc, pState.ioContext);
                         }
                     }else{
@@ -2829,55 +2570,6 @@ public class Parser {
                     Type.Struct struct=Type.Struct.create(((StructBlock) block).name, ((StructBlock) block).isPublic,
                             ((StructBlock) block).extended,structTokens,structContext,block.startPos, pos);
                     pState.topLevelContext().declareNamedDeclareable(struct, pState.ioContext);
-                }
-            }
-            case TRAIT -> {
-                assert block instanceof TraitBlock;
-                TraitContext traitContext = ((TraitBlock) block).context;
-                assert traitContext!=null;
-                if(traitContext != pState.openedContexts.pollLast()){
-                    throw new RuntimeException("openedContexts is out of sync with openBlocks");
-                }
-                List<Token> subList = tokens.subList(block.start, tokens.size());
-                ArrayList<Token> traitTokens = new ArrayList<>(subList);
-                subList.clear();
-                ArrayList<Type.GenericParameter> generics= traitContext.generics;
-                Type.Trait trait=Type.Trait.create(((TraitBlock) block).name, ((TraitBlock) block).isPublic,
-                        ((TraitBlock) block).context.extended.toArray(Type.Trait[]::new),
-                        generics.toArray(Type.GenericParameter[]::new),traitTokens,traitContext,block.startPos, pos);
-                pState.topLevelContext().declareNamedDeclareable(trait, pState.ioContext);
-            }
-            case IMPLEMENT -> {
-                assert block instanceof ImplementBlock;
-                ImplementBlock iBlock = (ImplementBlock) block;
-                ImplementContext iContext = iBlock.context;
-                assert iContext!=null;
-                if(iContext != pState.openedContexts.pollLast()){
-                    throw new RuntimeException("openedContexts is out of sync with openBlocks");
-                }
-                List<Token> subList = tokens.subList(block.start, tokens.size());
-                ArrayList<Token> iTokens = typeCheck(subList,iContext, pState.globalConstants,
-                        pState.typeStack,pState.variables,null, pos, pState.ioContext).tokens;
-                if(iTokens.size()>0){
-                    Token token = iTokens.get(0);
-                    throw new SyntaxError("unexpected token in implement-block: "+ token,token.pos);
-                }
-                subList.clear();
-                for(Map.Entry<String, Integer> e:iContext.fieldIds.entrySet()){
-                    if(iContext.implementations[e.getValue()]==null){
-                        throw new SyntaxError("the implementation for "+e.getKey()+" (declared at"+
-                                iBlock.trait.traitFields[e.getValue()].declaredAt()+") in "+iBlock.trait+" is missing", pos);
-                    }
-                }
-                if(iContext.generics.size()==0){
-                    iBlock.target.implementTrait(iBlock.trait,iContext.implementations, pos);
-                    for(Value.Procedure c:iContext.implementations){
-                        typeCheckProcedure(c, pState.globalConstants,pState.variables, pState.ioContext);
-                    }
-                }else {
-                    iBlock.target.implementGenericTrait(iBlock.trait,
-                            iContext.generics.toArray(Type.GenericParameter[]::new),iContext.implementations, pos,
-                            pState.globalConstants,pState.variables, pState.ioContext);
                 }
             }
             case IF,WHILE,FOR,SWITCH_CASE, CONST_ARRAY ->{
@@ -3071,8 +2763,6 @@ public class Parser {
             for(Type t:((Type.Procedure) p.type).inTypes){
                 if(t instanceof Type.Struct){//ensure all arguments are initialized
                     typeCheckStruct((Type.Struct)t,globalConstants,variables,ioContext);
-                }else if(t instanceof Type.Trait){
-                    typeCheckTrait((Type.Trait)t,globalConstants,variables,ioContext);
                 }
                 typeStack.push(new TypeFrame(t,new ValueInfo(OwnerInfo.OUT_OF_SCOPE),p.declaredAt));
             }
@@ -3082,18 +2772,6 @@ public class Parser {
             p.tokens=res.tokens;
             TypeCheckState.closedContext(p.context,variables);
             p.typeCheckState = Value.TypeCheckState.CHECKED;
-        }
-    }
-    static void typeCheckTrait(Type.Trait aTrait, HashMap<Parser.VariableId, Value> globalConstants,
-                               HashMap<VariableId,ValueInfo> variables,IOContext ioContext) throws SyntaxError {
-        if(!aTrait.isTypeChecked()){
-            TypeCheckResult res=typeCheck(aTrait.tokens,aTrait.context,globalConstants,new RandomAccessStack<>(8),
-                    variables,null,aTrait.endPos,ioContext);
-            if(res.types().size()>0){
-                TypeFrame tmp=res.types().get(res.types().size());
-                throw new SyntaxError("unexpected value in trait body: "+tmp,tmp.pushedAt);
-            }
-            aTrait.setTraitFields(aTrait.context.fields.toArray(Type.TraitField[]::new));
         }
     }
     static void typeCheckStruct(Type.Struct aStruct, TypeCheckState tState) throws SyntaxError {
@@ -3123,11 +2801,9 @@ public class Parser {
                 types[i]= structContext.fields.get(i).type;
             }
             aStruct.setFields(fieldNames,types);
-            for(Type t:types){//check all contained structs and traits (after initialisation)
+            for(Type t:types){//check all contained structs (after initialisation)
                 if(t instanceof Type.Struct){
                     typeCheckStruct((Type.Struct) t,globalConstants,variables,ioContext);
-                }else if(t instanceof Type.Trait){
-                    typeCheckTrait((Type.Trait) t,globalConstants,variables,ioContext);
                 }
             }
         }
@@ -3379,8 +3055,7 @@ public class Parser {
                     tState.typeStack.push(new TypeFrame(size.type,new ValueInfo(size),t.pos));
                 }
                 case SWITCH,CURRIED_LAMBDA,VARIABLE,CONTEXT_OPEN,CONTEXT_CLOSE,NOP,OVERLOADED_PROC_PTR,
-                        CALL_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_REFERENCE_TO,
-                        TRAIT_FIELD_ACCESS ->
+                        CALL_PROC, NEW_ARRAY,CAST_ARG,LAMBDA,TUPLE_GET_INDEX,TUPLE_REFERENCE_TO ->
                         throw new RuntimeException("tokens of type "+t.tokenType+" should not exist in this phase of compilation");
             }
             } catch (ConcatRuntimeError|RandomAccessStack.StackUnderflow e) {
@@ -3541,8 +3216,7 @@ public class Parser {
                 ret.add(block);
                 ret.add(new ContextOpen(tState.context,pos));
             }
-            case END_IF,END_WHILE,FOR_ARRAY_PREPARE, FOR_ARRAY_LOOP,FOR_ARRAY_END,
-                    FOR_ITERATOR_LOOP,FOR_ITERATOR_END,IF_OPTIONAL,_IF_OPTIONAL,DO_OPTIONAL ->
+            case END_IF,END_WHILE,FOR_ARRAY_PREPARE, FOR_ARRAY_LOOP,FOR_ARRAY_END,IF_OPTIONAL,_IF_OPTIONAL,DO_OPTIONAL ->
                     throw new RuntimeException("block tokens of type "+block.blockType+
                             " should not exist at this stage of compilation");
             case WHILE -> {
@@ -3623,49 +3297,9 @@ public class Parser {
                     ret.add(new ContextOpen(tState.context,pos));
                     break;
                 }
-                Type.TraitFieldPosition itrNext=iterableType.traitFieldId(ITERATOR_NEXT);
-                if(itrNext==null&&iterableType instanceof Type.Trait){
-                    //ensure trait is initialized
-                    typeCheckTrait((Type.Trait) iterableType,tState.globalConstants,tState.variables,tState.ioContext);
-                    for(int i=0;i<((Type.Trait) iterableType).traitFields.length;i++){
-                        if(((Type.Trait) iterableType).traitFields[i].name().equals(ITERATOR_NEXT)){
-                            itrNext=new Type.TraitFieldPosition((Type.Trait) iterableType,i);
-                            break;
-                        }
-                    }
-                }
-                //addLater support "iterable"-types ( has trait with ^_ procedure that returns an iterator )
-                if(itrNext!=null){
-                    itrNext=Type.Trait.rootVersion(itrNext);
-                    //ensure trait is initialized
-                    typeCheckTrait(itrNext.trait(),tState.globalConstants,tState.variables,tState.ioContext);
-                    typeCheckCast(iterableType,1,itrNext.trait(), tState, pos);
-
-                    iterableType=itrNext.trait();
-                    Type.Procedure procType=itrNext.trait().traitFields[itrNext.offset()].procType();
-                    if(procType.inTypes.length!=1||!iterableType.canAssignTo(procType.inTypes[0])||
-                        procType.outTypes.length!=2||!procType.outTypes[0].canAssignTo(iterableType)||
-                        !procType.outTypes[1].isOptional()) {
-                        throw new SyntaxError(ITERATOR_NEXT +
-                                " (declared at " +iterableType.implementationPosition(itrNext.trait())+ ") " +
-                                "does not have the required signature " +
-                                "( " + iterableType + " => " + iterableType + " ? optional )", pos);
-                    }
-
-                    ForBlock forBlock = new ForBlock(false, ret.size(), pos, tState.context);
-                    forBlock.iterableType=iterableType;
-                    forBlock.prevTypes =tState.typeStack;
-                    tState.typeStack=new RandomAccessStack<>(8);
-                    tState.typeStack.push(new TypeFrame(procType.outTypes[1].content(),
-                            new ValueInfo(new OwnerInfo.Container(iterable.valueInfo)),pos));
-
-                    openBlocks.add(forBlock);
-                    tState.context= forBlock.context();
-                    ret.add(new ForIteratorLoop(itrNext,pos));
-                    ret.add(new ContextOpen(tState.context,pos));
-                    break;
-                }
-                throw new SyntaxError("currently for is only supported for arrays and iterators",pos);
+                //TODO for-iterable loops: (requires procedure):
+                // - ^> ( <itType> => <itType> ? optional )
+                throw new SyntaxError("'for' is currently only supported for arrays",pos);
             }
             case SWITCH -> {
                 Type switchType=tState.typeStack.pop().type;
@@ -3820,7 +3454,7 @@ public class Parser {
                         tState.typeStack=((ForBlock)open).prevTypes;
                         ret.add(new Token(TokenType.CONTEXT_CLOSE,pos));
                         tState.closeContext();
-                        ret.add(new BlockToken(((ForBlock) open).isArray?BlockTokenType.FOR_ARRAY_END:BlockTokenType.FOR_ITERATOR_END,
+                        ret.add(new BlockToken(BlockTokenType.FOR_ARRAY_END,
                                 pos, open.start - ret.size()));
                         tmp=ret.get(open.start);
                         ((BlockToken)tmp).delta=ret.size()- open.start;
@@ -3853,7 +3487,7 @@ public class Parser {
                     }
                     case UNION,ANONYMOUS_TUPLE,PROC_TYPE ->
                         throw new SyntaxError("unexpected '}' statement ",pos);
-                    case PROCEDURE,ENUM,STRUCT,TRAIT,IMPLEMENT ->
+                    case PROCEDURE,ENUM,STRUCT ->
                             throw new SyntaxError("blocks of type "+open.type+
                                     " should not exist at this stage of compilation",pos);
                 }
@@ -3928,7 +3562,7 @@ public class Parser {
                     }
                     case IF,WHILE,FOR,SWITCH_CASE,CONST_ARRAY ->
                         throw new SyntaxError("unexpected ')' statement ",pos);
-                    case PROCEDURE,ENUM,STRUCT,TRAIT,IMPLEMENT ->
+                    case PROCEDURE,ENUM,STRUCT ->
                             throw new SyntaxError("blocks of type "+open.type+
                                     " should not exist at this stage of compilation",pos);
                 }
@@ -4459,20 +4093,6 @@ public class Parser {
                         typeStack.push(new TypeFrame(e.type,new ValueInfo(OwnerInfo.OUT_OF_SCOPE,e),t.pos));
                         ret.add(new ValueToken(e, identifier.pos));
                     }
-                    case TRAIT -> {
-                        Type.Trait trait = (Type.Trait) d;
-                        if(trait.genericParameters.length>0){
-                            Type[] genArgs=getArguments(trait.baseName,DeclareableType.TRAIT,trait.genericArgs.length,
-                                    typeStack, ret, t.pos);
-                            trait=trait.withArgs(genArgs);
-                        }
-                        if(isMutabilityMarked){
-                            trait=trait.setMutability(identifier.mutability());
-                        }
-                        Value e = Value.ofType(trait);
-                        typeStack.push(new TypeFrame(e.type,new ValueInfo(e),t.pos));
-                        ret.add(new ValueToken(e, identifier.pos));
-                    }
                     case GENERIC_STRUCT -> {
                         GenericStruct g = (GenericStruct) d;
                         String tupleName=g.name;
@@ -4495,7 +4115,7 @@ public class Parser {
                 switch (d.declarableType()){
                     case PROCEDURE,NATIVE_PROC,GENERIC_PROCEDURE,OVERLOADED_PROCEDURE ->
                         typeCheckPushProcPointer(d, t.pos, tState);
-                    case VARIABLE,CURRIED_VARIABLE,ENUM,TUPLE,STRUCT,TRAIT, CONSTANT,GENERIC,GENERIC_STRUCT,MACRO->
+                    case VARIABLE,CURRIED_VARIABLE,ENUM,TUPLE,STRUCT, CONSTANT,GENERIC,GENERIC_STRUCT,MACRO->
                         throw new SyntaxError("invalid declareable for '@' prefix " +
                                 declarableName(d.declarableType(),false)+" "+identifier.name+
                                 " (declared at "+d.declaredAt()+")",t.pos);
@@ -4519,8 +4139,8 @@ public class Parser {
                 }
             }
             case DECLARE_FIELD -> {
-                if(!(context instanceof StructContext||context instanceof TraitContext)){
-                    throw new SyntaxError("field declarations are only allowed in struct, trait and implement blocks",t.pos);
+                if(!(context instanceof StructContext)){
+                    throw new SyntaxError("field declarations are only allowed in struct blocks",t.pos);
                 }
                 if (ret.size() <= 0 || !((prev = ret.remove(ret.size() - 1)) instanceof ValueToken)) {
                     throw new SyntaxError("the token before a field declaration has to be a constant type",
@@ -4539,16 +4159,9 @@ public class Parser {
                 if(accessibility==Accessibility.DEFAULT){
                     accessibility = Accessibility.PUBLIC;//struct fields are public by default
                 }
-                if(context instanceof TraitContext){
-                    if(!(type instanceof Type.Procedure)){
-                        throw new SyntaxError("trait fields have to be procedure types", identifier.pos);
-                    }
-                    ((TraitContext)context).addField(new Type.TraitField(identifier.name,(Type.Procedure)type,t.pos));
-                }else{
-                    ((StructContext)context).fields.add(new StructFieldWithType(
-                            new Type.StructField(identifier.name, accessibility,
-                                    identifier.mutability()==Mutability.MUTABLE,t.pos),type));
-                }
+                ((StructContext)context).fields.add(new StructFieldWithType(
+                        new Type.StructField(identifier.name, accessibility,
+                                identifier.mutability()==Mutability.MUTABLE,t.pos),type));
             }
         }
     }
@@ -4566,29 +4179,6 @@ public class Parser {
             return true;
         if(refContent instanceof Type.Tuple&&pushTupleField(identifier,(Type.Tuple) refContent, f, tState, pos))
             return true;
-        //TODO access traits through reference
-        if(f.type instanceof Type.Trait){
-            //ensure that trait is initialized
-            typeCheckTrait((Type.Trait) f.type, tState.globalConstants,tState.variables, tState.ioContext);
-            int index=((Type.Trait) f.type).fieldIdByName(identifier.name);
-            if(index!=-1){
-                Type.TraitField field=((Type.Trait) f.type).traitFields[index];
-                tState.typeStack.push(f);//push f back onto the type-stack
-                typeCheckCall(field.name(),field.procType(), pos,false, tState);
-                tState.ret.add(new TraitFieldAccess(false, identifier.pos,
-                        new Type.TraitFieldPosition((Type.Trait) f.type,index)));
-                return true;
-            }
-        }
-        Callable traitField= f.type.getTraitField(identifier.name);
-        if(traitField!=null){
-            tState.typeStack.push(f);//push f back onto the type-stack
-            CallMatch match = typeCheckOverloadedCall(traitField.name(),
-                    new OverloadedProcedure(traitField),null, pos, tState);
-            match.called.markAsUsed();
-            tState.ret.add(new TraitFieldAccess(true, identifier.pos, f.type.traitFieldId(identifier.name)));
-            return true;
-        }
         Callable internalField= f.type.getInternalField(identifier.name);
         if(internalField!=null){
             tState.typeStack.push(f);//push f back onto the type-stack
@@ -4602,9 +4192,6 @@ public class Parser {
             if(f.value().asType() instanceof Type.Struct){
                 //ensure that struct is initialized
                 typeCheckStruct((Type.Struct) f.value().asType(), tState);
-            }else if(f.value().asType() instanceof Type.Trait){
-                //ensure that trait is initialized
-                typeCheckTrait((Type.Trait) f.value().asType(), tState.globalConstants,tState.variables, tState.ioContext);
             }
             Value typeField= f.value().asType().getTypeField(identifier.name);
             if(typeField!=null){
