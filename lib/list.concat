@@ -50,7 +50,7 @@ clear public proc( A <?> A List mut => ){
   mList =::
   mList .data 0 mList .data .length clearSlice
 }
-clear public proc( A <?> A ListSlice mut => ){
+clear public proc( A <?> A ListSlice ref => ){
   slice =::
   slice .parent .data slice .offset slice .offset slice .length + clearSlice
   0 slice .length =
@@ -61,7 +61,7 @@ clearSlice public proc( A <?> A List mut uint uint => ){
   off =::
   #+list+# .data off to clearSlice
 }
-clearSlice public proc( A <?> A ListSlice mut uint uint => ){
+clearSlice public proc( A <?> A ListSlice ref uint uint => ){
   to =::
   off =::
   slice =::
@@ -80,7 +80,7 @@ fill public proc( A <?> A A List mut int uint => ){
   ## cast to array to natively check bounds
   .data A array mut cast off count fill
 }
-fill public proc( A <?> A A ListSlice mut int uint => ){
+fill public proc( A <?> A A ListSlice ref int uint => ){
   count =::
   off =::
   slice =::
@@ -113,7 +113,7 @@ fill public proc( A <?> A A ListSlice mut int uint => ){
   mList =::
   #+val+# mList .data i [] =
 }
-[]= public proc( A <?> A A ListSlice mut uint => ){
+[]= public proc( A <?> A A ListSlice ref uint => ){
   i =::
   slice =::
   i 0 < ||{ i slice .length >= } if{
@@ -145,7 +145,7 @@ insert public proc( A <?> A A List mut uint => ){
     #+val+# listData swap []^=
   }
 }
-insert public proc( A <?> A A ListSlice mut uint => ){
+insert public proc( A <?> A A ListSlice ref uint => ){
   index =::
   slice =::
   index 0 < ||{ index slice .length > } if{
@@ -193,12 +193,12 @@ insertAll public proc( A <?> A ListSlice mut? A List mut uint => ){
   }
   toInsert .parent .data toInsert .offset listData index index toInsert .length copyToSlice
 }
-insertAll public proc( A <?> A List mut? A ListSlice mut uint => ){
+insertAll public proc( A <?> A List mut? A ListSlice ref uint => ){
   index =::
   slice =::
   #+toInsert+# .data slice index insertAll
 }
-insertAll public proc( A <?> A array mut? A ListSlice mut uint => ){
+insertAll public proc( A <?> A array mut? A ListSlice ref uint => ){
   index =::
   slice =::
   toInsert =::
@@ -211,7 +211,7 @@ insertAll public proc( A <?> A array mut? A ListSlice mut uint => ){
   toInsert slice .parent slice .offset index + insertAll
   #+newLength+# slice .length =
 }
-insertAll public proc( A <?> A ListSlice mut? A ListSlice mut uint => ){
+insertAll public proc( A <?> A ListSlice mut? A ListSlice ref uint => ){
   index =::
   slice =::
   toInsert =::
@@ -232,7 +232,7 @@ remove public proc( A <?> A List mut uint => A ){
   listData index index 1 + clearSlice
   #+prev+# return
 }
-remove public proc( A <?> A ListSlice mut uint => A ){
+remove public proc( A <?> A ListSlice ref uint => A ){
   index mut =::
   slice =::
   index 0 < ||{ index slice .length >= } if{
@@ -294,14 +294,14 @@ peekLast public proc( A <?> A ListSlice mut? => A optional ){
 removeFirst public proc( A <?> A List mut => A ){
    #+mList+# 0 remove return
 }
-removeFirst public proc( A <?> A ListSlice mut => A ){
+removeFirst public proc( A <?> A ListSlice ref => A ){
    #+slice+# 0 remove return
 }
 removeLast public proc( A <?> A List mut => A ){
    mList =::
    mList mList .data .length 1 - remove return
 }
-removeLast public proc( A <?> A ListSlice mut => A ){
+removeLast public proc( A <?> A ListSlice ref => A ){
    slice =::
    slice slice .length 1 - remove return
 }
@@ -313,7 +313,7 @@ popFirst public proc( A <?> A List mut => A optional ){
    }
    mList 0 remove wrap return
 }
-popFirst public proc( A <?> A ListSlice mut => A optional ){
+popFirst public proc( A <?> A ListSlice ref => A optional ){
    slice =::
    slice .length 0 == if{
      A empty return
@@ -327,7 +327,7 @@ popLast public proc( A <?> A List mut => A optional ){
    }
    mList mList .data .length 1 - remove wrap return
 }
-popLast public proc( A <?> A ListSlice mut => A optional ){
+popLast public proc( A <?> A ListSlice ref => A optional ){
    slice =::
    slice .length 0 == if{
      A empty return
@@ -346,7 +346,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   listData val []^=
   mList return
 }
-<< public proc( A <?> A ListSlice mut A => A ListSlice mut ){
+<< public proc( A <?> A ListSlice ref A => A ListSlice ref ){
   val =::
   slice =::
   val slice .parent slice .offset slice .length + insert
@@ -365,7 +365,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   val listData ^[]=
   mList return
 }
->> public proc( A <?> A A ListSlice mut => A ListSlice mut ){
+>> public proc( A <?> A A ListSlice ref => A ListSlice ref ){
   slice =::
   val =::
   val slice .parent slice .offset insert
@@ -410,7 +410,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   toAppend .parent toAppend .offset listData listData .length toAppend .length copy
   mList return
 }
-<<* public proc( A <?> A ListSlice mut A List mut? => A ListSlice mut ){
+<<* public proc( A <?> A ListSlice ref A List mut? => A ListSlice ref ){
   toAppend =::
   slice =::
   slice .length toAppend .data .length + ## newLength
@@ -418,7 +418,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   #+newLength+# slice .length =
   slice return
 }
-<<* public proc( A <?> A ListSlice mut A array mut? => A ListSlice mut ){
+<<* public proc( A <?> A ListSlice ref A array mut? => A ListSlice ref ){
   toAppend =::
   slice =::
   slice .length toAppend .length + ## newLength
@@ -426,7 +426,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   #+newLength+# slice .length =
   slice return
 }
-<<* public proc( A <?> A ListSlice mut A ListSlice mut? => A ListSlice mut ){
+<<* public proc( A <?> A ListSlice ref A ListSlice mut? => A ListSlice ref ){
   toAppend =::
   slice =::
   slice .length toAppend .length + ## newLength
@@ -463,7 +463,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   toAppend .parent .data toAppend .offset listData toAppend .length int cast -_ toAppend .length copy
   mList return
 }
-*>> public proc( A <?> A List mut? A ListSlice mut => A ListSlice mut ){
+*>> public proc( A <?> A List mut? A ListSlice ref => A ListSlice ref ){
   slice =::
   toAppend =::
   slice .length toAppend .data .length + ## newLength
@@ -471,7 +471,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   #+newLength+# slice .length =
   slice return
 }
-*>> public proc( A <?> A array mut? A ListSlice mut => A ListSlice mut ){
+*>> public proc( A <?> A array mut? A ListSlice ref => A ListSlice ref ){
   slice =::
   toAppend =::
   slice .length toAppend .length + ## newLength
@@ -479,7 +479,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   #+newLength+# slice .length =
   slice return
 }
-*>> public proc( A <?> A ListSlice mut? A ListSlice mut => A ListSlice mut ){
+*>> public proc( A <?> A ListSlice mut? A ListSlice ref => A ListSlice ref ){
   slice =::
   toAppend =::
   slice .length toAppend .length + ## newLength
@@ -488,7 +488,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   slice return
 }
 
-[:] public proc( A <?> A List mut uint uint => A ListSlice mut ){
+[:] public proc( A <?> A List mut uint uint => A ListSlice ref ){
   to =::
   off =::
   mList =::
@@ -497,9 +497,9 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
     "invalid slice " <<* off <<i ":" <<* to <<u " length:" <<* mList .data .length <<u '\n' << .build eputs
     1 exit
   }
-  mList off to off - A ListSlice mut new return
+  mList off to off - A ListSlice ref new return
 }
-[:] public proc( A <?> A ListSlice mut uint uint => A ListSlice mut ){
+[:] public proc( A <?> A ListSlice ref uint uint => A ListSlice ref ){
   to =::
   off =::
   slice =::
@@ -552,7 +552,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   }
   toInsert .parent .data toInsert .offset listData off to toInsert .length copyToSlice return
 }
-[:]= public proc( A <?> A array mut? A ListSlice mut uint uint => ){
+[:]= public proc( A <?> A array mut? A ListSlice ref uint uint => ){
   to =::
   off =::
   slice =::
@@ -566,7 +566,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   toInsert slice .parent slice .offset off + slice .offset to + [:]=
   #+newLength+# slice .length =
 }
-[:]= public proc( A <?> A List mut? A ListSlice mut uint uint => ){
+[:]= public proc( A <?> A List mut? A ListSlice ref uint uint => ){
   to =::
   off =::
   slice =::
@@ -575,7 +575,7 @@ popLast public proc( A <?> A ListSlice mut => A optional ){
   toInsert .data slice off to [:]=
   #+newLength+# slice .length =
 }
-[:]= public proc( A <?> A ListSlice mut? A ListSlice mut uint uint => ){
+[:]= public proc( A <?> A ListSlice mut? A ListSlice ref uint uint => ){
   to =::
   off =::
   slice =::
@@ -619,36 +619,36 @@ implement{ A <> A ArrayBuilder A List for
   }
   clear proc( A List mut => ){ clear }
 }
-implement{ A <> A ArrayBuilder A ListSlice for
+implement{ A <> A ArrayBuilder A ListSlice ref for
   length proc( A ListSlice mut? => uint ){
     #+slice+# .length    return
   }
-  append proc( A A ListSlice mut => A ArrayBuilder mut ){
+  append proc( A A ListSlice ref => A ArrayBuilder mut ){
     swap <<  return
   }
-  appendAll proc( A array mut? A ListSlice mut => A ArrayBuilder mut ){
+  appendAll proc( A array mut? A ListSlice ref => A ArrayBuilder mut ){
     swap <<* return
   }
-  prepend proc( A A ListSlice mut => A ArrayBuilder mut ){
+  prepend proc( A A ListSlice ref => A ArrayBuilder mut ){
     >>  return
   }
-  prependAll proc( A array mut? A ListSlice mut => A ArrayBuilder mut ){
+  prependAll proc( A array mut? A ListSlice ref => A ArrayBuilder mut ){
     *>> return
   }
-  build proc( A ListSlice mut? => A array ){
+  build proc( A ListSlice ref => A array ){
     slice =::
     slice .length A memory mut new tmp =::
     slice .parent .data slice .offset tmp 0 slice .length copy
     tmp clone-mut~ return
   }
-  ensureCap proc( uint A ListSlice mut => ){
+  ensureCap proc( uint A ListSlice ref => ){
     slice =::
     newCap =::
     slice .parent .data .capacity slice .parent .data .length slice .length - - newCap < if{
       slice .parent .data  slice .parent .data .length slice .length - newCap + realloc
     }
   }
-  clear proc( A ListSlice mut => ){ clear }
+  clear proc( A ListSlice ref => ){ clear }
 }
 
 #end ## core
