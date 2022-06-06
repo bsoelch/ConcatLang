@@ -24,7 +24,7 @@ cmpCheck proc( int uint => int ){
   res ..
 }
 
-testStruct struct{ T <>
+testStruct struct{ T :
   T :a
   T :b
 }
