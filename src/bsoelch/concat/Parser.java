@@ -2034,6 +2034,7 @@ public class Parser {
                 case "extend"             -> parseExtentStatement(str, tokens, pState, pos);
                 case "proc(","procedure(" -> parseStartProc(str, tokens, pState, pos);
                 case "lambda(","λ("       -> parseStartLambda(tokens, pState, pos);
+                case ":"                  -> parseGenerics(str,tokens,pState,pos);
                 case "=>"                 -> parseDArrow(str, tokens, pState, pos);
                 case "){" -> parseStartProcedureBody(str, tokens, pState, pos);
                 case "{" -> {
@@ -2168,7 +2169,8 @@ public class Parser {
                 case "private" -> parseAccessModifier(IdentifierToken.ACCESSIBILITY_PRIVATE,str,tokens,prev,pos);
                 case "mut"  -> parseMutabilityModifier(IdentifierToken.MUTABILITY_MUTABLE,str,tokens,prev,pos);
                 case "mut~"  -> parseMutabilityModifier(IdentifierToken.MUTABILITY_IMMUTABLE,str,tokens,prev,pos);
-                case "<>", "<?>" -> parseCreateGeneric(str, pState, pos, tokens, prev, prevId);
+                case "<>", "<?>" ->
+                    throw new SyntaxError("the <> syntax for generics is no longer supported",pos);
                 default -> parseIdentifier(str, pState, tokens, pos);
             }
         }
@@ -2447,6 +2449,29 @@ public class Parser {
         lambda.context().lock();//no generics in lambdas
         pState.openedContexts.add(lambda.context());
     }
+    private static void parseGenerics(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        CodeBlock block = pState.openBlocks.peekLast();
+        if(!(block instanceof ProcedureBlock||block instanceof StructBlock)){
+            throw new SyntaxError("'"+str+"' can only be used in proc- or struct blocks ", pos);
+        }
+        boolean allowImplicit = !(block instanceof StructBlock);
+        VariableContext context= pState.getContext();
+        if(!(context instanceof GenericContext)){
+            throw new SyntaxError("generics can only be declared in tuple and procedure signatures", pos);
+        }
+        List<Token> args = tokens.subList(block.start, tokens.size());
+        for(Token t:args){
+            if(!(t instanceof IdentifierToken)){
+                throw new SyntaxError("all token before '"+str+"' have to be identifiers", t.pos);
+            }
+            if((((IdentifierToken) t).type!=IdentifierType.WORD&&(!allowImplicit ||((IdentifierToken) t).type!=IdentifierType.DECLARE_FIELD))
+                    ||((IdentifierToken) t).flags!=0)
+                throw new SyntaxError("generic argument "+((IdentifierToken) t).name+" has an invalid modifier", t.pos);
+            ((GenericContext) context).declareGeneric(((IdentifierToken) t).name, allowImplicit&&((IdentifierToken) t).type==IdentifierType.WORD,
+                    pos, pState.ioContext);
+        }
+        args.clear();
+    }
     private static void parseDArrow(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
         CodeBlock block = pState.openBlocks.peekLast();
         if(block instanceof ProcedureBlock proc) {
@@ -2681,20 +2706,6 @@ public class Parser {
                 case IdentifierToken.MUTABILITY_IMMUTABLE ->
                         tokens.add(new Token(TokenType.MARK_IMMUTABLE, pos));
             }
-        }
-    }
-    private static void parseCreateGeneric(String str, ParserState pState, FilePosition pos, ArrayList<Token> tokens, Token prev, String prevId) throws SyntaxError {
-        if(prev ==null){
-            throw new SyntaxError("not enough tokens tokens for '"+ str +"' modifier", pos);
-        }else if(prevId !=null){
-            VariableContext context= pState.getContext();
-            if(!(context instanceof GenericContext)){
-                throw new SyntaxError("generics can only be declared in tuple and procedure signatures", pos);
-            }
-            ((GenericContext) context).declareGeneric(prevId, str.equals("<?>"), pos, pState.ioContext);
-            tokens.remove(tokens.size()-1);
-        }else{
-            throw new SyntaxError("invalid token for '<>' modifier: "+ prev, prev.pos);
         }
     }
     private static void parseIdentifier(String str, ParserState pState, ArrayList<Token> tokens,
