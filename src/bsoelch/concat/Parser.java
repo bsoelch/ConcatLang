@@ -2192,10 +2192,12 @@ public class Parser {
         String[] commands= str.substring("#compiler:".length()).split(":");
         switch (commands[0]){
             case "tokens"->{
-                int n=Integer.parseInt(commands[1]);
+                int n=commands.length<=1?0:Integer.parseInt(commands[1]);
                 ArrayList<Token> tokens = pState.uncheckedCode;
                 if(n>tokens.size()){
                     System.out.println("n > #tokens ("+tokens.size()+")");
+                    n=tokens.size();
+                }else if(n<=0){
                     n=tokens.size();
                 }
                 System.out.println("tokens:");
@@ -2204,10 +2206,12 @@ public class Parser {
                 }
             }
             case "globalCode"->{
-                int n=Integer.parseInt(commands[1]);
+                int n=commands.length<=1?0:Integer.parseInt(commands[1]);
                 ArrayList<Token> tokens = pState.globalCode;
                 if(n>tokens.size()){
                     System.out.println("n > #tokens ("+tokens.size()+")");
+                    n=tokens.size();
+                }else if(n<=0){
                     n=tokens.size();
                 }
                 System.out.println("tokens:");
@@ -2216,10 +2220,12 @@ public class Parser {
                 }
             }
             case "globalBlocks"->{
-                int n=Integer.parseInt(commands[1]);
+                int n=commands.length<=1?0:Integer.parseInt(commands[1]);
                 ArrayDeque<CodeBlock> blocks = pState.openBlocks;
                 if(n>blocks.size()){
                     System.out.println("n > #blocks ("+blocks.size()+")");
+                    n=blocks.size();
+                }else if(n<=0){
                     n=blocks.size();
                 }
                 System.out.println("globalBlocks:");
@@ -2229,15 +2235,15 @@ public class Parser {
                 }
             }
             case "code"->{
-                int n=Integer.parseInt(commands[1]);
+                int n=commands.length<=1?0:Integer.parseInt(commands[1]);
                 pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.TOKENS,n, pos));
             }
             case "blocks"->{
-                int n=Integer.parseInt(commands[1]);
+                int n=commands.length<=1?0:Integer.parseInt(commands[1]);
                 pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.BLOCKS,n, pos));
             }
             case "types"->{
-                int n=Integer.parseInt(commands[1]);
+                int n=commands.length<=1?0:Integer.parseInt(commands[1]);
                 pState.uncheckedCode.add(new CompilerToken(CompilerTokenType.TYPES,n, pos));
             }
             case "globalConstants"->
@@ -3109,6 +3115,8 @@ public class Parser {
                 if(n > tState.ret.size()){
                     System.out.println("n > #tokens ("+ tState.ret.size()+")");
                     n= tState.ret.size();
+                } else if (n <= 0) {
+                    n=tState.ret.size();
                 }
                 System.out.println("tokens:");
                 for(int k=1;k<=n;k++){
@@ -3120,6 +3128,8 @@ public class Parser {
                 if(n > tState.openBlocks.size()){
                     System.out.println("n > #blocks ("+ tState.openBlocks.size()+")");
                     n= tState.openBlocks.size();
+                }else if (n <= 0) {
+                    n=tState.openBlocks.size();
                 }
                 System.out.println("openBlocks:");
                 CodeBlock[] blocks= tState.openBlocks.toArray(CodeBlock[]::new);
@@ -3138,6 +3148,8 @@ public class Parser {
                 if(n > tState.typeStack.size()){
                     System.out.println("n > #types ("+ tState.typeStack.size()+")");
                     n= tState.typeStack.size();
+                }else if (n <= 0) {
+                    n=tState.typeStack.size();
                 }
                 System.out.println("types:");
                 for(int k=1;k<=n;k++){
