@@ -393,14 +393,14 @@ public class Parser {
         }
     }
     static class ProcedureBlock extends CodeBlock{
-        static final int STATE_IN=0,STATE_OUT=1,STATE_BODY=2;
+        static final int STATE_PRE_IN = 0,STATE_WITH=1,STATE_IN=2,STATE_OUT=3,STATE_BODY=4;
 
         final String name;
         final boolean isPublic;
         final ProcedureContext context;
         Type[] inTypes=null,outTypes=null;
         ArrayList<Token> inTokens,outTokens;
-        int state=STATE_IN;
+        int state= STATE_PRE_IN;
         final boolean isNative;
 
         ProcedureBlock(String name, boolean isPublic, int startToken, FilePosition pos, VariableContext parentContext, boolean isNative) {
@@ -438,13 +438,13 @@ public class Parser {
             return types;
         }
         void insSet(FilePosition pos) throws SyntaxError {
-            if(state!=STATE_IN){
+            if(state!= STATE_PRE_IN&&state!=STATE_IN){
                 throw new SyntaxError("Procedure already has input arguments",pos);
             }
             state=STATE_OUT;
         }
         void outsSet(FilePosition pos) throws SyntaxError {
-            if(state==STATE_IN){
+            if(state== STATE_PRE_IN ||state==STATE_IN){
                 if(name!=null){
                     throw new SyntaxError("named procedures cannot have implicit output arguments",pos);
                 }
@@ -685,6 +685,9 @@ public class Parser {
         }
     }
     private static class StructBlock extends CodeBlock{
+        static final int STATE_NONE=0,STATE_WITH=1,STATE_BODY=2;
+
+        int state=STATE_NONE;
         final String name;
         final boolean isPublic;
         final StructContext context;
@@ -2034,9 +2037,9 @@ public class Parser {
                 case "extend"             -> parseExtentStatement(str, tokens, pState, pos);
                 case "proc(","procedure(" -> parseStartProc(str, tokens, pState, pos);
                 case "lambda(","λ("       -> parseStartLambda(tokens, pState, pos);
-                case ":"                  -> parseGenerics(str,tokens,pState,pos);
+                case ":","with"           -> parseGenerics(str,tokens,pState,pos);
                 case "=>"                 -> parseDArrow(str, tokens, pState, pos);
-                case "){" -> parseStartProcedureBody(str, tokens, pState, pos);
+                case "){"                 -> parseStartProcedureBody(str, tokens, pState, pos);
                 case "{" -> {
                     tokens.add(new BlockToken(BlockTokenType.ARRAY,        pos,-1));
                     pState.openBlocks.add(new ArrayBlock(tokens.size(),BlockType.CONST_ARRAY,pos, pState.getContext()));
@@ -2395,6 +2398,10 @@ public class Parser {
         if(!(block instanceof StructBlock)){
             throw new SyntaxError("'"+ str +"' can only be used in struct blocks", pos);
         }
+        if(((StructBlock) block).state==StructBlock.STATE_WITH){
+            throw new SyntaxError("'"+ str +"' can only be used in with-blocks", pos);
+        }
+        ((StructBlock) block).state=StructBlock.STATE_BODY;
         List<Token> subList = tokens.subList(block.start, tokens.size());
         //extended struct has to be known before type-checking
         TypeCheckResult r=typeCheck(subList, pState.getContext(), pState.globalConstants,
@@ -2451,7 +2458,27 @@ public class Parser {
     }
     private static void parseGenerics(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
         CodeBlock block = pState.openBlocks.peekLast();
-        if(!(block instanceof ProcedureBlock||block instanceof StructBlock)){
+        if(block instanceof ProcedureBlock proc){
+            if(proc.state==ProcedureBlock.STATE_WITH){
+                parseWithBlock(block,proc.context,tokens,pState,pos);
+                proc.state=ProcedureBlock.STATE_IN;
+                return;
+            }
+            if(proc.state!=ProcedureBlock.STATE_PRE_IN){
+                throw new SyntaxError("generics block has to appear at start of procedure signature", pos);
+            }
+            proc.state=str.equals("with")?ProcedureBlock.STATE_WITH:ProcedureBlock.STATE_IN;
+        }else if(block instanceof StructBlock struct){
+            if(struct.state==StructBlock.STATE_WITH){
+                parseWithBlock(block,struct.context,tokens,pState,pos);
+                struct.state=StructBlock.STATE_BODY;
+                return;
+            }
+            if(struct.state!=StructBlock.STATE_NONE){
+                throw new SyntaxError("generics block has to appear at start of struct signature", pos);
+            }
+            struct.state=str.equals("with")?StructBlock.STATE_WITH:StructBlock.STATE_BODY;
+        }else{
             throw new SyntaxError("'"+str+"' can only be used in proc- or struct blocks ", pos);
         }
         boolean allowImplicit = !(block instanceof StructBlock);
@@ -2471,6 +2498,34 @@ public class Parser {
                     pos, pState.ioContext);
         }
         args.clear();
+    }
+    private static void parseWithBlock(CodeBlock block,GenericContext context,ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
+        List<Token> withTokens=tokens.subList(block.start,tokens.size());
+        int i0=0;
+        for(int i=0;i< withTokens.size();i++){
+            if(withTokens.get(i) instanceof IdentifierToken&&((IdentifierToken) withTokens.get(i)).type==IdentifierType.PROC_ID){
+                FilePosition iPos = withTokens.get(i).pos;
+                TypeCheckResult res=typeCheck(withTokens.subList(i0,i),context,pState.globalConstants,new RandomAccessStack<>(8),
+                        pState.variables,null, iPos,pState.ioContext);
+                i0=i+1;
+                if(res.tokens.size()!=1||(!(res.tokens.get(0) instanceof ValueToken))){
+                    throw new SyntaxError("statements in with-blocks have to evaluate to a single constant", iPos);
+                }
+                Value v=((ValueToken)res.tokens.get(0)).value;
+                if(v.type!=Type.TYPE){
+                    throw new SyntaxError("statements in with-blocks have to evaluate to a single type", iPos);
+                }
+                try {
+                    //TODO store with-constants in context
+                    System.out.println( ((IdentifierToken) withTokens.get(i)).name+" -> "+v.asType());
+                } catch (TypeError e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        if(i0< withTokens.size())
+            throw new SyntaxError("unfinished declaration in with-block (declarations in with-blocks end with @<name>) ",pos);
+        withTokens.clear();
     }
     private static void parseDArrow(String str, ArrayList<Token> tokens, ParserState pState, FilePosition pos) throws SyntaxError {
         CodeBlock block = pState.openBlocks.peekLast();
@@ -2500,7 +2555,6 @@ public class Parser {
         if(block==null){
             throw new SyntaxError(str +" can only be used in proc- and lambda- blocks", pos);
         }else if(block.type==BlockType.PROCEDURE){
-            //handle procedure separately since : does not change context of produce a jump
             ProcedureBlock proc=(ProcedureBlock) block;
             if(proc.state==ProcedureBlock.STATE_BODY){
                 throw new SyntaxError("unexpected '"+ str +"'", pos);
@@ -2511,7 +2565,7 @@ public class Parser {
                                 new RandomAccessStack<>(8),pState.variables, null, pos, pState.ioContext).tokens,
                         "procedure");
             }else{
-                if(proc.state==ProcedureBlock.STATE_IN){
+                if(proc.state==ProcedureBlock.STATE_PRE_IN ||proc.state==ProcedureBlock.STATE_IN){
                     proc.inTokens=new ArrayList<>(outs);
                 }else{
                     proc.outTokens=new ArrayList<>(outs);
@@ -2544,7 +2598,7 @@ public class Parser {
                 Type[] outs= procBlock.outTypes;
                 ArrayList<Type.GenericParameter> generics= procBlock.context.generics;
                 if(procBlock.state!=ProcedureBlock.STATE_BODY) {
-                    if(procBlock.state==ProcedureBlock.STATE_IN){
+                    if(procBlock.state==ProcedureBlock.STATE_PRE_IN ||procBlock.state==ProcedureBlock.STATE_IN){
                         throw new SyntaxError("procedure does not have a signature",block.startPos);
                     }else{
                         throw new SyntaxError("procedure does not provide output arguments",block.startPos);
@@ -2601,6 +2655,9 @@ public class Parser {
                 assert structContext!=null;
                 if(structContext != pState.openedContexts.pollLast()){
                     throw new RuntimeException("openedContexts is out of sync with openBlocks");
+                }
+                if(((StructBlock) block).state==StructBlock.STATE_WITH){
+                    throw new SyntaxError("unfinished with-blocks in struct", pos);
                 }
                 List<Token> subList = tokens.subList(block.start, tokens.size());
                 ArrayList<Token> structTokens=new ArrayList<>(subList);
