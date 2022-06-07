@@ -1485,8 +1485,10 @@ public class Parser {
             return parent+" - ";
         }
     }
+    record WithConstant(Type constType,FilePosition declaredAt){}
     static class GenericContext extends BlockContext{
         ArrayList<Type.GenericParameter> generics=new ArrayList<>();
+        final HashMap<String,WithConstant> withConsts=new HashMap<>();
         final boolean allowImplicit;
 
         boolean locked=false;
@@ -2516,8 +2518,7 @@ public class Parser {
                     throw new SyntaxError("statements in with-blocks have to evaluate to a single type", iPos);
                 }
                 try {
-                    //TODO store with-constants in context
-                    System.out.println( ((IdentifierToken) withTokens.get(i)).name+" -> "+v.asType());
+                    context.withConsts.put(((IdentifierToken) withTokens.get(i)).name,new WithConstant(v.asType(),iPos));
                 } catch (TypeError e) {
                     throw new RuntimeException(e);
                 }
@@ -4244,7 +4245,7 @@ public class Parser {
                         GenericStruct g = (GenericStruct) d;
                         String tupleName=g.name;
                         Type[] genArgs=getArguments(tupleName,DeclareableType.GENERIC_STRUCT,g.argCount(), typeStack, ret, t.pos);
-                        Type.Struct typeValue = g.withPrams(genArgs);
+                        Type.Struct typeValue = g.withPrams(genArgs,t.pos);
                         if(isMutabilityMarked){
                             typeValue=typeValue.setMutability(identifier.mutability());
                         }
