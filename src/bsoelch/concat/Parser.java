@@ -876,6 +876,7 @@ public class Parser {
         default boolean isCompileTime() {
             return false;
         }
+        HashMap<String,WithConstant> withConsts();
     }
     static boolean isCallable(DeclareableType type){
         switch (type){
@@ -2618,6 +2619,10 @@ public class Parser {
                         throw new SyntaxError("unexpected token: "+subList.get(0)+
                                 " (at "+subList.get(0).pos+") native procedures have to have an empty body", pos);
                     }
+                    if(context.withConsts.size()>0)
+                        throw new SyntaxError("with constants in native procedures are not supported",
+                                context.withConsts.values().iterator().next().declaredAt());
+
                     Value.NativeProcedure proc=Value.createExternalProcedure(procBlock.name,
                             procBlock.isPublic, procType,block.startPos
                     );
@@ -4466,6 +4471,56 @@ public class Parser {
         return true;
     }
 
+    private static boolean check(Callable compare, Type.Procedure target){
+        Type.Procedure srcType=compare.type();
+        if(srcType.inTypes.length!=target.inTypes.length||srcType.outTypes.length!=target.outTypes.length)
+            return false;
+        if(srcType instanceof Type.GenericProcedureType &&((Type.GenericProcedureType) srcType).explicitGenerics.length>0)
+            return false;
+        for(int i=0;i<srcType.inTypes.length;i++)
+            if(!srcType.inTypes[i].equals(target.inTypes[i]))
+                return false;//input-signature has to match perfectly to ensure procedure will not be overwritten
+        for(int i=0;i<srcType.outTypes.length;i++)
+            if(!srcType.outTypes[i].canAssignTo(target.outTypes[i]))
+                return false;//out-types have to be assignable
+        return true;
+    }
+    static void checkWithConstants(GenericContext context, IdentityHashMap<Type.GenericParameter, Type> update, FilePosition pos) throws SyntaxError {
+        for(Map.Entry<String, WithConstant> e: context.withConsts.entrySet()){//check with-constants
+            if(e.getValue().constType() instanceof Type.Procedure){
+                Type.Procedure requiredProc=((Type.Procedure)e.getValue().constType() ).replaceGenerics(update);
+                Declareable candidate= context.getDeclareable(e.getKey());
+                if(candidate instanceof Callable){
+                    if(!check((Callable) candidate, requiredProc)){
+                        throw new SyntaxError("procedure "+e.getKey()+" (declared at "+candidate.declaredAt()+") does not match "+
+                                "the required signature "+requiredProc+" (at "+e.getValue().declaredAt()+")", pos);
+                    }
+                }else if(candidate instanceof OverloadedProcedure){
+                    ArrayList<Callable> matches=new ArrayList<>();
+                    for(Callable c:((OverloadedProcedure) candidate).procedures){
+                        if(check(c,requiredProc))
+                            matches.add(c);
+                    }
+                    if(matches.isEmpty()){
+                        System.err.println("candidates:");
+                        for(Callable c:((OverloadedProcedure) candidate).procedures){
+                            System.err.println(" - "+c.type()+" at "+c.declaredAt());
+                        }
+                        throw new SyntaxError("no version of "+e.getKey()+" matches the required signature "+requiredProc
+                                +" (at "+e.getValue().declaredAt()+")", pos);
+                    }
+                    if(matches.size()>1){//the current version of check only allows one possible match (identical input signature)
+                        throw new RuntimeException("unreachable");
+                    }
+                }else{
+                    throw new SyntaxError("unable to find procedure "+e.getKey()+" (at "+e.getValue().declaredAt()+")", pos);
+                }
+            }else{
+                throw new UnsupportedOperationException("currently only procedure types are supported in with-constants");
+            }
+        }
+    }
+
     private static void typeCheckPushProcPointer(Declareable d,FilePosition pos,TypeCheckState tState)
             throws SyntaxError, RandomAccessStack.StackUnderflow {
         if(d instanceof Value.NativeProcedure proc){
@@ -4510,6 +4565,7 @@ public class Parser {
                 for(int i=0;i<genArgs.length;i++){
                     genMap.put(proc.procType.explicitGenerics[i], genArgs[i]);
                 }
+                checkWithConstants(proc.context,genMap,pos);
                 Value.Procedure non_generic=proc.withPrams(genMap);
                 pushSimpleProcPointer(non_generic, pos,tState);
             }else{
@@ -4577,17 +4633,8 @@ public class Parser {
                     if(c instanceof GenericProcedure){
                         assert bounds.r.size()==0;
                         IdentityHashMap<Type.GenericParameter,Type> update=new IdentityHashMap<>(bounds.l.size());
-                        for(Map.Entry<Type.GenericParameter, Type.GenericBound> e:bounds.l.entrySet()){
-                            if(e.getValue().min()!=null){
-                                if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){
-                                    update.put(e.getKey(),e.getValue().min());
-                                }else{
-                                    throw new SyntaxError("cannot cast from "+ src+" to "+ target, pos);
-                                }
-                            }else if(e.getValue().max()!=null){
-                                update.put(e.getKey(),e.getValue().max());
-                            }
-                        }
+                        if(!resolveGenericParams(bounds.l,update,c.withConsts()))
+                            throw new SyntaxError("cannot cast from "+ src+" to "+ target, pos);
                         c=((GenericProcedure) c).withPrams(update);
                     }
                     if(c instanceof Value.Procedure){//ensure procedures are type-checked
@@ -4832,7 +4879,7 @@ public class Parser {
                 assert bounds.l.size()==0;
                 nImplicit=bounds.r.size();
                 IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
-                isMatch = resolveGenericParams(bounds.r, implicitGenerics);
+                isMatch = resolveGenericParams(bounds.r, implicitGenerics, potentialCall.withConsts());
                 type=type.replaceGenerics(implicitGenerics);
                 generics.putAll(implicitGenerics);
             }//no else
@@ -4864,7 +4911,7 @@ public class Parser {
                 IdentityHashMap<Type.GenericParameter,Type> implicitGenerics=new IdentityHashMap<>();
                 if(test.l.size()>0){
                     IdentityHashMap<Type.GenericParameter, Type.GenericBound> l = test.l;
-                    matchesParam = resolveGenericParams(l, implicitGenerics);
+                    matchesParam = resolveGenericParams(l, implicitGenerics, c.withConsts());
                     l.clear();//generic parameters have been processed
                     //update generics in generic parameters
                     for(Map.Entry<Type.GenericParameter, Type.GenericBound> p:test.r.entrySet()){
@@ -4914,7 +4961,12 @@ public class Parser {
     /**resolves the generic parameters in {@code bounds} and appends the parameter values to {@code implicitGenerics}
      * */
     private static boolean resolveGenericParams(IdentityHashMap<Type.GenericParameter, Type.GenericBound> bounds,
-                                         IdentityHashMap<Type.GenericParameter, Type> implicitGenerics) {
+                                                IdentityHashMap<Type.GenericParameter, Type> implicitGenerics, HashMap<String, WithConstant> withConsts) {
+        if(withConsts.size()>0){
+            //TODO handle explict type-params
+            //TODO check with-parameters
+            System.err.println("bounds: "+bounds+" with constants:"+withConsts);
+        }
         for(Map.Entry<Type.GenericParameter, Type.GenericBound> e: bounds.entrySet()){
             if(e.getValue().min()!=null){
                 if(e.getValue().max()==null||e.getValue().min().canAssignTo(e.getValue().max())){

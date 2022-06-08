@@ -1110,7 +1110,10 @@ public abstract class Value {
         public long id() {
             return declaredAt.hashCode();
         }
-
+        @Override
+        public HashMap<String, Parser.WithConstant> withConsts() {
+            return context.withConsts;
+        }
         @Override
         public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type.Procedure newType= (Type.Procedure) type.replaceGenerics(genericParams);
@@ -1465,6 +1468,11 @@ public abstract class Value {
         @Override
         public boolean isPublic() {
             return true;
+        }
+
+        @Override
+        public HashMap<String, Parser.WithConstant> withConsts() {
+            return new HashMap<>();
         }
     }
 
@@ -2061,6 +2069,11 @@ public abstract class Value {
         public Value replaceGenerics(IdentityHashMap<Type.GenericParameter, Type> genericParams) throws SyntaxError {
             Type.Procedure newType = (Type.Procedure) type.replaceGenerics(genericParams);
             return newType!=type?new ExternalProcedure(name,isPublic, newType,nativeMethod,declaredAt):this;
+        }
+
+        @Override
+        public HashMap<String, Parser.WithConstant> withConsts() {
+            return new HashMap<>();
         }
 
         @Override

@@ -27,7 +27,6 @@ public class GenericProcedure implements Parser.Callable {
         this.context=context;
     }
 
-
     @Override
     public Parser.DeclareableType declarableType() {
         return Parser.DeclareableType.GENERIC_PROCEDURE;
@@ -50,6 +49,11 @@ public class GenericProcedure implements Parser.Callable {
     @Override
     public Type.GenericProcedureType type() {
         return procType;
+    }
+
+    @Override
+    public HashMap<String, Parser.WithConstant> withConsts() {
+        return context.withConsts;
     }
 
     private final HashMap<IdentityHashMap<Type.GenericParameter,Type>, Value.Procedure> cached=new HashMap<>();
